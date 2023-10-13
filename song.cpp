@@ -797,6 +797,13 @@ public:
         _channel_count = Bytes :: as< unsigned short >( file_stream + 22, 2, Bytes :: LITTLE );
 
 
+        if( _sample_count % _channel_count != 0 )
+            echo( this, Echo :: WARNING, "Samples do not condense." );
+
+        
+        _sample_count /= _channel_count;
+
+
         echo( this, Echo :: OK, "Created from: "s + path.data() );
     }
 
@@ -1169,7 +1176,7 @@ private:
                 snd -> _needles.remove_if( [ this, &snd, &amp, &channel ] ( double& at ) {
                     if( snd -> _filter )
                         amp += snd -> _filter(
-                                snd -> _stream[ static_cast< size_t >( at ) ],
+                                snd -> _stream[ static_cast< size_t >( at ) * snd -> _channel_count + channel ],
                                 channel
                             )
                             *
@@ -1177,24 +1184,15 @@ private:
                             *
                             _volume * !_mute;
                     else
-                        amp += snd -> _stream[ static_cast< size_t >( at ) ]
+                        amp += snd -> _stream[ static_cast< size_t >( at ) * snd -> _channel_count + channel ]
                             *
                             snd -> _volume * !snd -> _mute
                             *
                             _volume * !_mute;
 
 
-                    if( channel == snd -> _channel_count - 1 ) {
-                        if( 
-                            static_cast< size_t >( at ) 
-                            == 
-                            static_cast< size_t >( at + _velocity * snd -> _velocity ) 
-                        )
-                            at -= channel;
-                        else
-                            at += 1.0;
-                    } else
-                        at += 1.0;
+                    if( channel == snd -> _channel_count - 1 )
+                        at += _velocity * snd -> _velocity;
 
 
                     if( at >= snd -> _sample_count ) {

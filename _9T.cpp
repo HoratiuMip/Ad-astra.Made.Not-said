@@ -1,7 +1,7 @@
 #pragma region DETAILS
 /*
     [ GENERAL ]
-        Engine:      Song
+        Engine:      _9T
 
         Version:     n/a
 
@@ -12,8 +12,8 @@
         OSs:         Windows
 
     [ PRE-DEFINES ]
-        SONG_ECHO --- logs stuff.
-        SONG_UNIQUE_SURFACE --- enables quicker surface event routing.
+        _9T_ECHO --- logs stuff.
+        _9T_UNIQUE_SURFACE --- enables quicker surface event routing.
 
     [ GCC FLAGS ]
         -std=gnu++23
@@ -40,27 +40,27 @@
 #define PI 3.141592653
 
 
-#define _ENGINE_NAMESPACE Song
+#define _ENGINE_NAMESPACE _9T
 
-#define _ENGINE_STRUCT_TYPE( type ) "Song :: " type
+#define _ENGINE_STRUCT_TYPE( type ) "_9T :: " type
 
 #define _ENGINE_STRUCT_TYPE_MTD( type ) virtual std :: string_view struct_type() const override { return _ENGINE_STRUCT_TYPE( type ); }
 
 
-#if defined( SONG_ECHO )
+#if defined( _9T_ECHO )
         #define _ENGINE_ECHO
 #endif
 
-#if defined( SONG_UNIQUE_SURFACE )
+#if defined( _9T_UNIQUE_SURFACE )
     #define _ENGINE_UNIQUE_SURFACE
 #endif
 
 
-#if defined( SONG_OS_WINDOWS )
+#if defined( _9T_OS_WINDOWS )
     #define _ENGINE_OS_WINDOWS
 #endif
 
-#if defined( SONG_GL_DIRECT )
+#if defined( _9T_GL_DIRECT )
     #define _ENGINE_GL_DIRECT
 #endif
 
@@ -84,6 +84,7 @@
 #include <deque>
 #include <map>
 #include <unordered_map>
+#include <set>
 
 #include <algorithm>
 #include <utility>
@@ -153,10 +154,10 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-struct Base;
+class Base;
 
-struct Audio;
-struct Sound;
+class Audio;
+class Sound;
 
 
 
@@ -177,7 +178,7 @@ struct Sound;
 #endif
 
 
-struct Echo {
+class Echo {
 public:
     enum Type {
         FAULT = 12, WARNING = 14, OK = 10, PENDING = 9, HEADSUP = 13
@@ -270,9 +271,17 @@ private:
 #pragma region Tricks
 
 
+    
+    template< typename Type >
+    using Ref = Type&;
+
+    template< typename Type >
+    using Ptr = Type*;
+
+
 
     template< template< typename Type > typename Smart_ptr, typename Type, typename Derived_ptr >
-    struct _Smart_ptr_extended : public Smart_ptr< Type > {
+    class _Smart_ptr_extended : public Smart_ptr< Type > {
     public:
         using _Base = Smart_ptr< Type >;
         
@@ -288,35 +297,35 @@ private:
 
     public:
         Derived_ptr& operator = ( const Type_ptr ptr ) {
-            this -> reset( ptr );
+            this->reset( ptr );
 
             return static_cast< Derived_ptr& >( *this );
         }
 
     public:
         operator Type_ptr () {
-            return this -> get();
+            return this->get();
         }
 
         template< bool isnt_array = !is_array >
         operator std :: enable_if_t< isnt_array, Type_ref > () {
-            return *this -> get();
+            return *this->get();
         }
 
     public:
         Type_ptr operator + ( ptrdiff_t offset ) const {
-            return this -> get() + offset;
+            return this->get() + offset;
         }
 
         Type_ptr operator - ( ptrdiff_t offset ) const {
-            return this -> get() - offset;
+            return this->get() - offset;
         }
 
     };
 
 
     template< typename Type >
-    struct Unique : public _Smart_ptr_extended< std :: unique_ptr, Type, Unique< Type > > {
+    class Unique : public _Smart_ptr_extended< std :: unique_ptr, Type, Unique< Type > > {
     public:
         typedef   _Smart_ptr_extended< std :: unique_ptr, Type, Unique< Type > >   _Base;
 
@@ -329,7 +338,7 @@ private:
 
 
     template< typename Type >
-    struct Shared : public _Smart_ptr_extended< std :: shared_ptr, Type, Shared< Type > > {
+    class Shared : public _Smart_ptr_extended< std :: shared_ptr, Type, Shared< Type > > {
     public:
         typedef   _Smart_ptr_extended< std :: shared_ptr, Type, Shared< Type > >   _Base;
 
@@ -346,12 +355,183 @@ private:
 
 
 
+#pragma region Syncs
+
+
+
+template< typename T >
+requires ( std :: is_arithmetic_v< T > )
+void wait_for( T duration ) {
+    if constexpr( std :: is_floating_point_v< T > )
+        std :: this_thread :: sleep_for( std :: chrono :: milliseconds( static_cast< int64_t >( duration * 1000.0 ) ) );
+    else
+        std :: this_thread :: sleep_for( std :: chrono :: milliseconds( static_cast< int64_t >( duration ) ) );
+}
+
+
+
+class Clock {
+public:
+    Clock()
+    : _create{ std :: chrono :: high_resolution_clock :: now() },
+    _last_lap{ std :: chrono :: high_resolution_clock :: now() }
+    {}
+
+public:
+    inline static constexpr double M[ 4 ] = { 1000.0, 1.0, 1.0 / 60.0, 1.0 / 3600.0 };
+
+    enum Unit {
+        MILLI = 0, SEC, MIN, HOUR
+    };
+
+private:
+    std :: chrono :: high_resolution_clock :: time_point   _create     = {};
+    std :: chrono :: high_resolution_clock :: time_point   _last_lap   = {};
+
+public:
+    double up_time( Unit unit = SEC ) const {
+        using namespace std :: chrono;
+
+        return duration< double >( high_resolution_clock :: now() - _create ).count() * M[ unit ];
+    }
+
+    double peek_lap( Unit unit = SEC ) const {
+        using namespace std :: chrono;
+
+        return duration< double >( high_resolution_clock :: now() - _last_lap ).count() * M[ unit ];
+    }
+
+    double lap( Unit unit = SEC ){
+        using namespace std :: chrono;
+
+        auto now = high_resolution_clock :: now();
+
+        return duration< double >( now - std :: exchange( _last_lap, now ) ).count() * M[ unit ];
+    }
+
+public:
+    static auto UNIX() {
+        return time( nullptr );
+    }
+
+};
+
+
+
+template< typename T >
+class Controller {
+public:
+    Controller() = default;
+
+
+    Controller( const T& val )
+        : _value( val )
+    {}
+
+    Controller( T&& val ) noexcept
+        : _value( std :: move( val ) )
+    {}
+
+
+    Controller( const Controller< T >& other ) = delete;
+
+    Controller( Controller< T >&& other ) = delete;
+
+
+    ~Controller() {
+        release();
+    }
+
+private:
+    typedef std :: tuple<
+                Unique< std :: mutex >,
+                Unique< std :: condition_variable >,
+                std :: function< bool( const T& ) >
+            > Entry;
+
+    enum _TUPLE_ACCESS_INDEX {
+        _MTX = 0, _CND = 1, _OP = 2
+    };
+
+private:
+    mutable T              _value      = {};
+    std :: mutex           _sync_mtx   = {};
+    std :: list< Entry >   _entries    = {};
+
+public:
+    operator typename std :: enable_if_t< std :: is_copy_constructible_v< T >, T > () const {
+        return _value;
+    }
+
+public:
+    Controller& operate( std :: function< bool( T& ) > op ) {
+        std :: unique_lock< std :: mutex > sync_lock( _sync_mtx );
+
+        op( _value );
+
+        for( Entry& entry : _entries )
+            if( std :: get< _OP >( entry )( _value ) )
+                std :: get< _CND >( entry )->notify_all();
+
+        return *this;
+    }
+
+    Controller& operator () ( std :: function< bool( T& ) > op ) {
+        return operate( op );
+    }
+
+public:
+    Controller& wait_until( std :: function< bool( const T& ) > cnd ) {
+        std :: unique_lock< std :: mutex > sync_lock( _sync_mtx );
+
+        if( cnd( _value ) ) return *this;
+
+
+        _entries.emplace_back(
+            std :: make_unique< std :: mutex >(),
+            new std :: condition_variable,
+            cnd
+        );
+
+        auto entry = _entries.rbegin();
+
+        sync_lock.unlock();
+
+
+        std :: unique_lock< std :: mutex > lock( *std :: get< _MTX >( *entry ) );
+
+        std :: get< _CND >( *entry )->wait( lock );
+
+        lock.unlock();
+        lock.release();
+
+        _entries.erase( entry );
+
+        return *this;
+    }
+
+public:
+    Controller& release() {
+        for( Entry& entry : _entries )
+            std :: get< _CND >( entry )->notify_all();
+
+        _entries.clear();
+    }
+
+};
+
+
+
+#pragma endregion Syncs
+
+
+
 #pragma region Utility
 
 
 
 template< typename T >
-struct Coord {
+class Coord {
     Coord() = default;
 
     Coord( T x, T y )
@@ -381,7 +561,7 @@ struct Coord {
 };
 
 template< typename T >
-struct Size {
+class Size {
     Size() = default;
 
     Size( T width, T height )
@@ -400,7 +580,7 @@ struct Size {
 
 
 
-struct File {
+class File {
     public:
         static std :: string dir_of( std :: string_view path ) {
             return path.substr( 0, path.find_last_of( "/\\" ) ).data();
@@ -505,7 +685,7 @@ struct File {
 
 
 
-struct Bytes {
+class Bytes {
 public:
     enum Endianess {
         LITTLE, BIG
@@ -533,7 +713,7 @@ public:
 
 
 
-struct Env {
+class Env {
 public:
     static int W() {
         static int value = ( [] () -> int {
@@ -630,7 +810,7 @@ public:
 
 
 
-struct Base {
+class Base {
 public:
     using Index_t = size_t;
 
@@ -704,11 +884,11 @@ public:
 
 
 
-template< typename Inheritor >
-struct Is_base : public Base {
+template< typename Inh >
+class Is_base : public Base {
 protected:
     Is_base() 
-    : Base{ idx_of< Inheritor >() }
+    : Base{ idx_of< Inh >() }
     {}
 
 };
@@ -723,130 +903,34 @@ protected:
 
 
 
-struct Sound : public Is_base< Sound >
-{
+class Wave {
 public:
-    friend struct Audio;
+    friend class Audio;
 
 public:
     typedef   std :: function< double( double, size_t ) >   Filter;
 
-public:
-    Sound() = default;
-
-    Sound( 
-        Audio&             audio, 
-        std :: string_view path, 
-        Echo               echo  = {} 
-    );
-
-    Sound( 
-        std :: string_view path,
-        Echo               echo   = {}
-    )
-    {
-        using namespace std :: string_literals;
-
-
-        std :: ifstream file{ path.data(), std :: ios_base :: binary };
-
-        if( !file ) {
-            echo( this, Echo :: FAULT, "Open file: "s + path.data() ); return;
-        }
-
-
-        size_t file_size = File :: size( file );
-
-        Unique< char[] > file_stream{ new char[ file_size ] };
-
-        if( !file_stream ) {
-            echo( this, Echo :: FAULT, "File stream allocation." ); return;
-        }
-
-
-        file.read( file_stream, file_size );
-
-
-        _sample_rate = Bytes :: as< unsigned int >( file_stream + 24, 4, Bytes :: LITTLE );
-
-
-        _bits_per_sample = Bytes :: as< unsigned short >( file_stream + 34, 2, Bytes :: LITTLE );
-
-        size_t bytes_per_sample = _bits_per_sample / 8;
-
-        _sample_count = Bytes :: as< size_t >( file_stream + 40, 4, Bytes :: LITTLE )
-                        /
-                        bytes_per_sample;
-
-
-        _stream = new double[ _sample_count ];
-
-        if( !_stream ) {
-            echo( this, Echo :: FAULT, "Sound stream allocation." ); return;
-        }
-
-
-        double max_sample = static_cast< double >( 1 << ( _bits_per_sample - 1 ) );
-
-        for( size_t n = 0; n < _sample_count; ++n )
-            _stream[ n ] = static_cast< double >(
-                                Bytes :: as< int >( file_stream + 44 + n * bytes_per_sample, bytes_per_sample, Bytes :: LITTLE )
-                            ) / max_sample;
-
-
-        _channel_count = Bytes :: as< unsigned short >( file_stream + 22, 2, Bytes :: LITTLE );
-
-
-        if( _sample_count % _channel_count != 0 )
-            echo( this, Echo :: WARNING, "Samples do not condense." );
-
-        
-        _sample_count /= _channel_count;
-
-
-        echo( this, Echo :: OK, "Created from: "s + path.data() );
-    }
-
-    Sound( const Sound& other ) = default;
-
-    Sound( Sound&& other ) = delete;
-
-
-    ~Sound() {
-        stop();
-    }
-
-private:
-    Audio*                   _audio              = nullptr;
-
-    Shared< double[] >       _stream             = nullptr;
-
-    std :: list< double >    _needles            = {};
-
-    size_t                   _sample_rate        = 0;
-    size_t                   _bits_per_sample    = 0;
-    size_t                   _sample_count       = 0;
-    size_t                   _channel_count      = 0;
-
-    bool                     _loop               = false;
-    bool                     _pause              = false;
-    bool                     _mute               = false;
-
-    Filter                   _filter             = nullptr;
-    double                   _volume             = 1.0;
-    double                   _velocity           = 1.0;
+protected:
+    Audio*   _audio   = nullptr;
 
 public:
-    Sound& lock_on( Audio& audio ) {
+    bool is_playing() const;
+
+    void play();
+
+    virtual void prepare_play() = 0;
+
+    virtual void stop() = 0;
+
+    virtual bool done() const = 0;
+
+public:
+    void lock_on( Audio& audio ) {
         _audio = &audio;
-
-        return *this;
     }
 
-    Sound& release() {
+    void release() {
         _audio = nullptr;
-
-        return *this;
     }
 
 public:
@@ -854,161 +938,165 @@ public:
         return *_audio;
     }
 
+
+protected:
+    virtual double _sample( size_t channel ) = 0;
+
+};
+
+
+class Volumable_wave {
 public:
-    bool is_locked() const {
-        return _audio != nullptr;
-    }
+    friend class Audio;
 
-    bool has_stream() const {
-        return _stream != nullptr;
-    }
-
-    operator bool () const {
-        return is_locked() && has_stream();
-    }
-
-public:
-    bool is_playing() const;
-
-    Sound& play();
-
-    Sound& stop();
+protected:
+    double   _volume   = 1.0;
 
 public:
-    Sound& loop() {
-        _loop = true;
-
-        return *this;
-    }
-
-    Sound& unloop() {
-        _loop = false;
-
-        return *this;
-    }
-
-    Sound& swap_loop() {
-        _loop ^= true;
-
-        return *this;
-    }
-
-    bool is_looping() const {
-        return _loop;
-    }
-
-
-    Sound& pause() {
-        _pause = true;
-
-        return *this;
-    }
-
-    Sound& resume() {
-        _pause = false;
-
-        return *this;
-    }
-
-    Sound& swap_pause() {
-        _pause ^= true;
-
-        return *this;
-    }
-
-    bool is_paused() const {
-        return _pause;
-    }
-
-
-    Sound& mute() {
-        _mute = true;
-
-        return *this;
-    }
-
-    Sound& unmute() {
-        _mute = false;
-
-        return *this;
-    }
-
-    Sound& swap_mute() {
-        _mute ^= true;
-
-        return *this;
-    }
-
-    bool is_muted() {
-        return _mute;
-    }
-
-
-    Sound& volume_to( double vlm ) {
-        _volume = vlm;
-
-        return *this;
-    }
-
-    double volume() const {
+    bool volume() const {
         return _volume;
     }
 
-
-    Sound& filter_to( Filter flt ) {
-        _filter = flt;
-
-        return *this;
+public:
+    void volume_to( double vlm ) {
+        _volume = std :: clamp( vlm, -1.0, 1.0 );
     }
 
-    Filter filter() const {
-        return _filter;
+    void tweak_volume( double twk ) {
+        _volume = std :: clamp( _volume + twk, -1.0, 1.0 );
     }
 
+};
 
-    Sound& velocity_to( double vlc ) {
-        _velocity = vlc;
+class Pausable_wave {
+public:
+    friend class Audio;
 
-        return *this;
+protected:
+    bool   _paused   = false;
+
+public:
+    bool is_paused() const {
+        return _paused;
     }
 
+public:
+    void pause() {
+        _paused = true;
+    }
+
+    void resume() {
+        _paused = false;
+    }
+
+};
+
+class Mutable_wave {
+public:
+    friend class Audio;
+
+protected:
+    bool   _muted   = false;
+
+public:
+    bool is_muted() const {
+        return _muted;
+    }
+
+public:
+    void mute() {
+        _muted = true;
+    }
+
+    void unmute() {
+        _muted = false;
+    }
+
+};
+
+class Loopable_wave {
+public:
+    friend class Audio;
+
+protected:
+    bool   _looping   = false;
+
+public:
+    bool is_looping() const {
+        return _looping;
+    }
+
+public:
+    void loop() {
+        _looping = true;
+    }
+
+    void unloop() {
+        _looping = false;
+    }
+
+};
+
+class Velocitable_wave {
+public:
+    friend class Audio;
+
+protected:
+    double   _velocity   = 1.0;
+
+public:
     double velocity() const {
         return _velocity;
     }
 
 public:
-    size_t sample_rate() const {
-        return _sample_rate;
+    void velocity_to( double vlc ) {
+        _velocity = vlc;
     }
 
-    size_t channel_count() const {
-        return _channel_count;
+    void tweak_velocity( double twk ) {
+        _velocity += twk;
     }
 
-    size_t sample_count() const {
-        return _sample_count;
-    }
+};
 
-    double duration() const {
-        return static_cast< double >( _sample_count ) / _sample_rate;
+class Filtrable_wave {
+public:
+    friend class Audio;
+
+protected:
+    Wave :: Filter   _filter   = nullptr;
+
+public:
+    Wave :: Filter filter() const {
+        return _filter;
     }
 
 public:
-    _ENGINE_STRUCT_TYPE_MTD( "Sound" );
+    void filter_to( const Wave :: Filter& flt ) {
+        _filter = flt;
+    }
+
+    void remove_filter() {
+        _filter = nullptr;
+    }
 
 };
 
 
 
-struct Audio : public Is_base< Audio >
+class Audio : public Is_base< Audio >,
+              public Volumable_wave, 
+              public Pausable_wave,
+              public Mutable_wave,
+              public Velocitable_wave, 
+              public Filtrable_wave
 {
 public:
-    static std :: string_view name() {
-        return _ENGINE_STRUCT_TYPE( "Audio" );
-    }
+    _ENGINE_STRUCT_TYPE_MTD( "Audio" );
 
 private:
-    friend struct Sound;
+    friend class Wave;
 
 public:
     Audio() = default;
@@ -1145,70 +1233,26 @@ private:
     std :: condition_variable    _cnd_var              = {};
     std :: mutex                 _mtx                  = {};
 
-    std :: list< Sound* >        _sounds               = {};
-
-    bool                         _pause                = false;
-    bool                         _mute                 = false;
-
-    Sound :: Filter              _filter               = nullptr;
-    double                       _volume               = 1.0;
-    double                       _velocity             = 1.0;
+    std :: list< Wave* >         _waves                = {};
 
 private:
+
+
     void _main() {
         constexpr double max_sample = static_cast< double >(
             std :: numeric_limits< int > :: max()
-            );
+        );
 
-
-        auto clip = [] ( double amp ) -> double {
-            return amp >= 0.0 ? std :: min( amp, 1.0 ) : std :: max( amp, -1.0 );
-        };
 
         auto sample = [ this ] ( size_t channel ) -> double {
             double amp = 0.0;
 
-            if( _pause ) return amp;
+            if( _paused ) return amp;
 
-            for( Sound* snd : _sounds ) {
-                if( snd -> _pause ) continue;
+            for( Wave* wave : _waves )
+                amp += wave -> _sample( channel );
 
-                snd -> _needles.remove_if( [ this, &snd, &amp, &channel ] ( double& at ) {
-                    if( snd -> _filter )
-                        amp += snd -> _filter(
-                                snd -> _stream[ static_cast< size_t >( at ) * snd -> _channel_count + channel ],
-                                channel
-                            )
-                            *
-                            snd -> _volume * !snd -> _mute
-                            *
-                            _volume * !_mute;
-                    else
-                        amp += snd -> _stream[ static_cast< size_t >( at ) * snd -> _channel_count + channel ]
-                            *
-                            snd -> _volume * !snd -> _mute
-                            *
-                            _volume * !_mute;
-
-
-                    if( channel == snd -> _channel_count - 1 )
-                        at += _velocity * snd -> _velocity;
-
-
-                    if( at >= snd -> _sample_count ) {
-                        at = 0;
-
-                        return !snd -> _loop;
-                    }
-
-                    return false;
-                } );
-            }
-
-            if( _filter )
-                return _filter( amp, channel );
-            else
-                return amp;
+            return _filter ? _filter( amp, channel ) : amp;
         };
 
 
@@ -1226,16 +1270,18 @@ private:
                 waveOutUnprepareHeader( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
 
 
-            _sounds.remove_if( [] ( Sound* snd ) {
-                return snd -> _needles.empty();
+            _waves.remove_if( [] ( Wave* wave ) {
+                return wave->done();
             } );
 
 
             size_t current_block = _block_current * _block_sample_count;
 
             for( size_t n = 0; n < _block_sample_count; n += _channel_count )
-                for( size_t c = 0; c < _channel_count; ++c )
-                    _block_memory[ current_block + n + c ] = static_cast< int >( clip( sample( c ) ) * max_sample );
+                for( size_t ch = 0; ch < _channel_count; ++ch )
+                    _block_memory[ current_block + n + ch ] = static_cast< int >( 
+                        std :: clamp( sample( ch ), -1.0, 1.0 ) * max_sample 
+                    );
 
 
             waveOutPrepareHeader( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
@@ -1249,8 +1295,8 @@ private:
     }
 
 private:
-    static void CALLBACK event_proc_router( HWAVEOUT hwo, UINT event, DWORD_PTR instance, DWORD w_param, DWORD l_param ) {
-        reinterpret_cast< Audio* >( instance ) -> event_proc( hwo, event, w_param, l_param);
+    static void event_proc_router( HWAVEOUT hwo, UINT event, DWORD_PTR instance, DWORD w_param, DWORD l_param ) {
+        reinterpret_cast< Audio* >( instance )->event_proc( hwo, event, w_param, l_param);
     }
 
     void event_proc( HWAVEOUT hwo, UINT event, DWORD w_param, DWORD l_param ) {
@@ -1287,142 +1333,235 @@ public:
         return devs;
     }
 
-public:
-    Audio& pause() {
-        _pause = true;
-
-        return *this;
-    }
-
-    Audio& resume() {
-        _pause = false;
-
-        return *this;
-    }
-
-    Audio& swap_pause() {
-        _pause ^= true;
-
-        return *this;
-    }
-
-    bool is_paused() const {
-        return _pause;
-    }
-
-
-    Audio& mute() {
-        _mute = true;
-
-        return *this;
-    }
-
-    Audio& unmute() {
-        _mute = false;
-
-        return *this;
-    }
-
-    Audio& swap_mute() {
-        _mute ^= true;
-
-        return *this;
-    }
-
-    bool is_muted() {
-        return _mute;
-    }
-
-
-    Audio& volume_to( double vlm ) {
-        _volume = vlm;
-
-        return *this;
-    }
-
-    double volume() const {
-        return _volume;
-    }
-
-
-    Audio& filter_to( Sound :: Filter flt ) {
-        _filter = flt;
-
-        return *this;
-    }
-
-    Sound :: Filter filter() const {
-        return _filter;
-    }
-
-
-    Audio& velocity_to( double vlc ) {
-        _velocity = vlc;
-
-        return *this;
-    }
-
-    double velocity() const {
-        return _velocity;
-    }
-
-
-public:
     std :: string_view device() const {
         return _device;
     }
 
-    Audio& device_to( std :: string_view dev ) {
-        return *this;
+    void device_to( std :: string_view dev ) {
+        
     }
 
 public:
-    _ENGINE_STRUCT_TYPE_MTD( "Audio" );
+    size_t sample_rate() const {
+        return _sample_rate;
+    }
+
+    size_t channel_count() const {
+        return _channel_count;
+    }
 
 };
 
 
 
-Sound :: Sound( 
-    Audio&             audio, 
-    std :: string_view path, 
-    Echo               echo
-)
-: Sound{ path }
+class Sound : public Is_base< Sound >,
+              public Wave, 
+              public Volumable_wave, 
+              public Pausable_wave, 
+              public Mutable_wave, 
+              public Loopable_wave, 
+              public Velocitable_wave, 
+              public Filtrable_wave
 {
-    _audio = &audio;
+public:
+    _ENGINE_STRUCT_TYPE_MTD( "Sound" );
 
-    if( _sample_rate != _audio -> _sample_rate )
-        echo( this, Echo :: WARNING, "Sample rate does not match with locked on audio's." );
+public:
+    friend class Audio;
 
+public:
+    Sound() = default;
 
-    if(
-        _audio -> _channel_count
-        !=
-        _channel_count
+    Sound( 
+        Audio&             audio, 
+        std :: string_view path, 
+        Echo               echo  = {} 
     )
-        echo( this, Echo :: WARNING, "Channel count does not match with locked on audio's." );
-}
+    : Sound{ path }
+    {
+        _audio = &audio;
 
-bool Sound :: is_playing() const {
-    return std :: find( _audio -> _sounds.begin(), _audio -> _sounds.end(), this )
+        if( _sample_rate != _audio->sample_rate() )
+            echo( this, Echo :: WARNING, "Sample rate does not match with locked on audio's." );
+
+
+        if( _channel_count != _audio->channel_count() )
+            echo( this, Echo :: WARNING, "Channel count does not match with locked on audio's." );
+    }
+
+    Sound( 
+        std :: string_view path,
+        Echo               echo   = {}
+    ) {
+        using namespace std :: string_literals;
+
+
+        std :: ifstream file{ path.data(), std :: ios_base :: binary };
+
+        if( !file ) {
+            echo( this, Echo :: FAULT, "Open file: "s + path.data() ); return;
+        }
+
+
+        size_t file_size = File :: size( file );
+
+        Unique< char[] > file_stream{ new char[ file_size ] };
+
+        if( !file_stream ) {
+            echo( this, Echo :: FAULT, "File stream allocation." ); return;
+        }
+
+
+        file.read( file_stream, file_size );
+
+
+        _sample_rate = Bytes :: as< unsigned int >( file_stream + 24, 4, Bytes :: LITTLE );
+
+
+        _bits_per_sample = Bytes :: as< unsigned short >( file_stream + 34, 2, Bytes :: LITTLE );
+
+        size_t bytes_per_sample = _bits_per_sample / 8;
+
+        _sample_count = Bytes :: as< size_t >( file_stream + 40, 4, Bytes :: LITTLE )
+                        /
+                        bytes_per_sample;
+
+
+        _stream = new double[ _sample_count ];
+
+        if( !_stream ) {
+            echo( this, Echo :: FAULT, "Sound stream allocation." ); return;
+        }
+
+
+        double max_sample = static_cast< double >( 1 << ( _bits_per_sample - 1 ) );
+
+        for( size_t n = 0; n < _sample_count; ++n )
+            _stream[ n ] = static_cast< double >(
+                                Bytes :: as< int >( file_stream + 44 + n * bytes_per_sample, bytes_per_sample, Bytes :: LITTLE )
+                            ) / max_sample;
+
+
+        _channel_count = Bytes :: as< unsigned short >( file_stream + 22, 2, Bytes :: LITTLE );
+
+
+        if( _sample_count % _channel_count != 0 )
+            echo( this, Echo :: WARNING, "Samples do not condense." );
+
+        
+        _sample_count /= _channel_count;
+
+
+        echo( this, Echo :: OK, "Created from: "s + path.data() );
+    }
+
+    Sound( const Sound& other ) = default;
+
+    Sound( Sound&& other ) = delete;
+
+
+    ~Sound() {
+        stop();
+    }
+
+protected:
+    Shared< double[] >       _stream             = nullptr;
+
+    std :: list< double >    _needles            = {};
+
+    size_t                   _sample_rate        = 0;
+    size_t                   _bits_per_sample    = 0;
+    size_t                   _sample_count       = 0;
+    size_t                   _channel_count      = 0;
+
+public:
+    virtual void prepare_play() override {
+        _needles.push_back( 0.0 );
+    }
+
+    virtual void stop() override {
+        _needles.clear();
+    }
+
+    virtual bool done() const override {
+        return _needles.empty();
+    }
+
+protected:
+    virtual double _sample( size_t channel ) override {
+        double amp = 0.0;
+
+        if( _paused ) return amp;
+
+        _needles.remove_if( [ this, &amp, &channel ] ( double& at ) {
+            double raw = _stream[ static_cast< size_t >( at ) * _channel_count + channel ];
+
+            amp +=  _filter ? _filter( raw, channel ) : raw
+                    *
+                    _volume * !_muted;
+
+
+            if( channel == _channel_count - 1 )
+                at += _velocity * _audio->velocity();
+
+
+            if( static_cast< size_t >( at ) >= _sample_count ) {
+                at = _velocity >= 0.0 ? 0.0 : _sample_count - 1.0;
+
+                return !_looping;
+            }
+
+            return false;
+        } );
+
+        return amp;
+    }
+
+public:
+    bool is_locked() const {
+        return _audio != nullptr;
+    }
+
+    bool has_stream() const {
+        return _stream != nullptr;
+    }
+
+    operator bool () const {
+        return is_locked() && has_stream();
+    }
+
+public:
+    size_t sample_rate() const {
+        return _sample_rate;
+    }
+
+    size_t channel_count() const {
+        return _channel_count;
+    }
+
+    size_t sample_count() const {
+        return _sample_count;
+    }
+
+    double duration() const {
+        return static_cast< double >( _sample_count ) / _sample_rate;
+    }
+
+};
+
+
+
+bool Wave :: is_playing() const {
+    return std :: find( _audio->_waves.begin(), _audio->_waves.end(), this )
            !=
-           _audio -> _sounds.end();
+           _audio->_waves.end();
 }
 
-Sound& Sound :: play() {
-    _needles.push_back( 0 );
+void Wave :: play() {
+    this->prepare_play();
 
     if( !is_playing() )
-        _audio -> _sounds.push_back( this );
-
-    return *this;
-}
-
-Sound& Sound :: stop() {
-    _needles.clear();
-
-    return *this;
+        _audio->_waves.push_back( this );
 }
 
 
@@ -1459,7 +1598,7 @@ const Echo& Echo :: _echo(
         << "From "_echo_normal
         << "[ "
         << ""_echo_highlight
-        << invoker -> struct_type()
+        << invoker->struct_type()
         << " ][ "_echo_normal
         << ""_echo_highlight
         << static_cast< void* >( invoker )

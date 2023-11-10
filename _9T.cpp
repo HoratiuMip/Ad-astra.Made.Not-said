@@ -99,6 +99,7 @@
 #include <concepts>
 #include <optional>
 #include <tuple>
+#include <variant>
 #include <bitset>
 #include <string>
 #include <string_view>
@@ -165,10 +166,12 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-class Base;
+class UTH;
+template< typename Resident > class UTHResident;
 
 class Audio;
 class Sound;
+class Synth;
 
 
 
@@ -211,34 +214,34 @@ public:
             std::cout << '\n';
     }
 
-private:
+protected:
     size_t   _depth   = 0;
 
 public:
     const Echo& operator () (
-        Base*              invoker,
+        UTH*               invoker,
         LOG_TYPE           log_type,
         std::string_view   message
     ) const {
         return std::invoke( _route, this, invoker, log_type, message );
     }
 
-private:
+protected:
     const Echo& _echo(
-        Base*              invoker,
+        UTH*               invoker,
         LOG_TYPE           log_type,
         std::string_view   message
     ) const;
 
     const Echo& _nop(
-        Base*              invoker,
+        UTH*               invoker,
         LOG_TYPE           log_type,
         std::string_view   message
     ) const {
         return *this;
     }
 
-private:
+protected:
     inline static auto   _route   = &_echo;
 
 public:
@@ -250,7 +253,7 @@ public:
         _route = &_nop;
     }
 
-private:
+protected:
     static std::string_view _log_type_name( LOG_TYPE log_type ) {
         switch( log_type ) {
             case FAULT:   return "FAULT";
@@ -366,6 +369,13 @@ private:
 
 
 
+    struct VoidStruct {
+        template< typename ...Args >
+        VoidStruct( Args&&... ) {}
+    };
+
+
+
 #pragma endregion Tricks
 
 
@@ -403,7 +413,7 @@ public:
         NANOS = 0, MICROS, MILLIS, SECS, MINS, HOURS
     };
 
-private:
+protected:
     std::chrono::high_resolution_clock::time_point   _create     = {};
     std::chrono::high_resolution_clock::time_point   _last_lap   = {};
 
@@ -431,7 +441,7 @@ public:
         return duration< double >( now - std::exchange( _last_lap, now ) ).count() * M[ unit ];
     }
 
-private:
+protected:
     template< Unit unit >
     struct _Map {
         typedef std::conditional_t< unit == NANOS,  std::chrono::nanoseconds,
@@ -481,7 +491,7 @@ public:
         release();
     }
 
-private:
+protected:
     typedef std::tuple<
                 Unique< std::mutex >,
                 Unique< std::condition_variable >,
@@ -492,7 +502,7 @@ private:
         _MTX = 0, _CND = 1, _OP = 2
     };
 
-private:
+protected:
     mutable T            _value      = {};
     std::mutex           _sync_mtx   = {};
     std::list< Entry >   _entries    = {};
@@ -845,39 +855,39 @@ public:
 
 
 
-#pragma region Base
+#pragma region UTH
 
 
 
-class Base {
+class UTH {
 public:
-    using Idx_t = size_t;
+    using GUSID = size_t;
 
 public:
     enum ACTION : unsigned long long {
-        TRIGGER, REPRESS, COUNT
+        TRIGGER, COUNT
     };
 
-private:
-    inline static std::unordered_map< std::type_index, Idx_t >   _register                 = {};
+protected:
+    inline static std::unordered_map< std::type_index, GUSID >    _register                 = {};
 
-    inline static std::vector< void ( Base::* )( Base& ) >       _grids[ ACTION::COUNT ]   = {};
+    inline static std::vector< void ( UTH::* )( UTH&, void* ) >   _grids[ ACTION::COUNT ]   = {};
 
 public:
     template< typename ...Residents >
-    requires ( std::is_base_of_v< Base, Residents > && ... )
+    requires ( std::is_base_of_v< UTH, Residents > && ... )
     static void init() {
         _init<
-            Audio, Sound,
+            Audio, Sound, Synth,
 
             Residents...
         >();
     }
 
-private:
+protected:
     template< typename ...Residents >
     static void _init() {
-        Idx_t idx = 0;
+        GUSID idx = 0;
 
         ( _register.insert( { typeid( Residents ), ++idx } ), ... );
 
@@ -887,54 +897,52 @@ private:
 
 public:
     template< typename Type >
-    static Idx_t idx_of() {
+    static GUSID gusidof() {
         return _register.at( typeid( Type ) );
     }
 
 /*----------------------------------------- STATIC <-> OBJECT -----------------------------------------*/
 
+public:
+    virtual std::string_view type_name() const {
+        return _ENGINE_STRUCT_TYPE( "UTH" );
+    }
+
 protected:
-    Base( Idx_t idx )
+    UTH( GUSID idx )
     : _idx{ idx }
     {}
 
 protected:
-    Idx_t   _idx   = {};
+    GUSID   _idx   = {};
 
 public:
-    Idx_t idx() const { 
+    GUSID gusid() const { 
         return _idx; 
     }
 
 public:
-    virtual void trigger( Base& ) {}
-
-    virtual void repress( Base& ) {}
+    virtual void trigger( UTH&, void* ) {}
 
 public:
     virtual void render() {}
-
-public:
-    virtual std::string_view type_name() const {
-        return _ENGINE_STRUCT_TYPE( "Base" );
-    }
 
 };
 
 
 
-template< typename Inh >
-class Is_base : public Base {
+template< typename Resident >
+class UTHResident : public UTH {
 protected:
-    Is_base() 
-    : Base{ idx_of< Inh >() }
+    UTHResident() 
+    : UTH{ UTH::gusidof< Resident >() }
     {}
 
 };
 
 
 
-#pragma endregion Base
+#pragma endregion UTH
 
 
 
@@ -979,18 +987,28 @@ public:
 
 
 protected:
-    virtual double _sample( size_t channel ) = 0;
+    virtual double _sample( size_t channel, bool advance ) = 0;
 
 };
 
+enum WAVE_BEHAVIOUR_DESC {
+    WAVE_BEHAVIOUR_DESC_HAS_VOLUME   = 1,
+    WAVE_BEHAVIOUR_DESC_PAUSABLE     = 2,
+    WAVE_BEHAVIOUR_DESC_MUTABLE      = 4,
+    WAVE_BEHAVIOUR_DESC_LOOPABLE     = 8,
+    WAVE_BEHAVIOUR_DESC_HAS_VELOCITY = 16,
+    WAVE_BEHAVIOUR_DESC_HAS_FILTER   = 32
+};
 
-template< typename Deriv >
-class Volumable_wave {
-public:
-    friend class Audio;
-
+template< typename DerivedWave, int desc >
+class WaveBehaviourDescriptor {
 protected:
-    double   _volume   = 1.0;
+    std::conditional_t< desc & WAVE_BEHAVIOUR_DESC_HAS_VOLUME,   double,       VoidStruct >   _volume     = 1.0;
+    std::conditional_t< desc & WAVE_BEHAVIOUR_DESC_PAUSABLE,     bool,         VoidStruct >   _paused     = false;
+    std::conditional_t< desc & WAVE_BEHAVIOUR_DESC_MUTABLE,      bool,         VoidStruct >   _muted      = false;
+    std::conditional_t< desc & WAVE_BEHAVIOUR_DESC_LOOPABLE,     bool,         VoidStruct >   _looping    = false;
+    std::conditional_t< desc & WAVE_BEHAVIOUR_DESC_HAS_VELOCITY, double,       VoidStruct >   _velocity   = 1.0;
+    std::conditional_t< desc & WAVE_BEHAVIOUR_DESC_HAS_FILTER,   Wave::Filter, VoidStruct >   _filter     = {};
 
 public:
     bool volume() const {
@@ -998,27 +1016,17 @@ public:
     }
 
 public:
-    Deriv& volume_to( double vlm ) {
+    DerivedWave& volume_to( double vlm ) {
         _volume = std::clamp( vlm, -1.0, 1.0 );
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
 
-    Deriv& tweak_volume( double twk ) {
+    DerivedWave& tweak_volume( double twk ) {
         _volume = std::clamp( _volume + twk, -1.0, 1.0 );
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
-
-};
-
-template< typename Deriv >
-class Pausable_wave {
-public:
-    friend class Audio;
-
-protected:
-    bool   _paused   = false;
 
 public:
     bool is_paused() const {
@@ -1026,33 +1034,23 @@ public:
     }
 
 public:
-    Deriv& pause() {
+    DerivedWave& pause() {
         _paused = true;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
 
-    Deriv& resume() {
+    DerivedWave& resume() {
         _paused = false;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
 
-    Deriv& tweak_pause() {
+    DerivedWave& tweak_pause() {
         _paused ^= true;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
-
-};
-
-template< typename Deriv >
-class Mutable_wave {
-public:
-    friend class Audio;
-
-protected:
-    bool   _muted   = false;
 
 public:
     bool is_muted() const {
@@ -1060,33 +1058,23 @@ public:
     }
 
 public:
-    Deriv& mute() {
+    DerivedWave& mute() {
         _muted = true;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
 
-    Deriv& unmute() {
+    DerivedWave& unmute() {
         _muted = false;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
 
-    Deriv& tweak_mute() {
+    DerivedWave& tweak_mute() {
         _muted ^= true;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
-
-};
-
-template< typename Deriv >
-class Loopable_wave {
-public:
-    friend class Audio;
-
-protected:
-    bool   _looping   = false;
 
 public:
     bool is_looping() const {
@@ -1094,33 +1082,23 @@ public:
     }
 
 public:
-    Deriv& loop() {
+    DerivedWave& loop() {
         _looping = true;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
 
-    Deriv& unloop() {
+    DerivedWave& unloop() {
         _looping = false;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
 
-    Deriv& tweak_loop() {
+    DerivedWave& tweak_loop() {
         _looping ^= true;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
-
-};
-
-template< typename Deriv >
-class Velocitable_wave {
-public:
-    friend class Audio;
-
-protected:
-    double   _velocity   = 1.0;
 
 public:
     double velocity() const {
@@ -1128,27 +1106,17 @@ public:
     }
 
 public:
-    Deriv& velocity_to( double vlc ) {
+    DerivedWave& velocity_to( double vlc ) {
         _velocity = vlc;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
 
-    Deriv& tweak_velocity( double twk ) {
+    DerivedWave& tweak_velocity( double twk ) {
         _velocity += twk;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
-
-};
-
-template< typename Deriv >
-class Filtrable_wave {
-public:
-    friend class Audio;
-
-protected:
-    Wave::Filter   _filter   = nullptr;
 
 public:
     Wave::Filter filter() const {
@@ -1156,33 +1124,35 @@ public:
     }
 
 public:
-    Deriv& filter_to( const Wave::Filter& flt ) {
+    DerivedWave& filter_to( const Wave::Filter& flt ) {
         _filter = flt;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
 
-    Deriv& remove_filter() {
+    DerivedWave& remove_filter() {
         _filter = nullptr;
 
-        return static_cast< Deriv& >( *this );
+        return static_cast< DerivedWave& >( *this );
     }
 
 };
 
 
 
-class Audio : public Is_base< Audio >,
-              public Volumable_wave< Audio >, 
-              public Pausable_wave< Audio >,
-              public Mutable_wave< Audio >,
-              public Velocitable_wave< Audio >, 
-              public Filtrable_wave< Audio >
+class Audio : public UTHResident< Audio >,
+              public WaveBehaviourDescriptor< Audio,
+                  WAVE_BEHAVIOUR_DESC_HAS_VOLUME   |
+                  WAVE_BEHAVIOUR_DESC_PAUSABLE     |
+                  WAVE_BEHAVIOUR_DESC_MUTABLE      |
+                  WAVE_BEHAVIOUR_DESC_HAS_VELOCITY |
+                  WAVE_BEHAVIOUR_DESC_HAS_FILTER
+              >
 {
 public:
     _ENGINE_STRUCT_TYPE_MTD( "Audio" );
 
-private:
+protected:
     friend class Wave;
 
 public:
@@ -1196,7 +1166,8 @@ public:
         size_t             block_sample_count   = 256,
         Echo               echo                 = {}
     )
-    : _sample_rate       { sample_rate }, 
+    : _sample_rate       { sample_rate },
+      _time_step         { 1.0 / _sample_rate },
       _channel_count     { channel_count },
       _block_count       { block_count },
       _block_sample_count{ block_sample_count },
@@ -1300,10 +1271,11 @@ public:
         waveOutClose( _wave_out );
     }
 
-private:
+protected:
     volatile bool             _powered              = false;
 
     size_t                    _sample_rate          = 0;
+    double                    _time_step            = 0.0;
     size_t                    _channel_count        = 0;
     size_t                    _block_count          = 0;
     size_t                    _block_sample_count   = 0;
@@ -1322,7 +1294,7 @@ private:
 
     std::list< Wave* >        _waves                = {};
 
-private:
+protected:
 
 
     void _main() {
@@ -1335,9 +1307,11 @@ private:
             double amp = 0.0;
 
             if( _paused ) return amp;
+           
+            bool advance = ( channel == _channel_count - 1 );
 
             for( Wave* wave : _waves )
-                amp += wave->_sample( channel );
+                amp += wave->_sample( channel, advance );
 
             return _filter ? _filter( amp, channel ) : amp
                    * _volume * !_muted;
@@ -1359,7 +1333,7 @@ private:
                 return wave->done();
             } );
 
-
+            
             size_t current_block = _block_current * _block_sample_count;
 
             for( size_t n = 0; n < _block_sample_count; n += _channel_count )
@@ -1367,8 +1341,8 @@ private:
                     _block_memory[ current_block + n + ch ] = static_cast< int >( 
                         std::clamp( sample( ch ), -1.0, 1.0 ) * max_sample 
                     );
-
-
+            
+            
             waveOutPrepareHeader( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
             waveOutWrite( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
 
@@ -1379,7 +1353,7 @@ private:
 
     }
 
-private:
+protected:
     static void event_proc_router( HWAVEOUT hwo, UINT event, DWORD_PTR instance, DWORD w_param, DWORD l_param ) {
         reinterpret_cast< Audio* >( instance )->event_proc( hwo, event, w_param, l_param);
     }
@@ -1431,6 +1405,10 @@ public:
         return _sample_rate;
     }
 
+    double time_step() const {
+        return _time_step;
+    }
+
     size_t channel_count() const {
         return _channel_count;
     }
@@ -1439,20 +1417,19 @@ public:
 
 
 
-class Sound : public Is_base< Sound >,
+class Sound : public UTHResident< Sound >,
               public Wave, 
-              public Volumable_wave< Sound >, 
-              public Pausable_wave< Sound >, 
-              public Mutable_wave< Sound >, 
-              public Loopable_wave< Sound >, 
-              public Velocitable_wave< Sound >, 
-              public Filtrable_wave< Sound >
+              public WaveBehaviourDescriptor< Sound,
+                  WAVE_BEHAVIOUR_DESC_HAS_VOLUME   |
+                  WAVE_BEHAVIOUR_DESC_PAUSABLE     |
+                  WAVE_BEHAVIOUR_DESC_MUTABLE      |
+                  WAVE_BEHAVIOUR_DESC_LOOPABLE     |
+                  WAVE_BEHAVIOUR_DESC_HAS_VELOCITY |
+                  WAVE_BEHAVIOUR_DESC_HAS_FILTER
+              >
 {
 public:
     _ENGINE_STRUCT_TYPE_MTD( "Sound" );
-
-public:
-    friend class Audio;
 
 public:
     Sound() = default;
@@ -1462,7 +1439,7 @@ public:
         std::string_view   path, 
         Echo               echo   = {} 
     )
-    : Sound{ path }
+    : Sound{ path, echo }
     {
         _audio = &audio;
 
@@ -1573,20 +1550,20 @@ public:
     }
 
 protected:
-    virtual double _sample( size_t channel ) override {
+    virtual double _sample( size_t channel, bool advance ) override {
         double amp = 0.0;
 
         if( _paused ) return amp;
 
-        _needles.remove_if( [ this, &amp, &channel ] ( double& at ) {
+        _needles.remove_if( [ this, &amp, &channel, &advance ] ( double& at ) {
             double raw = _stream[ static_cast< size_t >( at ) * _channel_count + channel ];
 
             amp +=  _filter ? _filter( raw, channel ) : raw
                     *
                     _volume * !_muted;
 
-
-            if( channel == _channel_count - 1 ) {
+            
+            if( advance ) {
                 double tweak = _velocity * _audio->velocity();
 
                 at += tweak;
@@ -1638,6 +1615,97 @@ public:
 
 
 
+class Synth : public UTHResident< Synth >,
+              public Wave, 
+              public WaveBehaviourDescriptor< Synth,
+                  WAVE_BEHAVIOUR_DESC_HAS_VOLUME   |
+                  WAVE_BEHAVIOUR_DESC_PAUSABLE     |
+                  WAVE_BEHAVIOUR_DESC_MUTABLE      |
+                  WAVE_BEHAVIOUR_DESC_HAS_VELOCITY |
+                  WAVE_BEHAVIOUR_DESC_HAS_FILTER
+              >
+{
+public:
+    _ENGINE_STRUCT_TYPE_MTD( "Synth" );
+
+public:
+    typedef   std::function< double( double, size_t ) >   Function;
+
+public:
+    Synth() = default;
+
+    Synth( 
+        Audio&     audio,
+        Function   function,
+        Echo       echo       = {}
+    )
+    : Synth{ function, echo }
+    {
+        _audio = &audio;
+
+        _decay_step = 1.0 / _audio->sample_rate();
+    }
+
+    Synth(
+        Function   function,
+        Echo       echo       = {}
+    )
+    : _function( function )
+    {
+        echo( this, Echo::OK, "Created." );
+    }
+
+protected:
+    Function   _function        = {};
+
+    double     _elapsed         = 0.0;
+
+    double     _decay           = 1.0;
+    double     _decay_step      = 0.0;
+
+    bool       _done            = true;
+
+public:
+    virtual void prepare_play() override {
+        _elapsed = 0.0;
+        _decay   = 1.0;
+        _done    = false;
+    }
+
+    virtual void stop() override {
+        _done = true;
+    }
+
+    virtual bool done() const override {
+        return _done;
+    }
+
+
+protected:
+    virtual double _sample( size_t channel, bool advance ) override {
+        if( advance )
+            _elapsed += _audio->time_step();
+
+        if( ( _decay -= _decay_step ) <= 0.0 ) {
+            this->stop();
+
+            return 0.0;
+        }
+
+        return _function( _elapsed, channel ) * _decay * _volume;
+    }
+
+public:
+    Synth& decay_in( double secs ) {
+        _decay_step = 1.0 / ( secs * _audio->sample_rate() );
+
+        return *this;
+    }
+
+};
+
+
+
 bool Wave::is_playing() const {
     return std::find( _audio->_waves.begin(), _audio->_waves.end(), this )
            !=
@@ -1667,7 +1735,7 @@ void Wave::play() {
 
 
 const Echo& Echo::_echo(
-    Base*              invoker,
+    UTH*               invoker,
     LOG_TYPE           log_type,
     std::string_view   message
 ) const {
@@ -1679,7 +1747,7 @@ const Echo& Echo::_echo(
         std::cout << _log_type_name( log_type ) << " ] "_echo_normal << _log_type_fill( log_type ) << "   "_echo_special;
 
         for( size_t l = 0; l < _depth; ++l )
-            std::cout << "-";
+            std::cout << ">> ";
 
         std::cout
         << "From "_echo_normal

@@ -1,7 +1,7 @@
 #pragma region DETAILS
 /*
     [ GENERAL ]
-        Engine:      _9T
+        Engine:      Nine Tailed Works
 
         Version:     n/a
 
@@ -169,9 +169,19 @@ namespace _ENGINE_NAMESPACE {
 class UTH;
 template< typename Resident > class UTHResident;
 
+class Deg;
+class Rad;
+class Vec2;
+class Ray2;
+class Clust2;
+
 class Audio;
 class Sound;
 class Synth;
+
+
+
+typedef   void*   GUID;
 
 
 
@@ -191,17 +201,15 @@ class Synth;
     _ECHO_LITERAL( _echo_special, OS::CONSOLE_COLOR_CODE::DARK_BLUE )
 #endif
 
+enum ECHO_LOG {
+    ECHO_LOG_FAULT   = OS::CONSOLE_COLOR_CODE::RED, 
+    ECHO_LOG_WARNING = OS::CONSOLE_COLOR_CODE::YELLOW, 
+    ECHO_LOG_OK      = OS::CONSOLE_COLOR_CODE::GREEN, 
+    ECHO_LOG_PENDING = OS::CONSOLE_COLOR_CODE::DARK_BLUE, 
+    ECHO_LOG_HEADSUP = OS::CONSOLE_COLOR_CODE::PINK
+};
 
 class Echo {
-public:
-    enum LOG_TYPE {
-        FAULT = OS::CONSOLE_COLOR_CODE::RED, 
-        WARNING = OS::CONSOLE_COLOR_CODE::YELLOW, 
-        OK = OS::CONSOLE_COLOR_CODE::GREEN, 
-        PENDING = OS::CONSOLE_COLOR_CODE::DARK_BLUE, 
-        HEADSUP = OS::CONSOLE_COLOR_CODE::PINK
-    };
-
 public:
     Echo() = default;
 
@@ -220,7 +228,7 @@ protected:
 public:
     const Echo& operator () (
         UTH*               invoker,
-        LOG_TYPE           log_type,
+        ECHO_LOG           log_type,
         std::string_view   message
     ) const {
         return std::invoke( _route, this, invoker, log_type, message );
@@ -229,13 +237,13 @@ public:
 protected:
     const Echo& _echo(
         UTH*               invoker,
-        LOG_TYPE           log_type,
+        ECHO_LOG           log_type,
         std::string_view   message
     ) const;
 
     const Echo& _nop(
         UTH*               invoker,
-        LOG_TYPE           log_type,
+        ECHO_LOG           log_type,
         std::string_view   message
     ) const {
         return *this;
@@ -254,25 +262,25 @@ public:
     }
 
 protected:
-    static std::string_view _log_type_name( LOG_TYPE log_type ) {
+    static std::string_view _log_type_name( ECHO_LOG log_type ) {
         switch( log_type ) {
-            case FAULT:   return "FAULT";
-            case WARNING: return "WARNING";
-            case OK:      return "OK";
-            case PENDING: return "PENDING";
-            case HEADSUP: return "HEADSUP";
+            case ECHO_LOG_FAULT:   return "FAULT";
+            case ECHO_LOG_WARNING: return "WARNING";
+            case ECHO_LOG_OK:      return "OK";
+            case ECHO_LOG_PENDING: return "PENDING";
+            case ECHO_LOG_HEADSUP: return "HEADSUP";
         }
 
         return "N/A";
     }
 
-    static std::string_view _log_type_fill( LOG_TYPE log_type ) {
+    static std::string_view _log_type_fill( ECHO_LOG log_type ) {
         switch( log_type ) {
-            case FAULT:   return "  ";
-            case WARNING: return "";
-            case OK:      return "     ";
-            case PENDING: return "";
-            case HEADSUP: return "";
+            case ECHO_LOG_FAULT:   return "  ";
+            case ECHO_LOG_WARNING: return "";
+            case ECHO_LOG_OK:      return "     ";
+            case ECHO_LOG_PENDING: return "";
+            case ECHO_LOG_HEADSUP: return "";
         }
 
         return "";
@@ -290,89 +298,89 @@ protected:
 
 
     
-    template< typename Type >
-    using Ref = Type&;
+template< typename Type >
+using Ref = Type&;
 
-    template< typename Type >
-    using Ptr = Type*;
-
-
-
-    template< template< typename Type > typename Smart_ptr, typename Type, typename Derived_ptr >
-    class _Smart_ptr_extended : public Smart_ptr< Type > {
-    public:
-        using _Base = Smart_ptr< Type >;
-        
-    public:
-        using _Base::_Base;
-
-    public:
-        inline static constexpr bool   is_array   = std::is_array_v< Type >;
-
-    public:
-        typedef   std::conditional_t< is_array, std::decay_t< Type >, Type* >   Type_ptr;
-        typedef   std::remove_pointer_t< Type_ptr >&                              Type_ref;
-
-    public:
-        Derived_ptr& operator = ( const Type_ptr ptr ) {
-            this->reset( ptr );
-
-            return static_cast< Derived_ptr& >( *this );
-        }
-
-    public:
-        operator Type_ptr () {
-            return this->get();
-        }
-
-        template< bool isnt_array = !is_array >
-        operator std::enable_if_t< isnt_array, Type_ref > () {
-            return *this->get();
-        }
-
-    public:
-        Type_ptr operator + ( ptrdiff_t offset ) const {
-            return this->get() + offset;
-        }
-
-        Type_ptr operator - ( ptrdiff_t offset ) const {
-            return this->get() - offset;
-        }
-
-    };
-
-
-    template< typename Type >
-    class Unique : public _Smart_ptr_extended< std::unique_ptr, Type, Unique< Type > > {
-    public:
-        typedef   _Smart_ptr_extended< std::unique_ptr, Type, Unique< Type > >   _Base;
-
-    public:
-        using _Base::_Base;
-
-        using _Base::operator =;
-
-    };
-
-
-    template< typename Type >
-    class Shared : public _Smart_ptr_extended< std::shared_ptr, Type, Shared< Type > > {
-    public:
-        typedef   _Smart_ptr_extended< std::shared_ptr, Type, Shared< Type > >   _Base;
-
-    public:
-        using _Base::_Base;
-
-        using _Base::operator =;
-
-    };
+template< typename Type >
+using Ptr = Type*;
 
 
 
-    struct VoidStruct {
-        template< typename ...Args >
-        VoidStruct( Args&&... ) {}
-    };
+template< template< typename Type > typename Smart_ptr, typename Type, typename Derived_ptr >
+class _Smart_ptr_extended : public Smart_ptr< Type > {
+public:
+    using _Base = Smart_ptr< Type >;
+    
+public:
+    using _Base::_Base;
+
+public:
+    inline static constexpr bool   is_array   = std::is_array_v< Type >;
+
+public:
+    typedef   std::conditional_t< is_array, std::decay_t< Type >, Type* >   Type_ptr;
+    typedef   std::remove_pointer_t< Type_ptr >&                              Type_ref;
+
+public:
+    Derived_ptr& operator = ( const Type_ptr ptr ) {
+        this->reset( ptr );
+
+        return static_cast< Derived_ptr& >( *this );
+    }
+
+public:
+    operator Type_ptr () {
+        return this->get();
+    }
+
+    template< bool isnt_array = !is_array >
+    operator std::enable_if_t< isnt_array, Type_ref > () {
+        return *this->get();
+    }
+
+public:
+    Type_ptr operator + ( ptrdiff_t offset ) const {
+        return this->get() + offset;
+    }
+
+    Type_ptr operator - ( ptrdiff_t offset ) const {
+        return this->get() - offset;
+    }
+
+};
+
+
+template< typename Type >
+class Unique : public _Smart_ptr_extended< std::unique_ptr, Type, Unique< Type > > {
+public:
+    typedef   _Smart_ptr_extended< std::unique_ptr, Type, Unique< Type > >   _Base;
+
+public:
+    using _Base::_Base;
+
+    using _Base::operator =;
+
+};
+
+
+template< typename Type >
+class Shared : public _Smart_ptr_extended< std::shared_ptr, Type, Shared< Type > > {
+public:
+    typedef   _Smart_ptr_extended< std::shared_ptr, Type, Shared< Type > >   _Base;
+
+public:
+    using _Base::_Base;
+
+    using _Base::operator =;
+
+};
+
+
+
+struct VoidStruct {
+    template< typename ...Args >
+    VoidStruct( Args&&... ) {}
+};
 
 
 
@@ -580,15 +588,15 @@ public:
 
 
 template< typename T >
-class Coord {
+struct Coord {
     Coord() = default;
 
     Coord( T x, T y )
     : x{ x }, y{ y }
     {}
 
-    template< typename T_other >
-    Coord( const Coord< T_other >& other )
+    template< typename TOther >
+    Coord( const Coord< TOther >& other )
     : x{ static_cast< T >( other.x ) }, y{ static_cast< T >( other.y ) }
     {}
 
@@ -610,15 +618,15 @@ class Coord {
 };
 
 template< typename T >
-class Size {
+struct Size {
     Size() = default;
 
     Size( T width, T height )
         : width( width ), height( height )
     {}
 
-    template< typename T_other >
-    Size( const Size< T_other >& other )
+    template< typename TOther >
+    Size( const Size< TOther >& other )
         : width( static_cast< T >( other.width ) ), height( static_cast< T >( other.height ) )
     {}
 
@@ -811,7 +819,7 @@ public:
     }
 
     static float diag() {
-        static float value = std::sqrt( width() * width() + height() * height() );
+        static float value = sqrt( width() * width() + height() * height() );
 
         return value;
     }
@@ -946,6 +954,1647 @@ protected:
 
 
 
+#pragma region Space
+
+
+
+enum HEADING {
+    HEADING_NORTH = 0, 
+    HEADING_EAST, 
+    HEADING_SOUTH, 
+    HEADING_WEST
+};
+
+enum SYSTEM {
+    SYSTEM_LOCAL = 0, 
+    SYSTEM_GLOBAL
+};
+
+
+
+class Deg {
+public:
+    static double pull( double theta ) {
+        return theta * ( 180.0 / PI );
+    }
+
+    static void push( double& theta ) {
+        theta *= ( 180.0 / PI );
+    }
+};
+
+class Rad {
+public:
+    static double pull( double theta ) {
+        return theta * ( PI / 180.0 );
+    }
+
+    static void push( double& theta ) {
+        theta *= ( PI / 180.0 );
+    }
+};
+
+
+
+#pragma region D2
+
+
+
+class Vec2 {
+public:
+    Vec2() = default;
+
+    Vec2( double x, double y )
+    : x{ x }, y{ y }
+    {}
+
+    Vec2( double x )
+    : Vec2{ x, x }
+    {}
+
+public:
+    double   x   = 0.0;
+    double   y   = 0.0;
+
+public:
+    double dot( const Vec2& other ) const {
+        return x * other.x + y * other.y;
+    }
+
+public:
+    double mag_sq() const {
+        return x * x + y * y;
+    }
+
+    double mag() const {
+        return sqrt( this->mag_sq() );
+    }
+
+    double angel() const {
+        return Deg::pull( atan2( y, x ) );
+    }
+
+public:
+    double dist_sq_to( const Vec2& other ) const {
+        return ( other.x - x ) * ( other.x - x ) + ( other.y - y ) * ( other.y - y );
+    }
+
+    double dist_to( const Vec2& other ) const {
+        return sqrt( this->dist_sq_to( other ) );
+    }
+
+public:
+    Vec2 respect_to( const Vec2& other ) const {
+        return { x - other.x, y - other.y };
+    }
+
+    Vec2 operator () ( const Vec2& other ) const {
+        return this->respect_to( other );
+    }
+
+public:
+    Vec2& polar( double angel, double dist ) {
+        Rad::push( angel );
+
+        x += cos( angel ) * dist;
+        y += sin( angel ) * dist;
+
+        return *this;
+    }
+
+    Vec2 polared( double angel, double dist ) const {
+        return Vec2{ *this }.polar( angel, dist );
+    }
+
+
+    Vec2& approach( const Vec2 other, double dist ) {
+        return this->polar( other.respect_to( *this ).angel(), dist );
+    }
+
+    Vec2 approached( const Vec2 other, double dist ) const {
+        return Vec2{ *this }.approach( other, dist );
+    }
+
+
+    Vec2& spin( double theta ) {
+        Rad::push( theta );
+
+        double nx = x * cos( theta ) - y * sin( theta );
+        y = x * sin( theta ) + y * cos( theta );
+        x = nx;
+
+        return *this;
+    }
+
+    Vec2& spin( double theta, const Vec2& other ) {
+        *this = this->respect_to( other ).spin( theta ) + other;
+
+        return *this;
+    }
+
+    Vec2 spinned( double theta ) const {
+        return Vec2{ *this }.spin( theta );
+    }
+
+    Vec2 spinned( double theta, const Vec2& other ) const {
+        return Vec2{ *this }.spin( theta, other );
+    }
+
+public:
+    bool is_further_than( const Vec2& other, HEADING heading ) const {
+        switch( heading ) {
+            case HEADING_NORTH: return y > other.y;
+            case HEADING_EAST:  return x > other.x;
+            case HEADING_SOUTH: return y < other.y;
+            case HEADING_WEST:  return x < other.x;
+        }
+
+        return false;
+    }
+
+public:
+    template< typename XType >
+    auto X( const Ray2& ray ) const;
+
+    template< typename XType >
+    auto X( const Clust2& clust ) const;
+
+public:
+    bool operator == ( const Vec2& other ) const {
+        return x == other.x && y == other.y;
+    }
+
+    Vec2 operator + ( const Vec2& other ) const {
+        return { x + other.x, y + other.y };
+    }
+
+    Vec2 operator - ( const Vec2& other ) const {
+        return { x - other.x, y - other.y };
+    }
+
+    Vec2 operator * ( const Vec2& other ) const {
+        return { x * other.x, y * other.y };
+    }
+
+    Vec2 operator / ( const Vec2& other ) const {
+        return { x / other.x, y / other.y };
+    }
+
+    Vec2 operator + ( double delta ) const {
+        return { x + delta, y + delta };
+    }
+
+    Vec2 operator - ( double delta ) const {
+        return { x - delta, y - delta };
+    }
+
+    Vec2 operator * ( double delta ) const {
+        return { x * delta, y * delta };
+    }
+
+    Vec2 operator / ( double delta ) const {
+        return { x / delta, y / delta };
+    }
+
+    Vec2 operator >> ( double delta ) const {
+        return { x + delta, y };
+    }
+
+    Vec2 operator ^ ( double delta ) const {
+        return { x, y + delta };
+    }
+
+    Vec2& operator += ( const Vec2& other ) {
+        x += other.x;
+        y += other.y;
+
+        return *this;
+    }
+
+    Vec2& operator -= ( const Vec2& other ) {
+        x -= other.x;
+        y -= other.y;
+
+        return *this;
+    }
+
+    Vec2& operator *= ( const Vec2& other ) {
+        x *= other.x;
+        y *= other.y;
+
+        return *this;
+    }
+
+    Vec2& operator /= ( const Vec2& other ) {
+        x /= other.x;
+        y /= other.y;
+
+        return *this;
+    }
+
+    Vec2& operator *= ( double delta ) {
+        x *= delta;
+        y *= delta;
+
+        return *this;
+    }
+
+    Vec2& operator /= ( double delta ) {
+        x /= delta;
+        y /= delta;
+
+        return *this;
+    }
+
+    Vec2& operator >>= ( double delta ) {
+        x += delta;
+
+        return *this;
+    }
+
+    Vec2& operator ^= ( double delta ) {
+        y += delta;
+
+        return *this;
+    }
+
+    Vec2 operator - () const {
+        return ( *this ) * -1.0;
+    }
+
+public:
+    static Vec2 O() {
+        return { 0.0, 0.0 };
+    }
+
+};
+
+
+
+class Ray2 {
+public:
+    Ray2() = default;
+
+    Ray2( Vec2 org, Vec2 v )
+    : origin( org ), vec( v )
+    {}
+
+public:
+    Vec2   origin   = {};
+    Vec2   vec      = {};
+
+public:
+    Vec2 drop() const {
+        return origin + vec;
+    }
+
+public:
+    double slope() const {
+        return ( this->drop().y - origin.y ) / ( this->drop().x - origin.x );
+    }
+
+    std::tuple< double, double, double > coeffs() const {
+        return { vec.y, -vec.x, vec.y * origin.x - vec.x * origin.y };
+    }
+
+public:
+    template< typename XType >
+    auto X( const Vec2& vec ) const {
+        this->X< XType >( Ray2{ Vec2::O(), vec } );
+    }
+
+    template< typename XType >
+    auto X( const Ray2& other ) const {
+        if constexpr( std::is_same_v< bool, XType > )
+            return this->_intersect_vec( other ).has_value();
+        else if constexpr( std::is_same_v< Vec2, XType > )
+            return this->_intersect_vec( other );
+    }
+
+    bool Xprll( const Ray2& other ) const {
+        static auto has_any_normal_component = [] ( Vec2 normalized ) -> bool {
+            return ( normalized.x >= 0.0 && normalized.x <= 1.0 )
+                    ||
+                    ( normalized.y >= 0.0 && normalized.y <= 1.0 );
+        };
+
+
+        if( this->slope() != other.slope() ) return false;
+
+
+        return has_any_normal_component( other.origin( origin ) / vec )
+                ||
+                has_any_normal_component( other.drop()( origin ) / vec )
+                ||
+                has_any_normal_component( origin( other.origin ) / other.vec )
+                ||
+                has_any_normal_component( this->drop()( other.origin ) / other.vec );
+    }
+
+    template< typename XType >
+    auto X( const Clust2& clust ) const;
+
+private:
+    std::optional< Vec2 > _intersect_vec( const Ray2& other ) const {
+        /* Hai noroc nea' Peter +respect. */
+
+        static auto has_any_normal_component = [] ( Vec2 normalized ) -> bool {
+            return ( normalized.x >= 0.0 && normalized.x <= 1.0 )
+                    ||
+                    ( normalized.y >= 0.0 && normalized.y <= 1.0 );
+        };
+
+        auto [ alpha, bravo, charlie ] = this->coeffs();
+        auto [ delta, echo, foxtrot ] = other.coeffs();
+
+        double golf = alpha * echo - bravo * delta;
+
+        if( golf == 0.0 ) return {};
+
+        Vec2 X_vec = {
+            ( charlie * echo - bravo * foxtrot ) / golf,
+            ( alpha * foxtrot - delta * charlie ) / golf
+        };
+
+        if( !has_any_normal_component( X_vec( origin ) / vec ) ) return {};
+
+        if( !has_any_normal_component( X_vec( other.origin ) / other.vec ) ) return {};
+
+        return X_vec;
+    }
+
+};
+
+
+
+template< typename OriginType >
+concept is_clust2_origin = (
+    std::is_same_v< std::decay_t< OriginType >, Vec2 >
+    ||
+    std::is_same_v< std::decay_t< OriginType >, Clust2* >
+);
+
+class Clust2 {
+public:
+    Clust2() = default;
+
+    template< typename Iterator >
+    Clust2( Iterator begin, Iterator end ) {
+        _vrtx.reserve( abs( std::distance( begin, end ) ) );
+
+        for( ; begin != end; ++begin )
+            _vrtx.emplace_back( *begin, *begin );
+    }
+
+    template< typename Container >
+    Clust2( const Container& container )
+    : Clust2( container.begin(), container.end() )
+    {}
+
+    template< typename OriginType, typename Iterator >
+    requires ( is_clust2_origin< OriginType > )
+    Clust2( OriginType org, Iterator begin, Iterator end, Vec2 offs = {} )
+    : Clust2( begin, end )
+    {
+        if constexpr( std::is_same_v< OriginType, Vec2 > )
+            _origin = org;
+        else
+            _origin = { org, offs };
+    }
+
+    template< typename OriginType, typename Container >
+    requires ( is_clust2_origin< OriginType > )
+    Clust2( OriginType org, const Container& container, Vec2 offs = {} )
+    : Clust2( org, container.begin(), container.end(), offs )
+    {}
+
+public:
+    Clust2( const Clust2& other )
+        : _origin( other._origin ),
+            _vrtx  ( other._vrtx ),
+            _scaleX( other._scaleX ),
+            _scaleY( other._scaleY ),
+            _angel ( other._angel )
+    {}
+
+    Clust2& operator = ( const Clust2& other ) {
+        _origin = other._origin;
+        _vrtx   = other._vrtx;
+        _scaleX = other._scaleX;
+        _scaleY = other._scaleY;
+        _angel  = other._angel;
+
+        return *this;
+    }
+
+    Clust2( Clust2&& other ) noexcept
+    : _origin{ std::move( other._origin ) },
+        _vrtx  { std::move( other._vrtx ) },
+        _scaleX{ other._scaleX },
+        _scaleY{ other._scaleY },
+        _angel { other._angel }
+    {}
+
+    Clust2& operator = ( Clust2&& other ) noexcept {
+        _origin = std::move( other._origin );
+        _vrtx   = std::move( other._vrtx );
+        _scaleX = other._scaleX;
+        _scaleY = other._scaleY;
+        _angel  = other._angel;
+
+        return *this;
+    }
+
+private:
+    typedef   std::variant< Vec2, std::pair< Clust2*, Vec2 > >   Origin;
+    typedef   std::pair< Vec2, Vec2 >                            Vrtx;
+
+    enum ORIGIN_VARIANT_ACCESS_INDEX {
+        OVAI_VEC  = 0,
+        OVAI_HOOK = 1
+    };
+
+private:
+    Origin                _origin   = Vec2{ 0.0, 0.0 };
+    std::vector< Vrtx >   _vrtx     = {};
+
+    double                _scaleX   = 1.0;
+    double                _scaleY   = 1.0;
+    double                _angel    = 0.0;
+
+public:
+    Vec2 origin() const {
+        return this->is_hooked() ?
+            const_cast< Clust2* >( this )->hook().origin()
+            +
+            const_cast< Clust2* >( this )->hook_offs()
+            :
+            std::get< OVAI_VEC >( _origin );
+    }
+
+    Vec2& origin_ref() {
+        return this->is_hooked() ?
+            this->hook().origin_ref()
+            :
+            std::get< OVAI_VEC >( _origin );
+    }
+
+    operator Vec2 () const {
+        return this->origin();
+    }
+
+    Vec2 operator () () const {
+        return this->operator Vec2();
+    }
+
+public:
+    bool is_hooked() const {
+        return _origin.index() == OVAI_HOOK;
+    }
+
+    bool is_hookable_to( Clust2& other ) {
+        static bool ( *propagate )( Clust2&, Clust2* ) = [] ( Clust2& clust, Clust2* invoker ) -> bool {
+            if( !clust.is_hooked() ) return true;
+
+            if( &clust.hook() == invoker ) return false;
+
+            return propagate( clust.hook(), invoker );
+        };
+
+        return propagate( other, this );
+    }
+
+    Vec2& hook_offs() {
+        return std::get< OVAI_HOOK >( _origin ).second;
+    }
+
+    Clust2& hook_offs_to( const Vec2& vec ) {
+        this->hook_offs() = vec;
+
+        return *this;
+    }
+
+    Clust2& hook() {
+        return *std::get< OVAI_HOOK >( _origin ).first;
+    }
+
+    Clust2& hook_to( Clust2& other, std::optional< Vec2 > offs = {} ) {
+        _origin = std::make_pair(
+            &other,
+            offs.value_or( this->origin()( other.origin() ) )
+        );
+
+        return *this;
+    }
+
+    Clust2& dehook() {
+        _origin = this->origin();
+
+        return *this;
+    }
+
+public:
+    Vec2& vrtx_b( size_t idx ) {
+        return _vrtx[ idx ].second;
+    }
+
+    Vec2& operator [] ( size_t idx ) {
+        return _vrtx[ idx ].first;
+    }
+
+    Vec2 operator() ( size_t idx ) const {
+        return _vrtx[ idx ].first + this->origin();
+    }
+
+    size_t vrtx_count() const {
+        return _vrtx.size();
+    }
+
+public:
+    double angel() const {
+        return _angel;
+    }
+
+    double scaleX() const {
+        return _scaleX;
+    }
+
+    double scaleY() const {
+        return _scaleY;
+    }
+
+    double scale() const {
+        return this->scaleX();
+    }
+
+public:
+    Clust2& relocate_at( const Vec2& vec ) {
+        this->origin_ref() = vec;
+
+        return *this;
+    }
+
+    Clust2& operator = ( const Vec2& vec ) {
+        return this->relocate_at( vec );
+    }
+
+    Clust2& relocate_by( size_t idx, const Vec2& vec ) {
+        this->origin_ref() += vec.respect_to( this->operator()( idx ) );
+
+        return *this;
+    }
+
+public:
+    Clust2& spin_with( double theta ) {
+        _angel += theta;
+
+        this->_refresh();
+
+        return *this;
+    }
+
+    Clust2& spin_at( double theta ) {
+        _angel = theta;
+
+        this->_refresh();
+
+        return *this;
+    }
+
+    Clust2& scaleX_with( double delta ) {
+        _scaleX *= delta;
+
+        this->_refresh();
+
+        return *this;
+    }
+
+    Clust2& scaleY_with( double delta ) {
+        _scaleY *= delta;
+
+        this->_refresh();
+
+        return *this;
+    }
+
+    Clust2& scale_with( double delta ) {
+        _scaleX *= delta;
+        _scaleY *= delta;
+
+        this->_refresh();
+
+        return *this;
+    }
+
+    Clust2& scaleX_at( double delta ) {
+        _scaleX = delta;
+
+        this->_refresh();
+
+        return *this;
+    }
+
+    Clust2& scaleY_at( double delta ) {
+        _scaleY = delta;
+
+        this->_refresh();
+
+        return *this;
+    }
+
+    Clust2& scale_at( double delta ) {
+        _scaleX = _scaleY = delta;
+
+        this->_refresh();
+
+        return *this;
+    }
+
+public:
+    static Clust2 triangle( double edge_length ) {
+        Vec2 vrtx = { 0.0, edge_length * sqrt( 3.0 ) / 3.0 };
+
+        return std::vector< Vec2 >( {
+            vrtx,
+            vrtx.spinned( 120.0 ),
+            vrtx.spinned( -120.0 )
+        } );
+    }
+
+    static Clust2 square( double edge_length ) {
+        edge_length /= 2.0;
+
+        return std::vector< Vec2 >( {
+            { edge_length, edge_length },
+            { edge_length, -edge_length },
+            { -edge_length, -edge_length },
+            { -edge_length, edge_length }
+        } );
+    }
+
+    static Clust2 circle( double radius, size_t precision ) {
+        std::vector< Vec2 > vrtx;
+        vrtx.reserve( precision );
+
+        vrtx.emplace_back( 0.0, radius );
+
+        for( size_t n = 1; n < precision; ++n )
+            vrtx.push_back( vrtx.front().spinned( 360.0 / precision * n ) );
+
+        return vrtx;
+    }
+
+    static Clust2 rect( Vec2 tl, Vec2 br ) {
+        return std::vector< Vec2 >( {
+            tl, Vec2( br.x, tl.y ), br, Vec2( tl.x, br.y )
+        } );
+    }
+
+    template< typename T >
+    requires std::is_invocable_v< T >
+    static Clust2 random(
+        double min_dist, double max_dist,
+        size_t min_ec, size_t max_ec,
+        const T& generator
+    ) {
+        static auto scalar = [] ( const auto& generator, double min ) -> double {
+            return ( static_cast< double >( std::invoke( generator ) % 10001 ) / 10000 )
+                    * ( 1.0 - min ) + min;
+        };
+
+        size_t edge_count = std::invoke( generator ) % ( max_ec - min_ec + 1 ) + min_ec;
+
+        Vec2 vrtx[ edge_count ];
+
+        vrtx[ 0 ] = { 0.0, max_dist };
+
+        double diff = 360.0 / edge_count;
+
+
+        for( size_t n = 1; n < edge_count; ++n )
+            vrtx[ n ] = vrtx[ 0 ].spinned( diff * n + ( scalar( generator, min_dist / max_dist ) - 0.5 ) * diff )
+                        *
+                        scalar( generator, min_dist / max_dist );
+
+
+        return { vrtx, vrtx + edge_count };
+    }
+
+public:
+    size_t extreme_idx( HEADING heading ) {
+        size_t ex_idx = 0;
+
+        for( size_t idx = 0; idx < this->vrtx_count(); ++idx )
+            if( _vrtx[ idx ].first.is_further_than( _vrtx[ ex_idx ].first, heading ) )
+                ex_idx = idx;
+
+        return ex_idx;
+    }
+
+    Vec2& extreme_ref( HEADING heading ) {
+        return _vrtx[ this->extreme_idx( heading ) ].first;
+    }
+
+    Vec2 extreme( HEADING heading, SYSTEM system = SYSTEM_GLOBAL ) const {
+        return const_cast< Clust2* >( this )->extreme_ref( heading )
+                +
+                ( system == SYSTEM_GLOBAL ? this->origin() : Vec2::O() );
+    }
+
+public:
+    template< typename XType >
+    auto X( const Vec2& vec ) const {
+        return this->X< XType >( Ray2{ Vec2::O(), vec } );
+    }
+
+    template< typename XType >
+    auto X( const Ray2& ray ) const {
+        if constexpr( std::is_same_v< bool, XType > )
+            return this->_intersect_ray_bool( ray );
+        else if constexpr( std::is_same_v< Vec2, XType > )
+            return this->_intersect_ray_vec( ray );
+    }
+
+    template< typename XType >
+    auto X( const Clust2& other ) const {
+        if constexpr( std::is_same_v< bool, XType > )
+            return this->_intersect_bool( other );
+        else if constexpr( std::is_same_v< Vec2, XType > )
+            return this->_intersect_vec( other );
+    }
+
+private:
+    bool _intersect_ray_bool( const Ray2& ray ) const {
+        for( size_t idx = 0; idx < this->vrtx_count(); ++idx )
+            if( this->_mkray( idx ).X< bool >( ray ) )
+                return true;
+
+        return false;
+    }
+
+    std::vector< Vec2 > _intersect_ray_vec( const Ray2& ray ) const {
+        std::vector< Vec2 > Xs{};
+
+        for( size_t idx = 0; idx < this->vrtx_count(); ++idx ) {
+            auto vec = this->_mkray( idx ).X< Vec2 >( ray );
+
+            if( vec.has_value() )
+                Xs.push_back( vec.value() );
+        }
+
+        return Xs;
+    }
+
+    bool _intersect_bool( const Clust2& other ) const {
+        for( size_t idx = 0; idx < other.vrtx_count(); ++idx )
+            if( this->X< bool >( other._mkray( idx ) ) )
+                return true;
+
+        return false;
+    }
+
+    std::vector< Vec2 > _intersect_vec( const Clust2& other ) const {
+        std::vector< Vec2 > Xs{};
+
+        for( size_t idx = 0; idx < other.vrtx_count(); ++idx ) {
+            auto vecs = this->X< Vec2 >( other._mkray( idx ) );
+
+            Xs.insert( Xs.end(), vecs.begin(), vecs.end() );
+        }
+
+        return Xs;
+    }
+
+public:
+    bool contains( const Vec2& vec ) const {
+        Ray2 strike = {
+            vec,
+            ( vec >> ( vec.dist_sq_to( this->extreme( HEADING_EAST, SYSTEM_GLOBAL ) ) + 10.0 ) )( vec )
+        };
+
+        size_t intersections = 0;
+
+        std::pair< bool, bool > skip = { false, false };
+
+
+        for( size_t idx = 0; idx < this->vrtx_count(); ++idx ) {
+            Ray2 edge = this->_mkray( idx, ( idx + 1 ) % this->vrtx_count() );
+
+            if( skip.first ) {
+                skip.first = false;
+
+                if( skip.second ? edge.drop().y <= strike.origin.y : edge.drop().y >= strike.origin.y )
+                    continue;
+            }
+
+            if( strike.X< bool >( edge ) ) {
+                ++intersections;
+
+                if( ( skip.first = ( edge.drop().y == strike.origin.y ) ) )
+                    skip.second = edge.origin.y > strike.origin.y;
+            }
+        }
+
+        if( skip.first && !strike.Xprll( this->_mkray( 0, 1 ) ) )
+            --intersections;
+
+        return intersections % 2;
+    }
+
+private:
+    void _refresh() {
+        for( Vrtx& v : _vrtx )
+            v.first = v.second.spinned( _angel ) * Vec2{ _scaleX, _scaleY };
+    }
+
+    Ray2 _mkray( size_t idx ) const {
+        return { ( *this )( idx ), ( *this )( ( idx + 1 ) % this->vrtx_count() )( ( *this )( idx ) ) };
+    }
+
+    Ray2 _mkray( size_t idx1, size_t idx2 ) const {
+        return { ( *this )( idx1 ), ( *this )( idx2 )( ( *this )( idx1 ) ) };
+    }
+
+public:
+    static Clust2 from_file( std::string_view path ) {
+        std::ifstream file( path.data() );
+
+        if( !file ) return {};
+
+        Vec2 org = {};
+
+        std::vector< Vec2 > vrtx = {};
+
+        {
+            bool has_origin = false;
+
+            file >> has_origin;
+
+            if( has_origin )
+                file >> org.x >> org.y;
+        }
+
+        for( Vec2 vec; file >> vec.x >> vec.y; )
+            vrtx.push_back( vec );
+
+        return { org, vrtx };
+    }
+
+};
+
+
+
+template< typename XType >
+auto Vec2::X( const Ray2& ray ) const {
+    return ray.X< XType >( *this );
+}
+
+template< typename XType >
+auto Vec2::X( const Clust2& clust ) const {
+    return clust.X< XType >( *this );
+}
+
+
+template< typename XType >
+auto Ray2::X( const Clust2& clust ) const {
+    return clust.X< XType >( *this );
+}
+
+
+
+#pragma endregion D2
+
+
+
+#pragma endregion Space
+
+
+
+#pragma region Graphics
+
+
+
+#pragma region Surface
+
+
+
+enum KEY_STATE {
+    KEY_STATE_UP   = 0,
+    KEY_STATE_DOWN = 1
+};
+
+class Key {
+public:
+    enum VALUE {
+        NONE = 0,
+
+        LMB = 259, RMB, MMB,
+
+        _0 = 48, _1, _2, _3, _4, _5, _6, _7, _8, _9,
+
+        A = 65, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+
+        F1 = 112, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+
+        CTRL = 17, SHIFT = 16, ALT = 18, TAB = 9, CAPS = 20, ESC = 27, BACKSPACE = 8, ENTER = 13,
+
+        SPACE = 32, DOT = 190, COMMA = 188, COLON = 186, APOSTH = 222, DASH = 189, EQUAL = 187, UNDER_ESC = 192,
+
+        OPEN_BRACKET = 219, CLOSED_BRACKET = 221, BACKSLASH = 220, SLASH = 191,
+
+        LEFT = 37, UP, RIGHT, DOWN
+    };
+
+    static constexpr size_t   COUNT   = 262;
+
+public:
+    Key() = default;
+
+    Key( short key )
+    : value( key )
+    {}
+
+public:
+    short   value   = NONE;
+
+public:
+    operator short () const {
+        return value;
+    }
+
+public:
+    bool operator == ( const Key& other ) const {
+        return value == other.value;
+    }
+
+    bool operator == ( VALUE val ) const {
+        return value == val;
+    }
+
+    std::strong_ordering operator <=> ( const Key& other ) const {
+        return value <=> other.value;
+    }
+
+    std::strong_ordering operator <=> ( VALUE val ) const {
+        return value <=> val;
+    }
+
+public:
+#if defined( _ENGINE_UNIQUE_SURFACE )
+    template< typename ...Keys > static size_t any_down( Keys... keys );
+
+    template< typename ...Keys > static size_t smr_down( Keys... keys );
+
+    template< typename ...Keys > static bool all_down( Keys... keys );
+
+    static bool down( Key key );
+#endif
+
+};
+
+
+
+enum SCROLL_DIRECTION {
+    SCROLL_DIRECTION_UP, 
+    SCROLL_DIRECTION_DOWN, 
+    SCROLL_DIRECTION_LEFT, 
+    SCROLL_DIRECTION_RIGHT
+};
+
+
+
+enum SURFACE_EVENT {
+    SURFACE_EVENT_KEY, 
+    SURFACE_EVENT_MOUSE, 
+    SURFACE_EVENT_SCROLL, 
+    SURFACE_EVENT_FILEDROP, 
+    SURFACE_EVENT_MOVE, 
+    SURFACE_EVENT_RESIZE,
+
+    SURFACE_EVENT__DESTROY = 69100,
+    SURFACE_EVENT__CURSOR_HIDE, 
+    SURFACE_EVENT__CURSOR_SHOW,
+    SURFACE_EVENT__FORCE
+};
+
+enum SURFACE_PLUG_SOCKET {
+    SURFACE_PLUG_SOCKET_AT_ENTRY = 0,
+    SURFACE_PLUG_SOCKET_AT_EXIT  = 1
+};
+
+class Surface : public UTHResident< Surface > {
+public:
+    _ENGINE_STRUCT_TYPE_MTD( "Surface" );
+
+private:
+    friend class Key;
+    friend class Mouse;
+
+public:
+    Surface() = default;
+
+    Surface(
+        std::string_view title,
+        Coord< int >     coord = { 0, 0 },
+        Size< int >      size  = { 512, 512 },
+        Echo             echo  = {}
+    )
+    : _coord( coord ), _size( size )
+    {
+        #if defined( _ENGINE_UNIQUE_SURFACE )
+            _ptr = this;
+        #endif
+
+        _wnd_class.cbSize        = sizeof( WNDCLASSEX );
+        _wnd_class.hInstance     = GetModuleHandle( NULL );
+        _wnd_class.lpfnWndProc   = event_proc_router;
+        _wnd_class.lpszClassName = title.data();
+        _wnd_class.hbrBackground = HBRUSH( COLOR_INACTIVECAPTIONTEXT );
+        _wnd_class.hCursor       = LoadCursor( NULL, IDC_ARROW );
+
+
+        std::binary_semaphore sync{ 0 };
+
+        _thread = std::thread( _main, this, &sync, echo );
+
+        if( _thread.joinable() ) {
+            echo( this, ECHO_LOG_PENDING, "Awaiting window creation..." );
+
+            sync.acquire();
+        } else
+            echo( this, ECHO_LOG_FAULT, "Window thread launch failed." );
+    }
+
+    ~Surface() {
+        SendMessage( _hwnd, SURFACE_EVENT__DESTROY, WPARAM{}, LPARAM{} );
+
+        if( _thread.joinable() )
+            _thread.join();
+
+        #if defined( _ENGINE_UNIQUE_SURFACE )
+            _ptr = nullptr;
+        #endif
+    }
+
+public:
+    struct Trace {
+        Trace() = default;
+
+        struct Result {
+            GUID                guid     = {};
+            std::bitset< 16 >   result   = 0;
+        };
+
+        std::bitset< 64 >       master   = 0;
+        std::vector< Result >   plugs    = {};
+
+        void clear() {
+            master.reset();
+            plugs.clear();
+        }
+
+        std::bitset< 64 >::reference operator [] ( size_t idx ) {
+            return master[ idx ];
+        }
+    };
+
+public:
+    typedef   std::function< void( Vec2, Vec2, Trace& ) >                   OnMouse;
+    typedef   std::function< void( Key, KEY_STATE, Trace& ) >               OnKey;
+    typedef   std::function< void( SCROLL_DIRECTION, Trace& ) >             OnScroll;
+    typedef   std::function< void( std::vector< std::string >, Trace& ) >   OnFiledrop;
+    typedef   std::function< void( Coord< int >, Coord< int >, Trace& ) >   OnMove;
+    typedef   std::function< void( Size< int >, Size< int >, Trace& ) >     OnResize;
+
+    typedef   std::array< KEY_STATE, Key::COUNT >                           Keys;
+
+private:
+    static constexpr int   LIQUID_STYLE   = WS_OVERLAPPED | WS_SIZEBOX | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE;
+    static constexpr int   SOLID_STYLE    = WS_POPUP | WS_VISIBLE;
+
+private:
+#if defined( _ENGINE_UNIQUE_SURFACE )
+    inline static Surface*        _ptr                  = nullptr;
+#endif
+    HWND                          _hwnd                 = NULL;
+    WNDCLASSEX                    _wnd_class            = {};
+    std::thread                   _thread               = {};
+    Coord< int >                  _coord                = {};
+    Size< int >                   _size                 = {};
+
+    Trace                         _trace                = {};
+
+    OnMouse                       _on_mouse             = {};
+    OnKey                         _on_key               = {};
+    OnScroll                      _on_scroll            = {};
+    OnFiledrop                    _on_filedrop          = {};
+    OnMove                        _on_move              = {};
+    OnResize                      _on_resize            = {};
+
+    std::map< GUID, OnMouse >     _plug_mouse[ 2 ]      = {};
+    std::map< GUID, OnKey >       _plug_key[ 2 ]        = {};
+    std::map< GUID, OnScroll >    _plug_scroll[ 2 ]     = {};
+    std::map< GUID, OnFiledrop >  _plug_filedrop[ 2 ]   = {};
+    std::map< GUID, OnMove >      _plug_move[ 2 ]       = {};
+    std::map< GUID, OnResize >    _plug_resize[ 2 ]     = {};
+
+
+    Vec2                          _mouse                = {};
+    Vec2                          _mouse_l              = {};
+    Keys                          _keys                 = {};
+
+private:
+    void _main( std::binary_semaphore* sync, Echo echo = {} ) {
+        if( !RegisterClassEx( &_wnd_class ) ) {
+            echo( this, ECHO_LOG_FAULT, "Window class registration failed." );
+
+            sync->release(); return;
+        }
+
+
+        _hwnd = CreateWindowEx(
+            WS_EX_ACCEPTFILES,
+
+            _wnd_class.lpszClassName, _wnd_class.lpszClassName,
+
+            SOLID_STYLE,
+
+            _coord.x, _coord.y, _size.width, _size.height,
+
+            NULL, NULL,
+
+            GetModuleHandle( NULL ),
+
+            this
+        );
+
+        if( !_hwnd ) {
+            echo( this, ECHO_LOG_FAULT, "Window creation failed." );
+
+            sync->release(); return;
+        }
+
+        SetWindowText( _hwnd, _wnd_class.lpszClassName );
+
+
+        echo( this, ECHO_LOG_OK, "Created." );
+
+        sync->release();
+
+
+        MSG event;
+
+        while( GetMessage( &event, NULL, 0, 0 ) > 0 ) {
+            TranslateMessage( &event );
+            DispatchMessage( &event );
+        }
+
+    }
+
+    static LRESULT CALLBACK event_proc_router( HWND hwnd, UINT event, WPARAM w_param, LPARAM l_param ) {
+        #if defined( _ENGINE_UNIQUE_SURFACE )
+            if( event == WM_NCCREATE )
+                static_cast< Surface* >(
+                    reinterpret_cast< LPCREATESTRUCT >( l_param )->lpCreateParams
+                )->_hwnd = hwnd;
+            else
+        #else
+            Surface* ptr = nullptr;
+
+            if( event == WM_NCCREATE ) {
+                ptr = static_cast< Surface* >( reinterpret_cast< LPCREATESTRUCT >( l_param )->lpCreateParams );
+                ptr->_hwnd = hwnd;
+                SetWindowLongPtr( hwnd, GWLP_USERDATA, reinterpret_cast< LONG_PTR >( ptr ) );
+            }
+            else
+                ptr = reinterpret_cast< Surface* >( GetWindowLongPtr( hwnd, GWLP_USERDATA ) );
+        #endif
+
+        if( ptr )
+            return ptr->event_proc( hwnd, event, w_param, l_param );
+
+        return DefWindowProc( hwnd, event, w_param, l_param );
+    }
+
+    LRESULT CALLBACK event_proc( HWND hwnd, UINT event, WPARAM w_param, LPARAM l_param ) {
+        static auto key_proc = [ this ] ( KEY_STATE state, WPARAM w_param ) -> void {
+            Key key = static_cast< Key >( w_param );
+
+            _keys[ key ] = state;
+
+            this->invoke_ons< OnKey >( key, state );
+        };
+
+        switch( event ) {
+            case WM_CREATE: {
+
+            break; }
+
+
+            case SURFACE_EVENT__DESTROY: {
+                DestroyWindow( hwnd );
+                PostQuitMessage( 0 );
+            break; }
+
+            case SURFACE_EVENT__CURSOR_HIDE: {
+                while( ShowCursor( false ) >= 0 );
+            break; }
+
+            case SURFACE_EVENT__CURSOR_SHOW: {
+                while( ShowCursor( true ) >= 0 );
+            break; }
+
+            case SURFACE_EVENT__FORCE :{
+                this->invoke_ons< OnMouse >( _mouse, _mouse );
+            break; }
+
+
+            case WM_MOUSEMOVE: {
+                Vec2 new_mouse = this->pull_vec( { LOWORD( l_param ), HIWORD( l_param ) } );
+
+                this->invoke_ons< OnMouse >( new_mouse, _mouse_l = std::exchange( _mouse, new_mouse ) );
+
+            break; }
+
+            case WM_MOUSEWHEEL: {
+                this->invoke_ons< OnScroll >(
+                    GET_WHEEL_DELTA_WPARAM( w_param ) < 0
+                    ?
+                    SCROLL_DIRECTION_DOWN : SCROLL_DIRECTION_UP
+                );
+
+                break;
+            }
+
+
+            case WM_LBUTTONDOWN: {
+                key_proc( KEY_STATE_DOWN, Key::LMB );
+
+                break;
+            }
+
+            case WM_LBUTTONUP: {
+                key_proc( KEY_STATE_UP, Key::LMB );
+
+                break;
+            }
+
+            case WM_RBUTTONDOWN: {
+                key_proc( KEY_STATE_DOWN, Key::RMB );
+
+                break;
+            }
+
+            case WM_RBUTTONUP: {
+                key_proc( KEY_STATE_UP, Key::RMB );
+
+                break;
+            }
+
+            case WM_MBUTTONDOWN: {
+                key_proc( KEY_STATE_DOWN, Key::MMB );
+
+                break;
+            }
+
+            case WM_MBUTTONUP: {
+                key_proc( KEY_STATE_UP, Key::MMB );
+
+                break;
+            }
+
+            case WM_KEYDOWN: {
+                if( l_param & ( 1 << 30 ) ) break;
+
+                key_proc( KEY_STATE_DOWN, w_param );
+
+                break;
+            }
+
+            case WM_KEYUP: {
+                key_proc( KEY_STATE_UP, w_param );
+
+                break;
+            }
+
+
+            case WM_DROPFILES: {
+                size_t file_count = DragQueryFile( reinterpret_cast< HDROP >( w_param ), -1, 0, 0 );
+
+                std::vector< std::string > files;
+
+                for( size_t n = 0; n < file_count; ++ n ) {
+                    TCHAR file[ MAX_PATH ];
+
+                    DragQueryFile( reinterpret_cast< HDROP >( w_param ), n, file, MAX_PATH );
+
+                    files.emplace_back( file );
+                }
+
+                this->invoke_ons< OnFiledrop >( std::move( files ) );
+
+            break; }
+
+
+            case WM_MOVE: {
+                Coord< int > new_coord = { LOWORD( l_param ), HIWORD( l_param ) };
+
+                this->invoke_ons< OnMove >( new_coord, std::exchange( _coord, new_coord ) );
+
+            break; }
+
+            case WM_SIZE: {
+                Size< int > new_size = { LOWORD( l_param ), HIWORD( l_param ) };
+
+                this->invoke_ons< OnResize >( new_size, std::exchange( _size, new_size ) );
+
+            break; }
+
+        }
+
+        return DefWindowProc( hwnd, event, w_param, l_param );
+    }
+
+    template< typename On, typename ...Args >
+    void invoke_ons( Args&&... args ) {
+        if constexpr( std::is_same_v< On, OnMouse > )
+            this->invoke_ons( _on_mouse, _plug_mouse, std::forward< Args >( args )... );
+
+        else if constexpr( std::is_same_v< On, OnKey > )
+            this->invoke_ons( _on_key, _plug_key, std::forward< Args >( args )... );
+
+        else if constexpr( std::is_same_v< On, OnScroll > )
+            this->invoke_ons( _on_scroll, _plug_scroll, std::forward< Args >( args )... );
+
+        else if constexpr( std::is_same_v< On, OnFiledrop > )
+            this->invoke_ons( _on_filedrop, _plug_filedrop, std::forward< Args >( args )... );
+
+        else if constexpr( std::is_same_v< On, OnMove > )
+            this->invoke_ons( _on_move, _plug_move, std::forward< Args >( args )... );
+
+        else if constexpr( std::is_same_v< On, OnResize > )
+            this->invoke_ons( _on_resize, _plug_resize, std::forward< Args >( args )... );
+
+    }
+
+    template< typename M, typename P, typename ...Args >
+    void invoke_ons( M& master, P& plugs, Args&&... args ) {
+        _trace.clear();
+
+        for( auto& pair : plugs[ 0 ] )
+            std::invoke( pair.second, std::forward< Args >( args )..., _trace );
+
+        if( master )
+            std::invoke( master, std::forward< Args >( args )..., _trace );
+
+        for( auto& pair : plugs[ 1 ] )
+            std::invoke( pair.second, std::forward< Args >( args )..., _trace );
+    }
+
+public:
+    Vec2 pull_vec( const Coord< float >& coord ) const {
+        return { coord.x - _size.width / 2.0, _size.height / 2.0 - coord.y };
+    }
+
+    Coord< float > pull_coord( const Vec2& vec ) const {
+        return { 
+            static_cast< float >( vec.x ) + _size.width / 2.0f, 
+            _size.height / 2.0f - static_cast< float >( vec.y ) 
+        };
+    }
+
+    void push_vec( Coord< float >& coord ) const {
+        coord.x -= _size.width / 2.0;
+        coord.y = _size.height / 2.0 - coord.y;
+    }
+
+    void push_coord( Vec2& vec ) const {
+        vec.x += _size.width / 2.0;
+        vec.y = _size.height / 2.0 - vec.y;
+    }
+
+public:
+    Coord< int > pos() {
+        RECT rect = {};
+
+        GetWindowRect( _hwnd, &rect );
+
+        return { rect.left, rect.top };
+    }
+
+    int x() {
+        return pos().x;
+    }
+
+    int y() {
+        return pos().y;
+    }
+
+    Size< int > size() {
+        RECT rect = {};
+
+        GetWindowRect( _hwnd, &rect );
+
+        return { rect.right - rect.left, rect.bottom - rect.top };
+    }
+
+    int width() {
+        return size().width;
+    }
+
+    int height() {
+        return size().height;
+    }
+
+public:
+    Surface& solidify() {
+        SetWindowLongPtr( _hwnd, GWL_STYLE, SOLID_STYLE );
+
+        return *this;
+    }
+
+    Surface& liquify() {
+        SetWindowLongPtr( _hwnd, GWL_STYLE, LIQUID_STYLE );
+
+        return *this;
+    }
+
+    Surface& move_to( Coord< int > coord ) {
+        SetWindowPos(
+            _hwnd,
+            0,
+            _coord.x = coord.x, _coord.y = coord.y,
+            0, 0,
+            SWP_NOSIZE
+        );
+
+        return *this;
+    }
+
+    Surface& size_to( Size< int > size ) {
+        SetWindowPos(
+            _hwnd,
+            0,
+            0, 0,
+            _size.width = size.width, _size.height = size.height,
+            SWP_NOMOVE
+        );
+
+        return *this;
+    }
+
+public:
+    Surface& hide_cursor() {
+        SendMessage( _hwnd, SURFACE_EVENT__CURSOR_HIDE, WPARAM{}, LPARAM{} );
+
+        return *this;
+    }
+
+    Surface& show_cursor() {
+        SendMessage( _hwnd, SURFACE_EVENT__CURSOR_SHOW, WPARAM{}, LPARAM{} );
+
+        return *this;
+    }
+
+public:
+    Vec2 vec() {
+        return _mouse;
+    }
+
+    Vec2 l_vec() {
+        return _mouse_l;
+    }
+
+    Coord< int > coord() {
+        return this->pull_coord( vec() );
+    }
+
+    Coord< int > l_coord() {
+        return this->pull_coord( l_vec() );
+    }
+
+    template< typename ...Keys >
+    size_t any_down( Keys... keys ) {
+        size_t count = 0;
+
+        ( ( count += ( _keys[ keys ] == KEY_STATE_DOWN ) ), ... );
+
+        return count;
+    }
+
+    template< typename ...Keys >
+    size_t smr_down( Keys... keys ) {
+        size_t sum = 0;
+        size_t at = 1;
+
+        ( ( sum +=
+            std::exchange( at, at * 2 )
+            *
+            ( _keys[ keys ] == KEY_STATE_DOWN )
+        ), ... );
+
+        return sum;
+    }
+
+    template< typename ...Keys >
+    bool all_down( Keys... keys ) {
+        return any_down( keys... ) == sizeof...( Keys );
+    }
+
+    bool down( Key key ) {
+        return _keys[ key ] == KEY_STATE_DOWN;
+    }
+
+public:
+    HWND hwnd() {
+        return _hwnd;
+    }
+
+public:
+    Surface& force() {
+        SendMessage( _hwnd, SURFACE_EVENT__FORCE, WPARAM{}, LPARAM{} );
+
+        return *this;
+    }
+
+public:
+    template< SURFACE_EVENT event, typename Function >
+    Surface& on( Function function ) {
+        if      constexpr( event == SURFACE_EVENT_MOUSE )    _on_mouse    = function;
+        else if constexpr( event == SURFACE_EVENT_KEY )      _on_key      = function;
+        else if constexpr( event == SURFACE_EVENT_SCROLL )   _on_scroll   = function;
+        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _on_filedrop = function;
+        else if constexpr( event == SURFACE_EVENT_MOVE )     _on_move     = function;
+        else if constexpr( event == SURFACE_EVENT_RESIZE )   _on_resize   = function;
+
+        return *this;
+    }
+
+    template< SURFACE_EVENT event, typename Function >
+    Surface& plug( const GUID& guid, SURFACE_PLUG_SOCKET socket, Function function ) {
+        if      constexpr( event == SURFACE_EVENT_MOUSE )    _plug_mouse   [ socket ].insert( std::make_pair( guid, function )  );
+        else if constexpr( event == SURFACE_EVENT_KEY )      _plug_key     [ socket ].insert( std::make_pair( guid, function )  );
+        else if constexpr( event == SURFACE_EVENT_SCROLL )   _plug_scroll  [ socket ].insert( std::make_pair( guid, function )  );
+        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _plug_filedrop[ socket ].insert( std::make_pair( guid, function )  );
+        else if constexpr( event == SURFACE_EVENT_MOVE )     _plug_move    [ socket ].insert( std::make_pair( guid, function )  );
+        else if constexpr( event == SURFACE_EVENT_RESIZE )   _plug_resize  [ socket ].insert( std::make_pair( guid, function )  );
+
+        return *this;
+    }
+
+    Surface& unplug( const GUID& guid, std::optional< SURFACE_PLUG_SOCKET > socket = {} ) {
+        _unplug( guid, socket, _plug_mouse );
+        _unplug( guid, socket, _plug_key );
+        _unplug( guid, socket, _plug_scroll );
+        _unplug( guid, socket, _plug_filedrop );
+        _unplug( guid, socket, _plug_move );
+        _unplug( guid, socket, _plug_resize );
+
+        return *this;
+    }
+
+    template< SURFACE_EVENT event >
+    Surface& unplug( const GUID& guid, std::optional< SURFACE_PLUG_SOCKET > socket = {} ) {
+        if      constexpr( event == SURFACE_EVENT_MOUSE )    _unplug( guid, socket, _plug_mouse );
+        else if constexpr( event == SURFACE_EVENT_KEY )      _unplug( guid, socket, _plug_key );
+        else if constexpr( event == SURFACE_EVENT_SCROLL )   _unplug( guid, socket, _plug_scroll );
+        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _unplug( guid, socket, _plug_filedrop );
+        else if constexpr( event == SURFACE_EVENT_MOVE )     _unplug( guid, socket, _plug_move );
+        else if constexpr( event == SURFACE_EVENT_RESIZE )   _unplug( guid, socket, _plug_resize );
+
+        return *this;
+    }
+
+private:
+    template< typename Plug >
+    void _unplug( const GUID& guid, std::optional< SURFACE_PLUG_SOCKET > socket, Plug& plug ) {
+        if( socket.has_value() )
+            plug[ socket.value() ].erase( guid );
+        else {
+            plug[ SURFACE_PLUG_SOCKET_AT_ENTRY ].erase( guid );
+            plug[ SURFACE_PLUG_SOCKET_AT_EXIT ] .erase( guid );
+        }
+    }
+
+public:
+#if defined( _ENGINE_UNIQUE_SURFACE )
+    static Surface* get() {
+        return _ptr;
+    }
+#endif
+
+};
+
+
+
+#pragma endregion Surface
+
+
+
+#pragma endregion Graphics
+
+
+
 #pragma region Audio
 
 
@@ -956,6 +2605,13 @@ public:
 
 public:
     typedef   std::function< double( double, size_t ) >   Filter;
+
+public:
+    Wave() = default;
+
+    Wave( const Wave& ) = default;
+
+    Wave( Wave&& ) = delete;
 
 protected:
     Audio*   _audio   = nullptr;
@@ -976,7 +2632,7 @@ public:
         _audio = &audio;
     }
 
-    void release() {
+    void release_lock() {
         _audio = nullptr;
     }
 
@@ -1188,7 +2844,7 @@ public:
         }
 
         if( dev_idx == devs.size() ) {
-            echo( this, Echo::FAULT, "Device does not exist." ); return;
+            echo( this, ECHO_LOG_FAULT, "Device does not exist." ); return;
         }
 
 
@@ -1211,14 +2867,14 @@ public:
         );
 
         if( result != S_OK ) {
-            echo( this, Echo::FAULT, "Wave open link failed." ); return;
+            echo( this, ECHO_LOG_FAULT, "Wave open link failed." ); return;
         }
 
 
         _block_memory = new int[ _block_count * _block_sample_count ];
 
         if( !_block_memory ) {
-            echo( this, Echo::FAULT, "Block alloc failed." ); return;
+            echo( this, ECHO_LOG_FAULT, "Block alloc failed." ); return;
         }
 
         std::fill_n( _block_memory.get(), _block_count * _block_sample_count, 0 );
@@ -1227,7 +2883,7 @@ public:
         _wave_headers = new WAVEHDR[ _block_count ];
 
         if( !_wave_headers ) {
-            echo( this, Echo::FAULT, "Wave headers alloc failed." ); return;
+            echo( this, ECHO_LOG_FAULT, "Wave headers alloc failed." ); return;
         }
 
         std::fill_n( ( char* ) _wave_headers.get(), sizeof( WAVEHDR ) * _block_count, 0 );
@@ -1244,19 +2900,19 @@ public:
         _thread = std::thread( _main, this );
 
         if( !_thread.joinable() ) {
-            echo( this, Echo::FAULT, "Thread launch failed." ); return;
+            echo( this, ECHO_LOG_FAULT, "Thread launch failed." ); return;
         }
 
         std::unique_lock< std::mutex > lock{ _mtx };
         _cnd_var.notify_one();
 
-        echo( this, Echo::OK, "Created." );
+        echo( this, ECHO_LOG_OK, "Created." );
     }
 
 
-    Audio( const Audio& other ) = delete;
+    Audio( const Audio& ) = delete;
 
-    Audio( Audio&& other ) = delete;
+    Audio( Audio&& ) = delete;
 
 
     ~Audio() {
@@ -1332,7 +2988,7 @@ protected:
             _waves.remove_if( [] ( Wave* wave ) {
                 return wave->done();
             } );
-
+            
             
             size_t current_block = _block_current * _block_sample_count;
 
@@ -1444,11 +3100,11 @@ public:
         _audio = &audio;
 
         if( _sample_rate != _audio->sample_rate() )
-            echo( this, Echo::WARNING, "Sample rate does not match with locked on audio's." );
+            echo( this, ECHO_LOG_WARNING, "Sample rate does not match with locked on audio's." );
 
 
         if( _channel_count != _audio->channel_count() )
-            echo( this, Echo::WARNING, "Channel count does not match with locked on audio's." );
+            echo( this, ECHO_LOG_WARNING, "Channel count does not match with locked on audio's." );
     }
 
     Sound( 
@@ -1461,7 +3117,7 @@ public:
         std::ifstream file{ path.data(), std::ios_base::binary };
 
         if( !file ) {
-            echo( this, Echo::FAULT, "Open file: "s + path.data() ); return;
+            echo( this, ECHO_LOG_FAULT, "Open file: "s + path.data() ); return;
         }
 
 
@@ -1470,7 +3126,7 @@ public:
         Unique< char[] > file_stream{ new char[ file_size ] };
 
         if( !file_stream ) {
-            echo( this, Echo::FAULT, "File stream allocation." ); return;
+            echo( this, ECHO_LOG_FAULT, "File stream allocation." ); return;
         }
 
 
@@ -1492,7 +3148,7 @@ public:
         _stream = new double[ _sample_count ];
 
         if( !_stream ) {
-            echo( this, Echo::FAULT, "Sound stream allocation." ); return;
+            echo( this, ECHO_LOG_FAULT, "Sound stream allocation." ); return;
         }
 
 
@@ -1508,18 +3164,18 @@ public:
 
 
         if( _sample_count % _channel_count != 0 )
-            echo( this, Echo::WARNING, "Samples do not condense." );
+            echo( this, ECHO_LOG_WARNING, "Samples do not condense." );
 
         
         _sample_count /= _channel_count;
 
 
-        echo( this, Echo::OK, "Created from: "s + path.data() );
+        echo( this, ECHO_LOG_OK, "Created from: "s + path.data() );
     }
 
-    Sound( const Sound& other ) = default;
+    Sound( const Sound& ) = default;
 
-    Sound( Sound&& other ) = delete;
+    Sound( Sound&& ) = delete;
 
 
     ~Sound() {
@@ -1591,7 +3247,7 @@ public:
     }
 
     operator bool () const {
-        return is_locked() && has_stream();
+        return this->is_locked() && this->has_stream();
     }
 
 public:
@@ -1652,8 +3308,13 @@ public:
     )
     : _function( function )
     {
-        echo( this, Echo::OK, "Created." );
+        echo( this, ECHO_LOG_OK, "Created from source function." );
     }
+
+
+    Synth( const Synth& ) = default;
+
+    Synth( Synth&& ) = delete;
 
 protected:
     Function   _function        = {};
@@ -1663,21 +3324,18 @@ protected:
     double     _decay           = 1.0;
     double     _decay_step      = 0.0;
 
-    bool       _done            = true;
-
 public:
     virtual void prepare_play() override {
         _elapsed = 0.0;
         _decay   = 1.0;
-        _done    = false;
     }
 
     virtual void stop() override {
-        _done = true;
+        _decay = 0.0;
     }
 
     virtual bool done() const override {
-        return _done;
+        return _decay == 0.0;
     }
 
 
@@ -1686,13 +3344,9 @@ protected:
         if( advance )
             _elapsed += _audio->time_step();
 
-        if( ( _decay -= _decay_step ) <= 0.0 ) {
-            this->stop();
+        _decay = std::clamp( _decay - _decay_step, 0.0, 1.0 ); 
 
-            return 0.0;
-        }
-
-        return _function( _elapsed, channel ) * _decay * _volume;
+        return _decay * _function( _elapsed, channel ) * _volume;
     }
 
 public:
@@ -1725,7 +3379,6 @@ void Wave::play() {
 
 
 
-
 #pragma region After
 
 
@@ -1736,7 +3389,7 @@ void Wave::play() {
 
 const Echo& Echo::_echo(
     UTH*               invoker,
-    LOG_TYPE           log_type,
+    ECHO_LOG           log_type,
     std::string_view   message
 ) const {
     #if defined( _ENGINE_ECHO )

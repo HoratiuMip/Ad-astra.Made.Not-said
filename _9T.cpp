@@ -7,13 +7,15 @@
 
         Hackerman:   Mipsan
 
-        C++:         2023's GNU standard
+        C++:         2023's standard
 
         OSs:         Windows
 
+        GLs:         DirectX
+
     [ PRE-DEFINES ]
         _9T_ECHO --- logs stuff.
-        _9T_UNIQUE_SURFACE --- enables quicker surface event routing.
+        _9T_UNIQUE_SURFACE --- Enables faster event routing when using only one surface.
 
     [ GCC FLAGS ]
         -std=gnu++23
@@ -47,7 +49,7 @@
 
 #define _ENGINE_NAMESPACE _9T
 
-#define _ENGINE_STRUCT_TYPE( type ) "_9T::" type
+#define _ENGINE_STRUCT_TYPE( type ) "_9Tw::" type
 
 #define _ENGINE_STRUCT_TYPE_MTD( type ) virtual std::string_view type_name() const override { return _ENGINE_STRUCT_TYPE( type ); }
 
@@ -2007,7 +2009,7 @@ public:
 
         _wnd_class.cbSize        = sizeof( WNDCLASSEX );
         _wnd_class.hInstance     = GetModuleHandle( NULL );
-        _wnd_class.lpfnWndProc   = event_proc_router;
+        _wnd_class.lpfnWndProc   = event_proc_router_1;
         _wnd_class.lpszClassName = title.data();
         _wnd_class.hbrBackground = HBRUSH( COLOR_INACTIVECAPTIONTEXT );
         _wnd_class.hCursor       = LoadCursor( NULL, IDC_ARROW );
@@ -2151,29 +2153,29 @@ private:
 
     }
 
-    static LRESULT CALLBACK event_proc_router( HWND hwnd, UINT event, WPARAM w_param, LPARAM l_param ) {
-        #if defined( _ENGINE_UNIQUE_SURFACE )
-            if( event == WM_NCCREATE )
-                static_cast< Surface* >(
-                    reinterpret_cast< LPCREATESTRUCT >( l_param )->lpCreateParams
-                )->_hwnd = hwnd;
-            else
-        #else
-            Surface* ptr = nullptr;
+    static LRESULT CALLBACK event_proc_router_1( HWND hwnd, UINT event, WPARAM w_param, LPARAM l_param ) {
+        if( event == WM_NCCREATE ) {
+            Surface* ptr = static_cast< Surface* >(
+                               reinterpret_cast< LPCREATESTRUCT >( l_param )->lpCreateParams
+                           );
 
-            if( event == WM_NCCREATE ) {
-                ptr = static_cast< Surface* >( reinterpret_cast< LPCREATESTRUCT >( l_param )->lpCreateParams );
-                ptr->_hwnd = hwnd;
+            ptr->_hwnd = hwnd;
+
+            #if !defined( _ENGINE_UNIQUE_SURFACE )
                 SetWindowLongPtr( hwnd, GWLP_USERDATA, reinterpret_cast< LONG_PTR >( ptr ) );
-            }
-            else
-                ptr = reinterpret_cast< Surface* >( GetWindowLongPtr( hwnd, GWLP_USERDATA ) );
+            #endif
+
+            SetWindowLongPtr( hwnd, GWLP_WNDPROC, reinterpret_cast< LONG_PTR >( event_proc_router_2 ) );
+        } else
+            return DefWindowProc( hwnd, event, w_param, l_param );
+    }
+
+    static LRESULT CALLBACK event_proc_router_2( HWND hwnd, UINT event, WPARAM w_param, LPARAM l_param ) {
+        #if defined( _ENGINE_UNIQUE_SURFACE )
+            return Surface::get()->event_proc( hwnd, event, w_param, l_param );
+        #else
+            return reinterpret_cast< Surface* >( GetWindowLongPtr( hwnd, GWLP_USERDATA ) )->event_proc( hwnd, event, w_param, l_param );
         #endif
-
-        if( ptr )
-            return ptr->event_proc( hwnd, event, w_param, l_param );
-
-        return DefWindowProc( hwnd, event, w_param, l_param );
     }
 
     LRESULT CALLBACK event_proc( HWND hwnd, UINT event, WPARAM w_param, LPARAM l_param ) {

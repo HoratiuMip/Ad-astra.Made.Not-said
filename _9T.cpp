@@ -49,7 +49,7 @@
 
 #define _ENGINE_NAMESPACE _9T
 
-#define _ENGINE_STRUCT_TYPE( type ) "_9Tw::" type
+#define _ENGINE_STRUCT_TYPE( type ) "_9T::" type
 
 #define _ENGINE_STRUCT_TYPE_MTD( type ) virtual std::string_view type_name() const override { return _ENGINE_STRUCT_TYPE( type ); }
 
@@ -169,7 +169,6 @@ namespace _ENGINE_NAMESPACE {
 
 
 class UTH;
-template< typename Resident > class UTHResident;
 
 class Deg;
 class Rad;
@@ -180,10 +179,6 @@ class Clust2;
 class Audio;
 class Sound;
 class Synth;
-
-
-
-typedef   void*   GUID;
 
 
 
@@ -869,84 +864,21 @@ public:
 
 
 
+typedef   const void*   GUID;
+
 class UTH {
-public:
-    using GUSID = size_t;
-
-public:
-    enum ACTION : unsigned long long {
-        TRIGGER, COUNT
-    };
-
-protected:
-    inline static std::unordered_map< std::type_index, GUSID >    _register                 = {};
-
-    inline static std::vector< void ( UTH::* )( UTH&, void* ) >   _grids[ ACTION::COUNT ]   = {};
-
-public:
-    template< typename ...Residents >
-    requires ( std::is_base_of_v< UTH, Residents > && ... )
-    static void init() {
-        _init<
-            Audio, Sound, Synth,
-
-            Residents...
-        >();
-    }
-
-protected:
-    template< typename ...Residents >
-    static void _init() {
-        GUSID idx = 0;
-
-        ( _register.insert( { typeid( Residents ), ++idx } ), ... );
-
-        for( auto& grid : _grids )
-            grid.assign( idx * idx, nullptr );
-    }
-
-public:
-    template< typename Type >
-    static GUSID gusidof() {
-        return _register.at( typeid( Type ) );
-    }
-
-/*----------------------------------------- STATIC <-> OBJECT -----------------------------------------*/
-
 public:
     virtual std::string_view type_name() const {
         return _ENGINE_STRUCT_TYPE( "UTH" );
     }
 
-protected:
-    UTH( GUSID idx )
-    : _idx{ idx }
-    {}
-
-protected:
-    GUSID   _idx   = {};
-
 public:
-    GUSID gusid() const { 
-        return _idx; 
+    GUID guid() const { 
+        return static_cast< GUID >( this ); 
     }
 
 public:
     virtual void trigger( UTH&, void* ) {}
-
-public:
-    virtual void render() {}
-
-};
-
-
-
-template< typename Resident >
-class UTHResident : public UTH {
-protected:
-    UTHResident() 
-    : UTH{ UTH::gusidof< Resident >() }
-    {}
 
 };
 
@@ -1984,7 +1916,7 @@ enum SURFACE_PLUG_SOCKET {
     SURFACE_PLUG_SOCKET_AT_EXIT  = 1
 };
 
-class Surface : public UTHResident< Surface > {
+class Surface : public UTH {
 public:
     _ENGINE_STRUCT_TYPE_MTD( "Surface" );
 
@@ -2043,7 +1975,7 @@ public:
         Trace() = default;
 
         struct Result {
-            GUID                guid     = {};
+            GUID           guid     = {};
             std::bitset< 16 >   result   = 0;
         };
 
@@ -2156,8 +2088,8 @@ private:
     static LRESULT CALLBACK event_proc_router_1( HWND hwnd, UINT event, WPARAM w_param, LPARAM l_param ) {
         if( event == WM_NCCREATE ) {
             Surface* ptr = static_cast< Surface* >(
-                               reinterpret_cast< LPCREATESTRUCT >( l_param )->lpCreateParams
-                           );
+                reinterpret_cast< LPCREATESTRUCT >( l_param )->lpCreateParams
+            );
 
             ptr->_hwnd = hwnd;
 
@@ -2166,8 +2098,9 @@ private:
             #endif
 
             SetWindowLongPtr( hwnd, GWLP_WNDPROC, reinterpret_cast< LONG_PTR >( event_proc_router_2 ) );
-        } else
-            return DefWindowProc( hwnd, event, w_param, l_param );
+        }
+            
+        return DefWindowProc( hwnd, event, w_param, l_param );
     }
 
     static LRESULT CALLBACK event_proc_router_2( HWND hwnd, UINT event, WPARAM w_param, LPARAM l_param ) {
@@ -2358,7 +2291,7 @@ public:
         return { coord.x - _size.width / 2.0, _size.height / 2.0 - coord.y };
     }
 
-    Coord< float > pull_coord( const Vec2& vec ) const {
+    Coord< float > pull_crd( const Vec2& vec ) const {
         return { 
             static_cast< float >( vec.x ) + _size.width / 2.0f, 
             _size.height / 2.0f - static_cast< float >( vec.y ) 
@@ -2370,7 +2303,7 @@ public:
         coord.y = _size.height / 2.0 - coord.y;
     }
 
-    void push_coord( Vec2& vec ) const {
+    void push_crd( Vec2& vec ) const {
         vec.x += _size.width / 2.0;
         vec.y = _size.height / 2.0 - vec.y;
     }
@@ -2467,12 +2400,12 @@ public:
         return _mouse_l;
     }
 
-    Coord< int > coord() {
-        return this->pull_coord( vec() );
+    Coord< int > crd() {
+        return this->pull_crd( vec() );
     }
 
-    Coord< int > l_coord() {
-        return this->pull_coord( l_vec() );
+    Coord< int > l_crd() {
+        return this->pull_crd( l_vec() );
     }
 
     template< typename ...Keys >
@@ -2485,7 +2418,7 @@ public:
     }
 
     template< typename ...Keys >
-    size_t smr_down( Keys... keys ) {
+    size_t tgl_down( Keys... keys ) {
         size_t sum = 0;
         size_t at = 1;
 
@@ -2513,7 +2446,7 @@ public:
     }
 
 public:
-    Surface& force() {
+    Surface& force_plug() {
         SendMessage( _hwnd, SURFACE_EVENT__FORCE, WPARAM{}, LPARAM{} );
 
         return *this;
@@ -2586,6 +2519,62 @@ public:
 #endif
 
 };
+
+
+
+class Mouse {
+public:
+#if defined( _ENGINE_UNIQUE_SURFACE )
+    static Vec2 vec() {
+        return Surface::get()->_mouse;
+    }
+
+    static Coord< int > crd() {
+        return Surface::get()->pull_crd( vec() );
+    }
+#endif
+
+public:
+    static Vec2 g_vec() {
+        auto [ x, y ] = g_crd();
+
+        return { 
+            x - static_cast< double >( Env::width_2() ), 
+            static_cast< double >( Env::height_2() ) - y 
+        };
+    }
+
+    static Coord< int > g_crd() {
+        POINT p;
+        GetCursorPos( &p );
+
+        return { p.x, p.y };
+    }
+
+};
+
+
+
+#if defined( _ENGINE_UNIQUE_SURFACE )
+    template< typename ...Keys >
+    size_t Key::any_down( Keys... keys ) {
+        return Surface::get()->any_down( keys... );
+    }
+
+    template< typename ...Keys >
+    size_t Key::smr_down( Keys... keys ) {
+        return Surface::get()->smr_down( keys... );
+    }
+
+    template< typename ...Keys >
+    bool Key::all_down( Keys... keys ) {
+        return Surface::get()->all_down( keys... );
+    }
+
+    bool Key::down( Key key ) {
+        return Surface::get()->down( key );
+    }
+#endif
 
 
 
@@ -2798,7 +2787,7 @@ public:
 
 
 
-class Audio : public UTHResident< Audio >,
+class Audio : public UTH,
               public WaveBehaviourDescriptor< Audio,
                   WAVE_BEHAVIOUR_DESC_HAS_VOLUME   |
                   WAVE_BEHAVIOUR_DESC_PAUSABLE     |
@@ -3075,7 +3064,7 @@ public:
 
 
 
-class Sound : public UTHResident< Sound >,
+class Sound : public UTH,
               public Wave, 
               public WaveBehaviourDescriptor< Sound,
                   WAVE_BEHAVIOUR_DESC_HAS_VOLUME   |
@@ -3273,7 +3262,7 @@ public:
 
 
 
-class Synth : public UTHResident< Synth >,
+class Synth : public UTH,
               public Wave, 
               public WaveBehaviourDescriptor< Synth,
                   WAVE_BEHAVIOUR_DESC_HAS_VOLUME   |

@@ -49,9 +49,9 @@
 
 #define _ENGINE_NAMESPACE _9T
 
-#define _ENGINE_STRUCT_TYPE( type ) "_9T::" type
+#define _ENGINE_UTH_ADD_PREFIX( type ) "_9T::" type
 
-#define _ENGINE_STRUCT_TYPE_MTD( type ) virtual std::string_view type_name() const override { return _ENGINE_STRUCT_TYPE( type ); }
+#define _ENGINE_UTH_IDENTIFY_METHOD( type ) virtual std::string_view type_name() const override { return _ENGINE_UTH_ADD_PREFIX( type ); }
 
 
 #if defined( _9T_ECHO )
@@ -60,6 +60,10 @@
 
 #if defined( _9T_UNIQUE_SURFACE )
     #define _ENGINE_UNIQUE_SURFACE
+#endif
+
+#if defined( _9T_THROW_ON_FAULT )
+    #define ENGINE_THROW_ON_FAULT
 #endif
 
 
@@ -172,9 +176,18 @@ class UTH;
 
 class Deg;
 class Rad;
+
 class Vec2;
 class Ray2;
 class Clust2;
+
+class Key;
+class Mouse;
+class Surface;
+class Renderer2;
+class Chroma;
+class Brush2;
+class SolidBrush2;
 
 class Audio;
 class Sound;
@@ -284,6 +297,24 @@ protected:
     }
 
 };
+
+
+
+#if defined( ENGINE_THROW_ON_FAULT )
+    #define ECHO_ASSERT_AND_THROW( cond, message ) { \
+        if( !( cond ) ) { \
+            echo( this, ECHO_LOG_FAULT, message ); \
+            throw std::runtime_error{ message }; \
+        } \
+    }
+#else
+    #define ECHO_ASSERT_AND_THROW( cond, message ) { \
+        if( !( cond ) ) { \
+            echo( this, ECHO_LOG_FAULT, message ); \
+            return; \
+        } \
+    }
+#endif
 
 
 
@@ -584,7 +615,7 @@ public:
 
 
 
-template< typename T >
+template< typename T = float >
 struct Coord {
     Coord() = default;
 
@@ -614,7 +645,7 @@ struct Coord {
 
 };
 
-template< typename T >
+template< typename T = float >
 struct Size {
     Size() = default;
 
@@ -869,7 +900,7 @@ typedef   const void*   GUID;
 class UTH {
 public:
     virtual std::string_view type_name() const {
-        return _ENGINE_STRUCT_TYPE( "UTH" );
+        return _ENGINE_UTH_ADD_PREFIX( "UTH" );
     }
 
 public:
@@ -1228,7 +1259,7 @@ public:
     template< typename XType >
     auto X( const Clust2& clust ) const;
 
-private:
+protected:
     std::optional< Vec2 > _intersect_vec( const Ray2& other ) const {
         /* Hai noroc nea' Peter +respect. */
 
@@ -1339,7 +1370,7 @@ public:
         return *this;
     }
 
-private:
+protected:
     typedef   std::variant< Vec2, std::pair< Clust2*, Vec2 > >   Origin;
     typedef   std::pair< Vec2, Vec2 >                            Vrtx;
 
@@ -1348,7 +1379,7 @@ private:
         OVAI_HOOK = 1
     };
 
-private:
+protected:
     Origin                _origin   = Vec2{ 0.0, 0.0 };
     std::vector< Vrtx >   _vrtx     = {};
 
@@ -1657,7 +1688,7 @@ public:
             return this->_intersect_vec( other );
     }
 
-private:
+protected:
     bool _intersect_ray_bool( const Ray2& ray ) const {
         for( size_t idx = 0; idx < this->vrtx_count(); ++idx )
             if( this->_mkray( idx ).X< bool >( ray ) )
@@ -1735,7 +1766,7 @@ public:
         return intersections % 2;
     }
 
-private:
+protected:
     void _refresh() {
         for( Vrtx& v : _vrtx )
             v.first = v.second.spinned( _angel ) * Vec2{ _scaleX, _scaleY };
@@ -1877,7 +1908,7 @@ public:
 #if defined( _ENGINE_UNIQUE_SURFACE )
     template< typename ...Keys > static size_t any_down( Keys... keys );
 
-    template< typename ...Keys > static size_t smr_down( Keys... keys );
+    template< typename ...Keys > static size_t tgl_down( Keys... keys );
 
     template< typename ...Keys > static bool all_down( Keys... keys );
 
@@ -1918,9 +1949,9 @@ enum SURFACE_PLUG_SOCKET {
 
 class Surface : public UTH {
 public:
-    _ENGINE_STRUCT_TYPE_MTD( "Surface" );
+    _ENGINE_UTH_IDENTIFY_METHOD( "Surface" );
 
-private:
+protected:
     friend class Key;
     friend class Mouse;
 
@@ -1929,11 +1960,11 @@ public:
 
     Surface(
         std::string_view title,
-        Coord< int >     coord = { 0, 0 },
+        Coord< int >     crd   = { 0, 0 },
         Size< int >      size  = { 512, 512 },
         Echo             echo  = {}
     )
-    : _coord( coord ), _size( size )
+    : _coord( crd ), _size( size )
     {
         #if defined( _ENGINE_UNIQUE_SURFACE )
             _ptr = this;
@@ -1958,6 +1989,12 @@ public:
         } else
             echo( this, ECHO_LOG_FAULT, "Window thread launch failed." );
     }
+
+
+    Surface( const Surface& ) = delete;
+
+    Surface( Surface&& ) = delete;
+
 
     ~Surface() {
         SendMessage( _hwnd, SURFACE_EVENT__DESTROY, WPARAM{}, LPARAM{} );
@@ -2002,11 +2039,11 @@ public:
 
     typedef   std::array< KEY_STATE, Key::COUNT >                           Keys;
 
-private:
-    static constexpr int   LIQUID_STYLE   = WS_OVERLAPPED | WS_SIZEBOX | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE;
-    static constexpr int   SOLID_STYLE    = WS_POPUP | WS_VISIBLE;
+protected:
+    static constexpr auto   LIQUID_STYLE   = WS_OVERLAPPED | WS_SIZEBOX | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE;
+    static constexpr auto   SOLID_STYLE    = WS_POPUP | WS_VISIBLE;
 
-private:
+protected:
 #if defined( _ENGINE_UNIQUE_SURFACE )
     inline static Surface*        _ptr                  = nullptr;
 #endif
@@ -2037,7 +2074,7 @@ private:
     Vec2                          _mouse_l              = {};
     Keys                          _keys                 = {};
 
-private:
+protected:
     void _main( std::binary_semaphore* sync, Echo echo = {} ) {
         if( !RegisterClassEx( &_wnd_class ) ) {
             echo( this, ECHO_LOG_FAULT, "Window class registration failed." );
@@ -2287,20 +2324,20 @@ private:
     }
 
 public:
-    Vec2 pull_vec( const Coord< float >& coord ) const {
-        return { coord.x - _size.width / 2.0, _size.height / 2.0 - coord.y };
+    Vec2 pull_vec( const Coord<>& crd ) const {
+        return { crd.x - _size.width / 2.0, _size.height / 2.0 - crd.y };
     }
 
-    Coord< float > pull_crd( const Vec2& vec ) const {
+    Coord<> pull_crd( const Vec2& vec ) const {
         return { 
             static_cast< float >( vec.x ) + _size.width / 2.0f, 
             _size.height / 2.0f - static_cast< float >( vec.y ) 
         };
     }
 
-    void push_vec( Coord< float >& coord ) const {
-        coord.x -= _size.width / 2.0;
-        coord.y = _size.height / 2.0 - coord.y;
+    void push_vec( Coord<>& crd ) const {
+        crd.x -= _size.width / 2.0;
+        crd.y = _size.height / 2.0 - crd.y;
     }
 
     void push_crd( Vec2& vec ) const {
@@ -2309,7 +2346,11 @@ public:
     }
 
 public:
-    Coord< int > pos() {
+    Coord< int > coord() const {
+        return _coord;
+    }
+
+    Coord< int > os_crd() const {
         RECT rect = {};
 
         GetWindowRect( _hwnd, &rect );
@@ -2317,15 +2358,19 @@ public:
         return { rect.left, rect.top };
     }
 
-    int x() {
-        return pos().x;
+    int x() const {
+        return coord().x;
     }
 
-    int y() {
-        return pos().y;
+    int y() const {
+        return coord().y;
     }
 
-    Size< int > size() {
+    Size< int > size() const {
+        return _size;
+    }
+
+    Size< int > os_size() const {
         RECT rect = {};
 
         GetWindowRect( _hwnd, &rect );
@@ -2333,11 +2378,11 @@ public:
         return { rect.right - rect.left, rect.bottom - rect.top };
     }
 
-    int width() {
+    int width() const {
         return size().width;
     }
 
-    int height() {
+    int height() const {
         return size().height;
     }
 
@@ -2354,11 +2399,11 @@ public:
         return *this;
     }
 
-    Surface& move_to( Coord< int > coord ) {
+    Surface& move_to( Coord< int > crd ) {
         SetWindowPos(
             _hwnd,
             0,
-            _coord.x = coord.x, _coord.y = coord.y,
+            _coord.x = crd.x, _coord.y = crd.y,
             0, 0,
             SWP_NOSIZE
         );
@@ -2392,24 +2437,24 @@ public:
     }
 
 public:
-    Vec2 vec() {
+    Vec2 vec() const {
         return _mouse;
     }
 
-    Vec2 l_vec() {
+    Vec2 l_vec() const {
         return _mouse_l;
     }
 
-    Coord< int > crd() {
+    Coord< int > crd() const {
         return this->pull_crd( vec() );
     }
 
-    Coord< int > l_crd() {
+    Coord< int > l_crd() const {
         return this->pull_crd( l_vec() );
     }
 
     template< typename ...Keys >
-    size_t any_down( Keys... keys ) {
+    size_t any_down( Keys... keys ) const {
         size_t count = 0;
 
         ( ( count += ( _keys[ keys ] == KEY_STATE_DOWN ) ), ... );
@@ -2418,7 +2463,7 @@ public:
     }
 
     template< typename ...Keys >
-    size_t tgl_down( Keys... keys ) {
+    size_t tgl_down( Keys... keys ) const {
         size_t sum = 0;
         size_t at = 1;
 
@@ -2432,11 +2477,11 @@ public:
     }
 
     template< typename ...Keys >
-    bool all_down( Keys... keys ) {
+    bool all_down( Keys... keys ) const {
         return any_down( keys... ) == sizeof...( Keys );
     }
 
-    bool down( Key key ) {
+    bool down( Key key ) const {
         return _keys[ key ] == KEY_STATE_DOWN;
     }
 
@@ -2500,7 +2545,7 @@ public:
         return *this;
     }
 
-private:
+protected:
     template< typename Plug >
     void _unplug( const GUID& guid, std::optional< SURFACE_PLUG_SOCKET > socket, Plug& plug ) {
         if( socket.has_value() )
@@ -2562,8 +2607,8 @@ public:
     }
 
     template< typename ...Keys >
-    size_t Key::smr_down( Keys... keys ) {
-        return Surface::get()->smr_down( keys... );
+    size_t Key::tgl_down( Keys... keys ) {
+        return Surface::get()->tgl_down( keys... );
     }
 
     template< typename ...Keys >
@@ -2579,6 +2624,461 @@ public:
 
 
 #pragma endregion Surface
+
+
+
+#pragma region Renderer
+
+
+
+class Renderer2 : public UTH {
+public:
+    _ENGINE_UTH_IDENTIFY_METHOD( "Renderer2" );
+
+public:
+    Renderer2() = default;
+
+    Renderer2( Surface& surface, Echo echo = {} )
+    : _surface{ &surface }
+    {
+        ECHO_ASSERT_AND_THROW( CoInitialize( nullptr ) == S_OK, "<constructor>: CoInitialize." );
+
+
+        ECHO_ASSERT_AND_THROW(
+            CoCreateInstance(
+                CLSID_WICImagingFactory,
+                NULL,
+                CLSCTX_INPROC_SERVER,
+                IID_IWICImagingFactory,
+                ( LPVOID* ) &_wic_factory
+            ) == S_OK,
+
+            "<constructor>: CoCreateInstance."
+        );
+
+        
+        ECHO_ASSERT_AND_THROW(
+            D2D1CreateFactory(
+                D2D1_FACTORY_TYPE_MULTI_THREADED,
+                &_factory
+            ) == S_OK,
+
+            "<constructor>: D2D1CreateFactory."
+        );
+
+        ECHO_ASSERT_AND_THROW( 
+            _factory->CreateHwndRenderTarget(
+                D2D1::RenderTargetProperties(),
+                D2D1::HwndRenderTargetProperties(
+                    _surface->hwnd(),
+                    D2D1::SizeU( _surface->width(), _surface->height() ),
+                    D2D1_PRESENT_OPTIONS_IMMEDIATELY
+                ),
+                &_target
+            ) == S_OK,
+
+            "<constructor>: _factory->CreateHwndRenderTarget"
+        );
+
+
+        echo( this, ECHO_LOG_OK, "Created." );
+    }
+
+
+    Renderer2( const Renderer2& ) = delete;
+
+    Renderer2( Renderer2&& ) = delete;
+
+public:
+    ~Renderer2() {
+        if( _factory ) _factory->Release();
+
+        if( _wic_factory ) _wic_factory->Release();
+
+        if( _target ) _target->Release();
+    }
+
+protected:
+    Surface*                    _surface       = nullptr;
+
+    ID2D1Factory*               _factory       = nullptr;
+    IWICImagingFactory*         _wic_factory   = nullptr;
+
+    ID2D1HwndRenderTarget*      _target        = nullptr;
+
+    D2D1::Matrix3x2F            _transform     = D2D1::Matrix3x2F::Identity();
+
+public:
+    auto factory() { return _factory; }
+    auto target() { return _target; }
+    auto wic_factory() { return _wic_factory; }
+
+public:
+    auto coord() const {
+        return _surface->coord();
+    }
+
+    auto size() const {
+        return _surface->size();
+    }
+
+public:
+    Vec2 pull_vec( const Coord<>& crd ) const {
+        return _surface->pull_vec( crd );
+    }
+
+    Coord<> pull_crd( const Vec2& vec ) const {
+        return _surface->pull_crd( vec );
+    }
+
+    void push_vec( Coord<>& crd ) const {
+        _surface->push_vec( crd );
+    }
+
+    void push_crd( Vec2& vec ) const {
+        _surface->push_crd( vec );
+    }
+
+public:
+    Renderer2& open() {
+        _target->BeginDraw();
+
+        return *this;
+    }
+
+    Renderer2& execute() {
+        _target->EndDraw();
+
+        return *this;
+    }
+
+public:
+    Renderer2& push( double angel, double scaleX, double scaleY, Coord<> crd ) {
+        _target->SetTransform( 
+            D2D1::Matrix3x2F::Rotation( angel, crd )
+            *
+            D2D1::Matrix3x2F::Scale( scaleX, scaleY, crd )
+            *
+            _transform
+        );
+
+        return *this;
+    }
+
+    Renderer2& pop() {
+        _target->SetTransform( _transform );
+
+        return *this;
+    }
+
+    Renderer2& push_beneath( double angel, double scaleX, double scaleY, Coord<> crd ) {
+        _transform = D2D1::Matrix3x2F::Rotation( angel, crd )
+                     *
+                     D2D1::Matrix3x2F::Scale( scaleX, scaleY, crd );
+
+        return *this;
+    }
+
+    Renderer2& pop_beneath() {
+        _transform = D2D1::Matrix3x2F::Identity();
+
+        return *this;
+    }
+
+public:
+    Renderer2& fill( const Chroma& chroma );
+
+public:
+    Renderer2& system( 
+        const Brush2& brush, 
+        float         div, 
+        float         div_half_width
+    );
+
+public:
+    Renderer2& line(
+        Coord<> c1, Coord<> c2,
+        const Brush2& brush
+    );
+
+    Renderer2& line(
+        Vec2 v1, Vec2 v2,
+        const Brush2& brush
+    );
+
+public:
+    template< typename Type, typename ...Args >
+    Renderer2& operator () ( const Type& thing, Args&&... args ) {
+        thing.render( *this, std::forward< Args >( args )... );
+
+        return *this;
+    }
+
+};
+
+
+
+class Viewport2 : public UTH {
+public:
+    _ENGINE_UTH_IDENTIFY_METHOD( "Veiwport2" );
+
+public:
+    Viewport2() = default;
+
+    Viewport2(
+        Renderer2&   renderer,
+        Vec2         org,
+        Size<>       sz,
+        Echo         echo       = {}
+    )
+    : _renderer{ &renderer },
+      _origin{ org }, _size{ sz }, _size2{ sz.width / 2.0f, sz.height / 2.0f }
+    {
+        echo( this, ECHO_LOG_OK, "Created." );
+    }
+
+
+    Viewport2( Viewport2&& ) = delete;
+
+protected:
+    Renderer2*   _renderer   = nullptr;
+    Vec2         _origin     = {};
+    Size<>       _size       = {};
+    Size<>       _size2      = {};
+
+public:
+    Renderer2& renderer() {
+        return *_renderer;
+    }
+
+public:
+    Vec2 origin() const {
+        return _origin;
+    }
+
+    Size<> size() const {
+        return _size;
+    }
+
+    Size<> size2() const {
+        return _size2;
+    }
+
+public:
+    Vec2 top_left() const {
+        return _origin + Vec2{ -_size2.width, _size2.height };
+    }
+
+    Vec2 bot_right() const {
+        return _origin + Vec2{ _size2.width, -_size2.height };
+    }
+
+    double east() const {
+        return _origin.x + _size2.width;
+    }
+
+    double west() const {
+        return _origin.x - _size2.width;
+    }
+
+    double north() const {
+        return _origin.y + _size2.height;
+    }
+
+    double south() const {
+        return _origin.y - _size2.height;
+    }
+
+    double east_reach() const {
+        return _size2.width;
+    }
+
+    double west_reach() const {
+        return -_size2.width;
+    }
+
+    double north_reach() const {
+        return _size2.height;
+    }
+
+    double south_reach() const {
+        return -_size2.height;
+    }
+
+};
+
+
+
+#pragma endregion Renderer
+
+
+
+#pragma region Chroma
+
+
+
+class Chroma {
+public:
+    Chroma() = default;
+
+    Chroma( float r, float g, float b, float a = 1.0 )
+    : r( r ), g( g ), b( b ), a( a )
+    {}
+
+public:
+    float   r   = 0.0;
+    float   g   = 0.32;   /* dark verdian for nyjucu aka iupremacy */
+    float   b   = 0.23;
+    float   a   = 1.0;
+
+public:
+    operator float* () {
+        return &r;
+    }
+
+public:
+    operator const D2D1_COLOR_F& () const {
+        return *reinterpret_cast< const D2D1_COLOR_F* >( this );
+    }
+
+    operator D2D1_COLOR_F& () {
+        return *reinterpret_cast< D2D1_COLOR_F* >( this );
+    }
+
+};
+
+
+
+#pragma endregion Chroma
+
+
+
+#pragma region Brushes
+
+
+
+class Brush2 : public UTH {
+public:
+    _ENGINE_UTH_IDENTIFY_METHOD( "Brush2" );
+
+public:
+    Brush2() = default;
+
+    Brush2( float w )
+    : _width( w )
+    {}
+
+protected:
+    float   _width   = 1.0;
+
+public:
+    float width() const {
+        return _width;
+    }
+
+    void width_to( float w ) {
+        _width = w;
+    }
+
+public:
+    virtual ID2D1Brush* brush() const = 0;
+
+};
+
+
+
+class SolidBrush2 : public Brush2 {
+public:
+    _ENGINE_UTH_IDENTIFY_METHOD( "SolidBrush2" );
+
+public:
+    SolidBrush2() = default;
+
+    SolidBrush2(
+        Renderer2& renderer,
+        Chroma     chroma   = {},
+        float      w        = 1.0,
+        Echo       echo     = {}
+    )
+    : Brush2{ w }
+    {
+        ECHO_ASSERT_AND_THROW(
+            renderer.target()->CreateSolidColorBrush(
+                chroma,
+                &_brush
+            ) == S_OK,
+
+            "<constructor>: renderer.target()->CreateSolidColorBrush"
+        );
+
+        echo( this, ECHO_LOG_OK, "Created." );
+    }
+
+public:
+    ~SolidBrush2() {
+        if( _brush ) _brush->Release();
+    }
+
+protected:
+    ID2D1SolidColorBrush*   _brush   = nullptr;
+
+public:
+    virtual ID2D1Brush* brush() const override {
+        return _brush;
+    }
+
+public:
+    Chroma chroma() const {
+        auto [ r, g, b, a ] = _brush->GetColor();
+        return { r, g, b, a };
+    }
+
+    float r() const {
+        return this->chroma().r;
+    }
+
+    float g() const {
+        return this->chroma().g;
+    }
+
+    float b() const {
+        return this->chroma().b;
+    }
+
+    float a() const {
+        return this->chroma().a;
+    }
+
+public:
+    SolidBrush2& chroma_to( Chroma c ) {
+        _brush->SetColor( c );
+
+        return *this;
+    }
+
+    SolidBrush2& r_to( float value ) {
+        return chroma_to( { value, g(), b() } );
+    }
+
+    SolidBrush2& g_to( float value ) {
+        return chroma_to( { r(), value, b() } );
+    }
+
+    SolidBrush2& b_to( float value ) {
+        return chroma_to( { r(), g(), value } );
+    }
+
+    SolidBrush2& a_to( float value ) {
+        _brush->SetOpacity( value );
+
+        return *this;
+    }
+
+};
+
+
+
+#pragma endregion Brushes
 
 
 
@@ -2797,7 +3297,7 @@ class Audio : public UTH,
               >
 {
 public:
-    _ENGINE_STRUCT_TYPE_MTD( "Audio" );
+    _ENGINE_UTH_IDENTIFY_METHOD( "Audio" );
 
 protected:
     friend class Wave;
@@ -3076,7 +3576,7 @@ class Sound : public UTH,
               >
 {
 public:
-    _ENGINE_STRUCT_TYPE_MTD( "Sound" );
+    _ENGINE_UTH_IDENTIFY_METHOD( "Sound" );
 
 public:
     Sound() = default;
@@ -3273,7 +3773,7 @@ class Synth : public UTH,
               >
 {
 public:
-    _ENGINE_STRUCT_TYPE_MTD( "Synth" );
+    _ENGINE_UTH_IDENTIFY_METHOD( "Synth" );
 
 public:
     typedef   std::function< double( double, size_t ) >   Function;
@@ -3417,7 +3917,180 @@ const Echo& Echo::_echo(
 
 
 
+#pragma region Renderer
+
+
+
+Renderer2& Renderer2::line(
+    Coord<> c1, Coord<> c2,
+    const Brush2& brush
+) {
+    _target->DrawLine(
+        c1, c2,
+        brush.brush(),
+        brush.width()
+    );
+
+    return *this;
+}
+
+Renderer2& Renderer2::line(
+    Vec2 v1, Vec2 v2,
+    const Brush2& brush
+) {
+    return line(
+        this->pull_crd( v1 ),
+        this->pull_crd( v2 ),
+        brush
+    );
+}
+
+Renderer2& Renderer2::fill( const Chroma& chroma = {} ) {
+    _target->Clear( chroma );
+
+    return *this;
+}
+
+Renderer2& Renderer2::system( 
+    const Brush2& brush, 
+    float         div, 
+    float         div_half_width
+) {
+    Size< float > size{
+        static_cast< float >( this->size().width ),
+        static_cast< float >( this->size().height )
+    };
+
+    Coord<> mid{ size.width / 2.0f, size.height / 2.0f };
+
+    this->line( 
+        Coord<>{ mid.x, 0.0f }, Coord<>{ mid.x, size.height },
+        brush
+    );
+
+    this->line( 
+        Coord<>{ 0.0f, mid.y }, Coord<>{ size.width, mid.y },
+        brush
+    );
+
+
+    for( float off = div; off <= mid.x; off += div ) {
+        this->line(
+            Coord<>{ mid.x + off, mid.y - div_half_width },
+            Coord<>{ mid.x + off, mid.y + div_half_width },
+            brush  
+        );
+
+        this->line(
+            Coord<>{ mid.x - off, mid.y - div_half_width },
+            Coord<>{ mid.x - off, mid.y + div_half_width },
+            brush  
+        );
+    }
+
+    for( float off = div; off <= mid.y; off += div ) {
+        this->line(
+            Coord<>{ mid.x - div_half_width, mid.y + off },
+            Coord<>{ mid.x + div_half_width, mid.y + off },
+            brush  
+        );
+
+        this->line(
+            Coord<>{ mid.x - div_half_width, mid.y - off },
+            Coord<>{ mid.x + div_half_width, mid.y - off },
+            brush  
+        );
+    }
+
+
+    return *this;
+}
+
+
+
+#pragma endregion Renderer
+
+
+
 #pragma endregion After
+
+
+
+#pragma region Builds
+
+
+
+class System2 : public UTH {
+public:
+    _ENGINE_UTH_IDENTIFY_METHOD( "System2" );
+
+public:
+    System2() = default;
+
+    System2(
+        Viewport2&   vwprt,
+        Echo         echo    = {}
+    )
+    : _viewport{ &vwprt },
+      _brush{ vwprt.renderer(), {}, 1.0 }
+    {
+
+
+        echo( this, ECHO_LOG_OK, "Created." );
+    }
+
+private:
+    Viewport2*    _viewport    = nullptr;
+    Vec2          _offset      = {};
+
+    float         _div_every   = 0.0;
+    float         _div_mean    = 0.0;
+
+    SolidBrush2   _brush       = {};
+
+public:
+    Viewport2& viewport() {
+        return *_viewport;
+    }
+
+public:
+    void render( Renderer2& renderer ) const {
+        double cst;
+
+        if( _offset.x > _viewport->east_reach() || _offset.x < _viewport->west_reach() ) 
+            goto L_SKIP_Y_AXIS;
+
+        cst = _viewport->origin().x + _offset.x;
+
+        renderer.line(
+            Vec2{ cst, _viewport->north() }, 
+            Vec2{ cst, _viewport->south() },
+            _brush
+        );
+
+
+        L_SKIP_Y_AXIS:
+
+        if( _offset.y > _viewport->north_reach() || _offset.y < _viewport->south_reach() )
+            goto L_SKIP_X_AXIS;
+
+        cst = _viewport->origin().y + _offset.y;
+
+        renderer.line(
+            Vec2{ _viewport->west(), cst }, 
+            Vec2{ _viewport->east(), cst },
+            _brush
+        );
+
+        
+        L_SKIP_X_AXIS: int junk;
+    }
+
+};
+
+
+
+#pragma endregion Builds
 
 
 

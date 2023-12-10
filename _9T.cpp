@@ -2837,6 +2837,15 @@ public:
         echo( this, ECHO_LOG_OK, "Created." );
     }
 
+    Viewport2(
+        Renderer2&   renderer,
+        Coord<>      org,
+        Size<>       sz,
+        Echo         echo       = {}
+    )
+    : Viewport2{ renderer, renderer.pull_vec( org ) + Vec2{ sz.width / 2.0, -sz.height / 2.0}, sz, echo }
+    {}
+
 
     Viewport2( Viewport2&& ) = delete;
 
@@ -4028,14 +4037,17 @@ public:
     System2() = default;
 
     System2(
-        Viewport2&   vwprt,
-        Echo         echo    = {}
+        Viewport2&      vwprt,
+        double          div_every,
+        double          div_hstk,
+        double          div_mean,
+        const Chroma&   axis_chroma,
+        float           axis_width,
+        Echo            echo    = {}
     )
-    : _viewport{ &vwprt },
-      _brush{ vwprt.renderer(), {}, 1.0 }
+    : _viewport{ &vwprt }, _div_every{ div_every }, _div_mean{ div_mean }, _div_hstk{ div_hstk },
+      _brush{ vwprt.renderer(), axis_chroma, axis_width, echo }
     {
-
-
         echo( this, ECHO_LOG_OK, "Created." );
     }
 
@@ -4043,8 +4055,10 @@ private:
     Viewport2*    _viewport    = nullptr;
     Vec2          _offset      = {};
 
-    float         _div_every   = 0.0;
-    float         _div_mean    = 0.0;
+    double        _div_every   = 30.0;
+    double        _div_hstk    = 15.0;
+    double        _div_mean    = 0.0;
+
 
     SolidBrush2   _brush       = {};
 
@@ -4054,11 +4068,29 @@ public:
     }
 
 public:
-    void render( Renderer2& renderer ) const {
-        double cst;
+    System2& offset_to( Vec2 vec ) {
+        _offset = vec;
 
-        if( _offset.x > _viewport->east_reach() || _offset.x < _viewport->west_reach() ) 
+        return *this;
+    }
+
+    Vec2 offset() const {
+        return _offset;
+    }
+
+public:
+    void render( Renderer2& renderer ) const {
+        double    cst        = 0.0;
+        double    cst_stk    = 0.0;
+        bool      axis_out[] = { false, false, false, false };
+
+
+        if( ( axis_out[ HEADING_EAST ] = ( _offset.x > _viewport->east_reach() ) )
+            || 
+            ( axis_out[ HEADING_WEST ] = ( _offset.x < _viewport->west_reach() ) )
+        )
             goto L_SKIP_Y_AXIS;
+
 
         cst = _viewport->origin().x + _offset.x;
 
@@ -4071,7 +4103,11 @@ public:
 
         L_SKIP_Y_AXIS:
 
-        if( _offset.y > _viewport->north_reach() || _offset.y < _viewport->south_reach() )
+
+        if( ( axis_out[ HEADING_NORTH ] = ( _offset.y > _viewport->north_reach() ) )
+            || 
+            ( axis_out[ HEADING_SOUTH ] = ( _offset.y < _viewport->south_reach() ) )
+        )
             goto L_SKIP_X_AXIS;
 
         cst = _viewport->origin().y + _offset.y;
@@ -4083,7 +4119,68 @@ public:
         );
 
         
-        L_SKIP_X_AXIS: int junk;
+        L_SKIP_X_AXIS:
+
+
+        cst     = std::clamp( _viewport->origin().x + _offset.x, _viewport->west(), _viewport->east() );
+        cst_stk = _viewport->origin().y + _offset.y;
+
+        auto strike_x_at = [ this, &renderer, &cst_stk, &axis_out ] ( double x ) -> void {
+            renderer.line(
+                Vec2{ 
+                    x, 
+                    axis_out[ HEADING_SOUTH ] ?
+                        std::min( _viewport->south() + _div_hstk, _viewport->north() )
+                        :
+                        std::min( _viewport->north(), cst_stk + _div_hstk )
+                },
+                Vec2{ 
+                    x, 
+                    axis_out[ HEADING_NORTH ] ?
+                        std::max( _viewport->north() - _div_hstk, _viewport->south() )
+                        :
+                        std::max( _viewport->south(), cst_stk - _div_hstk ) 
+                },
+                _brush
+            );
+        };
+
+        for( double offs = 0.0; ( cst + offs ) <= _viewport->east(); offs += _div_every ) 
+            strike_x_at( cst + offs );
+        
+        for( double offs = 0.0; ( cst - offs ) >= _viewport->west(); offs += _div_every ) 
+            strike_x_at( cst - offs );
+
+
+        cst     = std::clamp( _viewport->origin().y + _offset.y, _viewport->south(), _viewport->north() );
+        cst_stk = _viewport->origin().x + _offset.x;
+
+        auto strike_y_at = [ this, &renderer, &cst_stk, &axis_out ] ( double y ) -> void {
+            renderer.line(
+                Vec2{ 
+                    axis_out[ HEADING_WEST ] ?
+                        std::min( _viewport->west() + _div_hstk, _viewport->east() )
+                        :
+                        std::min( _viewport->east(), cst_stk + _div_hstk ),
+                    y
+                },
+                Vec2{
+                    axis_out[ HEADING_EAST ] ?
+                        std::max( _viewport->east() - _div_hstk, _viewport->west() )
+                        :
+                        std::max( _viewport->west(), cst_stk - _div_hstk ),
+                    y
+                },
+                _brush
+            );
+        };
+
+        for( double offs = 0.0; ( cst + offs ) <= _viewport->north(); offs += _div_every ) 
+            strike_y_at( cst + offs );
+
+        for( double offs = 0.0; ( cst - offs ) >= _viewport->south(); offs += _div_every ) 
+            strike_y_at( cst - offs );
+
     }
 
 };

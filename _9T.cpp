@@ -4043,7 +4043,7 @@ public:
         double          div_mean,
         const Chroma&   axis_chroma,
         float           axis_width,
-        Echo            echo    = {}
+        Echo            echo          = {}
     )
     : _viewport{ &vwprt }, _div_every{ div_every }, _div_mean{ div_mean }, _div_hstk{ div_hstk },
       _brush{ vwprt.renderer(), axis_chroma, axis_width, echo }
@@ -4051,16 +4051,49 @@ public:
         echo( this, ECHO_LOG_OK, "Created." );
     }
 
+public:
+    class Link {
+    public:
+        Link() = default;
+
+    public:
+        typedef   std::function< double( double ) >   Function;
+        typedef   std::vector< Vec2 >                 Collection;
+    
+    protected:
+        std::variant< Function, Collection >   _source   = {};
+
+    public:
+        bool is_function() const {
+            return _source.index() == 0;
+        }
+
+        bool is_collection() const {
+            return _source.index() == 1;
+        }
+
+    public:
+        Function& function() {
+            return std::get< 0 >( _source );
+        } 
+
+        Collection& collection() {
+            return std::get< 1 >( _source );
+        }
+
+    };
+
 private:
-    Viewport2*    _viewport    = nullptr;
-    Vec2          _offset      = {};
+    Viewport2*                      _viewport    = nullptr;
+    Vec2                            _offset      = {};
 
-    double        _div_every   = 30.0;
-    double        _div_hstk    = 15.0;
-    double        _div_mean    = 0.0;
+    double                          _div_every   = 30.0;
+    double                          _div_hstk    = 15.0;
+    double                          _div_mean    = 0.0;
 
+    SolidBrush2                     _brush       = {};
 
-    SolidBrush2   _brush       = {};
+    std::map< std::string, Link >   _links   = {};
 
 public:
     Viewport2& viewport() {
@@ -4076,6 +4109,17 @@ public:
 
     Vec2 offset() const {
         return _offset;
+    }
+
+public:
+    template< typename Source >
+    requires (
+        std::is_same_v< Link::Function, Source >
+        ||
+        std::is_same_v< Link::Collection, Source >
+    )
+    System2& push( std::string_view name, const Source& source ) {
+
     }
 
 public:

@@ -1953,12 +1953,146 @@ enum SURFACE_EVENT {
     SURFACE_EVENT__FORCE
 };
 
-enum SURFACE_PLUG_SOCKET {
-    SURFACE_PLUG_SOCKET_AT_ENTRY = 0,
-    SURFACE_PLUG_SOCKET_AT_EXIT  = 1
+enum SURFACE_SOCKET_PLUG {
+    SURFACE_SOCKET_PLUG_AT_ENTRY = 0,
+    SURFACE_SOCKET_PLUG_AT_EXIT  = 1
 };
 
-class Surface : public UTH {
+struct SurfaceTrace {
+    SurfaceTrace() = default;
+
+    struct Result {
+        GUID                guid     = {};
+        std::bitset< 16 >   result   = 0;
+    };
+
+    std::bitset< 64 >       master   = 0;
+    std::vector< Result >   plugs    = {};
+
+    void reset() {
+        master.reset();
+        plugs.clear();
+    }
+
+    std::bitset< 64 >::reference operator [] ( size_t idx ) {
+        return master[ idx ];
+    }
+};
+
+typedef   std::function< void( Vec2, Vec2, SurfaceTrace& ) >                   OnMouse;
+typedef   std::function< void( Key, KEY_STATE, SurfaceTrace& ) >               OnKey;
+typedef   std::function< void( SCROLL_DIRECTION, SurfaceTrace& ) >             OnScroll;
+typedef   std::function< void( std::vector< std::string >, SurfaceTrace& ) >   OnFiledrop;
+typedef   std::function< void( Coord< int >, Coord< int >, SurfaceTrace& ) >   OnMove;
+typedef   std::function< void( Size< int >, Size< int >, SurfaceTrace& ) >     OnResize;
+
+class SurfaceEventSentry {
+protected:
+    OnMouse                       _on_mouse             = {};
+    OnKey                         _on_key               = {};
+    OnScroll                      _on_scroll            = {};
+    OnFiledrop                    _on_filedrop          = {};
+    OnMove                        _on_move              = {};
+    OnResize                      _on_resize            = {};
+
+    std::map< GUID, OnMouse >     _sckt_mouse[ 2 ]      = {};
+    std::map< GUID, OnKey >       _sckt_key[ 2 ]        = {};
+    std::map< GUID, OnScroll >    _sckt_scroll[ 2 ]     = {};
+    std::map< GUID, OnFiledrop >  _sckt_filedrop[ 2 ]   = {};
+    std::map< GUID, OnMove >      _sckt_move[ 2 ]       = {};
+    std::map< GUID, OnResize >    _sckt_resize[ 2 ]     = {};
+
+public:
+    template< typename Master, typename ...Args >
+    void invoke_sequence( SurfaceTrace& trace, Args&&... args ) {
+        if constexpr( std::is_same_v< Master, OnMouse > )
+            this->_invoke_sequence( _on_mouse, _sckt_mouse, trace, std::forward< Args >( args )... );
+
+        else if constexpr( std::is_same_v< Master, OnKey > )
+            this->_invoke_sequence( _on_key, _sckt_key, trace, std::forward< Args >( args )... );
+
+        else if constexpr( std::is_same_v< Master, OnScroll > )
+            this->_invoke_sequence( _on_scroll, _sckt_scroll, trace, std::forward< Args >( args )... );
+
+        else if constexpr( std::is_same_v< Master, OnFiledrop > )
+            this->_invoke_sequence( _on_filedrop, _sckt_filedrop, trace, std::forward< Args >( args )... );
+
+        else if constexpr( std::is_same_v< Master, OnMove > )
+            this->_invoke_sequence( _on_move, _sckt_move, trace, std::forward< Args >( args )... );
+
+        else if constexpr( std::is_same_v< Master, OnResize > )
+            this->_invoke_sequence( _on_resize, _sckt_resize, trace, std::forward< Args >( args )... );
+    }
+
+public:
+    template< typename Master, typename Socket, typename ...Args >
+    void _invoke_sequence( const Master& master, const Socket& socket, SurfaceTrace& trace, Args&&... args ) {
+        for( auto& [ guid, sckt ] : socket[ 0 ] )
+            std::invoke( sckt, std::forward< Args >( args )..., trace );
+
+        if( master )
+            std::invoke( master, std::forward< Args >( args )..., trace );
+
+        for( auto& [ guid, sckt ] : socket[ 1 ] )
+            std::invoke( sckt, std::forward< Args >( args )..., trace );
+    }
+
+public:
+    template< SURFACE_EVENT event, typename Function >
+    void on( Function function ) {
+        if      constexpr( event == SURFACE_EVENT_MOUSE )    _on_mouse    = function;
+        else if constexpr( event == SURFACE_EVENT_KEY )      _on_key      = function;
+        else if constexpr( event == SURFACE_EVENT_SCROLL )   _on_scroll   = function;
+        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _on_filedrop = function;
+        else if constexpr( event == SURFACE_EVENT_MOVE )     _on_move     = function;
+        else if constexpr( event == SURFACE_EVENT_RESIZE )   _on_resize   = function;
+    }
+
+    template< SURFACE_EVENT event, typename Function >
+    void plug( const GUID& guid, SURFACE_SOCKET_PLUG at, Function function ) {
+        if      constexpr( event == SURFACE_EVENT_MOUSE )    _sckt_mouse   [ at ].insert( { guid, function } );
+        else if constexpr( event == SURFACE_EVENT_KEY )      _sckt_key     [ at ].insert( { guid, function } );
+        else if constexpr( event == SURFACE_EVENT_SCROLL )   _sckt_scroll  [ at ].insert( { guid, function } );
+        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _sckt_filedrop[ at ].insert( { guid, function } );
+        else if constexpr( event == SURFACE_EVENT_MOVE )     _sckt_move    [ at ].insert( { guid, function } );
+        else if constexpr( event == SURFACE_EVENT_RESIZE )   _sckt_resize  [ at ].insert( { guid, function } );
+    }
+
+    void unplug( const GUID& guid, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
+        _unplug( guid, at, _sckt_mouse );
+        _unplug( guid, at, _sckt_key );
+        _unplug( guid, at, _sckt_scroll );
+        _unplug( guid, at, _sckt_filedrop );
+        _unplug( guid, at, _sckt_move );
+        _unplug( guid, at, _sckt_resize );
+    }
+
+    template< SURFACE_EVENT event >
+    void unplug( const GUID& guid, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
+        if      constexpr( event == SURFACE_EVENT_MOUSE )    _unplug( guid, at, _sckt_mouse );
+        else if constexpr( event == SURFACE_EVENT_KEY )      _unplug( guid, at, _sckt_key );
+        else if constexpr( event == SURFACE_EVENT_SCROLL )   _unplug( guid, at, _sckt_scroll );
+        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _unplug( guid, at, _sckt_filedrop );
+        else if constexpr( event == SURFACE_EVENT_MOVE )     _unplug( guid, at, _sckt_move );
+        else if constexpr( event == SURFACE_EVENT_RESIZE )   _unplug( guid, at, _sckt_resize );
+    }
+
+protected:
+    template< typename Socket >
+    void _unplug( const GUID& guid, std::optional< SURFACE_SOCKET_PLUG > at, Socket& socket ) {
+        if( at.has_value() )
+            socket[ at.value() ].erase( guid );
+        else {
+            socket[ SURFACE_SOCKET_PLUG_AT_ENTRY ].erase( guid );
+            socket[ SURFACE_SOCKET_PLUG_AT_EXIT ] .erase( guid );
+        }
+    }
+
+};
+
+class Surface : public UTH,
+                public SurfaceEventSentry 
+{
 public:
     _ENGINE_UTH_IDENTIFY_METHOD( "Surface" );
 
@@ -2019,36 +2153,7 @@ public:
     }
 
 public:
-    struct Trace {
-        Trace() = default;
-
-        struct Result {
-            GUID           guid     = {};
-            std::bitset< 16 >   result   = 0;
-        };
-
-        std::bitset< 64 >       master   = 0;
-        std::vector< Result >   plugs    = {};
-
-        void clear() {
-            master.reset();
-            plugs.clear();
-        }
-
-        std::bitset< 64 >::reference operator [] ( size_t idx ) {
-            return master[ idx ];
-        }
-    };
-
-public:
-    typedef   std::function< void( Vec2, Vec2, Trace& ) >                   OnMouse;
-    typedef   std::function< void( Key, KEY_STATE, Trace& ) >               OnKey;
-    typedef   std::function< void( SCROLL_DIRECTION, Trace& ) >             OnScroll;
-    typedef   std::function< void( std::vector< std::string >, Trace& ) >   OnFiledrop;
-    typedef   std::function< void( Coord< int >, Coord< int >, Trace& ) >   OnMove;
-    typedef   std::function< void( Size< int >, Size< int >, Trace& ) >     OnResize;
-
-    typedef   std::array< KEY_STATE, Key::COUNT >                           Keys;
+    typedef   std::array< KEY_STATE, Key::COUNT >   Keys;
 
 protected:
     static constexpr auto   LIQUID_STYLE   = WS_OVERLAPPED | WS_SIZEBOX | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE;
@@ -2064,22 +2169,7 @@ protected:
     Coord< int >                  _coord                = {};
     Size< int >                   _size                 = {};
 
-    Trace                         _trace                = {};
-
-    OnMouse                       _on_mouse             = {};
-    OnKey                         _on_key               = {};
-    OnScroll                      _on_scroll            = {};
-    OnFiledrop                    _on_filedrop          = {};
-    OnMove                        _on_move              = {};
-    OnResize                      _on_resize            = {};
-
-    std::map< GUID, OnMouse >     _plug_mouse[ 2 ]      = {};
-    std::map< GUID, OnKey >       _plug_key[ 2 ]        = {};
-    std::map< GUID, OnScroll >    _plug_scroll[ 2 ]     = {};
-    std::map< GUID, OnFiledrop >  _plug_filedrop[ 2 ]   = {};
-    std::map< GUID, OnMove >      _plug_move[ 2 ]       = {};
-    std::map< GUID, OnResize >    _plug_resize[ 2 ]     = {};
-
+    SurfaceTrace                  _trace                = {};
 
     Vec2                          _mouse                = {};
     Vec2                          _mouse_l              = {};
@@ -2165,8 +2255,10 @@ protected:
 
             _keys[ key ] = state;
 
-            this->invoke_ons< OnKey >( key, state );
+            this->invoke_sequence< OnKey >( _trace, key, state );
         };
+
+        _trace.reset();
 
         switch( event ) {
             case WM_CREATE: {
@@ -2188,19 +2280,20 @@ protected:
             break; }
 
             case SURFACE_EVENT__FORCE :{
-                this->invoke_ons< OnMouse >( _mouse, _mouse );
+                this->invoke_sequence< OnMouse >( _trace, _mouse, _mouse );
             break; }
 
 
             case WM_MOUSEMOVE: {
                 Vec2 new_mouse = this->pull_vec( { LOWORD( l_param ), HIWORD( l_param ) } );
 
-                this->invoke_ons< OnMouse >( new_mouse, _mouse_l = std::exchange( _mouse, new_mouse ) );
+                this->invoke_sequence< OnMouse >( _trace, new_mouse, _mouse_l = std::exchange( _mouse, new_mouse ) );
 
             break; }
 
             case WM_MOUSEWHEEL: {
-                this->invoke_ons< OnScroll >(
+                this->invoke_sequence< OnScroll >(
+                    _trace,
                     GET_WHEEL_DELTA_WPARAM( w_param ) < 0
                     ?
                     SCROLL_DIRECTION_DOWN : SCROLL_DIRECTION_UP
@@ -2274,7 +2367,7 @@ protected:
                     files.emplace_back( file );
                 }
 
-                this->invoke_ons< OnFiledrop >( std::move( files ) );
+                this->invoke_sequence< OnFiledrop >( _trace, std::move( files ) );
 
             break; }
 
@@ -2282,56 +2375,20 @@ protected:
             case WM_MOVE: {
                 Coord< int > new_coord = { LOWORD( l_param ), HIWORD( l_param ) };
 
-                this->invoke_ons< OnMove >( new_coord, std::exchange( _coord, new_coord ) );
+                this->invoke_sequence< OnMove >( _trace, new_coord, std::exchange( _coord, new_coord ) );
 
             break; }
 
             case WM_SIZE: {
                 Size< int > new_size = { LOWORD( l_param ), HIWORD( l_param ) };
 
-                this->invoke_ons< OnResize >( new_size, std::exchange( _size, new_size ) );
+                this->invoke_sequence< OnResize >( _trace, new_size, std::exchange( _size, new_size ) );
 
             break; }
 
         }
 
         return DefWindowProc( hwnd, event, w_param, l_param );
-    }
-
-    template< typename On, typename ...Args >
-    void invoke_ons( Args&&... args ) {
-        if constexpr( std::is_same_v< On, OnMouse > )
-            this->invoke_ons( _on_mouse, _plug_mouse, std::forward< Args >( args )... );
-
-        else if constexpr( std::is_same_v< On, OnKey > )
-            this->invoke_ons( _on_key, _plug_key, std::forward< Args >( args )... );
-
-        else if constexpr( std::is_same_v< On, OnScroll > )
-            this->invoke_ons( _on_scroll, _plug_scroll, std::forward< Args >( args )... );
-
-        else if constexpr( std::is_same_v< On, OnFiledrop > )
-            this->invoke_ons( _on_filedrop, _plug_filedrop, std::forward< Args >( args )... );
-
-        else if constexpr( std::is_same_v< On, OnMove > )
-            this->invoke_ons( _on_move, _plug_move, std::forward< Args >( args )... );
-
-        else if constexpr( std::is_same_v< On, OnResize > )
-            this->invoke_ons( _on_resize, _plug_resize, std::forward< Args >( args )... );
-
-    }
-
-    template< typename M, typename P, typename ...Args >
-    void invoke_ons( M& master, P& plugs, Args&&... args ) {
-        _trace.clear();
-
-        for( auto& pair : plugs[ 0 ] )
-            std::invoke( pair.second, std::forward< Args >( args )..., _trace );
-
-        if( master )
-            std::invoke( master, std::forward< Args >( args )..., _trace );
-
-        for( auto& pair : plugs[ 1 ] )
-            std::invoke( pair.second, std::forward< Args >( args )..., _trace );
     }
 
 public:
@@ -2509,65 +2566,6 @@ public:
     }
 
 public:
-    template< SURFACE_EVENT event, typename Function >
-    Surface& on( Function function ) {
-        if      constexpr( event == SURFACE_EVENT_MOUSE )    _on_mouse    = function;
-        else if constexpr( event == SURFACE_EVENT_KEY )      _on_key      = function;
-        else if constexpr( event == SURFACE_EVENT_SCROLL )   _on_scroll   = function;
-        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _on_filedrop = function;
-        else if constexpr( event == SURFACE_EVENT_MOVE )     _on_move     = function;
-        else if constexpr( event == SURFACE_EVENT_RESIZE )   _on_resize   = function;
-
-        return *this;
-    }
-
-    template< SURFACE_EVENT event, typename Function >
-    Surface& plug( const GUID& guid, SURFACE_PLUG_SOCKET socket, Function function ) {
-        if      constexpr( event == SURFACE_EVENT_MOUSE )    _plug_mouse   [ socket ].insert( std::make_pair( guid, function )  );
-        else if constexpr( event == SURFACE_EVENT_KEY )      _plug_key     [ socket ].insert( std::make_pair( guid, function )  );
-        else if constexpr( event == SURFACE_EVENT_SCROLL )   _plug_scroll  [ socket ].insert( std::make_pair( guid, function )  );
-        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _plug_filedrop[ socket ].insert( std::make_pair( guid, function )  );
-        else if constexpr( event == SURFACE_EVENT_MOVE )     _plug_move    [ socket ].insert( std::make_pair( guid, function )  );
-        else if constexpr( event == SURFACE_EVENT_RESIZE )   _plug_resize  [ socket ].insert( std::make_pair( guid, function )  );
-
-        return *this;
-    }
-
-    Surface& unplug( const GUID& guid, std::optional< SURFACE_PLUG_SOCKET > socket = {} ) {
-        _unplug( guid, socket, _plug_mouse );
-        _unplug( guid, socket, _plug_key );
-        _unplug( guid, socket, _plug_scroll );
-        _unplug( guid, socket, _plug_filedrop );
-        _unplug( guid, socket, _plug_move );
-        _unplug( guid, socket, _plug_resize );
-
-        return *this;
-    }
-
-    template< SURFACE_EVENT event >
-    Surface& unplug( const GUID& guid, std::optional< SURFACE_PLUG_SOCKET > socket = {} ) {
-        if      constexpr( event == SURFACE_EVENT_MOUSE )    _unplug( guid, socket, _plug_mouse );
-        else if constexpr( event == SURFACE_EVENT_KEY )      _unplug( guid, socket, _plug_key );
-        else if constexpr( event == SURFACE_EVENT_SCROLL )   _unplug( guid, socket, _plug_scroll );
-        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _unplug( guid, socket, _plug_filedrop );
-        else if constexpr( event == SURFACE_EVENT_MOVE )     _unplug( guid, socket, _plug_move );
-        else if constexpr( event == SURFACE_EVENT_RESIZE )   _unplug( guid, socket, _plug_resize );
-
-        return *this;
-    }
-
-protected:
-    template< typename Plug >
-    void _unplug( const GUID& guid, std::optional< SURFACE_PLUG_SOCKET > socket, Plug& plug ) {
-        if( socket.has_value() )
-            plug[ socket.value() ].erase( guid );
-        else {
-            plug[ SURFACE_PLUG_SOCKET_AT_ENTRY ].erase( guid );
-            plug[ SURFACE_PLUG_SOCKET_AT_EXIT ] .erase( guid );
-        }
-    }
-
-public:
 #if defined( _ENGINE_UNIQUE_SURFACE )
     static Surface* get() {
         return _ptr;
@@ -2720,6 +2718,10 @@ protected:
     D2D1::Matrix3x2F            _transform     = D2D1::Matrix3x2F::Identity();
 
 public:
+    Surface& surface() {
+        return *_surface;
+    }
+
     auto factory() { return _factory; }
     auto target() { return _target; }
     auto wic_factory() { return _wic_factory; }
@@ -2822,7 +2824,9 @@ public:
 
 
 
-class Viewport2 : public UTH {
+class Viewport2 : public UTH,
+                  public SurfaceEventSentry
+{
 public:
     _ENGINE_UTH_IDENTIFY_METHOD( "Viewport2" );
 
@@ -2851,6 +2855,7 @@ public:
     {}
 
 
+    Viewport2( const Viewport2& ) = delete;
     Viewport2( Viewport2&& ) = delete;
 
 protected:
@@ -2973,6 +2978,18 @@ public:
 
     bool has_restriction() const {
         return _restricted;
+    }
+
+public:
+    Viewport2& uplink() {
+        Surface& srf = _renderer->surface();
+
+        srf.plug< SURFACE_EVENT_MOUSE >( 
+            this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
+            [ this ] ( Vec2 vec, Vec2 lvec, auto& trace ) -> void {
+                this->invoke_sequence< OnMouse >( trace, vec - _origin, lvec - _origin );
+            }
+        );
     }
 
 public:

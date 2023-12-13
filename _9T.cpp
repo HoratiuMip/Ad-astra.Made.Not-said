@@ -1981,7 +1981,7 @@ struct SurfaceTrace {
 
 typedef   std::function< void( Vec2, Vec2, SurfaceTrace& ) >                   OnMouse;
 typedef   std::function< void( Key, KEY_STATE, SurfaceTrace& ) >               OnKey;
-typedef   std::function< void( SCROLL_DIRECTION, SurfaceTrace& ) >             OnScroll;
+typedef   std::function< void( Vec2, SCROLL_DIRECTION, SurfaceTrace& ) >       OnScroll;
 typedef   std::function< void( std::vector< std::string >, SurfaceTrace& ) >   OnFiledrop;
 typedef   std::function< void( Coord< int >, Coord< int >, SurfaceTrace& ) >   OnMove;
 typedef   std::function< void( Size< int >, Size< int >, SurfaceTrace& ) >     OnResize;
@@ -2294,6 +2294,7 @@ protected:
             case WM_MOUSEWHEEL: {
                 this->invoke_sequence< OnScroll >(
                     _trace,
+                    _mouse,
                     GET_WHEEL_DELTA_WPARAM( w_param ) < 0
                     ?
                     SCROLL_DIRECTION_DOWN : SCROLL_DIRECTION_UP
@@ -2872,6 +2873,10 @@ public:
         return *_renderer;
     }
 
+    Surface& surface() {
+        return _renderer->surface();
+    }
+
 public:
     Vec2 origin() const {
         return _origin;
@@ -2893,55 +2898,55 @@ public:
     }
 
 public:
-    Vec2 top_left() const {
+    Vec2 top_left_g() const {
         return _origin + Vec2{ -_size2.width, _size2.height };
     }
 
-    Vec2 bot_right() const {
+    Vec2 bot_right_g() const {
         return _origin + Vec2{ _size2.width, -_size2.height };
     }
 
 public:
-    double east() const {
+    double east_g() const {
         return _origin.x + _size2.width;
     }
 
-    double west() const {
+    double west_g() const {
         return _origin.x - _size2.width;
     }
 
-    double north() const {
+    double north_g() const {
         return _origin.y + _size2.height;
     }
 
-    double south() const {
+    double south_g() const {
         return _origin.y - _size2.height;
     }
 
-    double east_reach() const {
+    double east() const {
         return _size2.width;
     }
 
-    double west_reach() const {
+    double west() const {
         return -_size2.width;
     }
 
-    double north_reach() const {
+    double north() const {
         return _size2.height;
     }
 
-    double south_reach() const {
+    double south() const {
         return -_size2.height;
     }
 
 public:
-    bool contains( Vec2 vec ) const {
-        Vec2 ref = this->top_left();
+    bool contains_g( Vec2 vec ) const {
+        Vec2 ref = this->top_left_g();
         
         if( vec.is_further_than( ref, HEADING_NORTH ) || vec.is_further_than( ref, HEADING_WEST ) )
             return false;
 
-        ref = this->bot_right();
+        ref = this->bot_right_g();
 
         if( vec.is_further_than( ref, HEADING_SOUTH ) || vec.is_further_than( ref, HEADING_EAST ) )
             return false;
@@ -2953,8 +2958,8 @@ public:
     Viewport2& restrict() {
         if( _restricted ) return *this;
 
-        auto tl = _renderer->pull_crd( this->top_left() );
-        auto br = _renderer->pull_crd( this->bot_right() );
+        auto tl = _renderer->pull_crd( this->top_left_g() );
+        auto br = _renderer->pull_crd( this->bot_right_g() );
 
         _renderer->target()->PushAxisAlignedClip(
             D2D1::RectF( tl.x, tl.y, br.x, br.y ),
@@ -2982,17 +2987,51 @@ public:
 
 public:
     Viewport2& uplink() {
-        Surface& srf = _renderer->surface();
+        Surface& srf = this->surface();
 
         srf.plug< SURFACE_EVENT_MOUSE >( 
             this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, Vec2 lvec, auto& trace ) -> void {
+                if( !this->contains_g( vec ) ) return;
+
                 this->invoke_sequence< OnMouse >( trace, vec - _origin, lvec - _origin );
             }
         );
+
+        srf.plug< SURFACE_EVENT_SCROLL >( 
+            this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
+            [ this ] ( Vec2 vec, SCROLL_DIRECTION dir, auto& trace ) -> void {
+                if( !this->contains_g( vec ) ) return;
+
+                this->invoke_sequence< OnScroll >( trace, vec, dir );
+            }
+        );
+
+        srf.plug< SURFACE_EVENT_KEY >( 
+            this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
+            [ this ] ( Key key, KEY_STATE state, auto& trace ) -> void {
+                this->invoke_sequence< OnKey >( trace, key, state );
+            }
+        );
+
+        return *this;
+    }
+
+    Viewport2& downlink() {
+        Surface& srf = _renderer->surface();
+
+        srf.unplug( this->guid() );
     }
 
 public:
+    Viewport2& fill(
+        const Chroma& chroma
+    );
+
+    Viewport2& fill(
+        const Brush2& brush
+    );
+
     Viewport2& line(
         Coord<> c1, Coord<> c2,
         const Brush2& brush
@@ -3066,6 +3105,8 @@ public:
     : _width( w )
     {}
 
+    virtual ~Brush2() {}
+
 protected:
     float   _width   = 1.0;
 
@@ -3080,6 +3121,10 @@ public:
 
 public:
     virtual ID2D1Brush* brush() const = 0;
+
+    operator ID2D1Brush* () const {
+        return this->brush();
+    }
 
 };
 
@@ -3113,7 +3158,7 @@ public:
     }
 
 public:
-    ~SolidBrush2() {
+    virtual ~SolidBrush2() {
         if( _brush ) _brush->Release();
     }
 
@@ -4019,6 +4064,12 @@ const Echo& Echo::_echo(
 
 
 
+Renderer2& Renderer2::fill( const Chroma& chroma = {} ) {
+    _target->Clear( chroma );
+
+    return *this;
+}
+
 Renderer2& Renderer2::line(
     Coord<> c1, Coord<> c2,
     const Brush2& brush
@@ -4043,13 +4094,31 @@ Renderer2& Renderer2::line(
     );
 }
 
-Renderer2& Renderer2::fill( const Chroma& chroma = {} ) {
-    _target->Clear( chroma );
+
+
+Viewport2& Viewport2::fill(
+    const Chroma& chroma
+) { 
+    this->restrict();
+    _renderer->fill( chroma ); /* Poor man's fill */
+    this->lift_restriction();
 
     return *this;
 }
 
+Viewport2& Viewport2::fill(
+    const Brush2& brush
+) { 
+    auto tl = _renderer->pull_crd( this->top_left_g() );
+    auto br = _renderer->pull_crd( this->bot_right_g() );
 
+    _renderer->target()->FillRectangle(
+        D2D1_RECT_F{ tl.x, tl.y, br.x, br.y },
+        brush
+    );
+
+    return *this;
+}
 
 Viewport2& Viewport2::line(
     Coord<> c1, Coord<> c2,
@@ -4094,7 +4163,94 @@ enum SYSTEM2_LINK {
     SYSTEM2_LINK_COLLECTION = 1
 };
 
-class System2 : public UTH {
+class System2Node {
+public:
+    System2Node() = default;
+
+    template< typename Source >
+    System2Node( Source&& source )
+    : _source{ std::forward< Source >( source ) }
+    {}
+
+public:
+    typedef   std::function< double( double ) >   Function;
+    typedef   std::vector< Vec2 >                 Collection;
+
+protected:
+    std::variant< Function, Collection >   _source     = {};
+
+    bool                                   _uplinked   = false;
+
+    std::shared_ptr< Brush2 >              _brush      = nullptr;
+
+public:
+    auto type() const {
+        return _source.index();
+    }
+
+    bool is_function() const {
+        return this->type() == SYSTEM2_LINK_FUNCTION;
+    }
+
+    bool is_collection() const {
+        return this->type() == SYSTEM2_LINK_COLLECTION;
+    }
+
+public:
+    System2Node& uplink() {
+        _uplinked = true;
+
+        return *this;
+    }
+
+    System2Node& downlink() {
+        _uplinked = false;
+
+        return *this;
+    }
+
+public:
+    bool is_uplinked() const {
+        return _uplinked;
+    }
+
+public:
+    Function& function() {
+        return std::get< 0 >( _source );
+    } 
+
+    Collection& collection() {
+        return std::get< 1 >( _source );
+    }
+
+public:
+    System2Node& give_brush( decltype( _brush ) ptr ) {
+        _brush = std::move( ptr );
+
+        return *this;
+    }
+
+    System2Node& remove_brush() {
+        _brush.reset();
+
+        return *this;
+    }
+
+public:
+    Brush2& brush() const {
+        return *_brush;
+    }
+
+public:
+    bool has_brush() const {
+        return _brush.operator bool();
+    }
+
+};
+
+class System2 : public UTH,
+                public std::map< std::string, System2Node >
+{
 public:
     _ENGINE_UTH_IDENTIFY_METHOD( "System2" );
 
@@ -4106,58 +4262,15 @@ public:
         double          div_every,
         double          div_mean,
         double          div_hstk,
-        const Chroma&   axis_chroma,
-        float           axis_width,
+        const Chroma&   axis_chroma   = { 1, 1, 1, 1 },
+        float           axis_width    = 1,
         Echo            echo          = {}
     )
     : _viewport{ &vwprt }, _div_every{ div_every }, _div_mean{ div_mean }, _div_hstk{ div_hstk },
-      _brush{ vwprt.renderer(), axis_chroma, axis_width, echo }
+      _brush{ new SolidBrush2{ vwprt.renderer(), axis_chroma, axis_width, echo } }
     {
         echo( this, ECHO_LOG_OK, "Created." );
     }
-
-public:
-    class Node {
-    public:
-        Node() = default;
-
-        template< typename Source >
-        Node( Source&& source )
-        : _source{ std::forward< Source >( source ) }
-        {}
-
-    public:
-        typedef   std::function< double( double ) >   Function;
-        typedef   std::vector< Vec2 >                 Collection;
-    
-    protected:
-        std::variant< Function, Collection >   _source   = {};
-
-        bool                                   _active   = true;
-
-    public:
-        auto type() const {
-            return _source.index();
-        }
-
-        bool is_function() const {
-            return this->type() == SYSTEM2_LINK_FUNCTION;
-        }
-
-        bool is_collection() const {
-            return this->type() == SYSTEM2_LINK_COLLECTION;
-        }
-
-    public:
-        Function& function() {
-            return std::get< 0 >( _source );
-        } 
-
-        Collection& collection() {
-            return std::get< 1 >( _source );
-        }
-
-    };
 
 private:
     Viewport2*                      _viewport    = nullptr;
@@ -4167,9 +4280,7 @@ private:
     double                          _div_mean    = 1.0;
     double                          _div_hstk    = 15.0;
 
-    SolidBrush2                     _brush       = {};
-
-    std::map< std::string, Node >   _nodes       = {};
+    std::shared_ptr< Brush2 >       _brush       = {};
 
 public:
     Viewport2& viewport() {
@@ -4188,32 +4299,90 @@ public:
     }
 
 public:
-    double coeff() const {
+    double div_coeff() const {
         return _div_every / _div_mean;
     }
 
 public:
-    template< typename Source >
-    requires (
-        std::is_same_v< Node::Function, Source >
-        ||
-        std::is_same_v< Node::Collection, Source >
-    )
-    System2& push( std::string_view idx, Source&& source ) {
-        _nodes.insert( { idx.data(), source } );
+    double div_every() const {
+        return _div_every;
+    }
+
+    double div_mean() const {
+        return _div_mean;
+    }
+
+public:
+    System2& div_every_to( double val ) {
+        _div_every = val;
 
         return *this;
     }
 
-    System2& pop( std::string_view idx ) {
-        _nodes.erase( idx.data() );
+    System2& tweak_div_every( const auto& op, double val ) {
+        _div_every = std::clamp( 
+            op( _div_every, val ), 
+            5.0, std::numeric_limits< decltype( _div_every ) >::max() 
+        );
+
+        return *this;
+    }
+
+    System2& div_mean_to( double val ) {
+        _div_mean = val;
+
+        return *this;
+    }
+
+     System2& tweak_div_mean( const auto& op, double val ) {
+        _div_mean = std::clamp( 
+            op( _div_mean, val ), 
+            0.00000001, std::numeric_limits< decltype( _div_mean ) >::max() 
+        );
+
+        return *this;
+    }
+ 
+public:
+    System2& uplink_auto_roam() {
+        _viewport->plug< SURFACE_EVENT_MOUSE >( 
+            this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
+            [ this ] ( Vec2 vec, Vec2 lvec, auto& trace ) -> void {
+                if( !_viewport->surface().down( Key::LMB ) ) return; 
+
+                _offset += ( vec - lvec );
+            }
+        );
+
+        _viewport->plug< SURFACE_EVENT_SCROLL >( 
+            this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
+            [ this ] ( Vec2 vec, SCROLL_DIRECTION dir, auto& trace ) -> void {
+                switch( dir ) {
+                    case SCROLL_DIRECTION_UP:
+                        this->tweak_div_every( std::plus<>{}, 4.6 );
+                    break;
+
+                    case SCROLL_DIRECTION_DOWN:
+                        this->tweak_div_every( std::plus<>{}, -4.6 );
+                    break;
+
+                    default: break;
+                }
+            }
+        );
+
+        return *this;
+    }
+
+    System2& downlink_auto_roam() {
+        _viewport->unplug( this->guid() );
 
         return *this;
     }
 
 public:
-    Node& operator [] ( std::string_view idx ) {
-        return _nodes[ idx.data() ];
+    Brush2& brush() {
+        return *_brush;
     }
 
 public:
@@ -4226,9 +4395,9 @@ public:
         bool      axis_out[] = { false, false, false, false };
 
 
-        if( ( axis_out[ HEADING_EAST ] = ( _offset.x > _viewport->east_reach() ) )
+        if( ( axis_out[ HEADING_EAST ] = ( _offset.x > _viewport->east() ) )
             || 
-            ( axis_out[ HEADING_WEST ] = ( _offset.x < _viewport->west_reach() ) )
+            ( axis_out[ HEADING_WEST ] = ( _offset.x < _viewport->west() ) )
         )
             goto L_SKIP_Y_AXIS;
 
@@ -4236,27 +4405,27 @@ public:
         cst = _viewport->origin().x + _offset.x;
 
         renderer.line(
-            Vec2{ cst, _viewport->north() }, 
-            Vec2{ cst, _viewport->south() },
-            _brush
+            Vec2{ cst, _viewport->north_g() }, 
+            Vec2{ cst, _viewport->south_g() },
+            this->brush()
         );
 
 
         L_SKIP_Y_AXIS:
 
 
-        if( ( axis_out[ HEADING_NORTH ] = ( _offset.y > _viewport->north_reach() ) )
+        if( ( axis_out[ HEADING_NORTH ] = ( _offset.y > _viewport->north() ) )
             || 
-            ( axis_out[ HEADING_SOUTH ] = ( _offset.y < _viewport->south_reach() ) )
+            ( axis_out[ HEADING_SOUTH ] = ( _offset.y < _viewport->south() ) )
         )
             goto L_SKIP_X_AXIS;
 
         cst = _viewport->origin().y + _offset.y;
 
         renderer.line(
-            Vec2{ _viewport->west(), cst }, 
-            Vec2{ _viewport->east(), cst },
-            _brush
+            Vec2{ _viewport->west_g(), cst }, 
+            Vec2{ _viewport->east_g(), cst },
+            this->brush()
         );
 
         
@@ -4265,19 +4434,19 @@ public:
 
         cst = _viewport->origin().x + _offset.x;
 
-        if( cst < _viewport->west() ) {
-            cst = _viewport->west() - cst;
+        if( cst < _viewport->west_g() ) {
+            cst = _viewport->west_g() - cst;
             
             double tweak = cst / _div_every;
 
-            cst = _viewport->west() + _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
+            cst = _viewport->west_g() + _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
 
-        } else if( cst > _viewport->east() ) {
-            cst = cst - _viewport->east();
+        } else if( cst > _viewport->east_g() ) {
+            cst = cst - _viewport->east_g();
             
             double tweak = cst / _div_every;
 
-            cst = _viewport->east() - _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
+            cst = _viewport->east_g() - _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
         }
 
         cst_stk = _viewport->origin().y + _offset.y;
@@ -4287,43 +4456,43 @@ public:
                 Vec2{ 
                     x, 
                     axis_out[ HEADING_SOUTH ] ?
-                        std::min( _viewport->south() + _div_hstk, _viewport->north() )
+                        std::min( _viewport->south_g() + _div_hstk, _viewport->north_g() )
                         :
-                        std::min( _viewport->north(), cst_stk + _div_hstk )
+                        std::min( _viewport->north_g(), cst_stk + _div_hstk )
                 },
                 Vec2{ 
                     x, 
                     axis_out[ HEADING_NORTH ] ?
-                        std::max( _viewport->north() - _div_hstk, _viewport->south() )
+                        std::max( _viewport->north_g() - _div_hstk, _viewport->south_g() )
                         :
-                        std::max( _viewport->south(), cst_stk - _div_hstk ) 
+                        std::max( _viewport->south_g(), cst_stk - _div_hstk ) 
                 },
-                _brush
+                this->brush()
             );
         };
 
-        for( double offs = 0.0; ( cst + offs ) <= _viewport->east(); offs += _div_every ) 
+        for( double offs = 0.0; ( cst + offs ) <= _viewport->east_g(); offs += _div_every ) 
             strike_x_at( cst + offs );
         
-        for( double offs = 0.0; ( cst - offs ) >= _viewport->west(); offs += _div_every ) 
+        for( double offs = 0.0; ( cst - offs ) >= _viewport->west_g(); offs += _div_every ) 
             strike_x_at( cst - offs );
 
 
         cst = _viewport->origin().y + _offset.y;
 
-        if( cst < _viewport->south() ) {
-            cst = _viewport->south() - cst;
+        if( cst < _viewport->south_g() ) {
+            cst = _viewport->south_g() - cst;
             
             double tweak = cst / _div_every;
 
-            cst = _viewport->south() + _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
+            cst = _viewport->south_g() + _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
 
-        } else if( cst > _viewport->north() ) {
-            cst = cst - _viewport->north();
+        } else if( cst > _viewport->north_g() ) {
+            cst = cst - _viewport->north_g();
             
             double tweak = cst / _div_every;
 
-            cst = _viewport->north() - _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
+            cst = _viewport->north_g() - _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
         }
 
         cst_stk = _viewport->origin().x + _offset.x;
@@ -4332,30 +4501,32 @@ public:
             renderer.line(
                 Vec2{ 
                     axis_out[ HEADING_WEST ] ?
-                        std::min( _viewport->west() + _div_hstk, _viewport->east() )
+                        std::min( _viewport->west_g() + _div_hstk, _viewport->east_g() )
                         :
-                        std::min( _viewport->east(), cst_stk + _div_hstk ),
+                        std::min( _viewport->east_g(), cst_stk + _div_hstk ),
                     y
                 },
                 Vec2{
                     axis_out[ HEADING_EAST ] ?
-                        std::max( _viewport->east() - _div_hstk, _viewport->west() )
+                        std::max( _viewport->east_g() - _div_hstk, _viewport->west_g() )
                         :
-                        std::max( _viewport->west(), cst_stk - _div_hstk ),
+                        std::max( _viewport->west_g(), cst_stk - _div_hstk ),
                     y
                 },
-                _brush
+                this->brush()
             );
         };
 
-        for( double offs = 0.0; ( cst + offs ) <= _viewport->north(); offs += _div_every ) 
+        for( double offs = 0.0; ( cst + offs ) <= _viewport->north_g(); offs += _div_every ) 
             strike_y_at( cst + offs );
 
-        for( double offs = 0.0; ( cst - offs ) >= _viewport->south(); offs += _div_every ) 
+        for( double offs = 0.0; ( cst - offs ) >= _viewport->south_g(); offs += _div_every ) 
             strike_y_at( cst - offs );
 
 
-        for( auto& [ idx, node ] : _nodes ) {
+        for( auto& [ idx, node ] : *this ) {
+            if( !node.is_uplinked() ) continue;
+
             switch( node.type() ) {
                 case SYSTEM2_LINK_FUNCTION: 
                     this->_render_function( node ); 
@@ -4374,10 +4545,10 @@ public:
     }
 
 protected:
-    void _render_function( const Node& node ) const {
-        double c   = this->coeff();
-        double x   = ( _viewport->west_reach() - _offset.x ) * ( 1.0 / c );
-        double end = ( _viewport->east_reach() - _offset.x ) * ( 1.0 / c ); 
+    void _render_function( const System2Node& node ) const {
+        double c   = this->div_coeff();
+        double x   = ( _viewport->west() - _offset.x ) * ( 1.0 / c );
+        double end = ( _viewport->east() - _offset.x ) * ( 1.0 / c ); 
         double h   = abs( ( end - x ) / 1000.0 );
 
         Vec2 v1{ x, std::invoke( node.function(), x ) };
@@ -4386,18 +4557,24 @@ protected:
         for( ; x <= end; x += h ) {
             Vec2 v2{ x, std::invoke( node.function(), x ) };
 
-            _viewport->line( v1 * c + _offset, v2 * c + _offset, _brush );
+            _viewport->line( 
+                v1 * c + _offset, v2 * c + _offset, 
+                node.has_brush() ? node.brush() : this->brush()
+            );
             
             v1 = v2;
         }
     }
 
-    void _render_collection( const Node& node ) const {
-        double c  = this->coeff();
+    void _render_collection( const System2Node& node ) const {
+        double c  = this->div_coeff();
         auto   v1 = node.collection().begin();
 
         for( auto v2 = v1 + 1; v2 != node.collection().end(); ++v2 ) {
-            _viewport->line( *v1 * c + _offset, *v2 * c + _offset, _brush );
+            _viewport->line( 
+                *v1 * c + _offset, *v2 * c + _offset, 
+                node.has_brush() ? node.brush() : this->brush() 
+            );
 
             v1 = v2;
         }

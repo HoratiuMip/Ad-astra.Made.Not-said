@@ -3021,6 +3021,8 @@ public:
         Surface& srf = _renderer->surface();
 
         srf.unplug( this->guid() );
+
+        return *this;
     }
 
 public:
@@ -3059,7 +3061,13 @@ public:
     Chroma() = default;
 
     Chroma( float r, float g, float b, float a = 1.0 )
-    : r( r ), g( g ), b( b ), a( a )
+    : r{ r }, g{ g }, b{ b }, a{ a }
+    {}
+
+    template< typename T >
+    requires( std::is_integral_v< T > )
+    Chroma( T r, T g, T b, T a )
+    : r{ r / 255.0f }, g{ g / 255.0f }, b{ b / 255.0f }, a{ a / 255.0f }
     {}
 
 public:
@@ -4384,6 +4392,8 @@ public:
     Brush2& brush() {
         return *_brush;
     }
+
+
 
 public:
     void render( Renderer2& renderer ) const {

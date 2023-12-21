@@ -3229,6 +3229,284 @@ public:
 
 
 
+class LinearBrush2 : public Brush2 {
+public:
+    _ENGINE_UTH_IDENTIFY_METHOD( "LinearBrush2" );
+
+public:
+    LinearBrush2() = default;
+
+    template< typename Itr >
+    LinearBrush2(
+        Renderer2&    renderer,
+        Vec2          launch,
+        Vec2          land,
+        Itr           begin,
+        Itr           end,
+        float         w        = 1.0,
+        Echo          echo     = {}
+    )
+    : Brush2{ w }
+    {
+        _renderer = &renderer;
+
+
+        D2D1_GRADIENT_STOP entries[ std::abs( std::distance( begin, end ) ) ];
+
+        std::size_t idx = 0;
+
+        for( Itr itr = begin; itr != end; ++itr, ++idx ) {
+            entries[ idx ].color = itr->first;
+            entries[ idx ].position = itr->second;
+        };
+
+        ECHO_ASSERT_AND_THROW(
+            _renderer->target()->CreateGradientStopCollection(
+                entries,
+                idx,
+                D2D1_GAMMA_2_2,
+                D2D1_EXTEND_MODE_CLAMP,
+                &_grads
+            ) == S_OK,
+
+            "<constructor>: _renderer->target()->CreateGradientStopCollection"
+        );
+
+        ECHO_ASSERT_AND_THROW(
+            _renderer->target()->CreateLinearGradientBrush(
+                D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES{
+                    _renderer->pull_crd( launch ),
+                    _renderer->pull_crd( land )
+                },
+                D2D1_BRUSH_PROPERTIES {
+                    1.0,
+                    D2D1::Matrix3x2F::Identity()
+                },
+                _grads,
+                &_brush
+            ) == S_OK,
+
+            "<constructor>: _renderer->target()->CreateLinearGradientBrush"
+        );
+
+        echo( this, ECHO_LOG_OK, "Created." );
+    }
+
+    template< typename Cntr >
+    LinearBrush2(
+        Renderer2&    renderer,
+        Vec2          launch,
+        Vec2          land,
+        const Cntr&   container,
+        float         w           = 1.0,
+        Echo          echo        = {}
+    )
+    : LinearBrush2{ renderer, launch, land, container.begin(), container.end(), w }
+    {}
+
+public:
+    virtual ~LinearBrush2() {
+        if( _brush ) _brush->Release();
+
+        if( _grads ) _grads->Release();
+    }
+
+private:
+    Renderer2*                     _renderer   = nullptr;
+
+    ID2D1LinearGradientBrush*      _brush      = nullptr;
+    ID2D1GradientStopCollection*   _grads      = nullptr;
+
+public:
+    virtual ID2D1Brush* brush() const override {
+        return _brush;
+    }
+
+public:
+    Vec2 launch() const {
+        auto [ x, y ] = _brush->GetStartPoint();
+        return _renderer->pull_vec( Coord<>{ x, y } );
+    }
+
+    Vec2 land() const {
+        auto [ x, y ] = _brush->GetEndPoint();
+        return _renderer->pull_vec( Coord<>{ x, y } );
+    }
+
+public:
+    LinearBrush2& launch_to( Vec2 vec ) {
+        _brush->SetStartPoint( _renderer->pull_crd( vec ) );
+
+        return *this;
+    }
+
+    LinearBrush2& land_to( Vec2 vec ) {
+        _brush->SetEndPoint( _renderer->pull_crd( vec ) );
+
+        return *this;
+    }
+
+};
+
+
+
+class RadialBrush2 : public Brush2 {
+public:
+    _ENGINE_UTH_IDENTIFY_METHOD( "RadialBrush2" );
+
+public:
+    RadialBrush2() = default;
+
+    template< typename Itr >
+    RadialBrush2(
+        Renderer2&    renderer,
+        Vec2          c,
+        Vec2          offs,
+        float         rx,
+        float         ry,
+        Itr           begin,
+        Itr           end,
+        float         w        = 1.0,
+        Echo          echo     = {}
+    )
+    : Brush2{ w }
+    {
+        _renderer = &renderer;
+
+
+        D2D1_GRADIENT_STOP entries[ std::abs( std::distance( begin, end ) ) ];
+
+        std::size_t idx = 0;
+
+        for( Itr itr = begin; itr != end; ++itr, ++idx ) {
+            entries[ idx ].color = itr->first;
+            entries[ idx ].position = itr->second;
+        };
+
+        ECHO_ASSERT_AND_THROW(
+            _renderer->target()->CreateGradientStopCollection(
+                entries,
+                idx,
+                D2D1_GAMMA_2_2,
+                D2D1_EXTEND_MODE_CLAMP,
+                &_grads
+            ) == S_OK,
+
+            "<constructor>: _renderer->target()->CreateGradientStopCollection"
+        );
+
+        ECHO_ASSERT_AND_THROW(
+            _renderer->target()->CreateRadialGradientBrush(
+                D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES{
+                    _renderer->pull_crd( c ),
+                    Coord<>{ offs.x, -offs.y },
+                    rx, ry
+                },
+                _grads,
+                &_brush
+            ) == S_OK,
+
+            "<constructor>: _renderer->target()->CreateRadialGradientBrush"
+        )
+
+        echo( this, ECHO_LOG_OK, "Created." );
+    }
+
+    template< typename Cntr >
+    RadialBrush2(
+        Renderer2&   renderer,
+        Vec2         c,
+        Vec2         offs,
+        float        rx,
+        float        ry,
+        const Cntr&  container,
+        float        w           = 1.0,
+        Echo         echo        = {}
+    )
+    : RadialBrush2{
+          renderer,
+          c, offs, rx, ry,
+          container.begin(), container.end(),
+          w,
+          echo
+      }
+    {}
+
+public:
+    ~RadialBrush2() {
+        if( _brush ) _brush->Release();
+
+        if( _grads ) _grads->Release();
+    }
+
+private:
+    Renderer2*                     _renderer   = nullptr;
+
+    ID2D1RadialGradientBrush*      _brush      = nullptr;
+    ID2D1GradientStopCollection*   _grads      = nullptr;
+
+
+public:
+    Vec2 center() const {
+        auto [ x, y ] = _brush->GetCenter();
+        return _renderer->pull_vec( Coord<>{ x, y } );
+    }
+
+    Vec2 offset() const {
+        auto [ x, y ] = _brush->GetGradientOriginOffset();
+        return { x, -y };
+    }
+
+    float radX() const {
+        return _brush->GetRadiusX();
+    }
+
+    float radY() const {
+        return _brush->GetRadiusY();
+    }
+
+    Vec2 rad() const {
+        return { this->radX(), this->radY() };
+    }
+
+public:
+    RadialBrush2& center_to( Vec2 c ) {
+        _brush->SetCenter( _renderer->pull_crd( c ) );
+
+        return *this;
+    }
+
+    RadialBrush2& offset_to( Vec2 offs ) {
+        _brush->SetGradientOriginOffset( Coord<>{ 
+            static_cast< float >( offs.x ), static_cast< float >( -offs.y ) 
+        } );
+
+        return *this;
+    }
+
+    RadialBrush2& radX_to( float rx ) {
+        _brush->SetRadiusX( rx );
+
+        return *this;
+    }
+
+    RadialBrush2& radY_to( float ry ) {
+        _brush->SetRadiusY( ry );
+
+        return *this;
+    }
+
+    RadialBrush2& rad_to( Vec2 vec ) {
+        this->radX_to( vec.x );
+        this->radY_to( vec.y );
+
+        return *this;
+    }
+
+};
+
+
+
 #pragma endregion Brushes
 
 
@@ -3458,7 +3736,7 @@ public:
 
     Audio(
         std::string_view   device,
-        size_t             sample_rate          = 48000,
+        size_t             sample_rate          = 48'000,
         size_t             channel_count        = 1,
         size_t             block_count          = 16,
         size_t             block_sample_count   = 256,
@@ -3617,10 +3895,15 @@ protected:
 
         
         while( _powered ) {
-            if( _free_block_count.fetch_sub( 1, std::memory_order_relaxed ) == 0 ) {
+            if( 
+                size_t fbc_compare = 0;
+                _free_block_count.compare_exchange_strong( fbc_compare, 0, std::memory_order_relaxed, std::memory_order_relaxed ) 
+            ) {
                 std::unique_lock< std::mutex > lock{ _mtx };
                 _cnd_var.wait( lock );
             }
+
+            _free_block_count.fetch_sub( 1, std::memory_order_relaxed );
 
            
             if( _wave_headers[ _block_current ].dwFlags & WHDR_PREPARED )
@@ -4011,7 +4294,7 @@ bool Wave::is_playing() const {
 void Wave::play() {
     this->prepare_play();
 
-    if( !is_playing() )
+    if( !this->is_playing() )
         _audio->_waves.push_back( this );
 }
 

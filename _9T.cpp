@@ -1229,6 +1229,10 @@ public:
         return ( this->drop().y - origin.y ) / ( this->drop().x - origin.x );
     }
 
+    double y_int() const {
+        return origin.y - this->slope() * origin.x;
+    }
+
     std::tuple< double, double, double > coeffs() const {
         return { vec.y, -vec.x, vec.y * origin.x - vec.x * origin.y };
     }
@@ -1324,7 +1328,7 @@ public:
 
     template< typename Container >
     Clust2( const Container& container )
-    : Clust2( container.begin(), container.end() )
+    : Clust2( std::begin( container ), std::end( container ) )
     {}
 
     template< typename OriginType, typename Iterator >
@@ -1341,7 +1345,7 @@ public:
     template< typename OriginType, typename Container >
     requires ( is_clust2_origin< OriginType > )
     Clust2( OriginType org, const Container& container, Vec2 offs = {} )
-    : Clust2( org, container.begin(), container.end(), offs )
+    : Clust2( org, std::begin( container ), std::end( container ), offs )
     {}
 
 public:
@@ -1742,7 +1746,7 @@ protected:
     }
 
 public:
-    bool contains( const Vec2& vec ) const {
+    bool DEPRECATED_contains( const Vec2& vec ) const {
         Ray2 strike = {
             vec,
             ( vec >> ( vec.dist_sq_to( this->extreme( HEADING_EAST, SYSTEM_GLOBAL ) ) + 10.0 ) )( vec )
@@ -1773,6 +1777,44 @@ public:
 
         if( skip.first && !strike.Xprll( this->_mkray( 0, 1 ) ) )
             --intersections;
+
+        return intersections % 2;
+    }
+
+    bool contains( Vec2 vec ) const {
+        size_t intersections = 0;
+        bool   shift_dir     = false;
+
+        for( size_t idx = 0; idx < this->vrtx_count(); ++idx ) {
+            Ray2 edge = this->_mkray( idx, ( idx + 1 ) % this->vrtx_count() );
+
+            if( vec.y == edge.drop().y ) {
+                constexpr uint64_t mask = 0xFFFF'0000'0000'0000;
+
+                uint64_t& r = *reinterpret_cast< uint64_t* >( &vec.y );
+
+                uint64_t sgnxexp = r & mask;
+                --r;
+                r = sgnxexp | ( r & ~mask );
+            }
+
+            if( ( vec.y - edge.origin.y ) * ( vec.y - edge.drop().y ) > 0.0 )
+                continue;
+
+            if( edge.vec.x == 0.0 ) {
+                if( edge.origin.x >= vec.x )
+                    goto L_INTERSECTED;
+                
+                continue;
+            }
+
+            if( ( vec.y - edge.y_int() ) / edge.slope() <= vec.x )
+                continue;
+
+            L_INTERSECTED:
+
+            ++intersections; 
+        }
 
         return intersections % 2;
     }
@@ -1816,6 +1858,9 @@ public:
         return { org, vrtx };
     }
 
+public:
+    void render( Renderer2& renderer, const Brush2& brush );
+
 };
 
 
@@ -1847,6 +1892,17 @@ auto Ray2::X( const Clust2& clust ) const {
 
 
 #pragma region Graphics
+
+
+
+class Rendable2 {
+public:
+    virtual void render( Renderer2&, Vec2 ) {}
+
+    virtual void render( Renderer2&, const Brush2& ) {}
+
+    virtual void render( Renderer2&, Vec2, const Brush2& ) {}
+};
 
 
 
@@ -4267,7 +4323,7 @@ public:
 protected:
     virtual double _sample( size_t channel, bool advance ) override {
         if( advance )
-            _elapsed += _audio->time_step();
+            _elapsed += _audio->time_step() * _velocity;
 
         _decay = std::clamp( _decay - _decay_step, 0.0, 1.0 ); 
 
@@ -4441,11 +4497,52 @@ Viewport2& Viewport2::line(
 
 
 
+#pragma region Space
+
+
+
+void Clust2::render( Renderer2& renderer, const Brush2& brush ) {
+    for( size_t idx = 0; idx < this->vrtx_count() - 1; ++idx )
+        renderer.line( this->operator()( idx ), this->operator()( idx + 1 ), brush );
+
+    renderer.line( this->operator()( this->vrtx_count() - 1 ), this->operator()( 0 ), brush );
+}
+
+
+
+#pragma endregion Space
+
+
+
 #pragma endregion After
 
 
 
 #pragma region Builds
+
+
+
+class Sensor : public UTH,
+               public Clust2 
+{
+public:
+    _ENGINE_UTH_IDENTIFY_METHOD( "Sensor" );
+
+public:
+    Sensor() = default;
+
+    Sensor(
+        Clust2   clst
+    )
+    : Clust2{ std::move( clst ) }
+    {
+
+    }
+
+protected:
+
+
+};
 
 
 

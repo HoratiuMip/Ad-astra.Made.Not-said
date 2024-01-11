@@ -20,31 +20,31 @@ struct Example {
 } examples[] = {
     {
         name:     "Example_0",
-        equation: "",
+        equation: "y' = y",
         solution: [] ( double x ) { return pow( 2.71828, x ); },
         fxy:      [] ( double x, double y ) { return y; }
     },
     {
         name:     "Example_1",
-        equation: "",
+        equation: "y' = 2x",
         solution: [] ( double x ) { return x * x; },
         fxy:      [] ( double x, double y ) { return 2.0 * x; }
     },
     {
         name:     "Example_2",
-        equation: "",
+        equation: "y' = sin( y )",
         solution: [] ( double x ) { return 2.0 * atan( 1.0 / pow( 2.71828, 1.0 - x ) ); },
         fxy:      [] ( double x, double y ) { return sin( y ); }
     },
     {
         name:     "Example_3",
-        equation: "",
+        equation: "y' = 3x^2",
         solution: [] ( double x ) { return x * x * x; },
         fxy:      [] ( double x, double y ) { return 3.0 * x * x; }
     },
     {
         name:     "Example_4",
-        equation: "",
+        equation: "y' = ( x + y ) / 2",
         solution: [] ( double x ) { return pow( 2.71828, x / 2.0 ) - x - 2.0; },
         fxy:      [] ( double x, double y ) { return ( x + y ) / 2.0; }
     }
@@ -73,25 +73,29 @@ void load_examples( System2& system ) {
 
 
 double int_of( FunctionX f, double a, double b ) {
-    constexpr size_t steps = 20;
+    constexpr size_t steps = 10;
 
     double h = ( b - a ) / steps;
 
-    double res = f( a ) + f( b );
+    double res = ( f( a ) + f( b ) ) / 3.0;
 
-    for( a += h; a < b; a+= h )
-        res += 2 * f( a );
+    for( size_t idx = 1; idx < steps; ++idx )
+        res += f( a + h * idx ) * ( idx % 2 ? 4.0 : 2.0 ) / 3.0;
 
-    return res *= h / 2;
+    return res *= h;
 }
 
 double fact( double n ) {
-    double res = 1;
+    static std::vector< size_t > values = ( [] () -> std::vector< size_t > {
+        std::vector< size_t > values{ { 1, 1 } };
 
-    for( double i = 1; i <= n; ++i )
-        res *= i;
+        for( size_t idx = 2; idx <= 20; ++idx )
+            values.emplace_back( values.back() * idx );
 
-    return res;
+        return values; 
+    } )();
+
+    return values.at( n );
 }
 
 Collection accumulate( 
@@ -230,8 +234,6 @@ int main() {
 
     struct Slider {
         Clust2   clst   = {};
-        size_t   divs   = 1;
-        double   acc    = 0;
 
         void render( Renderer2& renderer ) {
             static LinearBrush2 brush{
@@ -252,30 +254,25 @@ int main() {
             clst: Clust2{ 
                 Vec2{ sliders_viewport.origin().x - 170, -320 }, 
                 ( Vec2[] ){ { -60, 60 }, { 60, 30 }, { 60, -30 }, { -60, -60 } } 
-            },
-            divs: 100
+            }
         },
         {
             clst: Clust2{ 
                 Vec2{ sliders_viewport.origin().x - 30, -320 },
                 ( Vec2[] ){ { -60, 30 }, { 60, 30 }, { 60, -30 }, { -60, -30 } }
-            },
-            divs: 5
+            }
         },
         {
-            clst: Clust2{ sliders[ 0 ].clst }.spin_at( 180 ).relocate_at( { sliders_viewport.origin().x + 110, -320 } ),
-            divs: 5
+            clst: Clust2{ sliders[ 0 ].clst }.spin_at( 180 ).relocate_at( { sliders_viewport.origin().x + 110, -320 } )
         },
         {
             clst: Clust2{ 
                 Vec2{ sliders[ 2 ].clst.extreme( HEADING_EAST ).x + 30, 0 },
                 ( Vec2[] ){ { -10, 60 }, { 10, 60 }, { 10, -60 }, { -10, -60 } }
-            },
-            divs: 20
+            }
         },
         {
-            clst: Clust2{ sliders[ 3 ].clst }.relocate_at( { sliders[ 3 ].clst.origin().x + 40, 0 } ),
-            divs: 20
+            clst: Clust2{ sliders[ 3 ].clst }.relocate_at( { sliders[ 3 ].clst.origin().x + 40, 0 } )
         }
     };
 

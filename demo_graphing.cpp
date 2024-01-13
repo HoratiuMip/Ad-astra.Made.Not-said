@@ -20,33 +20,39 @@ struct Example {
 } examples[] = {
     {
         name:     "Example_0",
+        equation: "y' = ( x + y ) / 2",
+        solution: [] ( double x ) { return pow( 2.71828, x / 2.0 ) - x - 2.0; },
+        fxy:      [] ( double x, double y ) { return ( x + y ) / 2.0; }
+    },
+    {
+        name:     "Example_1",
         equation: "y' = y",
         solution: [] ( double x ) { return pow( 2.71828, x ); },
         fxy:      [] ( double x, double y ) { return y; }
     },
     {
-        name:     "Example_1",
+        name:     "Example_2",
         equation: "y' = 2x",
         solution: [] ( double x ) { return x * x; },
         fxy:      [] ( double x, double y ) { return 2.0 * x; }
     },
     {
-        name:     "Example_2",
+        name:     "Example_3",
         equation: "y' = sin( y )",
         solution: [] ( double x ) { return 2.0 * atan( 1.0 / pow( 2.71828, 1.0 - x ) ); },
         fxy:      [] ( double x, double y ) { return sin( y ); }
     },
     {
-        name:     "Example_3",
+        name:     "Example_4",
         equation: "y' = 3x^2",
         solution: [] ( double x ) { return x * x * x; },
         fxy:      [] ( double x, double y ) { return 3.0 * x * x; }
     },
     {
-        name:     "Example_4",
-        equation: "y' = ( x + y ) / 2",
-        solution: [] ( double x ) { return pow( 2.71828, x / 2.0 ) - x - 2.0; },
-        fxy:      [] ( double x, double y ) { return ( x + y ) / 2.0; }
+        name:     "Example_5",
+        equation: "y' = -y^2 + 3y",
+        solution: [] ( double x ) { return 3.0 * pow( 2.71828, 3.0 * x ) / ( 0.6 + pow( 2.71828, 3.0 * x ) ); },
+        fxy:      [] ( double x, double y ) { return -y * y + 3.0 * y; }
     }
 };
 
@@ -86,8 +92,10 @@ double int_of( FunctionX f, double a, double b ) {
 }
 
 double fact( double n ) {
-    static std::vector< size_t > values = ( [] () -> std::vector< size_t > {
-        std::vector< size_t > values{ { 1, 1 } };
+    using FactValues = std::vector< size_t >;
+
+    static FactValues values = ( [] () -> FactValues {
+        FactValues values{ { 1, 1 } };
 
         for( size_t idx = 2; idx <= 20; ++idx )
             values.emplace_back( values.back() * idx );

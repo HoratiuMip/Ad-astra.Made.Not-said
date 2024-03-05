@@ -54,6 +54,7 @@
 #define _ENGINE_UTH_IDENTIFY_METHOD( type ) virtual std::string_view type_name() const override { return _ENGINE_UTH_ADD_PREFIX( type ); }
 
 
+
 #if defined( _9T_ECHO )
         #define _ENGINE_ECHO
 #endif
@@ -66,6 +67,11 @@
     #define ENGINE_THROW_ON_FAULT
 #endif
 
+#if defined( _9T_ALL_PUBLIC )
+    #define _ENGINE_PROTECTED public
+#else
+    #define _ENGINE_PROTECTED protected
+#endif
 
 #if defined( _9T_OS_WINDOWS )
     #define _ENGINE_OS_WINDOWS
@@ -232,7 +238,7 @@ public:
             std::cout << '\n';
     }
 
-protected:
+_ENGINE_PROTECTED:
     size_t   _depth   = 0;
 
 public:
@@ -244,7 +250,7 @@ public:
         return std::invoke( _route, this, invoker, log_type, message );
     }
 
-protected:
+_ENGINE_PROTECTED:
     const Echo& _echo(
         UTH*               invoker,
         ECHO_LOG           log_type,
@@ -259,7 +265,7 @@ protected:
         return *this;
     }
 
-protected:
+_ENGINE_PROTECTED:
     inline static auto   _route   = &_echo;
 
 public:
@@ -271,7 +277,7 @@ public:
         _route = &_nop;
     }
 
-protected:
+_ENGINE_PROTECTED:
     static std::string_view _log_type_name( ECHO_LOG log_type ) {
         switch( log_type ) {
             case ECHO_LOG_FAULT:   return "FAULT";
@@ -449,7 +455,7 @@ public:
         NANOS = 0, MICROS, MILLIS, SECS, MINS, HOURS
     };
 
-protected:
+_ENGINE_PROTECTED:
     std::chrono::high_resolution_clock::time_point   _create     = {};
     std::chrono::high_resolution_clock::time_point   _last_lap   = {};
 
@@ -477,7 +483,7 @@ public:
         return duration< double >( now - std::exchange( _last_lap, now ) ).count() * M[ unit ];
     }
 
-protected:
+_ENGINE_PROTECTED:
     template< Unit unit >
     struct _Map {
         typedef std::conditional_t< unit == NANOS,  std::chrono::nanoseconds,
@@ -527,7 +533,7 @@ public:
         release();
     }
 
-protected:
+_ENGINE_PROTECTED:
     typedef std::tuple<
                 Unique< std::mutex >,
                 Unique< std::condition_variable >,
@@ -538,7 +544,7 @@ protected:
         _MTX = 0, _CND = 1, _OP = 2
     };
 
-protected:
+_ENGINE_PROTECTED:
     mutable T            _value      = {};
     std::mutex           _sync_mtx   = {};
     std::list< Entry >   _entries    = {};
@@ -899,6 +905,366 @@ public:
 
 
 #pragma endregion Utility
+
+
+
+#pragma region Algorithms
+
+
+
+template< typename Itr >
+void sort_simple( Itr begin, Itr end ) {
+    for( Itr at = begin; ++at != end; )
+        for( Itr up = at; up != begin; --up )
+            if( Itr lo = up; *--lo > *up )
+                std::swap( *lo, *up );
+}
+
+template< typename Itr >
+void sort_selection( Itr begin, Itr end ) {
+    for( ; begin != end; ++begin ) {
+        Itr min = begin;
+
+        for( Itr at = begin; ++at != end; )
+            if( *at < *min )
+                min = at;
+
+        std::swap( *begin, *min );
+    }
+}
+
+template< typename Itr >
+void sort_insertion_1( Itr begin, Itr end ) {
+    for( Itr at = begin ; ++at != end; )
+        for( Itr up = at; up != begin; --up )
+            if( Itr lo = up; *--lo > *up )
+                std::swap( *lo, *up );
+            else
+                break;
+}
+
+template< typename Itr >
+void sort_insertion_2( Itr begin, Itr end ) {
+    for( Itr at = end; --at != begin; )
+        if( Itr b4 = at; *--b4 > *at )
+            std::swap( *b4, *at );
+
+    ++begin; if( begin == end ) return;
+
+    for( ; ++begin != end; ) {
+        Itr up = begin;
+        Itr lo = begin;
+
+        while( *--lo > *up )
+            std::swap( *lo, *up-- );
+    }
+}
+
+template< typename Itr >
+void sort_bubble( Itr begin, Itr end ) {
+    for( Itr at = begin; at != end; ++at )
+        for( Itr up = end; --up != at; )
+            if( Itr lo = up; *--lo > *up )
+                std::swap( *lo, *up );
+}
+
+template< typename Itr >
+void sort_shaker( Itr begin, Itr end ) {
+    Itr shaker = begin;
+
+    for( Itr at = end; --at != begin; )
+        if( Itr b4 = at; *--b4 > *at )
+            std::swap( *b4, *at );
+    
+    --end;
+
+    for( Itr at = begin; ++at != end; )
+        if( Itr b4 = at; *--b4 > *at )
+            std::swap( *b4, *at );
+
+    ++begin;
+
+    static auto fwd = [] ( Itr& shaker ) -> void { if( Itr prev = shaker++; *prev > *shaker ) std::swap( *prev, *shaker ); };
+    static auto rev = [] ( Itr& shaker ) -> void { if( Itr next = shaker--; *next < *shaker ) std::swap( *next, *shaker ); };
+
+    while( begin != end ) {
+        while( shaker != end ) fwd( shaker ); --end;
+
+        if( begin == end ) break;
+
+        while( shaker != begin ) rev( shaker ); ++begin;
+    }
+}
+
+template< typename Itr >
+void sort_shell( Itr begin, Itr end ) {
+    static ptrdiff_t sequence[] = { 505, 109, 19, 1 }; 
+
+    struct IncItr : public Itr {
+        using Itr :: Itr;
+
+        IncItr() = default;
+
+        IncItr( Itr other )
+        : Itr{ other }
+        {}
+
+        ptrdiff_t inc   = 1;
+        Itr       begin = {};
+        Itr       end   = {};
+
+        IncItr operator ++ () {
+            for( size_t n = 1; n <= inc; ++n )
+                if( *this != end )
+                    this->Itr::operator++();
+                else 
+                    break;
+            
+            return *this;
+        }
+
+        IncItr operator ++ ( int ) {
+            IncItr itr = *this;
+
+            ++*this;
+
+            return itr;
+        }
+
+        IncItr operator -- () {
+            for( size_t n = 1; n <= inc; ++n )
+                if( *this != begin )
+                    this->Itr::operator--();
+                else
+                    break;
+
+            return *this;
+        }
+
+        IncItr operator -- ( int ) {
+            IncItr itr = *this;
+
+            --*this;
+
+            return itr;
+        }
+
+    };
+
+    for( size_t idx = 0; idx < std::size( sequence ); ++idx ) {
+        IncItr itr{ begin }; std::advance( itr, idx );
+
+        itr.inc = sequence[ idx ];
+        itr.begin = begin; itr.end = end;
+
+        sort_insertion_2( itr, IncItr{ end } );
+    }
+}
+
+template< typename Itr >
+void sort_quick( Itr begin, Itr end ) {
+    static auto partition = [] ( Itr begin, Itr end ) -> Itr {
+        Itr part = end;
+        Itr cend = end;
+
+        if( end <= begin ) return begin;
+
+        end -= 1;
+
+
+        while( true ) {
+            while( *begin < *part ) ++begin;
+            while( begin < end && *part < *end ) --end;
+
+            if( begin >= end ) break;
+
+            std::swap( *begin, *end );
+
+            ++begin; --end;
+        }
+
+        std::swap( *begin, *cend );
+
+        return begin;
+    };
+
+    if( end <= begin ) return;
+
+    Itr itr = partition( begin, end );
+
+    sort_quick( begin, itr - 1 );
+    sort_quick( itr + 1, end );
+}
+
+
+
+template< typename Stored >
+requires requires {
+    Stored{} < Stored{};
+}
+class Shrub2 {
+public:
+    class Node {
+    public:
+        friend class Shrub2;
+
+    _ENGINE_PROTECTED:
+        Stored   _stored   = {};
+
+        Node*    _left     = nullptr;
+        Node*    _right    = nullptr;
+        Node*    _above    = nullptr;
+
+        int      _height   = 0;
+
+    public:
+        auto operator <=> ( const Node& other ) const {
+            return _stored <=> other._stored;
+        }
+
+        auto operator <=> ( const Stored& other ) const {
+            return _stored <=> other;
+        }
+
+    public:
+        int balance() const {
+           return ( _right ? _right->_height : -1 ) - ( _left ? _left->_height : -1 );
+        }
+
+    };
+
+public:
+    Shrub2() = default;
+
+_ENGINE_PROTECTED:
+    Node*   _root   = nullptr;
+
+public:
+    void push( const Stored& stored ) {
+        if( this->_push_root( stored ) ) return;
+
+        Node* ptr = _root;
+
+        L_JMP_DOWN:
+            if( stored < *ptr ) {
+                if( ptr->_left ) { ptr = ptr->_left; goto L_JMP_DOWN; }
+
+                ptr->_left = new Node{ stored };
+                ptr->_left->_above = ptr;
+            }
+            else {
+                if( ptr->_right ) { ptr = ptr->_right; goto L_JMP_DOWN; }
+
+                ptr->_right = new Node{ stored };
+                ptr->_right->_above = ptr;
+            }
+
+        int height = 1;
+
+        L_JMP_UP:
+            if( ptr && ptr->_height < height ) { 
+                ++ptr->_height; ++height;
+
+                _balance_node( ptr );
+
+                ptr = ptr->_above; 
+                
+                goto L_JMP_UP; 
+            }
+    }
+
+_ENGINE_PROTECTED:
+    bool _push_root( const Stored& stored ) {
+        if( _root ) return false;
+
+        _root = new Node{ stored };
+
+        return true;
+    }
+
+    void _balance_node( Node* ptr ) {
+        int balance = ptr->balance();
+
+        if( abs( balance ) <= 1 ) return;
+
+        if( balance > 1 ) {
+            if( ptr->_right && ptr->_right->balance() <= -1 )
+                ptr = _rotate_right( ptr );
+
+            _rotate_left( ptr );
+        } else {
+            if( ptr->_left && ptr->_left->balance() >= 1 )
+                ptr = _rotate_left( ptr );
+
+            _rotate_right( ptr );
+        }
+    }
+
+    Node* _rotate_right( Node* ptr ) {
+        if( !ptr || !ptr->_left ) return;
+
+        Node* aux = ptr->_left->_right;
+
+        if( ptr->_above ) {
+            if( ptr->_above->_left == ptr ) 
+                ptr->_above->_left = ptr->_left;
+            else 
+                ptr->_above->_right = ptr->_left;
+        }
+
+        ptr->_left->_right = ptr;
+        
+        std::swap( ptr->_left, aux );
+        
+        do {
+            ptr->_height = std::max( 
+                ptr->_left  ? ptr->_left->_height  : -1, 
+                ptr->_right ? ptr->_right->_height : -1 
+            );
+
+            if( ptr->_above && ( ptr->_above->_height == ptr->_height + 1 ) ) break;
+
+            ptr = ptr->_above;
+        } while( ptr );
+
+        return aux;
+    } 
+
+    Node* _rotate_left( Node* ptr ) {
+        if( !ptr || !ptr->_right ) return;
+
+        Node* aux = ptr->_right->_left;
+
+        if( ptr->_above ) {
+            if( ptr->_above->_left == ptr ) 
+                ptr->_above->_left = ptr->_right;
+            else 
+                ptr->_above->_right = ptr->_right;
+        }
+
+        ptr->_right->_left = ptr;
+        
+        std::swap( ptr->_right, aux );
+
+        do {
+            ptr->_height = std::max( 
+                ptr->_left  ? ptr->_left->_height  : -1, 
+                ptr->_right ? ptr->_right->_height : -1 
+            );
+
+            if( ptr->_above && ( ptr->_above->_height == ptr->_height + 1 ) ) break;
+
+            ptr = ptr->_above;
+        } while( ptr );
+
+        return aux;
+    }
+
+};
+
+
+
+#pragma endregion Algorithms
 
 
 
@@ -1274,7 +1640,7 @@ public:
     template< typename XType >
     auto X( const Clust2& clust ) const;
 
-protected:
+_ENGINE_PROTECTED:
     std::optional< Vec2 > _intersect_vec( const Ray2& other ) const {
         /* Hai noroc nea' Peter +respect. */
 
@@ -1385,7 +1751,7 @@ public:
         return *this;
     }
 
-protected:
+_ENGINE_PROTECTED:
     typedef   std::variant< Vec2, std::pair< Clust2*, Vec2 > >   Origin;
     typedef   std::pair< Vec2, Vec2 >                            Vrtx;
 
@@ -1394,7 +1760,7 @@ protected:
         OVAI_HOOK = 1
     };
 
-protected:
+_ENGINE_PROTECTED:
     Origin                _origin   = Vec2{ 0.0, 0.0 };
     std::vector< Vrtx >   _vrtx     = {};
 
@@ -1703,7 +2069,7 @@ public:
             return this->_intersect_vec( other );
     }
 
-protected:
+_ENGINE_PROTECTED:
     bool _intersect_ray_bool( const Ray2& ray ) const {
         for( size_t idx = 0; idx < this->vrtx_count(); ++idx )
             if( this->_mkray( idx ).X< bool >( ray ) )
@@ -1819,7 +2185,7 @@ public:
         return intersections % 2;
     }
 
-protected:
+_ENGINE_PROTECTED:
     void _refresh() {
         for( Vrtx& v : _vrtx )
             v.first = v.second.spinned( _angel ) * Vec2{ _scaleX, _scaleY };
@@ -2002,11 +2368,17 @@ enum SURFACE_EVENT {
     SURFACE_EVENT_FILEDROP, 
     SURFACE_EVENT_MOVE, 
     SURFACE_EVENT_RESIZE,
+    SURFACE_EVENT_DESTROY,
 
     SURFACE_EVENT__DESTROY = 69100,
     SURFACE_EVENT__CURSOR_HIDE, 
     SURFACE_EVENT__CURSOR_SHOW,
     SURFACE_EVENT__FORCE
+};
+
+enum SURFACE_THREAD {
+    SURFACE_THREAD_ACROSS,
+    SURFACE_THREAD_THROUGH
 };
 
 enum SURFACE_SOCKET_PLUG {
@@ -2041,15 +2413,18 @@ typedef   std::function< void( Vec2, SCROLL_DIRECTION, SurfaceTrace& ) >       O
 typedef   std::function< void( std::vector< std::string >, SurfaceTrace& ) >   OnFiledrop;
 typedef   std::function< void( Coord< int >, Coord< int >, SurfaceTrace& ) >   OnMove;
 typedef   std::function< void( Size< int >, Size< int >, SurfaceTrace& ) >     OnResize;
+typedef   std::function< void() >                                              OnDestroy;
+
 
 class SurfaceEventSentry {
-protected:
+_ENGINE_PROTECTED:
     OnMouse                       _on_mouse             = {};
     OnKey                         _on_key               = {};
     OnScroll                      _on_scroll            = {};
     OnFiledrop                    _on_filedrop          = {};
     OnMove                        _on_move              = {};
     OnResize                      _on_resize            = {};
+    OnDestroy                     _on_destroy           = {};
 
     std::map< GUID, OnMouse >     _sckt_mouse[ 2 ]      = {};
     std::map< GUID, OnKey >       _sckt_key[ 2 ]        = {};
@@ -2057,27 +2432,17 @@ protected:
     std::map< GUID, OnFiledrop >  _sckt_filedrop[ 2 ]   = {};
     std::map< GUID, OnMove >      _sckt_move[ 2 ]       = {};
     std::map< GUID, OnResize >    _sckt_resize[ 2 ]     = {};
+    std::map< GUID, OnDestroy >   _sckt_destroy[ 2 ]    = {};
 
 public:
     template< typename Master, typename ...Args >
     void invoke_sequence( SurfaceTrace& trace, Args&&... args ) {
-        if constexpr( std::is_same_v< Master, OnMouse > )
-            this->_invoke_sequence( _on_mouse, _sckt_mouse, trace, std::forward< Args >( args )... );
+        auto [ on, sckt ] = this->_seq_from_type< Master >();
 
-        else if constexpr( std::is_same_v< Master, OnKey > )
-            this->_invoke_sequence( _on_key, _sckt_key, trace, std::forward< Args >( args )... );
+        // Made sure _seq_from_type returns references and does not create a new socket map.
+        // std::cout << ( std::is_same_v< const decltype( _sckt_mouse )&, decltype( sckt ) > ) << '\n';
 
-        else if constexpr( std::is_same_v< Master, OnScroll > )
-            this->_invoke_sequence( _on_scroll, _sckt_scroll, trace, std::forward< Args >( args )... );
-
-        else if constexpr( std::is_same_v< Master, OnFiledrop > )
-            this->_invoke_sequence( _on_filedrop, _sckt_filedrop, trace, std::forward< Args >( args )... );
-
-        else if constexpr( std::is_same_v< Master, OnMove > )
-            this->_invoke_sequence( _on_move, _sckt_move, trace, std::forward< Args >( args )... );
-
-        else if constexpr( std::is_same_v< Master, OnResize > )
-            this->_invoke_sequence( _on_resize, _sckt_resize, trace, std::forward< Args >( args )... );
+        this->_invoke_sequence( on, sckt, trace, std::forward< Args >( args )... );
     }
 
 public:
@@ -2096,44 +2461,29 @@ public:
 public:
     template< SURFACE_EVENT event, typename Function >
     void on( Function function ) {
-        if      constexpr( event == SURFACE_EVENT_MOUSE )    _on_mouse    = function;
-        else if constexpr( event == SURFACE_EVENT_KEY )      _on_key      = function;
-        else if constexpr( event == SURFACE_EVENT_SCROLL )   _on_scroll   = function;
-        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _on_filedrop = function;
-        else if constexpr( event == SURFACE_EVENT_MOVE )     _on_move     = function;
-        else if constexpr( event == SURFACE_EVENT_RESIZE )   _on_resize   = function;
+        this->_seq_from_event< event >().first = function;
     }
 
     template< SURFACE_EVENT event, typename Function >
     void plug( const GUID& guid, SURFACE_SOCKET_PLUG at, Function function ) {
-        if      constexpr( event == SURFACE_EVENT_MOUSE )    _sckt_mouse   [ at ].insert( { guid, function } );
-        else if constexpr( event == SURFACE_EVENT_KEY )      _sckt_key     [ at ].insert( { guid, function } );
-        else if constexpr( event == SURFACE_EVENT_SCROLL )   _sckt_scroll  [ at ].insert( { guid, function } );
-        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _sckt_filedrop[ at ].insert( { guid, function } );
-        else if constexpr( event == SURFACE_EVENT_MOVE )     _sckt_move    [ at ].insert( { guid, function } );
-        else if constexpr( event == SURFACE_EVENT_RESIZE )   _sckt_resize  [ at ].insert( { guid, function } );
+        this->_seq_from_event< event >().second[ at ].insert( { guid, function } );
     }
 
     void unplug( const GUID& guid, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
-        _unplug( guid, at, _sckt_mouse );
-        _unplug( guid, at, _sckt_key );
-        _unplug( guid, at, _sckt_scroll );
-        _unplug( guid, at, _sckt_filedrop );
-        _unplug( guid, at, _sckt_move );
-        _unplug( guid, at, _sckt_resize );
+        this->_unplug( guid, at, _sckt_mouse );
+        this->_unplug( guid, at, _sckt_key );
+        this->_unplug( guid, at, _sckt_scroll );
+        this->_unplug( guid, at, _sckt_filedrop );
+        this->_unplug( guid, at, _sckt_move );
+        this->_unplug( guid, at, _sckt_resize );
     }
 
     template< SURFACE_EVENT event >
     void unplug( const GUID& guid, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
-        if      constexpr( event == SURFACE_EVENT_MOUSE )    _unplug( guid, at, _sckt_mouse );
-        else if constexpr( event == SURFACE_EVENT_KEY )      _unplug( guid, at, _sckt_key );
-        else if constexpr( event == SURFACE_EVENT_SCROLL )   _unplug( guid, at, _sckt_scroll );
-        else if constexpr( event == SURFACE_EVENT_FILEDROP ) _unplug( guid, at, _sckt_filedrop );
-        else if constexpr( event == SURFACE_EVENT_MOVE )     _unplug( guid, at, _sckt_move );
-        else if constexpr( event == SURFACE_EVENT_RESIZE )   _unplug( guid, at, _sckt_resize );
+        this->_unplug( guid, at, this->_seq_from_event< event >().second );
     }
 
-protected:
+_ENGINE_PROTECTED:
     template< typename Socket >
     void _unplug( const GUID& guid, std::optional< SURFACE_SOCKET_PLUG > at, Socket& socket ) {
         if( at.has_value() )
@@ -2144,6 +2494,55 @@ protected:
         }
     }
 
+_ENGINE_PROTECTED:
+    template< typename Master >
+    inline auto _seq_from_type() {
+        if constexpr( std::is_same_v< Master, OnMouse > ) 
+            return std::make_pair( std::ref( _on_mouse ), std::ref( _sckt_mouse ) );
+
+        if constexpr( std::is_same_v< Master, OnKey > ) 
+            return std::make_pair( std::ref( _on_key ), std::ref( _sckt_key ) );
+
+        if constexpr( std::is_same_v< Master, OnScroll > ) 
+            return std::make_pair( std::ref( _on_scroll ), std::ref( _sckt_scroll ) );
+
+        if constexpr( std::is_same_v< Master, OnFiledrop > ) 
+            return std::make_pair( std::ref( _on_filedrop ), std::ref( _sckt_filedrop ) );
+
+        if constexpr( std::is_same_v< Master, OnMove > ) 
+            return std::make_pair( std::ref( _on_move ), std::ref( _sckt_move ) );
+
+        if constexpr( std::is_same_v< Master, OnResize > ) 
+            return std::make_pair( std::ref( _on_resize ), std::ref( _sckt_resize ) );
+
+        if constexpr( std::is_same_v< Master, OnDestroy > ) 
+            return std::make_pair( std::ref( _on_destroy ), std::ref( _sckt_destroy ) );
+    }
+
+    template< SURFACE_EVENT event >
+    inline auto _seq_from_event() {
+        if constexpr( event == SURFACE_EVENT_MOUSE ) 
+            return std::make_pair( std::ref( _on_mouse ), std::ref( _sckt_mouse ) );
+
+        if constexpr( event == SURFACE_EVENT_KEY ) 
+            return std::make_pair( std::ref( _on_key ), std::ref( _sckt_key ) );
+
+        if constexpr( event == SURFACE_EVENT_SCROLL ) 
+            return std::make_pair( std::ref( _on_scroll ), std::ref( _sckt_scroll ) );
+
+        if constexpr( event == SURFACE_EVENT_FILEDROP ) 
+            return std::make_pair( std::ref( _on_filedrop ), std::ref( _sckt_filedrop ) );
+
+        if constexpr( event == SURFACE_EVENT_MOVE ) 
+            return std::make_pair( std::ref( _on_move ), std::ref( _sckt_move ) );
+
+        if constexpr( event == SURFACE_EVENT_RESIZE ) 
+            return std::make_pair( std::ref( _on_resize ), std::ref( _sckt_resize ) );
+
+        if constexpr( event == SURFACE_EVENT_DESTROY ) 
+            return std::make_pair( std::ref( _on_destroy ), std::ref( _sckt_destroy ) );
+    }
+
 };
 
 class Surface : public UTH,
@@ -2152,7 +2551,7 @@ class Surface : public UTH,
 public:
     _ENGINE_UTH_IDENTIFY_METHOD( "Surface" );
 
-protected:
+_ENGINE_PROTECTED:
     friend class Key;
     friend class Mouse;
 
@@ -2161,9 +2560,10 @@ public:
 
     Surface(
         std::string_view title,
-        Coord< int >     crd   = { 0, 0 },
-        Size< int >      size  = { 512, 512 },
-        Echo             echo  = {}
+        Coord< int >     crd      = { 0, 0 },
+        Size< int >      size     = { 512, 512 },
+        SURFACE_THREAD   launch   = SURFACE_THREAD_THROUGH,
+        Echo             echo     = {}
     )
     : _coord( crd ), _size( size )
     {
@@ -2179,16 +2579,32 @@ public:
         _wnd_class.hCursor       = LoadCursor( NULL, IDC_ARROW );
 
 
-        std::binary_semaphore sync{ 0 };
+        switch( launch ) {
+            case SURFACE_THREAD_THROUGH: goto L_THREAD_THROUGH;
 
-        _thread = std::thread( _main, this, &sync, echo );
+            case SURFACE_THREAD_ACROSS: goto L_THREAD_ACROSS;
 
-        if( _thread.joinable() ) {
-            echo( this, ECHO_LOG_PENDING, "Awaiting window creation..." );
+            default: echo( this, ECHO_LOG_FAULT, "Invalid thread launch option." ); return;
+        }
 
-            sync.acquire();
-        } else
-            echo( this, ECHO_LOG_FAULT, "Window thread launch failed." );
+
+        L_THREAD_THROUGH: {
+            std::invoke( _main, this, nullptr, echo );
+        } return;
+
+
+        L_THREAD_ACROSS: {
+            std::binary_semaphore sync{ 0 };
+
+            _thread = std::thread( _main, this, &sync, echo );
+
+            if( _thread.joinable() ) {
+                echo( this, ECHO_LOG_PENDING, "Awaiting across window creation..." );
+
+                sync.acquire();
+            } else
+                echo( this, ECHO_LOG_FAULT, "Window thread launch failed." );
+        } return;
     }
 
 
@@ -2211,11 +2627,11 @@ public:
 public:
     typedef   std::array< KEY_STATE, Key::COUNT >   Keys;
 
-protected:
+_ENGINE_PROTECTED:
     static constexpr auto   LIQUID_STYLE   = WS_OVERLAPPED | WS_SIZEBOX | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE;
     static constexpr auto   SOLID_STYLE    = WS_POPUP | WS_VISIBLE;
 
-protected:
+_ENGINE_PROTECTED:
 #if defined( _ENGINE_UNIQUE_SURFACE )
     inline static Surface*        _ptr                  = nullptr;
 #endif
@@ -2231,12 +2647,12 @@ protected:
     Vec2                          _mouse_l              = {};
     Keys                          _keys                 = {};
 
-protected:
+_ENGINE_PROTECTED:
     void _main( std::binary_semaphore* sync, Echo echo = {} ) {
         if( !RegisterClassEx( &_wnd_class ) ) {
             echo( this, ECHO_LOG_FAULT, "Window class registration failed." );
 
-            sync->release(); return;
+            if( sync ) sync->release(); return;
         }
 
 
@@ -2259,15 +2675,15 @@ protected:
         if( !_hwnd ) {
             echo( this, ECHO_LOG_FAULT, "Window creation failed." );
 
-            sync->release(); return;
+            if( sync ) sync->release(); return;
         }
 
         SetWindowText( _hwnd, _wnd_class.lpszClassName );
 
 
-        echo( this, ECHO_LOG_OK, "Created." );
+        echo( this, ECHO_LOG_OK, sync ? "Created across." : "Created through." );
 
-        sync->release();
+        if( sync ) sync->release();
 
 
         MSG event;
@@ -2764,7 +3180,7 @@ public:
         if( _target ) _target->Release();
     }
 
-protected:
+_ENGINE_PROTECTED:
     Surface*                    _surface       = nullptr;
 
     ID2D1Factory*               _factory       = nullptr;
@@ -2915,7 +3331,7 @@ public:
     Viewport2( const Viewport2& ) = delete;
     Viewport2( Viewport2&& ) = delete;
 
-protected:
+_ENGINE_PROTECTED:
     Renderer2*   _renderer     = nullptr;
 
     Vec2         _origin       = {};
@@ -3171,7 +3587,7 @@ public:
 
     virtual ~Brush2() {}
 
-protected:
+_ENGINE_PROTECTED:
     float   _width   = 1.0;
 
 public:
@@ -3226,7 +3642,7 @@ public:
         if( _brush ) _brush->Release();
     }
 
-protected:
+_ENGINE_PROTECTED:
     ID2D1SolidColorBrush*   _brush   = nullptr;
 
 public:
@@ -3589,7 +4005,7 @@ public:
 
     Wave( Wave&& ) = delete;
 
-protected:
+_ENGINE_PROTECTED:
     Audio*   _audio   = nullptr;
 
 public:
@@ -3618,7 +4034,7 @@ public:
     }
 
 
-protected:
+_ENGINE_PROTECTED:
     virtual double _sample( size_t channel, bool advance ) = 0;
 
 };
@@ -3634,7 +4050,7 @@ enum WAVE_BEHAVIOUR_DESC {
 
 template< typename DerivedWave, int desc >
 class WaveBehaviourDescriptor {
-protected:
+_ENGINE_PROTECTED:
     std::conditional_t< desc & WAVE_BEHAVIOUR_DESC_HAS_VOLUME,   double,       VoidStruct >   _volume     = 1.0;
     std::conditional_t< desc & WAVE_BEHAVIOUR_DESC_PAUSABLE,     bool,         VoidStruct >   _paused     = false;
     std::conditional_t< desc & WAVE_BEHAVIOUR_DESC_MUTABLE,      bool,         VoidStruct >   _muted      = false;
@@ -3784,7 +4200,7 @@ class Audio : public UTH,
 public:
     _ENGINE_UTH_IDENTIFY_METHOD( "Audio" );
 
-protected:
+_ENGINE_PROTECTED:
     friend class Wave;
 
 public:
@@ -3903,7 +4319,7 @@ public:
         waveOutClose( _wave_out );
     }
 
-protected:
+_ENGINE_PROTECTED:
     volatile bool             _powered              = false;
 
     size_t                    _sample_rate          = 0;
@@ -3926,7 +4342,7 @@ protected:
 
     std::list< Wave* >        _waves                = {};
 
-protected:
+_ENGINE_PROTECTED:
 
 
     void _main() {
@@ -3990,7 +4406,7 @@ protected:
 
     }
 
-protected:
+_ENGINE_PROTECTED:
     static void event_proc_router( HWAVEOUT hwo, UINT event, DWORD_PTR instance, DWORD w_param, DWORD l_param ) {
         reinterpret_cast< Audio* >( instance )->event_proc( hwo, event, w_param, l_param);
     }
@@ -4163,7 +4579,7 @@ public:
         stop();
     }
 
-protected:
+_ENGINE_PROTECTED:
     Shared< double[] >    _stream             = nullptr;
 
     std::list< double >   _needles            = {};
@@ -4186,7 +4602,7 @@ public:
         return _needles.empty();
     }
 
-protected:
+_ENGINE_PROTECTED:
     virtual double _sample( size_t channel, bool advance ) override {
         double amp = 0.0;
 
@@ -4297,7 +4713,7 @@ public:
 
     Synth( Synth&& ) = delete;
 
-protected:
+_ENGINE_PROTECTED:
     Function   _function        = {};
 
     double     _elapsed         = 0.0;
@@ -4320,7 +4736,7 @@ public:
     }
 
 
-protected:
+_ENGINE_PROTECTED:
     virtual double _sample( size_t channel, bool advance ) override {
         if( advance )
             _elapsed += _audio->time_step() * _velocity;
@@ -4539,7 +4955,7 @@ public:
 
     }
 
-protected:
+_ENGINE_PROTECTED:
 
 
 };
@@ -4564,7 +4980,7 @@ public:
     typedef   std::function< double( double ) >   Function;
     typedef   std::vector< Vec2 >                 Collection;
 
-protected:
+_ENGINE_PROTECTED:
     std::variant< Function, Collection >   _source     = {};
 
     bool                                   _uplinked   = false;
@@ -4636,6 +5052,25 @@ public:
 
 };
 
+struct System2Packet {
+    struct Div {
+        double   every   = 30.0;
+        double   hstk    = 15.0;
+        Vec2     mean    = { 1.0, 1.0 };
+
+        Vec2 coeffs() const {
+            return every / mean;
+        }
+    } div = {};
+
+    struct Brushes {
+        std::vector< std::shared_ptr< Brush2 > >   nodes   = {};
+        std::shared_ptr< Brush2 >                  bgnd    = {};
+        std::shared_ptr< Brush2 >                  axis    = {};
+    } brushes = {};
+
+};
+
 class System2 : public UTH,
                 public std::map< std::string, System2Node >
 {
@@ -4661,14 +5096,14 @@ public:
     }
 
 private:
-    Viewport2*                      _viewport    = nullptr;
-    Vec2                            _offset      = {};
+    Viewport2*                      _viewport     = nullptr;
+    Vec2                            _offset       = {};
 
-    double                          _div_every   = 30.0;
-    double                          _div_mean    = 1.0;
-    double                          _div_hstk    = 15.0;
+    double                          _div_every    = 30.0;
+    double                          _div_mean     = 1.0;
+    double                          _div_hstk     = 15.0;
 
-    std::shared_ptr< Brush2 >       _brush       = {};
+    std::shared_ptr< Brush2 >       _brush        = {};
 
 public:
     Viewport2& viewport() {
@@ -4676,6 +5111,10 @@ public:
     }
 
 public:
+    Vec2 origin() const {
+        return _viewport->origin();
+    }
+
     System2& offset_to( Vec2 vec ) {
         _offset = vec;
 
@@ -4772,8 +5211,6 @@ public:
     Brush2& brush() {
         return *_brush;
     }
-
-
 
 public:
     void render( Renderer2& renderer ) const {
@@ -4934,7 +5371,7 @@ public:
         _viewport->lift_restriction();
     }
 
-protected:
+_ENGINE_PROTECTED:
     void _render_function( const System2Node& node ) const {
         double c   = this->div_coeff();
         double x   = ( _viewport->west() - _offset.x ) * ( 1.0 / c );

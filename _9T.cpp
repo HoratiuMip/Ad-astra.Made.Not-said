@@ -14,8 +14,8 @@
         GLs:         DirectX
 
     [ PRE-DEFINES ]
-        _9T_ECHO --- logs stuff.
-        _9T_UNIQUE_SURFACE --- Enables faster event routing when using only one surface.
+        IXT_ECHO --- logs stuff.
+        IXT_UNIQUE_SURFACE --- Enables faster event routing when using only one surface.
 
     [ GCC FLAGS ]
         -std=gnu++23
@@ -35,8 +35,8 @@
 
 
 
-#define _9T_OS_WINDOWS
-#define _9T_GL_DIRECT
+#define IXT_OS_WINDOWS
+#define IXT_GL_DIRECT
 
 
 
@@ -47,37 +47,37 @@
 #define PI 3.141592653
 
 
-#define _ENGINE_NAMESPACE _9T
+#define _ENGINE_NAMESPACE IXT
 
-#define _ENGINE_UTH_ADD_PREFIX( type ) "_9T::" type
+#define _ENGINE_UTH_ADD_PREFIX( type ) "IXT::" type
 
 #define _ENGINE_UTH_IDENTIFY_METHOD( type ) virtual std::string_view type_name() const override { return _ENGINE_UTH_ADD_PREFIX( type ); }
 
 
 
-#if defined( _9T_ECHO )
+#if defined( IXT_ECHO )
         #define _ENGINE_ECHO
 #endif
 
-#if defined( _9T_UNIQUE_SURFACE )
+#if defined( IXT_UNIQUE_SURFACE )
     #define _ENGINE_UNIQUE_SURFACE
 #endif
 
-#if defined( _9T_THROW_ON_FAULT )
+#if defined( IXT_THROW_ON_FAULT )
     #define ENGINE_THROW_ON_FAULT
 #endif
 
-#if defined( _9T_ALL_PUBLIC )
+#if defined( IXT_ALL_PUBLIC )
     #define _ENGINE_PROTECTED public
 #else
     #define _ENGINE_PROTECTED protected
 #endif
 
-#if defined( _9T_OS_WINDOWS )
+#if defined( IXT_OS_WINDOWS )
     #define _ENGINE_OS_WINDOWS
 #endif
 
-#if defined( _9T_GL_DIRECT )
+#if defined( IXT_GL_DIRECT )
     #define _ENGINE_GL_DIRECT
 #endif
 
@@ -340,72 +340,91 @@ using Ptr = Type*;
 
 
 
-template< template< typename Type > typename Smart_ptr, typename Type, typename Derived_ptr >
-class _Smart_ptr_extended : public Smart_ptr< Type > {
+template< 
+    typename T, 
+    template< typename > typename Smart_ptr, 
+    template< typename > typename Extended_ptr 
+>
+class _Smart_ptr_extended : public Smart_ptr< T > {
 public:
-    using _Base = Smart_ptr< Type >;
+    using Base = Smart_ptr< T >;
+    using Ext  = Extended_ptr< T >;
     
 public:
-    using _Base::_Base;
+    using Base::Base;
 
 public:
-    inline static constexpr bool   is_array   = std::is_array_v< Type >;
+    inline static constexpr bool   is_array   = std::is_array_v< T >;
 
 public:
-    typedef   std::conditional_t< is_array, std::decay_t< Type >, Type* >   Type_ptr;
-    typedef   std::remove_pointer_t< Type_ptr >&                              Type_ref;
+    typedef   T   type;
+
+    typedef   std::conditional_t< is_array, std::decay_t< T >, T* >   T_ptr;
+    typedef   std::remove_pointer_t< T_ptr >&                         T_ref;
 
 public:
-    Derived_ptr& operator = ( const Type_ptr ptr ) {
+    Ext& operator = ( T_ptr ptr ) {
         this->reset( ptr );
 
-        return static_cast< Derived_ptr& >( *this );
+        return static_cast< Ext& >( *this );
     }
 
 public:
-    operator Type_ptr () {
+    operator T_ptr () const {
         return this->get();
     }
 
-    template< bool isnt_array = !is_array >
-    operator std::enable_if_t< isnt_array, Type_ref > () {
+    operator T_ref () {
         return *this->get();
     }
 
 public:
-    Type_ptr operator + ( ptrdiff_t offset ) const {
-        return this->get() + offset;
+    T_ptr operator + ( ptrdiff_t offs ) const {
+        return this->get() + offs;
     }
 
-    Type_ptr operator - ( ptrdiff_t offset ) const {
-        return this->get() - offset;
+    T_ptr operator - ( ptrdiff_t offs ) const {
+        return this->get() - offs;
     }
 
 };
 
 
-template< typename Type >
-class Unique : public _Smart_ptr_extended< std::unique_ptr, Type, Unique< Type > > {
+template< typename T >
+class Unique : public _Smart_ptr_extended< T, std::unique_ptr, Unique > {
 public:
-    typedef   _Smart_ptr_extended< std::unique_ptr, Type, Unique< Type > >   _Base;
+    typedef   _Smart_ptr_extended< T, std::unique_ptr, Unique >   Base;
 
 public:
-    using _Base::_Base;
+    using Base::Base;
 
-    using _Base::operator =;
+    using Base::operator =;
+
+public:
+    template< typename ...Args >
+    [[ nodiscard ]] static Unique make( Args&&... args ) {
+        return { new T{ std::forward< Args >( args )... } };
+    }
 
 };
 
 
-template< typename Type >
-class Shared : public _Smart_ptr_extended< std::shared_ptr, Type, Shared< Type > > {
+
+template< typename T >
+class Shared : public _Smart_ptr_extended< T, std::shared_ptr, Shared > {
 public:
-    typedef   _Smart_ptr_extended< std::shared_ptr, Type, Shared< Type > >   _Base;
+    typedef   _Smart_ptr_extended< T, std::shared_ptr, Shared >   Base;
 
 public:
-    using _Base::_Base;
+    using Base::Base;
 
-    using _Base::operator =;
+    using Base::operator =;
+
+public:
+    template< typename ...Args >
+    [[ nodiscard ]] static Shared make( Args&&... args ) {
+        return { new T{ std::forward< Args >( args )... } };
+    }
 
 };
 
@@ -1395,6 +1414,15 @@ public:
     }
 
 public:
+    Vec2& normalize() {
+        return *this /= this->mag();
+    }
+
+    Vec2 normalized() const {
+        return Vec2{ *this }.normalize();
+    }
+
+public:
     Vec2& polar( double angel, double dist ) {
         Rad::push( angel );
 
@@ -1462,6 +1490,14 @@ public:
     auto X( const Clust2& clust ) const;
 
 public:
+    Vec2& operator = ( const Vec2& other ) {
+        x = other.x; y = other.y; return *this;
+    }
+
+    Vec2& operator = ( double val ) {
+        x = y = val; return *this;
+    }
+
     bool operator == ( const Vec2& other ) const {
         return x == other.x && y == other.y;
     }
@@ -2460,27 +2496,31 @@ public:
 
 public:
     template< SURFACE_EVENT event, typename Function >
-    void on( Function function ) {
-        this->_seq_from_event< event >().first = function;
+    SurfaceEventSentry& on( Function function ) {
+        this->_seq_from_event< event >().first = function; 
+        return *this;
     }
 
     template< SURFACE_EVENT event, typename Function >
-    void plug( const GUID& guid, SURFACE_SOCKET_PLUG at, Function function ) {
+    SurfaceEventSentry& plug( const GUID& guid, SURFACE_SOCKET_PLUG at, Function function ) {
         this->_seq_from_event< event >().second[ at ].insert( { guid, function } );
+        return *this;
     }
 
-    void unplug( const GUID& guid, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
+    SurfaceEventSentry& unplug( const GUID& guid, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
         this->_unplug( guid, at, _sckt_mouse );
         this->_unplug( guid, at, _sckt_key );
         this->_unplug( guid, at, _sckt_scroll );
         this->_unplug( guid, at, _sckt_filedrop );
         this->_unplug( guid, at, _sckt_move );
         this->_unplug( guid, at, _sckt_resize );
+        return *this;
     }
 
     template< SURFACE_EVENT event >
-    void unplug( const GUID& guid, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
+    SurfaceEventSentry& unplug( const GUID& guid, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
         this->_unplug( guid, at, this->_seq_from_event< event >().second );
+        return *this;
     }
 
 _ENGINE_PROTECTED:
@@ -3459,27 +3499,27 @@ public:
 
 public:
     Viewport2& uplink() {
-        Surface& srf = this->surface();
+        this->surface()
 
-        srf.plug< SURFACE_EVENT_MOUSE >( 
+        .plug< SURFACE_EVENT_MOUSE >( 
             this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, Vec2 lvec, auto& trace ) -> void {
                 if( !this->contains_g( vec ) ) return;
 
                 this->invoke_sequence< OnMouse >( trace, vec - _origin, lvec - _origin );
             }
-        );
+        )
 
-        srf.plug< SURFACE_EVENT_SCROLL >( 
+        .plug< SURFACE_EVENT_SCROLL >( 
             this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, SCROLL_DIRECTION dir, auto& trace ) -> void {
                 if( !this->contains_g( vec ) ) return;
 
-                this->invoke_sequence< OnScroll >( trace, vec, dir );
+                this->invoke_sequence< OnScroll >( trace, vec - _origin, dir );
             }
-        );
+        )
 
-        srf.plug< SURFACE_EVENT_KEY >( 
+        .plug< SURFACE_EVENT_KEY >( 
             this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Key key, KEY_STATE state, auto& trace ) -> void {
                 this->invoke_sequence< OnKey >( trace, key, state );
@@ -3728,7 +3768,7 @@ public:
         std::size_t idx = 0;
 
         for( Itr itr = begin; itr != end; ++itr, ++idx ) {
-            entries[ idx ].color = itr->first;
+            entries[ idx ].color    = itr->first;
             entries[ idx ].position = itr->second;
         };
 
@@ -3832,10 +3872,9 @@ public:
     template< typename Itr >
     RadialBrush2(
         Renderer2&    renderer,
-        Vec2          c,
+        Vec2          cen,
         Vec2          offs,
-        float         rx,
-        float         ry,
+        Vec2          rad,
         Itr           begin,
         Itr           end,
         float         w        = 1.0,
@@ -3851,7 +3890,7 @@ public:
         std::size_t idx = 0;
 
         for( Itr itr = begin; itr != end; ++itr, ++idx ) {
-            entries[ idx ].color = itr->first;
+            entries[ idx ].color    = itr->first;
             entries[ idx ].position = itr->second;
         };
 
@@ -3870,9 +3909,9 @@ public:
         ECHO_ASSERT_AND_THROW(
             _renderer->target()->CreateRadialGradientBrush(
                 D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES{
-                    _renderer->pull_crd( c ),
+                    _renderer->pull_crd( cen ),
                     Coord<>{ offs.x, -offs.y },
-                    rx, ry
+                    rad.x, rad.y
                 },
                 _grads,
                 &_brush
@@ -3887,17 +3926,16 @@ public:
     template< typename Cntr >
     RadialBrush2(
         Renderer2&   renderer,
-        Vec2         c,
+        Vec2         cen,
         Vec2         offs,
-        float        rx,
-        float        ry,
+        Vec2         rad,
         const Cntr&  container,
         float        w           = 1.0,
         Echo         echo        = {}
     )
     : RadialBrush2{
           renderer,
-          c, offs, rx, ry,
+          cen, offs, rad,
           container.begin(), container.end(),
           w,
           echo
@@ -5052,27 +5090,157 @@ public:
 
 };
 
-struct System2Packet {
-    struct Div {
-        double   every   = 30.0;
-        double   hstk    = 15.0;
-        Vec2     mean    = { 1.0, 1.0 };
+class System2Packet {
+public:
+    class Div {
+    public:
+        Vec2     px       = { 80.0, 80.0 };
+        Vec2     px_max   = { 300.0, 300.0 };
+        Vec2     px_min   = { 40.0, 40.0 };
+        double   hstk     = 10.0;
+        Vec2     mean     = { 1.0, 1.0 };
 
+    public:
         Vec2 coeffs() const {
-            return every / mean;
+            return px / mean;
         }
+
+    public:
+        Div& px_to( double val ) {
+            px = val; this->_calibrate(); return *this;
+        }
+
+        Div& px_to( Vec2 val ) {
+            px = val; this->_calibrate(); return *this;
+        }
+
+        Div& pxX_to( double val ) {
+            px.x = val; this->_calibrate_x(); return *this;
+        }
+
+        Div& pxY_to( double val ) {
+            px.y = val; this->_calibrate_y(); return *this;
+        }
+
+        Div& tweak_px( const auto& opX, double valX, const auto& opY, double valY ) {
+            return this->tweak_pxX( opX, valX ), this->tweak_pxY( opY, valY );
+        }
+
+        Div& tweak_px( const auto& op, double val ) {
+            return tweak_pxX( op, val ), tweak_pxY( op, val );
+        }
+
+        Div& tweak_pxX( const auto& op, double val ) {
+            px.x = std::clamp( 
+                std::invoke( op, px.x, val ), 
+                1.0, std::numeric_limits< decltype( px.x ) >::max() 
+            );
+
+            this->_calibrate_x();
+
+            return *this;
+        }
+
+        Div& tweak_pxY( const auto& op, double val ) {
+            px.y = std::clamp( 
+                std::invoke( op, px.y, val ), 
+                1.0, std::numeric_limits< decltype( px.y ) >::max() 
+            );
+
+            this->_calibrate_y();
+
+            return *this;
+        }
+
+        Div& mean_to( double val ) {
+            mean = val; return *this;
+        }
+
+        Div& mean_to( Vec2 val ) {
+            mean = val; return *this;
+        }
+
+        Div& meanX_to( double val ) {
+            mean.x = val; return *this;
+        }
+
+        Div& meanY_to( double val ) {
+            mean.y = val; return *this;
+        }
+
+        Div& tweak_mean( const auto& opX, double valX, const auto& opY, double valY ) {
+            return tweak_meanX( opX, valX ), tweak_meanY( opY, valY );
+        }
+
+        Div& tweak_mean( const auto& op, double val ) {
+            return tweak_meanX( op, val ), tweak_meanY( op, val );
+        }
+
+        Div& tweak_meanX( const auto& op, double val ) {
+            mean.x = std::clamp( 
+                std::invoke( op, mean.x, val ), 
+                std::numeric_limits< decltype( mean.x ) >::min(), 
+                std::numeric_limits< decltype( mean.x ) >::max() 
+            );
+            return *this;
+        }
+
+        Div& tweak_meanY( const auto& op, double val ) {
+            mean.y = std::clamp( 
+                std::invoke( op, mean.y, val ), 
+                std::numeric_limits< decltype( mean.y ) >::min(), 
+                std::numeric_limits< decltype( mean.y ) >::max() 
+            );
+            return *this;
+        }
+    
+    _ENGINE_PROTECTED:
+        void _calibrate_x() {
+            double reset = ( ( px_max - px_min ) / 2.0 ).x;
+
+            if( px.x < px_min.x ) {
+                mean.x *= reset / px.x;
+                px.x = reset;
+            }
+
+            if( px.x > px_max.x ) {
+                mean.x /= px.x / reset;
+                px.x = reset;
+            }
+        }
+
+        void _calibrate_y() {
+            double reset = ( ( px_max - px_min ) / 2.0 ).y;
+
+            if( px.y < px_min.y ) {
+                mean.y *= reset / px.y;
+                px.y = reset;
+            }
+
+            if( px.y > px_max.y ) {
+                mean.y /= px.y / reset;
+                px.y = reset;
+            }
+        }
+
+        void _calibrate() {
+            _calibrate_x(); _calibrate_y();
+        }
+
     } div = {};
 
-    struct Brushes {
-        std::vector< std::shared_ptr< Brush2 > >   nodes   = {};
-        std::shared_ptr< Brush2 >                  bgnd    = {};
-        std::shared_ptr< Brush2 >                  axis    = {};
+    class Brushes {
+    public:
+        std::vector< Shared< Brush2 > >   nodes   = {};
+        Shared< Brush2 >                  bgnd    = {};
+        Shared< Brush2 >                  axis    = {};
     } brushes = {};
 
 };
 
 class System2 : public UTH,
-                public std::map< std::string, System2Node >
+                public std::map< std::string, System2Node >,
+                public System2Packet
 {
 public:
     _ENGINE_UTH_IDENTIFY_METHOD( "System2" );
@@ -5082,16 +5250,16 @@ public:
 
     System2(
         Viewport2&      vwprt,
-        double          div_every,
-        double          div_mean,
-        double          div_hstk,
-        const Chroma&   axis_chroma   = { 1, 1, 1, 1 },
-        float           axis_width    = 1,
+        System2Packet   pckt,
         Echo            echo          = {}
     )
-    : _viewport{ &vwprt }, _div_every{ div_every }, _div_mean{ div_mean }, _div_hstk{ div_hstk },
-      _brush{ new SolidBrush2{ vwprt.renderer(), axis_chroma, axis_width, echo } }
+    : System2Packet{ std::move( pckt ) }
     {
+        _viewport = &vwprt;
+
+        if( brushes.nodes.empty() )
+            brushes.nodes.emplace_back( brushes.axis );
+
         echo( this, ECHO_LOG_OK, "Created." );
     }
 
@@ -5099,15 +5267,13 @@ private:
     Viewport2*                      _viewport     = nullptr;
     Vec2                            _offset       = {};
 
-    double                          _div_every    = 30.0;
-    double                          _div_mean     = 1.0;
-    double                          _div_hstk     = 15.0;
-
-    std::shared_ptr< Brush2 >       _brush        = {};
-
 public:
     Viewport2& viewport() {
         return *_viewport;
+    }
+
+    Surface& surface() {
+        return _viewport->surface();
     }
 
 public:
@@ -5126,51 +5292,6 @@ public:
     }
 
 public:
-    double div_coeff() const {
-        return _div_every / _div_mean;
-    }
-
-public:
-    double div_every() const {
-        return _div_every;
-    }
-
-    double div_mean() const {
-        return _div_mean;
-    }
-
-public:
-    System2& div_every_to( double val ) {
-        _div_every = val;
-
-        return *this;
-    }
-
-    System2& tweak_div_every( const auto& op, double val ) {
-        _div_every = std::clamp( 
-            op( _div_every, val ), 
-            5.0, std::numeric_limits< decltype( _div_every ) >::max() 
-        );
-
-        return *this;
-    }
-
-    System2& div_mean_to( double val ) {
-        _div_mean = val;
-
-        return *this;
-    }
-
-     System2& tweak_div_mean( const auto& op, double val ) {
-        _div_mean = std::clamp( 
-            op( _div_mean, val ), 
-            0.00000001, std::numeric_limits< decltype( _div_mean ) >::max() 
-        );
-
-        return *this;
-    }
- 
-public:
     System2& uplink_auto_roam() {
         _viewport->plug< SURFACE_EVENT_MOUSE >( 
             this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
@@ -5184,17 +5305,30 @@ public:
         _viewport->plug< SURFACE_EVENT_SCROLL >( 
             this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, SCROLL_DIRECTION dir, auto& trace ) -> void {
-                switch( dir ) {
-                    case SCROLL_DIRECTION_UP:
-                        this->tweak_div_every( std::plus<>{}, 4.6 );
+                auto& s = this->surface();
+
+                double sgn   = dir == SCROLL_DIRECTION_UP ? 1.0 : -1.0;
+                double tweak = 4.6 * sgn;
+
+                switch( ( s.down( Key::CTRL ) << 1 ) | s.down( Key::SHIFT ) ) {
+                    case 0: 
+                    case 3:
+                        this->div.tweak_px( std::plus<>{}, tweak ); 
                     break;
 
-                    case SCROLL_DIRECTION_DOWN:
-                        this->tweak_div_every( std::plus<>{}, -4.6 );
+                    case 1:
+                        this->div.tweak_pxY( std::plus<>{}, tweak ); 
                     break;
 
-                    default: break;
-                }
+                    case 2:
+                        this->div.tweak_pxX( std::plus<>{}, tweak ); 
+                    break;
+                } 
+
+                /* _offset.polar( 
+                    vec.angel(), 
+                    -( ( Vec2{ 1, 1 } / div.px ) * vec.dist_to( _offset ) * tweak ).mag() * sgn
+                ); */
             }
         );
 
@@ -5205,11 +5339,6 @@ public:
         _viewport->unplug( this->guid() );
 
         return *this;
-    }
-
-public:
-    Brush2& brush() {
-        return *_brush;
     }
 
 public:
@@ -5234,7 +5363,7 @@ public:
         renderer.line(
             Vec2{ cst, _viewport->north_g() }, 
             Vec2{ cst, _viewport->south_g() },
-            this->brush()
+            brushes.axis
         );
 
 
@@ -5252,7 +5381,7 @@ public:
         renderer.line(
             Vec2{ _viewport->west_g(), cst }, 
             Vec2{ _viewport->east_g(), cst },
-            this->brush()
+            brushes.axis
         );
 
         
@@ -5264,16 +5393,16 @@ public:
         if( cst < _viewport->west_g() ) {
             cst = _viewport->west_g() - cst;
             
-            double tweak = cst / _div_every;
+            double tweak = cst / div.px.x;
 
-            cst = _viewport->west_g() + _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
+            cst = _viewport->west_g() + div.px.x * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
 
         } else if( cst > _viewport->east_g() ) {
             cst = cst - _viewport->east_g();
             
-            double tweak = cst / _div_every;
+            double tweak = cst / div.px.x;
 
-            cst = _viewport->east_g() - _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
+            cst = _viewport->east_g() - div.px.x * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
         }
 
         cst_stk = _viewport->origin().y + _offset.y;
@@ -5283,25 +5412,25 @@ public:
                 Vec2{ 
                     x, 
                     axis_out[ HEADING_SOUTH ] ?
-                        std::min( _viewport->south_g() + _div_hstk, _viewport->north_g() )
+                        std::min( _viewport->south_g() + div.hstk, _viewport->north_g() )
                         :
-                        std::min( _viewport->north_g(), cst_stk + _div_hstk )
+                        std::min( _viewport->north_g(), cst_stk + div.hstk )
                 },
                 Vec2{ 
                     x, 
                     axis_out[ HEADING_NORTH ] ?
-                        std::max( _viewport->north_g() - _div_hstk, _viewport->south_g() )
+                        std::max( _viewport->north_g() - div.hstk, _viewport->south_g() )
                         :
-                        std::max( _viewport->south_g(), cst_stk - _div_hstk ) 
+                        std::max( _viewport->south_g(), cst_stk - div.hstk ) 
                 },
-                this->brush()
+                *brushes.axis
             );
         };
 
-        for( double offs = 0.0; ( cst + offs ) <= _viewport->east_g(); offs += _div_every ) 
+        for( double offs = 0.0; ( cst + offs ) <= _viewport->east_g(); offs += div.px.x ) 
             strike_x_at( cst + offs );
         
-        for( double offs = 0.0; ( cst - offs ) >= _viewport->west_g(); offs += _div_every ) 
+        for( double offs = 0.0; ( cst - offs ) >= _viewport->west_g(); offs += div.px.x ) 
             strike_x_at( cst - offs );
 
 
@@ -5310,16 +5439,16 @@ public:
         if( cst < _viewport->south_g() ) {
             cst = _viewport->south_g() - cst;
             
-            double tweak = cst / _div_every;
+            double tweak = cst / div.px.y;
 
-            cst = _viewport->south_g() + _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
+            cst = _viewport->south_g() + div.px.y * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
 
         } else if( cst > _viewport->north_g() ) {
             cst = cst - _viewport->north_g();
             
-            double tweak = cst / _div_every;
+            double tweak = cst / div.px.y;
 
-            cst = _viewport->north_g() - _div_every * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
+            cst = _viewport->north_g() - div.px.y * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
         }
 
         cst_stk = _viewport->origin().x + _offset.x;
@@ -5328,26 +5457,26 @@ public:
             renderer.line(
                 Vec2{ 
                     axis_out[ HEADING_WEST ] ?
-                        std::min( _viewport->west_g() + _div_hstk, _viewport->east_g() )
+                        std::min( _viewport->west_g() + div.hstk, _viewport->east_g() )
                         :
-                        std::min( _viewport->east_g(), cst_stk + _div_hstk ),
+                        std::min( _viewport->east_g(), cst_stk + div.hstk ),
                     y
                 },
                 Vec2{
                     axis_out[ HEADING_EAST ] ?
-                        std::max( _viewport->east_g() - _div_hstk, _viewport->west_g() )
+                        std::max( _viewport->east_g() - div.hstk, _viewport->west_g() )
                         :
-                        std::max( _viewport->west_g(), cst_stk - _div_hstk ),
+                        std::max( _viewport->west_g(), cst_stk - div.hstk ),
                     y
                 },
-                this->brush()
+                *brushes.axis
             );
         };
 
-        for( double offs = 0.0; ( cst + offs ) <= _viewport->north_g(); offs += _div_every ) 
+        for( double offs = 0.0; ( cst + offs ) <= _viewport->north_g(); offs += div.px.y ) 
             strike_y_at( cst + offs );
 
-        for( double offs = 0.0; ( cst - offs ) >= _viewport->south_g(); offs += _div_every ) 
+        for( double offs = 0.0; ( cst - offs ) >= _viewport->south_g(); offs += div.px.y ) 
             strike_y_at( cst - offs );
 
 
@@ -5373,9 +5502,9 @@ public:
 
 _ENGINE_PROTECTED:
     void _render_function( const System2Node& node ) const {
-        double c   = this->div_coeff();
-        double x   = ( _viewport->west() - _offset.x ) * ( 1.0 / c );
-        double end = ( _viewport->east() - _offset.x ) * ( 1.0 / c ); 
+        Vec2   c   = div.coeffs();
+        double x   = ( _viewport->west() - _offset.x ) * ( 1.0 / c.x );
+        double end = ( _viewport->east() - _offset.x ) * ( 1.0 / c.x ); 
         double h   = abs( ( end - x ) / 1000.0 );
 
         Vec2 v1{ x, std::invoke( node.function(), x ) };
@@ -5386,7 +5515,7 @@ _ENGINE_PROTECTED:
 
             _viewport->line( 
                 v1 * c + _offset, v2 * c + _offset, 
-                node.has_brush() ? node.brush() : this->brush()
+                node.has_brush() ? node.brush() : *brushes.axis
             );
             
             v1 = v2;
@@ -5394,13 +5523,13 @@ _ENGINE_PROTECTED:
     }
 
     void _render_collection( const System2Node& node ) const {
-        double c  = this->div_coeff();
+        Vec2   c  = div.coeffs();
         auto   v1 = node.collection().begin();
 
         for( auto v2 = v1 + 1; v2 != node.collection().end(); ++v2 ) {
             _viewport->line( 
                 *v1 * c + _offset, *v2 * c + _offset, 
-                node.has_brush() ? node.brush() : this->brush() 
+                node.has_brush() ? node.brush() : *brushes.axis 
             );
 
             v1 = v2;

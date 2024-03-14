@@ -1422,6 +1422,14 @@ public:
         return Vec2{ *this }.normalize();
     }
 
+    Vec2& abs() {
+        return x = std::abs( x ), y = std::abs( y ), *this;
+    }
+
+    Vec2 absd() const {
+        return Vec2{ *this }.abs();
+    }
+
 public:
     Vec2& polar( double angel, double dist ) {
         Rad::push( angel );
@@ -5232,8 +5240,23 @@ public:
     class Brushes {
     public:
         std::vector< Shared< Brush2 > >   nodes   = {};
+        mutable size_t                    at      = 0;
+
         Shared< Brush2 >                  bgnd    = {};
         Shared< Brush2 >                  axis    = {};
+
+    public:
+        Brush2& next_node() {
+            Brush2& brush = nodes[ at++ ];
+            at %= nodes.size();
+
+            return brush;
+        }
+        
+        void prepare_render() {
+            at = 0;
+        }
+    
     } brushes = {};
 
 };
@@ -5314,6 +5337,7 @@ public:
                     case 0: 
                     case 3:
                         this->div.tweak_px( std::plus<>{}, tweak ); 
+                        _offset -= vec( _offset ) / div.px * tweak;
                     break;
 
                     case 1:
@@ -5324,11 +5348,6 @@ public:
                         this->div.tweak_pxX( std::plus<>{}, tweak ); 
                     break;
                 } 
-
-                /* _offset.polar( 
-                    vec.angel(), 
-                    -( ( Vec2{ 1, 1 } / div.px ) * vec.dist_to( _offset ) * tweak ).mag() * sgn
-                ); */
             }
         );
 
@@ -5480,16 +5499,20 @@ public:
             strike_y_at( cst - offs );
 
 
+        brushes.prepare_render();
+
         for( auto& [ idx, node ] : *this ) {
             if( !node.is_uplinked() ) continue;
 
+            Brush2& brush = node.has_brush() ? node.brush() : brushes.next_node();
+
             switch( node.type() ) {
                 case SYSTEM2_LINK_FUNCTION: 
-                    this->_render_function( node ); 
+                    this->_render_function( node, brush ); 
                     continue;
 
                 case SYSTEM2_LINK_COLLECTION: 
-                    this->_render_collection( node ); 
+                    this->_render_collection( node, brush ); 
                     continue;
 
                 default: continue;
@@ -5501,7 +5524,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    void _render_function( const System2Node& node ) const {
+    void _render_function( const System2Node& node, Brush2& brush ) const {
         Vec2   c   = div.coeffs();
         double x   = ( _viewport->west() - _offset.x ) * ( 1.0 / c.x );
         double end = ( _viewport->east() - _offset.x ) * ( 1.0 / c.x ); 
@@ -5513,24 +5536,18 @@ _ENGINE_PROTECTED:
         for( ; x <= end; x += h ) {
             Vec2 v2{ x, std::invoke( node.function(), x ) };
 
-            _viewport->line( 
-                v1 * c + _offset, v2 * c + _offset, 
-                node.has_brush() ? node.brush() : *brushes.axis
-            );
+            _viewport->line( v1 * c + _offset, v2 * c + _offset, brush );
             
             v1 = v2;
         }
     }
 
-    void _render_collection( const System2Node& node ) const {
+    void _render_collection( const System2Node& node, Brush2& brush ) const {
         Vec2   c  = div.coeffs();
         auto   v1 = node.collection().begin();
 
         for( auto v2 = v1 + 1; v2 != node.collection().end(); ++v2 ) {
-            _viewport->line( 
-                *v1 * c + _offset, *v2 * c + _offset, 
-                node.has_brush() ? node.brush() : *brushes.axis 
-            );
+            _viewport->line( *v1 * c + _offset, *v2 * c + _offset, brush );
 
             v1 = v2;
         }

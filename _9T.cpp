@@ -5770,7 +5770,7 @@ _ENGINE_PROTECTED:
         Vec2   c   = div.coeffs();
         double x   = ( _viewport->west() - _origin.x ) * ( 1.0 / c.x );
         double end = ( _viewport->east() - _origin.x ) * ( 1.0 / c.x ); 
-        double h   = abs( ( end - x ) / 1000.0 );
+        double h   = abs( ( end - x ) / _viewport->size().width );
 
         Vec2 v1{ x, std::invoke( func, x ) };
         x += h;

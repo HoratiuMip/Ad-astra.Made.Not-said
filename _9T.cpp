@@ -49,10 +49,11 @@
 
 #define _ENGINE_NAMESPACE IXT
 
-#define _ENGINE_UTH_ADD_PREFIX( type ) "IXT::" type
+#define _ENGINE_ECHO_ADD_PREFIX( type ) "IXT::" type
 
-#define _ENGINE_UTH_IDENTIFY_METHOD( type ) virtual std::string_view type_name() const override { return _ENGINE_UTH_ADD_PREFIX( type ); }
+#define _ENGINE_ECHO_IDENTIFY_METHOD( type ) virtual std::string_view echo_name() const override { return _ENGINE_ECHO_ADD_PREFIX( type ); }
 
+#define _ENGINE_ECHO_DFD_ARG Echo echo = {}
 
 
 #if defined( IXT_ECHO )
@@ -225,6 +226,14 @@ enum ECHO_LOG {
     ECHO_LOG_HEADSUP = OS::CONSOLE_COLOR_CODE::PINK
 };
 
+class EchoInvoker {
+public:
+    virtual std::string_view echo_name() const {
+        return _ENGINE_ECHO_ADD_PREFIX( "EchoInvoker" );
+    }
+
+};
+
 class Echo {
 public:
     Echo() = default;
@@ -243,7 +252,7 @@ _ENGINE_PROTECTED:
 
 public:
     const Echo& operator () (
-        UTH*               invoker,
+        EchoInvoker*       invoker,
         ECHO_LOG           log_type,
         std::string_view   message
     ) const {
@@ -252,13 +261,13 @@ public:
 
 _ENGINE_PROTECTED:
     const Echo& _echo(
-        UTH*               invoker,
+        EchoInvoker*       invoker,
         ECHO_LOG           log_type,
         std::string_view   message
     ) const;
 
     const Echo& _nop(
-        UTH*               invoker,
+        EchoInvoker*       invoker,
         ECHO_LOG           log_type,
         std::string_view   message
     ) const {
@@ -340,6 +349,11 @@ using Ptr = Type*;
 
 
 
+template< typename > class Unique;
+template< typename > class Shared;
+
+
+
 template< 
     typename T, 
     template< typename > typename Smart_ptr, 
@@ -403,8 +417,11 @@ public:
 public:
     template< typename ...Args >
     [[ nodiscard ]] static Unique make( Args&&... args ) {
-        return { new T{ std::forward< Args >( args )... } };
+        return { std::make_unique< T >( std::forward< Args >( args )... ) };
     }
+
+public:
+    [[ nodiscard ]] Shared< T > branch();
 
 };
 
@@ -423,10 +440,21 @@ public:
 public:
     template< typename ...Args >
     [[ nodiscard ]] static Shared make( Args&&... args ) {
-        return { new T{ std::forward< Args >( args )... } };
+        return { std::make_shared< T >( std::forward< Args >( args )... ) };
     }
 
 };
+
+
+
+template< typename T >
+Shared< T > Unique< T >::branch() {
+    T* raw = this->get();
+
+    this->release();
+
+    return { raw };
+}
 
 
 
@@ -923,6 +951,91 @@ public:
 
 
 
+class Codec {
+public:
+    struct Wav : public EchoInvoker {
+        _ENGINE_ECHO_IDENTIFY_METHOD( "Codec::Wav" );
+
+
+        Wav() = default;
+
+        Wav( std::string_view path, _ENGINE_ECHO_DFD_ARG ) {
+            using namespace std::string_literals;
+
+
+            std::ifstream file{ path.data(), std::ios_base::binary };
+
+            ECHO_ASSERT_AND_THROW( file, "Open file: "s + path.data() );
+
+
+            size_t file_size = File::size( file );
+
+            Unique< char[] > file_stream{ new char[ file_size ] };
+
+
+            ECHO_ASSERT_AND_THROW( file_stream, "Buffer alloc to stream file." );
+
+
+            file.read( file_stream, file_size );
+
+
+            sample_rate = Bytes::as< unsigned int >( file_stream + 24, 4, Bytes::LITTLE );
+
+
+            bits_per_sample = Bytes::as< unsigned short >( file_stream + 34, 2, Bytes::LITTLE );
+
+            size_t bytes_per_sample = bits_per_sample / 8;
+
+            sample_count = Bytes::as< size_t >( file_stream + 40, 4, Bytes::LITTLE )
+                           /
+                           bytes_per_sample;
+
+
+            stream = new double[ sample_count ];
+
+            ECHO_ASSERT_AND_THROW( stream, "Buffer alloc for stream." );
+
+
+            double max_sample = static_cast< double >( 1 << ( bits_per_sample - 1 ) );
+
+            for( size_t n = 0; n < sample_count; ++n )
+                stream[ n ] = static_cast< double >(
+                                  Bytes::as< int >( file_stream + 44 + n * bytes_per_sample, bytes_per_sample, Bytes::LITTLE )
+                              ) / max_sample;
+
+
+            channel_count = Bytes::as< unsigned short >( file_stream + 22, 2, Bytes::LITTLE );
+
+
+            if( sample_count % channel_count != 0 )
+                echo( this, ECHO_LOG_WARNING, "Samples do not fill all channels." );
+
+            
+            sample_count /= channel_count;
+
+
+            echo( this, ECHO_LOG_OK, "Created from: "s + path.data() );
+        }
+   
+
+        Shared< double[] >   stream            = nullptr;
+
+        size_t               sample_rate       = 0;
+        size_t               bits_per_sample   = 0;
+        size_t               sample_count      = 0;
+        size_t               channel_count     = 0;
+
+
+        static inline Wav from_file( std::string_view path, _ENGINE_ECHO_DFD_ARG ) {
+            return { path, echo };
+        }
+
+    };
+
+};
+
+
+
 #pragma endregion Utility
 
 
@@ -1293,12 +1406,7 @@ _ENGINE_PROTECTED:
 
 typedef   const void*   GUID;
 
-class UTH {
-public:
-    virtual std::string_view type_name() const {
-        return _ENGINE_UTH_ADD_PREFIX( "UTH" );
-    }
-
+class UTH : public EchoInvoker {
 public:
     GUID guid() const { 
         return static_cast< GUID >( this ); 
@@ -2297,22 +2405,121 @@ auto Ray2::X( const Clust2& clust ) const {
 
 
 
+#pragma region D3
+
+
+
+#define _ENGINE_MAT3_MUL_AT( x, y ) \
+    this->at( x, y ) = this->at( x, 0 ) * other.at( 0, y ) \
+                       + \
+                       this->at( x, 1 ) * other.at( 1, y ) \
+                       + \
+                       this->at( x, 2 ) * other.at( 2, y ); 
+
+class Mat3 {
+public:
+    using Dv = std::array< double, 9 >;
+
+public:
+    Mat3() = default;
+
+    Mat3( Dv arr ) 
+    : _dv{ arr }
+    {} 
+
+_ENGINE_PROTECTED:
+    union {
+        double   _dm[ 3 ][ 3 ]   = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
+        Dv       _dv;
+    };
+
+public:
+    double* operator [] ( size_t idx ) {
+        return _dm[ idx ];
+    }
+
+    double& operator () ( size_t x, size_t y ) {
+        return _dm[ x ][ y ];
+    }
+
+    double& at( size_t x, size_t y ) {
+        return _dm[ x ][ y ];
+    }
+
+public:
+    double det() const {
+        return
+        this->at( 0, 0 ) * this->at( 1, 1 ) * this->at( 2, 2 )
+        +
+        this->at( 0, 1 ) * this->at( 1, 2 ) * this->at( 2, 0 )
+        +
+        this->at( 0, 2 ) * this->at( 2, 1 ) * this->at( 1, 0 )
+        -
+        this->at( 0, 2 ) * this->at( 1, 1 ) * this->at( 2, 0 )
+        -
+        this->at( 0, 1 ) * this->at( 1, 0 ) * this->at( 2, 2 )
+        -
+        this->at( 0, 0 ) * this->at( 1, 2 ) * this->at( 2, 1 );
+    }
+
+public:
+    Mat3& operator *= ( const Mat3& other ) {
+        _ENGINE_MAT3_MUL_AT( 0, 0 );
+        _ENGINE_MAT3_MUL_AT( 0, 1 );
+        _ENGINE_MAT3_MUL_AT( 0, 2 );
+        _ENGINE_MAT3_MUL_AT( 1, 0 );
+        _ENGINE_MAT3_MUL_AT( 1, 1 );
+        _ENGINE_MAT3_MUL_AT( 1, 2 );
+        _ENGINE_MAT3_MUL_AT( 2, 0 );
+        _ENGINE_MAT3_MUL_AT( 2, 1 );
+        _ENGINE_MAT3_MUL_AT( 2, 2 );
+
+        return *this;
+    }
+
+    Mat3 operator * ( const Mat3& other ) const {
+        return Mat3{ *this } *= other;
+    }
+
+public:
+    static Mat3 translate( double tx, double ty ) {
+        return Dv{ 1, 0, tx, 0, 1, ty, 0, 0, 1 };
+    }
+
+    static Mat3 translate( const Vec2& t ) {
+        return translate( t.x, t.y );
+    }
+
+    static Mat3 scale( double sx, double sy ) {
+        return Dv{ sx, 0, 0, 0, sy, 0, 0, 0, 1 };
+    }
+
+    static Mat3 scale( Vec2 s ) {
+        return scale( s.x, s.y );
+    }
+
+    static Mat3 rotate( double theta ) {
+        Rad::push( theta );
+
+        auto cosine = cos( theta );
+        auto sine   = sin( theta );
+
+        return Dv{ cosine, -sine, 0, sine, cosine, 0, 0, 0, 1 };
+    }
+
+};
+
+
+
+#pragma endregion D3
+
+
+
 #pragma endregion Space
 
 
 
 #pragma region Graphics
-
-
-
-class Rendable2 {
-public:
-    virtual void render( Renderer2&, Vec2 ) {}
-
-    virtual void render( Renderer2&, const Brush2& ) {}
-
-    virtual void render( Renderer2&, Vec2, const Brush2& ) {}
-};
 
 
 
@@ -2597,7 +2804,7 @@ class Surface : public UTH,
                 public SurfaceEventSentry 
 {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "Surface" );
+    _ENGINE_ECHO_IDENTIFY_METHOD( "Surface" );
 
 _ENGINE_PROTECTED:
     friend class Key;
@@ -3161,15 +3368,77 @@ public:
 
 
 
-class Renderer2 : public UTH {
+class RenderWrap2 : public UTH {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "Renderer2" );
+    RenderWrap2() = default;
+
+    RenderWrap2( const RenderWrap2& other ) 
+    : _render_wrap{ &other },
+      _renderer{ other._renderer },
+      _surface{ other._surface }
+    {}
+
+_ENGINE_PROTECTED:
+    RenderWrap2( const Renderer2& renderer, const Surface& surface )
+    : _renderer{ &renderer }, _surface{ &surface }
+    {}
+
+_ENGINE_PROTECTED:
+    RenderWrap2*   _render_wrap    = nullptr;
+    Renderer2*     _renderer       = nullptr;
+    Surface*       _surface        = nullptr;
+
+public:
+    virtual RenderWrap2& fill( const Chroma& ) = 0;
+
+    virtual RenderWrap2& fill( const Brush2& ) = 0;
+
+    virtual RenderWrap2& line( Coord<>, Coord<>, const Brush2& ) = 0;
+
+    virtual RenderWrap2& line( Vec2, Vec2, const Brush2& ) = 0;
+
+public:
+    virtual Coord<> coord() const = 0;
+
+    virtual Vec2 origin() const = 0;
+
+    virtual Size<> size() const = 0;
+
+public:
+    virtual Vec2 pull_vec( const Coord<>& crd ) const = 0;
+
+    virtual Coord<> pull_crd( const Vec2& vec ) const = 0;
+
+    virtual void push_vec( Coord<>& crd ) const = 0;
+
+    virtual void push_crd( Vec2& vec ) const = 0;
+
+public:
+    RenderWrap2& render_wrap() {
+        return *_render_wrap;
+    }
+
+    Renderer2& renderer() {
+        return *_renderer;
+    }
+
+    Surface& surface() {
+        return *_surface;
+    }
+
+};
+
+
+
+class Renderer2 : public RenderWrap2 {
+public:
+    _ENGINE_ECHO_IDENTIFY_METHOD( "Renderer2" );
 
 public:
     Renderer2() = default;
 
     Renderer2( Surface& surface, Echo echo = {} )
-    : _surface{ &surface }
+    : RenderWrap2{ *this, surface }
     {
         ECHO_ASSERT_AND_THROW( CoInitialize( nullptr ) == S_OK, "<constructor>: CoInitialize." );
 
@@ -3229,47 +3498,30 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    Surface*                    _surface       = nullptr;
-
     ID2D1Factory*               _factory       = nullptr;
     IWICImagingFactory*         _wic_factory   = nullptr;
 
     ID2D1HwndRenderTarget*      _target        = nullptr;
 
-    D2D1::Matrix3x2F            _transform     = D2D1::Matrix3x2F::Identity();
-
 public:
-    Surface& surface() {
-        return *_surface;
-    }
-
-    auto factory() { return _factory; }
-    auto target() { return _target; }
+    auto factory()     { return _factory; }
+    auto target()      { return _target; }
     auto wic_factory() { return _wic_factory; }
 
 public:
-    auto coord() const {
-        return _surface->coord();
-    }
-
-    auto size() const {
-        return _surface->size();
-    }
-
-public:
-    Vec2 pull_vec( const Coord<>& crd ) const {
+    Vec2 pull_vec( const Coord<>& crd ) const override {
         return _surface->pull_vec( crd );
     }
 
-    Coord<> pull_crd( const Vec2& vec ) const {
+    Coord<> pull_crd( const Vec2& vec ) const override {
         return _surface->pull_crd( vec );
     }
 
-    void push_vec( Coord<>& crd ) const {
+    void push_vec( Coord<>& crd ) const override {
         _surface->push_vec( crd );
     }
 
-    void push_crd( Vec2& vec ) const {
+    void push_crd( Vec2& vec ) const override {
         _surface->push_crd( vec );
     }
 
@@ -3287,51 +3539,25 @@ public:
     }
 
 public:
-    Renderer2& push( double angel, double scaleX, double scaleY, Coord<> crd ) {
-        _target->SetTransform( 
-            D2D1::Matrix3x2F::Rotation( angel, crd )
-            *
-            D2D1::Matrix3x2F::Scale( scaleX, scaleY, crd )
-            *
-            _transform
-        );
-
-        return *this;
-    }
-
-    Renderer2& pop() {
-        _target->SetTransform( _transform );
-
-        return *this;
-    }
-
-    Renderer2& push_beneath( double angel, double scaleX, double scaleY, Coord<> crd ) {
-        _transform = D2D1::Matrix3x2F::Rotation( angel, crd )
-                     *
-                     D2D1::Matrix3x2F::Scale( scaleX, scaleY, crd );
-
-        return *this;
-    }
-
-    Renderer2& pop_beneath() {
-        _transform = D2D1::Matrix3x2F::Identity();
-
-        return *this;
-    }
+    Coord<> coord()  const override { return { 0, 0 }; }
+    Vec2    origin() const override { return { 0, 0 }; }
+    Size<>  size()   const override { return _surface->size(); }
 
 public:
-    Renderer2& fill( const Chroma& chroma );
+    RenderWrap2& fill( const Chroma& chroma ) override;
+
+    RenderWrap2& fill( const Brush2& brush ) override;
 
 public:
-    Renderer2& line(
+    RenderWrap2& line(
         Coord<> c1, Coord<> c2,
         const Brush2& brush
-    );
+    ) override;
 
-    Renderer2& line(
+    RenderWrap2& line(
         Vec2 v1, Vec2 v2,
         const Brush2& brush
-    );
+    ) override;
 
 public:
     template< typename Type, typename ...Args >
@@ -3345,34 +3571,34 @@ public:
 
 
 
-class Viewport2 : public UTH,
+class Viewport2 : public RenderWrap2,
                   public SurfaceEventSentry
 {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "Viewport2" );
+    _ENGINE_ECHO_IDENTIFY_METHOD( "Viewport2" );
 
 public:
     Viewport2() = default;
 
     Viewport2(
-        Renderer2&   renderer,
-        Vec2         org,
-        Size<>       sz,
-        Echo         echo       = {}
+        RenderWrap2&   render_wrap,
+        Vec2           org,
+        Size<>         sz,
+        Echo           echo          = {}
     )
-    : _renderer{ &renderer },
+    : RenderWrap2{ render_wrap },
       _origin{ org }, _size{ sz }, _size2{ sz.width / 2.0f, sz.height / 2.0f }
     {
         echo( this, ECHO_LOG_OK, "Created." );
     }
 
     Viewport2(
-        Renderer2&   renderer,
-        Coord<>      org,
-        Size<>       sz,
-        Echo         echo       = {}
+        RenderWrap2&   render_wrap,
+        Coord<>        org,
+        Size<>         sz,
+        Echo           echo          = {}
     )
-    : Viewport2{ renderer, renderer.pull_vec( org ) + Vec2{ sz.width / 2.0, -sz.height / 2.0 }, sz, echo }
+    : Viewport2{ render_wrap, render_wrap.pull_vec( org ) + Vec2{ sz.width / 2.0, -sz.height / 2.0 }, sz, echo }
     {}
 
 
@@ -3380,8 +3606,6 @@ public:
     Viewport2( Viewport2&& ) = delete;
 
 _ENGINE_PROTECTED:
-    Renderer2*   _renderer     = nullptr;
-
     Vec2         _origin       = {};
     Size<>       _size         = {};
     Size<>       _size2        = {};
@@ -3389,25 +3613,31 @@ _ENGINE_PROTECTED:
     bool         _restricted   = false;
 
 public:
-    Renderer2& renderer() {
-        return *_renderer;
-    }
+    Coord<> coord()  const override { return _render_wrap->pull_crd( _origin ); }
+    Vec2    origin() const override { return _origin; }
+    Size<>  size()   const override { return _size; }
 
-    Surface& surface() {
-        return _renderer->surface();
-    }
 
 public:
-    Vec2 origin() const {
-        return _origin;
+    Vec2 pull_vec( const Coord<>& crd ) const override {
+        return { crd.x - _size.width / 2.0, _size.height / 2.0 - crd.y };
     }
 
-    Size<> size() const {
-        return _size;
+    Coord<> pull_crd( const Vec2& vec ) const override {
+        return { 
+            static_cast< float >( vec.x ) + _size.width / 2.0f, 
+            _size.height / 2.0f - static_cast< float >( vec.y ) 
+        };
     }
 
-    Size<> size2() const {
-        return _size2;
+    void push_vec( Coord<>& crd ) const override {
+        crd.x -= _size.width / 2.0;
+        crd.y = _size.height / 2.0 - crd.y;
+    }
+
+    void push_crd( Vec2& vec ) const override {
+        vec.x += _size.width / 2.0;
+        vec.y = _size.height / 2.0 - vec.y;
     }
 
 public:
@@ -3478,8 +3708,8 @@ public:
     Viewport2& restrict() {
         if( _restricted ) return *this;
 
-        auto tl = _renderer->pull_crd( this->top_left_g() );
-        auto br = _renderer->pull_crd( this->bot_right_g() );
+        auto tl = _render_wrap->pull_crd( this->top_left_g() );
+        auto br = _render_wrap->pull_crd( this->bot_right_g() );
 
         _renderer->target()->PushAxisAlignedClip(
             D2D1::RectF( tl.x, tl.y, br.x, br.y ),
@@ -3624,7 +3854,7 @@ public:
 
 class Brush2 : public UTH {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "Brush2" );
+    _ENGINE_ECHO_IDENTIFY_METHOD( "Brush2" );
 
 public:
     Brush2() = default;
@@ -3660,7 +3890,7 @@ public:
 
 class SolidBrush2 : public Brush2 {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "SolidBrush2" );
+    _ENGINE_ECHO_IDENTIFY_METHOD( "SolidBrush2" );
 
 public:
     SolidBrush2() = default;
@@ -3751,7 +3981,7 @@ public:
 
 class LinearBrush2 : public Brush2 {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "LinearBrush2" );
+    _ENGINE_ECHO_IDENTIFY_METHOD( "LinearBrush2" );
 
 public:
     LinearBrush2() = default;
@@ -3872,7 +4102,7 @@ public:
 
 class RadialBrush2 : public Brush2 {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "RadialBrush2" );
+    _ENGINE_ECHO_IDENTIFY_METHOD( "RadialBrush2" );
 
 public:
     RadialBrush2() = default;
@@ -4122,6 +4352,12 @@ public:
         return static_cast< DerivedWave& >( *this );
     }
 
+    DerivedWave& tweak_volume( const auto& op ) {
+        _volume = std::clamp( std::invoke( op, _volume ), -1.0, 1.0 );
+
+        return static_cast< DerivedWave& >( *this );
+    }
+
 public:
     bool is_paused() const {
         return _paused;
@@ -4212,6 +4448,12 @@ public:
         return static_cast< DerivedWave& >( *this );
     }
 
+    DerivedWave& tweak_velocity( const auto& op ) {
+        _velocity = std::invoke( op, _velocity );
+
+        return static_cast< DerivedWave& >( *this );
+    }
+
 public:
     Wave::Filter filter() const {
         return _filter;
@@ -4244,7 +4486,7 @@ class Audio : public UTH,
               >
 {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "Audio" );
+    _ENGINE_ECHO_IDENTIFY_METHOD( "Audio" );
 
 _ENGINE_PROTECTED:
     friend class Wave;
@@ -4258,7 +4500,7 @@ public:
         size_t             channel_count        = 1,
         size_t             block_count          = 16,
         size_t             block_sample_count   = 256,
-        Echo               echo                 = {}
+        _ENGINE_ECHO_DFD_ARG
     )
     : _sample_rate       { sample_rate },
       _time_step         { 1.0 / _sample_rate },
@@ -4528,7 +4770,7 @@ class Sound : public UTH,
               >
 {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "Sound" );
+    _ENGINE_ECHO_IDENTIFY_METHOD( "Sound" );
 
 public:
     Sound() = default;
@@ -4536,7 +4778,7 @@ public:
     Sound( 
         Audio&             audio, 
         std::string_view   path, 
-        Echo               echo   = {} 
+        _ENGINE_ECHO_DFD_ARG 
     )
     : Sound{ path, echo }
     {
@@ -4552,68 +4794,23 @@ public:
 
     Sound( 
         std::string_view   path,
-        Echo               echo   = {}
+        _ENGINE_ECHO_DFD_ARG
     ) {
         using namespace std::string_literals;
 
 
-        std::ifstream file{ path.data(), std::ios_base::binary };
+        if( path.ends_with( ".wav" ) ) {
+            auto wav = Codec::Wav::from_file( path, echo );
 
-        if( !file ) {
-            echo( this, ECHO_LOG_FAULT, "Open file: "s + path.data() ); return;
+            _stream         = std::move( wav.stream );
+            _sample_rate    = wav.sample_rate;
+            _sample_count   = wav.sample_count;
+            _channel_count  = wav.channel_count;
+
+            return;
         }
 
-
-        size_t file_size = File::size( file );
-
-        Unique< char[] > file_stream{ new char[ file_size ] };
-
-        if( !file_stream ) {
-            echo( this, ECHO_LOG_FAULT, "File stream allocation." ); return;
-        }
-
-
-        file.read( file_stream, file_size );
-
-
-        _sample_rate = Bytes::as< unsigned int >( file_stream + 24, 4, Bytes::LITTLE );
-
-
-        _bits_per_sample = Bytes::as< unsigned short >( file_stream + 34, 2, Bytes::LITTLE );
-
-        size_t bytes_per_sample = _bits_per_sample / 8;
-
-        _sample_count = Bytes::as< size_t >( file_stream + 40, 4, Bytes::LITTLE )
-                        /
-                        bytes_per_sample;
-
-
-        _stream = new double[ _sample_count ];
-
-        if( !_stream ) {
-            echo( this, ECHO_LOG_FAULT, "Sound stream allocation." ); return;
-        }
-
-
-        double max_sample = static_cast< double >( 1 << ( _bits_per_sample - 1 ) );
-
-        for( size_t n = 0; n < _sample_count; ++n )
-            _stream[ n ] = static_cast< double >(
-                                Bytes::as< int >( file_stream + 44 + n * bytes_per_sample, bytes_per_sample, Bytes::LITTLE )
-                            ) / max_sample;
-
-
-        _channel_count = Bytes::as< unsigned short >( file_stream + 22, 2, Bytes::LITTLE );
-
-
-        if( _sample_count % _channel_count != 0 )
-            echo( this, ECHO_LOG_WARNING, "Samples do not condense." );
-
-        
-        _sample_count /= _channel_count;
-
-
-        echo( this, ECHO_LOG_OK, "Created from: "s + path.data() );
+        echo( this, ECHO_LOG_FAULT, "Unsupported extension: "s + path.data() );
     }
 
     Sound( const Sound& ) = default;
@@ -4626,14 +4823,13 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    Shared< double[] >    _stream             = nullptr;
+    Shared< double[] >    _stream          = nullptr;
 
-    std::list< double >   _needles            = {};
+    std::list< double >   _needles         = {};
 
-    size_t                _sample_rate        = 0;
-    size_t                _bits_per_sample    = 0;
-    size_t                _sample_count       = 0;
-    size_t                _channel_count      = 0;
+    size_t                _sample_rate     = 0;
+    size_t                _sample_count    = 0;
+    size_t                _channel_count   = 0;
 
 public:
     virtual void prepare_play() override {
@@ -4725,7 +4921,7 @@ class Synth : public UTH,
               >
 {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "Synth" );
+    _ENGINE_ECHO_IDENTIFY_METHOD( "Synth" );
 
 public:
     typedef   std::function< double( double, size_t ) >   Function;
@@ -4736,7 +4932,7 @@ public:
     Synth( 
         Audio&     audio,
         Function   function,
-        Echo       echo       = {}
+        _ENGINE_ECHO_DFD_ARG
     )
     : Synth{ function, echo }
     {
@@ -4747,7 +4943,7 @@ public:
 
     Synth(
         Function   function,
-        Echo       echo       = {}
+        _ENGINE_ECHO_DFD_ARG
     )
     : _function( function )
     {
@@ -4831,7 +5027,7 @@ void Wave::play() {
 
 
 const Echo& Echo::_echo(
-    UTH*               invoker,
+    EchoInvoker*       invoker,
     ECHO_LOG           log_type,
     std::string_view   message
 ) const {
@@ -4849,7 +5045,7 @@ const Echo& Echo::_echo(
         << "From "_echo_normal
         << "[ "
         << ""_echo_highlight
-        << invoker->type_name()
+        << invoker->echo_name()
         << " ][ "_echo_normal
         << ""_echo_highlight
         << static_cast< void* >( invoker )
@@ -4873,13 +5069,22 @@ const Echo& Echo::_echo(
 
 
 
-Renderer2& Renderer2::fill( const Chroma& chroma = {} ) {
+RenderWrap2& Renderer2::fill( const Chroma& chroma = {} ) {
     _target->Clear( chroma );
 
     return *this;
 }
 
-Renderer2& Renderer2::line(
+RenderWrap2& Renderer2::fill( const Brush2& brush ) {
+    _target->FillRectangle(
+        D2D1_RECT_F{ 0, 0, _surface->width(), _surface->height() },
+        brush
+    );
+
+    return *this;
+}
+
+RenderWrap2& Renderer2::line(
     Coord<> c1, Coord<> c2,
     const Brush2& brush
 ) {
@@ -4892,7 +5097,7 @@ Renderer2& Renderer2::line(
     return *this;
 }
 
-Renderer2& Renderer2::line(
+RenderWrap2& Renderer2::line(
     Vec2 v1, Vec2 v2,
     const Brush2& brush
 ) {
@@ -4988,7 +5193,7 @@ class Sensor : public UTH,
                public Clust2 
 {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "Sensor" );
+    _ENGINE_ECHO_IDENTIFY_METHOD( "Sensor" );
 
 public:
     Sensor() = default;
@@ -5014,12 +5219,21 @@ enum SYSTEM2_LINK {
 };
 
 class System2Node {
+_ENGINE_PROTECTED:
+    inline static bool   _uplink_on_construction   = true;
+
+public:
+    static void uplink_on_construction_to( bool flag ) {
+        _uplink_on_construction = flag;
+    }
+
 public:
     System2Node() = default;
 
     template< typename Source >
     System2Node( Source&& source )
-    : _source{ std::forward< Source >( source ) }
+    : _source{ std::forward< Source >( source ) },
+      _uplinked{ _uplink_on_construction }
     {}
 
 public:
@@ -5031,7 +5245,7 @@ _ENGINE_PROTECTED:
 
     bool                                   _uplinked   = false;
 
-    std::shared_ptr< Brush2 >              _brush      = nullptr;
+    Shared< Brush2 >                       _brush      = nullptr;
 
 public:
     auto type() const {
@@ -5115,19 +5329,21 @@ public:
 
     public:
         Div& px_to( double val ) {
-            px = val; this->_calibrate(); return *this;
+            return this->px_to( Vec2{ val } );
         }
 
         Div& px_to( Vec2 val ) {
-            px = val; this->_calibrate(); return *this;
+            this->_calibrate( val );
+
+            return *this;
         }
 
         Div& pxX_to( double val ) {
-            px.x = val; this->_calibrate_x(); return *this;
+            this->_calibrate_x( val ); return *this;
         }
 
         Div& pxY_to( double val ) {
-            px.y = val; this->_calibrate_y(); return *this;
+            this->_calibrate_y( val ); return *this;
         }
 
         Div& tweak_px( const auto& opX, double valX, const auto& opY, double valY ) {
@@ -5139,23 +5355,27 @@ public:
         }
 
         Div& tweak_pxX( const auto& op, double val ) {
-            px.x = std::clamp( 
-                std::invoke( op, px.x, val ), 
-                1.0, std::numeric_limits< decltype( px.x ) >::max() 
+            double next = px.x;
+
+            next = std::clamp( 
+                std::invoke( op, next, val ), 
+                1.0, std::numeric_limits< decltype( next ) >::max() 
             );
 
-            this->_calibrate_x();
+            this->_calibrate_x( next );
 
             return *this;
         }
 
         Div& tweak_pxY( const auto& op, double val ) {
-            px.y = std::clamp( 
-                std::invoke( op, px.y, val ), 
-                1.0, std::numeric_limits< decltype( px.y ) >::max() 
+            double next = px.y;
+
+            next = std::clamp( 
+                std::invoke( op, next, val ), 
+                1.0, std::numeric_limits< decltype( next ) >::max() 
             );
 
-            this->_calibrate_y();
+            this->_calibrate_y( next );
 
             return *this;
         }
@@ -5203,36 +5423,60 @@ public:
         }
     
     _ENGINE_PROTECTED:
-        void _calibrate_x() {
+        bool _calibrate_x( double next ) {
             double reset = ( ( px_max - px_min ) / 2.0 ).x;
 
-            if( px.x < px_min.x ) {
+            if( next < px_min.x ) {
                 mean.x *= reset / px.x;
                 px.x = reset;
+
+                goto L_RESET;
             }
 
-            if( px.x > px_max.x ) {
+            if( next > px_max.x ) {
                 mean.x /= px.x / reset;
                 px.x = reset;
+
+                goto L_RESET;
             }
+
+            px.x = next;
+
+            return false;
+
+            L_RESET:
+
+            return true;
         }
 
-        void _calibrate_y() {
+        bool _calibrate_y( double next ) {
             double reset = ( ( px_max - px_min ) / 2.0 ).y;
 
-            if( px.y < px_min.y ) {
+            if( next < px_min.y ) {
                 mean.y *= reset / px.y;
                 px.y = reset;
+
+                goto L_RESET;
             }
 
-            if( px.y > px_max.y ) {
+            if( next > px_max.y ) {
                 mean.y /= px.y / reset;
                 px.y = reset;
+
+                goto L_RESET;
             }
+
+            px.y = next;
+
+            return false;
+
+            L_RESET:
+
+            return true;
         }
 
-        void _calibrate() {
-            _calibrate_x(); _calibrate_y();
+        void _calibrate( Vec2 val ) {
+            _calibrate_x( val.x ); _calibrate_y( val.y );
         }
 
     } div = {};
@@ -5266,7 +5510,7 @@ class System2 : public UTH,
                 public System2Packet
 {
 public:
-    _ENGINE_UTH_IDENTIFY_METHOD( "System2" );
+    _ENGINE_ECHO_IDENTIFY_METHOD( "System2" );
 
 public:
     System2() = default;
@@ -5287,8 +5531,8 @@ public:
     }
 
 private:
-    Viewport2*                      _viewport     = nullptr;
-    Vec2                            _offset       = {};
+    Viewport2*   _viewport     = nullptr;
+    Vec2         _origin       = {};
 
 public:
     Viewport2& viewport() {
@@ -5300,18 +5544,14 @@ public:
     }
 
 public:
-    Vec2 origin() const {
-        return _viewport->origin();
-    }
-
     System2& offset_to( Vec2 vec ) {
-        _offset = vec;
+        _origin = vec;
 
         return *this;
     }
 
-    Vec2 offset() const {
-        return _offset;
+    Vec2 origin() const {
+        return _origin;
     }
 
 public:
@@ -5321,7 +5561,7 @@ public:
             [ this ] ( Vec2 vec, Vec2 lvec, auto& trace ) -> void {
                 if( !_viewport->surface().down( Key::LMB ) ) return; 
 
-                _offset += ( vec - lvec );
+                _origin += ( vec - lvec );
             }
         );
 
@@ -5337,7 +5577,7 @@ public:
                     case 0: 
                     case 3:
                         this->div.tweak_px( std::plus<>{}, tweak ); 
-                        _offset -= vec( _offset ) / div.px * tweak;
+                        _origin -= vec( _origin ) / div.px * tweak;
                     break;
 
                     case 1:
@@ -5362,7 +5602,7 @@ public:
 
 public:
     void render( Renderer2& renderer ) const {
-        _viewport->restrict();
+        _viewport->restrict().fill( brushes.bgnd );
 
 
         double    cst        = 0.0;
@@ -5370,14 +5610,14 @@ public:
         bool      axis_out[] = { false, false, false, false };
 
 
-        if( ( axis_out[ HEADING_EAST ] = ( _offset.x > _viewport->east() ) )
+        if( ( axis_out[ HEADING_EAST ] = ( _origin.x > _viewport->east() ) )
             || 
-            ( axis_out[ HEADING_WEST ] = ( _offset.x < _viewport->west() ) )
+            ( axis_out[ HEADING_WEST ] = ( _origin.x < _viewport->west() ) )
         )
             goto L_SKIP_Y_AXIS;
 
 
-        cst = _viewport->origin().x + _offset.x;
+        cst = _viewport->origin().x + _origin.x;
 
         renderer.line(
             Vec2{ cst, _viewport->north_g() }, 
@@ -5389,13 +5629,13 @@ public:
         L_SKIP_Y_AXIS:
 
 
-        if( ( axis_out[ HEADING_NORTH ] = ( _offset.y > _viewport->north() ) )
+        if( ( axis_out[ HEADING_NORTH ] = ( _origin.y > _viewport->north() ) )
             || 
-            ( axis_out[ HEADING_SOUTH ] = ( _offset.y < _viewport->south() ) )
+            ( axis_out[ HEADING_SOUTH ] = ( _origin.y < _viewport->south() ) )
         )
             goto L_SKIP_X_AXIS;
 
-        cst = _viewport->origin().y + _offset.y;
+        cst = _viewport->origin().y + _origin.y;
 
         renderer.line(
             Vec2{ _viewport->west_g(), cst }, 
@@ -5407,7 +5647,7 @@ public:
         L_SKIP_X_AXIS:
 
 
-        cst = _viewport->origin().x + _offset.x;
+        cst = _viewport->origin().x + _origin.x;
 
         if( cst < _viewport->west_g() ) {
             cst = _viewport->west_g() - cst;
@@ -5424,7 +5664,7 @@ public:
             cst = _viewport->east_g() - div.px.x * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
         }
 
-        cst_stk = _viewport->origin().y + _offset.y;
+        cst_stk = _viewport->origin().y + _origin.y;
 
         auto strike_x_at = [ this, &renderer, &cst_stk, &axis_out ] ( double x ) -> void {
             renderer.line(
@@ -5453,7 +5693,7 @@ public:
             strike_x_at( cst - offs );
 
 
-        cst = _viewport->origin().y + _offset.y;
+        cst = _viewport->origin().y + _origin.y;
 
         if( cst < _viewport->south_g() ) {
             cst = _viewport->south_g() - cst;
@@ -5470,7 +5710,7 @@ public:
             cst = _viewport->north_g() - div.px.y * ( 1.0 - ( tweak - static_cast< int64_t >( tweak ) ) );
         }
 
-        cst_stk = _viewport->origin().x + _offset.x;
+        cst_stk = _viewport->origin().x + _origin.x;
 
         auto strike_y_at = [ this, &renderer, &cst_stk, &axis_out ] ( double y ) -> void {
             renderer.line(
@@ -5525,29 +5765,35 @@ public:
 
 _ENGINE_PROTECTED:
     void _render_function( const System2Node& node, Brush2& brush ) const {
+        System2Node::Function& func = node.function();
+
         Vec2   c   = div.coeffs();
-        double x   = ( _viewport->west() - _offset.x ) * ( 1.0 / c.x );
-        double end = ( _viewport->east() - _offset.x ) * ( 1.0 / c.x ); 
+        double x   = ( _viewport->west() - _origin.x ) * ( 1.0 / c.x );
+        double end = ( _viewport->east() - _origin.x ) * ( 1.0 / c.x ); 
         double h   = abs( ( end - x ) / 1000.0 );
 
-        Vec2 v1{ x, std::invoke( node.function(), x ) };
+        Vec2 v1{ x, std::invoke( func, x ) };
         x += h;
 
         for( ; x <= end; x += h ) {
-            Vec2 v2{ x, std::invoke( node.function(), x ) };
+            Vec2 v2{ x, std::invoke( func, x ) };
 
-            _viewport->line( v1 * c + _offset, v2 * c + _offset, brush );
+            _viewport->line( v1 * c + _origin, v2 * c + _origin, brush );
             
             v1 = v2;
         }
     }
 
     void _render_collection( const System2Node& node, Brush2& brush ) const {
-        Vec2   c  = div.coeffs();
-        auto   v1 = node.collection().begin();
+        System2Node::Collection& col = node.collection();
 
-        for( auto v2 = v1 + 1; v2 != node.collection().end(); ++v2 ) {
-            _viewport->line( *v1 * c + _offset, *v2 * c + _offset, brush );
+        if( col.empty() ) return;
+
+        Vec2   c  = div.coeffs();
+        auto   v1 = col.begin();
+
+        for( auto v2 = v1 + 1; v2 != col.end(); ++v2 ) {
+            _viewport->line( *v1 * c + _origin, *v2 * c + _origin, brush );
 
             v1 = v2;
         }

@@ -3386,7 +3386,6 @@ _ENGINE_PROTECTED:
 _ENGINE_PROTECTED:
     RenderWrap2*   _render_wrap    = nullptr;
     Renderer2*     _renderer       = nullptr;
-    Surface*       _surface        = nullptr;
 
 public:
     virtual RenderWrap2& fill( const Chroma& ) = 0;
@@ -3423,7 +3422,7 @@ public:
     }
 
     Surface& surface() {
-        return *_surface;
+        return *_renderer->surface();
     }
 
 };

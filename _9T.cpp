@@ -35,16 +35,13 @@
 
 
 
-#define IXT_OS_WINDOWS
-#define IXT_GL_DIRECT
-
-
-
 #pragma region DEFINES
 
 
 
 #define PI 3.141592653
+
+#define GFTYPE double
 
 
 #define _ENGINE_NAMESPACE IXT
@@ -668,7 +665,7 @@ public:
 
 
 
-template< typename Type = float >
+template< typename Type = GFTYPE >
 struct Coord {
     Coord() = default;
 
@@ -709,7 +706,7 @@ struct Coord {
 
 };
 
-template< typename Type = float >
+template< typename Type = GFTYPE >
 struct Size {
     Size() = default;
 
@@ -947,6 +944,7 @@ public:
 
         return value;
     }
+
 };
 
 
@@ -1408,7 +1406,7 @@ typedef   const void*   GUID;
 
 class UTH : public EchoInvoker {
 public:
-    GUID guid() const { 
+    GUID guid() const {
         return static_cast< GUID >( this ); 
     }
 
@@ -1443,22 +1441,22 @@ enum SYSTEM {
 
 class Deg {
 public:
-    static double pull( double theta ) {
+    static GFTYPE pull( GFTYPE theta ) {
         return theta * ( 180.0 / PI );
     }
 
-    static void push( double& theta ) {
+    static void push( GFTYPE& theta ) {
         theta *= ( 180.0 / PI );
     }
 };
 
 class Rad {
 public:
-    static double pull( double theta ) {
+    static GFTYPE pull( GFTYPE theta ) {
         return theta * ( PI / 180.0 );
     }
 
-    static void push( double& theta ) {
+    static void push( GFTYPE& theta ) {
         theta *= ( PI / 180.0 );
     }
 };
@@ -1473,42 +1471,42 @@ class Vec2 {
 public:
     Vec2() = default;
 
-    Vec2( double x, double y )
+    Vec2( GFTYPE x, GFTYPE y )
     : x{ x }, y{ y }
     {}
 
-    Vec2( double x )
+    Vec2( GFTYPE x )
     : Vec2{ x, x }
     {}
 
 public:
-    double   x   = 0.0;
-    double   y   = 0.0;
+    GFTYPE   x   = 0.0;
+    GFTYPE   y   = 0.0;
 
 public:
-    double dot( const Vec2& other ) const {
+    GFTYPE dot( const Vec2& other ) const {
         return x * other.x + y * other.y;
     }
 
 public:
-    double mag_sq() const {
+    GFTYPE mag_sq() const {
         return x * x + y * y;
     }
 
-    double mag() const {
+    GFTYPE mag() const {
         return sqrt( this->mag_sq() );
     }
 
-    double angel() const {
+    GFTYPE angel() const {
         return Deg::pull( atan2( y, x ) );
     }
 
 public:
-    double dist_sq_to( const Vec2& other ) const {
+    GFTYPE dist_sq_to( const Vec2& other ) const {
         return ( other.x - x ) * ( other.x - x ) + ( other.y - y ) * ( other.y - y );
     }
 
-    double dist_to( const Vec2& other ) const {
+    GFTYPE dist_to( const Vec2& other ) const {
         return sqrt( this->dist_sq_to( other ) );
     }
 
@@ -1539,7 +1537,7 @@ public:
     }
 
 public:
-    Vec2& polar( double angel, double dist ) {
+    Vec2& polar( GFTYPE angel, GFTYPE dist ) {
         Rad::push( angel );
 
         x += cos( angel ) * dist;
@@ -1548,41 +1546,41 @@ public:
         return *this;
     }
 
-    Vec2 polared( double angel, double dist ) const {
+    Vec2 polared( GFTYPE angel, GFTYPE dist ) const {
         return Vec2{ *this }.polar( angel, dist );
     }
 
 
-    Vec2& approach( const Vec2 other, double dist ) {
+    Vec2& approach( const Vec2 other, GFTYPE dist ) {
         return this->polar( other.respect_to( *this ).angel(), dist );
     }
 
-    Vec2 approached( const Vec2 other, double dist ) const {
+    Vec2 approached( const Vec2 other, GFTYPE dist ) const {
         return Vec2{ *this }.approach( other, dist );
     }
 
 
-    Vec2& spin( double theta ) {
+    Vec2& spin( GFTYPE theta ) {
         Rad::push( theta );
 
-        double nx = x * cos( theta ) - y * sin( theta );
+        GFTYPE nx = x * cos( theta ) - y * sin( theta );
         y = x * sin( theta ) + y * cos( theta );
         x = nx;
 
         return *this;
     }
 
-    Vec2& spin( double theta, const Vec2& other ) {
+    Vec2& spin( GFTYPE theta, const Vec2& other ) {
         *this = this->respect_to( other ).spin( theta ) + other;
 
         return *this;
     }
 
-    Vec2 spinned( double theta ) const {
+    Vec2 spinned( GFTYPE theta ) const {
         return Vec2{ *this }.spin( theta );
     }
 
-    Vec2 spinned( double theta, const Vec2& other ) const {
+    Vec2 spinned( GFTYPE theta, const Vec2& other ) const {
         return Vec2{ *this }.spin( theta, other );
     }
 
@@ -1610,7 +1608,7 @@ public:
         x = other.x; y = other.y; return *this;
     }
 
-    Vec2& operator = ( double val ) {
+    Vec2& operator = ( GFTYPE val ) {
         x = y = val; return *this;
     }
 
@@ -1634,27 +1632,27 @@ public:
         return { x / other.x, y / other.y };
     }
 
-    Vec2 operator + ( double delta ) const {
+    Vec2 operator + ( GFTYPE delta ) const {
         return { x + delta, y + delta };
     }
 
-    Vec2 operator - ( double delta ) const {
+    Vec2 operator - ( GFTYPE delta ) const {
         return { x - delta, y - delta };
     }
 
-    Vec2 operator * ( double delta ) const {
+    Vec2 operator * ( GFTYPE delta ) const {
         return { x * delta, y * delta };
     }
 
-    Vec2 operator / ( double delta ) const {
+    Vec2 operator / ( GFTYPE delta ) const {
         return { x / delta, y / delta };
     }
 
-    Vec2 operator >> ( double delta ) const {
+    Vec2 operator >> ( GFTYPE delta ) const {
         return { x + delta, y };
     }
 
-    Vec2 operator ^ ( double delta ) const {
+    Vec2 operator ^ ( GFTYPE delta ) const {
         return { x, y + delta };
     }
 
@@ -1686,27 +1684,27 @@ public:
         return *this;
     }
 
-    Vec2& operator *= ( double delta ) {
+    Vec2& operator *= ( GFTYPE delta ) {
         x *= delta;
         y *= delta;
 
         return *this;
     }
 
-    Vec2& operator /= ( double delta ) {
+    Vec2& operator /= ( GFTYPE delta ) {
         x /= delta;
         y /= delta;
 
         return *this;
     }
 
-    Vec2& operator >>= ( double delta ) {
+    Vec2& operator >>= ( GFTYPE delta ) {
         x += delta;
 
         return *this;
     }
 
-    Vec2& operator ^= ( double delta ) {
+    Vec2& operator ^= ( GFTYPE delta ) {
         y += delta;
 
         return *this;
@@ -1719,6 +1717,45 @@ public:
 public:
     static Vec2 O() {
         return { 0.0, 0.0 };
+    }
+
+public:
+    Vec2& scale_for_screen_space() {
+        x *= Env::width();
+        y *= Env::height();
+
+        return *this;
+    }
+
+    Vec2 scaled_for_screen_space() const {
+        return { x * Env::width(), y * Env::height() };
+    }
+
+};
+
+
+
+class Crd2 : public Vec2 {
+public:
+    using Base = Vec2;
+
+public:
+    using Base::Base;
+
+    using Base::operator =;
+
+public:
+    Crd2( const Vec2& vec )
+    : Vec2{ vec }
+    {}
+
+public:
+    operator const D2D1_POINT_2F& () const {
+        return *reinterpret_cast< const D2D1_POINT_2F* >( this );
+    }
+
+    operator D2D1_POINT_2F& () {
+        return *reinterpret_cast< D2D1_POINT_2F* >( this );
     }
 
 };
@@ -1743,15 +1780,15 @@ public:
     }
 
 public:
-    double slope() const {
+    GFTYPE slope() const {
         return ( this->drop().y - origin.y ) / ( this->drop().x - origin.x );
     }
 
-    double y_int() const {
+    GFTYPE y_int() const {
         return origin.y - this->slope() * origin.x;
     }
 
-    std::tuple< double, double, double > coeffs() const {
+    std::tuple< GFTYPE, GFTYPE, GFTYPE > coeffs() const {
         return { vec.y, -vec.x, vec.y * origin.x - vec.x * origin.y };
     }
 
@@ -1805,7 +1842,7 @@ _ENGINE_PROTECTED:
         auto [ alpha, bravo, charlie ] = this->coeffs();
         auto [ delta, echo, foxtrot ] = other.coeffs();
 
-        double golf = alpha * echo - bravo * delta;
+        GFTYPE golf = alpha * echo - bravo * delta;
 
         if( golf == 0.0 ) return {};
 
@@ -1916,9 +1953,9 @@ _ENGINE_PROTECTED:
     Origin                _origin   = Vec2{ 0.0, 0.0 };
     std::vector< Vrtx >   _vrtx     = {};
 
-    double                _scaleX   = 1.0;
-    double                _scaleY   = 1.0;
-    double                _angel    = 0.0;
+    GFTYPE                _scaleX   = 1.0;
+    GFTYPE                _scaleY   = 1.0;
+    GFTYPE                _angel    = 0.0;
 
 public:
     Vec2 origin() const {
@@ -2009,19 +2046,19 @@ public:
     }
 
 public:
-    double angel() const {
+    GFTYPE angel() const {
         return _angel;
     }
 
-    double scaleX() const {
+    GFTYPE scaleX() const {
         return _scaleX;
     }
 
-    double scaleY() const {
+    GFTYPE scaleY() const {
         return _scaleY;
     }
 
-    double scale() const {
+    GFTYPE scale() const {
         return this->scaleX();
     }
 
@@ -2043,7 +2080,7 @@ public:
     }
 
 public:
-    Clust2& spin_with( double theta ) {
+    Clust2& spin_with( GFTYPE theta ) {
         _angel += theta;
 
         this->_refresh();
@@ -2051,7 +2088,7 @@ public:
         return *this;
     }
 
-    Clust2& spin_at( double theta ) {
+    Clust2& spin_at( GFTYPE theta ) {
         _angel = theta;
 
         this->_refresh();
@@ -2059,7 +2096,7 @@ public:
         return *this;
     }
 
-    Clust2& scaleX_with( double delta ) {
+    Clust2& scaleX_with( GFTYPE delta ) {
         _scaleX *= delta;
 
         this->_refresh();
@@ -2067,7 +2104,7 @@ public:
         return *this;
     }
 
-    Clust2& scaleY_with( double delta ) {
+    Clust2& scaleY_with( GFTYPE delta ) {
         _scaleY *= delta;
 
         this->_refresh();
@@ -2075,7 +2112,7 @@ public:
         return *this;
     }
 
-    Clust2& scale_with( double delta ) {
+    Clust2& scale_with( GFTYPE delta ) {
         _scaleX *= delta;
         _scaleY *= delta;
 
@@ -2084,7 +2121,7 @@ public:
         return *this;
     }
 
-    Clust2& scaleX_at( double delta ) {
+    Clust2& scaleX_at( GFTYPE delta ) {
         _scaleX = delta;
 
         this->_refresh();
@@ -2092,7 +2129,7 @@ public:
         return *this;
     }
 
-    Clust2& scaleY_at( double delta ) {
+    Clust2& scaleY_at( GFTYPE delta ) {
         _scaleY = delta;
 
         this->_refresh();
@@ -2100,7 +2137,7 @@ public:
         return *this;
     }
 
-    Clust2& scale_at( double delta ) {
+    Clust2& scale_at( GFTYPE delta ) {
         _scaleX = _scaleY = delta;
 
         this->_refresh();
@@ -2109,7 +2146,7 @@ public:
     }
 
 public:
-    static Clust2 triangle( double edge_length ) {
+    static Clust2 triangle( GFTYPE edge_length ) {
         Vec2 vrtx = { 0.0, edge_length * sqrt( 3.0 ) / 3.0 };
 
         return std::vector< Vec2 >( {
@@ -2119,7 +2156,7 @@ public:
         } );
     }
 
-    static Clust2 square( double edge_length ) {
+    static Clust2 square( GFTYPE edge_length ) {
         edge_length /= 2.0;
 
         return std::vector< Vec2 >( {
@@ -2130,7 +2167,7 @@ public:
         } );
     }
 
-    static Clust2 circle( double radius, size_t precision ) {
+    static Clust2 circle( GFTYPE radius, size_t precision ) {
         std::vector< Vec2 > vrtx;
         vrtx.reserve( precision );
 
@@ -2151,12 +2188,12 @@ public:
     template< typename T >
     requires std::is_invocable_v< T >
     static Clust2 random(
-        double min_dist, double max_dist,
+        GFTYPE min_dist, GFTYPE max_dist,
         size_t min_ec, size_t max_ec,
         const T& generator
     ) {
-        static auto scalar = [] ( const auto& generator, double min ) -> double {
-            return ( static_cast< double >( std::invoke( generator ) % 10001 ) / 10000 )
+        static auto scalar = [] ( const auto& generator, GFTYPE min ) -> GFTYPE {
+            return ( static_cast< GFTYPE >( std::invoke( generator ) % 10001 ) / 10000 )
                     * ( 1.0 - min ) + min;
         };
 
@@ -2166,7 +2203,7 @@ public:
 
         vrtx[ 0 ] = { 0.0, max_dist };
 
-        double diff = 360.0 / edge_count;
+        GFTYPE diff = 360.0 / edge_count;
 
 
         for( size_t n = 1; n < edge_count; ++n )
@@ -2409,45 +2446,42 @@ auto Ray2::X( const Clust2& clust ) const {
 
 
 
-#define _ENGINE_MAT3_MUL_AT( x, y ) \
-    this->at( x, y ) = this->at( x, 0 ) * other.at( 0, y ) \
-                       + \
-                       this->at( x, 1 ) * other.at( 1, y ) \
-                       + \
-                       this->at( x, 2 ) * other.at( 2, y ); 
+#define _ENGINE_MAT3_MUL_AT( x, y ) ( \
+    this->at( x, 0 ) * other.at( 0, y ) \
+    + \
+    this->at( x, 1 ) * other.at( 1, y ) \
+    + \
+    this->at( x, 2 ) * other.at( 2, y ) ) 
 
 class Mat3 {
 public:
-    using Dv = std::array< double, 9 >;
+    using Array = std::array< GFTYPE, 9 >;
 
 public:
     Mat3() = default;
 
-    Mat3( Dv arr ) 
-    : _dv{ arr }
+    Mat3( Array arr ) 
+    : _arr{ arr }
     {} 
 
 _ENGINE_PROTECTED:
-    union {
-        double   _dm[ 3 ][ 3 ]   = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
-        Dv       _dv;
-    };
+    Array   _arr   = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
 
 public:
-    double* operator [] ( size_t idx ) {
-        return _dm[ idx ];
+    GFTYPE* operator [] ( size_t idx ) {
+        return &_arr[ idx ];
     }
 
-    double& operator () ( size_t x, size_t y ) {
-        return _dm[ x ][ y ];
+    GFTYPE& operator () ( size_t x, size_t y ) {
+        return _arr[ x * 3 + y ];
     }
 
-    double& at( size_t x, size_t y ) {
-        return _dm[ x ][ y ];
+    GFTYPE& at( size_t x, size_t y ) {
+        return _arr[ x * 3 + y ];
     }
 
 public:
-    double det() const {
+    GFTYPE det() const {
         return
         this->at( 0, 0 ) * this->at( 1, 1 ) * this->at( 2, 2 )
         +
@@ -2464,47 +2498,47 @@ public:
 
 public:
     Mat3& operator *= ( const Mat3& other ) {
-        _ENGINE_MAT3_MUL_AT( 0, 0 );
-        _ENGINE_MAT3_MUL_AT( 0, 1 );
-        _ENGINE_MAT3_MUL_AT( 0, 2 );
-        _ENGINE_MAT3_MUL_AT( 1, 0 );
-        _ENGINE_MAT3_MUL_AT( 1, 1 );
-        _ENGINE_MAT3_MUL_AT( 1, 2 );
-        _ENGINE_MAT3_MUL_AT( 2, 0 );
-        _ENGINE_MAT3_MUL_AT( 2, 1 );
-        _ENGINE_MAT3_MUL_AT( 2, 2 );
-
-        return *this;
+        return *this = *this * other;
     }
 
     Mat3 operator * ( const Mat3& other ) const {
-        return Mat3{ *this } *= other;
+        return Array{
+            _ENGINE_MAT3_MUL_AT( 0, 0 ),
+            _ENGINE_MAT3_MUL_AT( 0, 1 ),
+            _ENGINE_MAT3_MUL_AT( 0, 2 ),
+            _ENGINE_MAT3_MUL_AT( 1, 0 ),
+            _ENGINE_MAT3_MUL_AT( 1, 1 ),
+            _ENGINE_MAT3_MUL_AT( 1, 2 ),
+            _ENGINE_MAT3_MUL_AT( 2, 0 ),
+            _ENGINE_MAT3_MUL_AT( 2, 1 ),
+            _ENGINE_MAT3_MUL_AT( 2, 2 )
+        };
     }
 
 public:
-    static Mat3 translate( double tx, double ty ) {
-        return Dv{ 1, 0, tx, 0, 1, ty, 0, 0, 1 };
+    static Mat3 translate( GFTYPE tx, GFTYPE ty ) {
+        return Array{ 1, 0, tx, 0, 1, ty, 0, 0, 1 };
     }
 
     static Mat3 translate( const Vec2& t ) {
         return translate( t.x, t.y );
     }
 
-    static Mat3 scale( double sx, double sy ) {
-        return Dv{ sx, 0, 0, 0, sy, 0, 0, 0, 1 };
+    static Mat3 scale( GFTYPE sx, GFTYPE sy ) {
+        return Array{ sx, 0, 0, 0, sy, 0, 0, 0, 1 };
     }
 
     static Mat3 scale( Vec2 s ) {
         return scale( s.x, s.y );
     }
 
-    static Mat3 rotate( double theta ) {
+    static Mat3 rotate( GFTYPE theta ) {
         Rad::push( theta );
 
         auto cosine = cos( theta );
         auto sine   = sin( theta );
 
-        return Dv{ cosine, -sine, 0, sine, cosine, 0, 0, 0, 1 };
+        return Array{ cosine, -sine, 0, sine, cosine, 0, 0, 0, 1 };
     }
 
 };
@@ -2662,8 +2696,8 @@ typedef   std::function< void( Vec2, Vec2, SurfaceTrace& ) >                   O
 typedef   std::function< void( Key, KEY_STATE, SurfaceTrace& ) >               OnKey;
 typedef   std::function< void( Vec2, SCROLL_DIRECTION, SurfaceTrace& ) >       OnScroll;
 typedef   std::function< void( std::vector< std::string >, SurfaceTrace& ) >   OnFiledrop;
-typedef   std::function< void( Coord< int >, Coord< int >, SurfaceTrace& ) >   OnMove;
-typedef   std::function< void( Size< int >, Size< int >, SurfaceTrace& ) >     OnResize;
+typedef   std::function< void( Crd2, Crd2, SurfaceTrace& ) >                   OnMove;
+typedef   std::function< void( Vec2, Vec2, SurfaceTrace& ) >                   OnResize;
 typedef   std::function< void() >                                              OnDestroy;
 
 
@@ -2815,8 +2849,8 @@ public:
 
     Surface(
         std::string_view title,
-        Coord< int >     crd      = { 0, 0 },
-        Size< int >      size     = { 512, 512 },
+        Crd2             crd      = { 0.0, 0.0 },
+        Vec2             size     = { 0.5, 0.5 },
         SURFACE_THREAD   launch   = SURFACE_THREAD_THROUGH,
         Echo             echo     = {}
     )
@@ -2888,19 +2922,19 @@ _ENGINE_PROTECTED:
 
 _ENGINE_PROTECTED:
 #if defined( _ENGINE_UNIQUE_SURFACE )
-    inline static Surface*        _ptr                  = nullptr;
+    inline static Surface*   _ptr                  = nullptr;
 #endif
-    HWND                          _hwnd                 = NULL;
-    WNDCLASSEX                    _wnd_class            = {};
-    std::thread                   _thread               = {};
-    Coord< int >                  _coord                = {};
-    Size< int >                   _size                 = {};
+    HWND                     _hwnd                 = NULL;
+    WNDCLASSEX               _wnd_class            = {};
+    std::thread              _thread               = {};
+    Crd2                     _coord                = {};
+    Vec2                     _size                 = {};
 
-    SurfaceTrace                  _trace                = {};
+    SurfaceTrace             _trace                = {};
 
-    Vec2                          _mouse                = {};
-    Vec2                          _mouse_l              = {};
-    Keys                          _keys                 = {};
+    Vec2                     _mouse                = {};
+    Vec2                     _mouse_l              = {};
+    Keys                     _keys                 = {};
 
 _ENGINE_PROTECTED:
     void _main( std::binary_semaphore* sync, Echo echo = {} ) {
@@ -2911,6 +2945,9 @@ _ENGINE_PROTECTED:
         }
 
 
+        Vec2 ss_crd = _coord.scaled_for_screen_space();
+        Vec2 ss_sz = _size.scaled_for_screen_space();
+
         _hwnd = CreateWindowEx(
             WS_EX_ACCEPTFILES,
 
@@ -2918,7 +2955,7 @@ _ENGINE_PROTECTED:
 
             SOLID_STYLE,
 
-            _coord.x, _coord.y, _size.width, _size.height,
+            ss_crd.x, ss_crd.y, ss_sz.x, ss_sz.y,
 
             NULL, NULL,
 
@@ -3101,14 +3138,14 @@ _ENGINE_PROTECTED:
 
 
             case WM_MOVE: {
-                Coord< int > new_coord = { LOWORD( l_param ), HIWORD( l_param ) };
+                Crd2 new_coord = { LOWORD( l_param ), HIWORD( l_param ) };
 
                 this->invoke_sequence< OnMove >( _trace, new_coord, std::exchange( _coord, new_coord ) );
 
             break; }
 
             case WM_SIZE: {
-                Size< int > new_size = { LOWORD( l_param ), HIWORD( l_param ) };
+                Vec2 new_size = { LOWORD( l_param ), HIWORD( l_param ) };
 
                 this->invoke_sequence< OnResize >( _trace, new_size, std::exchange( _size, new_size ) );
 
@@ -3120,33 +3157,34 @@ _ENGINE_PROTECTED:
     }
 
 public:
-    Vec2 pull_vec( const Coord<>& crd ) const {
-        return { crd.x - _size.width / 2.0, _size.height / 2.0 - crd.y };
+    Vec2 pull_vec( const Crd2& crd ) const {
+        return { crd.x - _size.x / 2.0, _size.y / 2.0 - crd.y };
     }
 
-    Coord<> pull_crd( const Vec2& vec ) const {
-        return { 
-            static_cast< float >( vec.x ) + _size.width / 2.0f, 
-            _size.height / 2.0f - static_cast< float >( vec.y ) 
-        };
+    Crd2 pull_crd( const Vec2& vec ) const {
+        return { vec.x + _size.x / 2.0f, _size.y / 2.0f - vec.y };
     }
 
-    void push_vec( Coord<>& crd ) const {
-        crd.x -= _size.width / 2.0;
-        crd.y = _size.height / 2.0 - crd.y;
+    void push_vec( Crd2& crd ) const {
+        crd.x -= _size.x / 2.0;
+        crd.y = _size.y / 2.0 - crd.y;
     }
 
     void push_crd( Vec2& vec ) const {
-        vec.x += _size.width / 2.0;
-        vec.y = _size.height / 2.0 - vec.y;
+        vec.x += _size.x / 2.0;
+        vec.y = _size.y / 2.0 - vec.y;
     }
 
 public:
-    Coord< int > coord() const {
+    Crd2 coord() const {
         return _coord;
     }
 
-    Coord< int > os_crd() const {
+    Crd2 ss_coord() const {
+        return _coord.scaled_for_screen_space();
+    }
+
+    Crd2 os_crd() const {
         RECT rect = {};
 
         GetWindowRect( _hwnd, &rect );
@@ -3154,19 +3192,23 @@ public:
         return { rect.left, rect.top };
     }
 
-    int x() const {
-        return coord().x;
+    GFTYPE x() const {
+        return _coord.x;
     }
 
-    int y() const {
-        return coord().y;
+    GFTYPE y() const {
+        return _coord.y;
     }
 
-    Size< int > size() const {
+    Vec2 size() const {
         return _size;
     }
 
-    Size< int > os_size() const {
+    Vec2 ss_size() const {
+        return _size.scaled_for_screen_space();
+    }
+
+    Vec2 os_size() const {
         RECT rect = {};
 
         GetWindowRect( _hwnd, &rect );
@@ -3174,12 +3216,12 @@ public:
         return { rect.right - rect.left, rect.bottom - rect.top };
     }
 
-    int width() const {
-        return size().width;
+    GFTYPE width() const {
+        return _size.x;
     }
 
-    int height() const {
-        return size().height;
+    GFTYPE height() const {
+        return _size.y;
     }
 
 public:
@@ -3195,11 +3237,15 @@ public:
         return *this;
     }
 
-    Surface& move_to( Coord< int > crd ) {
+    Surface& move_to( Vec2 crd ) {
+        _coord = crd;
+
+        crd.scale_for_screen_space();
+
         SetWindowPos(
             _hwnd,
             0,
-            _coord.x = crd.x, _coord.y = crd.y,
+            crd.x, crd.y,
             0, 0,
             SWP_NOSIZE
         );
@@ -3207,12 +3253,16 @@ public:
         return *this;
     }
 
-    Surface& size_to( Size< int > size ) {
+    Surface& size_to( Vec2 size ) {
+        _size = size;
+
+        size.scale_for_screen_space();
+
         SetWindowPos(
             _hwnd,
             0,
             0, 0,
-            _size.width = size.width, _size.height = size.height,
+            size.x, size.y,
             SWP_NOMOVE
         );
 
@@ -3241,11 +3291,11 @@ public:
         return _mouse_l;
     }
 
-    Coord< int > crd() const {
+    Crd2 crd() const {
         return this->pull_crd( vec() );
     }
 
-    Coord< int > l_crd() const {
+    Crd2 l_crd() const {
         return this->pull_crd( l_vec() );
     }
 
@@ -3311,7 +3361,7 @@ public:
         return Surface::get()->_mouse;
     }
 
-    static Coord< int > crd() {
+    static Crd2 crd() {
         return Surface::get()->pull_crd( vec() );
     }
 #endif
@@ -3321,12 +3371,12 @@ public:
         auto [ x, y ] = g_crd();
 
         return { 
-            x - static_cast< double >( Env::width_2() ), 
-            static_cast< double >( Env::height_2() ) - y 
+            x - Env::width_2(), 
+            -y + Env::height_2()
         };
     }
 
-    static Coord< int > g_crd() {
+    static Crd2 g_crd() {
         POINT p;
         GetCursorPos( &p );
 
@@ -3374,13 +3424,12 @@ public:
 
     RenderWrap2( const RenderWrap2& other ) 
     : _render_wrap{ &other },
-      _renderer{ other._renderer },
-      _surface{ other._surface }
+      _renderer{ other._renderer }
     {}
 
 _ENGINE_PROTECTED:
-    RenderWrap2( const Renderer2& renderer, const Surface& surface )
-    : _renderer{ &renderer }, _surface{ &surface }
+    RenderWrap2( const Renderer2& renderer )
+    : _renderer{ &renderer }
     {}
 
 _ENGINE_PROTECTED:
@@ -3392,23 +3441,23 @@ public:
 
     virtual RenderWrap2& fill( const Brush2& ) = 0;
 
-    virtual RenderWrap2& line( Coord<>, Coord<>, const Brush2& ) = 0;
+    virtual RenderWrap2& line( Crd2, Crd2, const Brush2& ) = 0;
 
     virtual RenderWrap2& line( Vec2, Vec2, const Brush2& ) = 0;
 
 public:
-    virtual Coord<> coord() const = 0;
+    virtual Crd2 coord() const = 0;
 
     virtual Vec2 origin() const = 0;
 
-    virtual Size<> size() const = 0;
+    virtual Vec2 size() const = 0;
 
 public:
-    virtual Vec2 pull_vec( const Coord<>& crd ) const = 0;
+    virtual Vec2 pull_vec( const Crd2& crd ) const = 0;
 
-    virtual Coord<> pull_crd( const Vec2& vec ) const = 0;
+    virtual Crd2 pull_crd( const Vec2& vec ) const = 0;
 
-    virtual void push_vec( Coord<>& crd ) const = 0;
+    virtual void push_vec( Crd2& crd ) const = 0;
 
     virtual void push_crd( Vec2& vec ) const = 0;
 
@@ -3421,9 +3470,7 @@ public:
         return *_renderer;
     }
 
-    Surface& surface() {
-        return *_renderer->surface();
-    }
+    Surface& surface();
 
 };
 
@@ -3437,7 +3484,7 @@ public:
     Renderer2() = default;
 
     Renderer2( Surface& surface, Echo echo = {} )
-    : RenderWrap2{ *this, surface }
+    : RenderWrap2{ *this }, _surface{ &surface }
     {
         ECHO_ASSERT_AND_THROW( CoInitialize( nullptr ) == S_OK, "<constructor>: CoInitialize." );
 
@@ -3497,10 +3544,17 @@ public:
     }
 
 _ENGINE_PROTECTED:
+    Surface*                    _surface       = nullptr;
+
     ID2D1Factory*               _factory       = nullptr;
     IWICImagingFactory*         _wic_factory   = nullptr;
 
     ID2D1HwndRenderTarget*      _target        = nullptr;
+
+public:
+    Surface& surface() {
+        return *_surface;
+    }
 
 public:
     auto factory()     { return _factory; }
@@ -3508,15 +3562,15 @@ public:
     auto wic_factory() { return _wic_factory; }
 
 public:
-    Vec2 pull_vec( const Coord<>& crd ) const override {
+    Vec2 pull_vec( const Crd2& crd ) const override {
         return _surface->pull_vec( crd );
     }
 
-    Coord<> pull_crd( const Vec2& vec ) const override {
+    Crd2 pull_crd( const Vec2& vec ) const override {
         return _surface->pull_crd( vec );
     }
 
-    void push_vec( Coord<>& crd ) const override {
+    void push_vec( Crd2& crd ) const override {
         _surface->push_vec( crd );
     }
 
@@ -3538,9 +3592,9 @@ public:
     }
 
 public:
-    Coord<> coord()  const override { return { 0, 0 }; }
-    Vec2    origin() const override { return { 0, 0 }; }
-    Size<>  size()   const override { return _surface->size(); }
+    Crd2 coord()  const override { return { 0, 0 }; }
+    Vec2 origin() const override { return { 0, 0 }; }
+    Vec2 size()   const override { return _surface->size(); }
 
 public:
     RenderWrap2& fill( const Chroma& chroma ) override;
@@ -3549,7 +3603,7 @@ public:
 
 public:
     RenderWrap2& line(
-        Coord<> c1, Coord<> c2,
+        Crd2 c1, Crd2 c2,
         const Brush2& brush
     ) override;
 
@@ -3564,6 +3618,56 @@ public:
         thing.render( *this, std::forward< Args >( args )... );
 
         return *this;
+    }
+
+public:
+    static std::optional< std::pair< Vec2, Vec2 > > clip_CohenSutherland( const Vec2& tl, const Vec2& br, Vec2 p1, Vec2 p2 ) {
+        auto& u = tl.y; auto& l = tl.x;
+        auto& d = br.y; auto& r = br.x;
+
+        /* UDRL */
+        auto code_of = [ & ] ( const Vec2& p ) -> uint8_t {
+            return ( ( p.y > u ) << 3 ) |
+                   ( ( p.y < d ) << 2 ) |
+                   ( ( p.x > r ) << 1 ) |
+                     ( p.x < l );
+        };
+
+        auto code1 = code_of( p1 );
+        auto code2 = code_of( p2 );
+
+        auto move_X = [ & ] ( Vec2& mov, const Vec2& piv, auto& code ) -> void {
+            for( int8_t sh = 3; sh >= 0; --sh )
+                if( ( code >> sh ) & 1 ) {
+                    switch( sh ) {
+                        case 3: mov = { ( u - mov.y ) / ( piv.y - mov.y ) * ( piv.x - mov.x ) + mov.x, u }; break;
+                        case 2: mov = { ( d - mov.y ) / ( piv.y - mov.y ) * ( piv.x - mov.x ) + mov.x, d }; break;
+
+                        case 1: mov = { r, ( r - mov.x ) / ( piv.x - mov.x ) * ( piv.y - mov.y ) + mov.y }; break;
+                        case 0: mov = { l, ( l - mov.x ) / ( piv.x - mov.x ) * ( piv.y - mov.y ) + mov.y }; break;
+                    }
+
+                    code &= ~( 1 << sh );
+                
+                    break;
+                }
+    
+        };
+
+        bool phase = 1;
+
+        while( true ) {
+            if( code1 == 0 && code2 == 0 ) return std::make_pair( p1, p2 );
+
+            if( code1 & code2 ) return {};
+
+            if( phase )
+                move_X( p1, p2, code1 );
+            else
+                move_X( p2, p1, code2 );
+
+            phase ^= 1;
+        }
     }
 
 };
@@ -3582,22 +3686,22 @@ public:
     Viewport2(
         RenderWrap2&   render_wrap,
         Vec2           org,
-        Size<>         sz,
+        Vec2           sz,
         Echo           echo          = {}
     )
     : RenderWrap2{ render_wrap },
-      _origin{ org }, _size{ sz }, _size2{ sz.width / 2.0f, sz.height / 2.0f }
+      _origin{ org }, _size{ sz }, _size2{ sz.x / 2.0f, sz.y / 2.0f }
     {
         echo( this, ECHO_LOG_OK, "Created." );
     }
 
     Viewport2(
         RenderWrap2&   render_wrap,
-        Coord<>        org,
-        Size<>         sz,
+        Crd2           crd,
+        Vec2           sz,
         Echo           echo          = {}
     )
-    : Viewport2{ render_wrap, render_wrap.pull_vec( org ) + Vec2{ sz.width / 2.0, -sz.height / 2.0 }, sz, echo }
+    : Viewport2{ render_wrap, render_wrap.pull_vec( crd ) + Vec2{ sz.x / 2.0, -sz.y / 2.0 }, sz, echo }
     {}
 
 
@@ -3605,38 +3709,37 @@ public:
     Viewport2( Viewport2&& ) = delete;
 
 _ENGINE_PROTECTED:
-    Vec2         _origin       = {};
-    Size<>       _size         = {};
-    Size<>       _size2        = {};
+    Vec2   _origin       = {};
+    Vec2   _size         = {};
+    Vec2   _size2        = {};
 
-    bool         _restricted   = false;
-
-public:
-    Coord<> coord()  const override { return _render_wrap->pull_crd( _origin ); }
-    Vec2    origin() const override { return _origin; }
-    Size<>  size()   const override { return _size; }
-
+    bool   _restricted   = false;
 
 public:
-    Vec2 pull_vec( const Coord<>& crd ) const override {
-        return { crd.x - _size.width / 2.0, _size.height / 2.0 - crd.y };
+    Crd2 coord()  const override { return _render_wrap->pull_crd( _origin ); }
+    Vec2 origin() const override { return _origin; }
+    Vec2 size()   const override { return _size; }
+
+public:
+    Vec2 pull_vec( const Crd2& crd ) const override {
+        return { crd.x - _size.x / 2.0, _size.y / 2.0 - crd.y };
     }
 
-    Coord<> pull_crd( const Vec2& vec ) const override {
+    Crd2 pull_crd( const Vec2& vec ) const override {
         return { 
-            static_cast< float >( vec.x ) + _size.width / 2.0f, 
-            _size.height / 2.0f - static_cast< float >( vec.y ) 
+            vec.x + _size.x / 2.0f, 
+            _size.y / 2.0f - vec.y 
         };
     }
 
-    void push_vec( Coord<>& crd ) const override {
-        crd.x -= _size.width / 2.0;
-        crd.y = _size.height / 2.0 - crd.y;
+    void push_vec( Crd2& crd ) const override {
+        crd.x -= _size.x / 2.0;
+        crd.y = _size.y / 2.0 - crd.y;
     }
 
     void push_crd( Vec2& vec ) const override {
-        vec.x += _size.width / 2.0;
-        vec.y = _size.height / 2.0 - vec.y;
+        vec.x += _size.x / 2.0;
+        vec.y = _size.y / 2.0 - vec.y;
     }
 
 public:
@@ -3646,46 +3749,50 @@ public:
         return *this;
     }
 
+    Viewport2& coord_to( Crd2 crd ) {
+        return this->origin_to( _render_wrap->pull_vec( crd ) );
+    }
+
 public:
     Vec2 top_left_g() const {
-        return _origin + Vec2{ -_size2.width, _size2.height };
+        return _origin + Vec2{ -_size2.x, _size2.y };
     }
 
     Vec2 bot_right_g() const {
-        return _origin + Vec2{ _size2.width, -_size2.height };
+        return _origin + Vec2{ _size2.x, -_size2.y };
     }
 
 public:
-    double east_g() const {
-        return _origin.x + _size2.width;
+    GFTYPE east_g() const {
+        return _origin.x + _size2.x;
     }
 
-    double west_g() const {
-        return _origin.x - _size2.width;
+    GFTYPE west_g() const {
+        return _origin.x - _size2.x;
     }
 
-    double north_g() const {
-        return _origin.y + _size2.height;
+    GFTYPE north_g() const {
+        return _origin.y + _size2.y;
     }
 
-    double south_g() const {
-        return _origin.y - _size2.height;
+    GFTYPE south_g() const {
+        return _origin.y - _size2.y;
     }
 
-    double east() const {
-        return _size2.width;
+    GFTYPE east() const {
+        return _size2.x;
     }
 
-    double west() const {
-        return -_size2.width;
+    GFTYPE west() const {
+        return -_size2.x;
     }
 
-    double north() const {
-        return _size2.height;
+    GFTYPE north() const {
+        return _size2.y;
     }
 
-    double south() const {
-        return -_size2.height;
+    GFTYPE south() const {
+        return -_size2.y;
     }
 
 public:
@@ -3784,7 +3891,7 @@ public:
     );
 
     Viewport2& line(
-        Coord<> c1, Coord<> c2,
+        Crd2 c1, Crd2 c2,
         const Brush2& brush
     );
 
@@ -4074,12 +4181,12 @@ public:
 public:
     Vec2 launch() const {
         auto [ x, y ] = _brush->GetStartPoint();
-        return _renderer->pull_vec( Coord<>{ x, y } );
+        return _renderer->pull_vec( Crd2{ x, y } );
     }
 
     Vec2 land() const {
         auto [ x, y ] = _brush->GetEndPoint();
-        return _renderer->pull_vec( Coord<>{ x, y } );
+        return _renderer->pull_vec( Crd2{ x, y } );
     }
 
 public:
@@ -4147,7 +4254,7 @@ public:
             _renderer->target()->CreateRadialGradientBrush(
                 D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES{
                     _renderer->pull_crd( cen ),
-                    Coord<>{ offs.x, -offs.y },
+                    Crd2{ offs.x, -offs.y },
                     rad.x, rad.y
                 },
                 _grads,
@@ -4196,7 +4303,7 @@ private:
 public:
     Vec2 center() const {
         auto [ x, y ] = _brush->GetCenter();
-        return _renderer->pull_vec( Coord<>{ x, y } );
+        return _renderer->pull_vec( Crd2{ x, y } );
     }
 
     Vec2 offset() const {
@@ -4224,7 +4331,7 @@ public:
     }
 
     RadialBrush2& offset_to( Vec2 offs ) {
-        _brush->SetGradientOriginOffset( Coord<>{ 
+        _brush->SetGradientOriginOffset( Crd2{ 
             static_cast< float >( offs.x ), static_cast< float >( -offs.y ) 
         } );
 
@@ -5068,6 +5175,12 @@ const Echo& Echo::_echo(
 
 
 
+Surface& RenderWrap2::surface() {
+    return _renderer->surface();
+}
+
+
+
 RenderWrap2& Renderer2::fill( const Chroma& chroma = {} ) {
     _target->Clear( chroma );
 
@@ -5084,7 +5197,7 @@ RenderWrap2& Renderer2::fill( const Brush2& brush ) {
 }
 
 RenderWrap2& Renderer2::line(
-    Coord<> c1, Coord<> c2,
+    Crd2 c1, Crd2 c2,
     const Brush2& brush
 ) {
     _target->DrawLine(
@@ -5134,12 +5247,12 @@ Viewport2& Viewport2::fill(
 }
 
 Viewport2& Viewport2::line(
-    Coord<> c1, Coord<> c2,
+    Crd2 c1, Crd2 c2,
     const Brush2& brush
 ) {
     return this->line(
-        _renderer->pull_vec( c1 ),
-        _renderer->pull_vec( c2 ),
+        _render_wrap->pull_vec( c1 ),
+        _render_wrap->pull_vec( c2 ),
         brush
     );
 }
@@ -5148,9 +5261,9 @@ Viewport2& Viewport2::line(
     Vec2 v1, Vec2 v2,
     const Brush2& brush
 ) {
-    _renderer->line(
-        _renderer->pull_crd( v1 + _origin ),
-        _renderer->pull_crd( v2 + _origin ),
+    _render_wrap->line(
+        _render_wrap->pull_crd( v1 + _origin ),
+        _render_wrap->pull_crd( v2 + _origin ),
         brush
     );
 
@@ -5769,7 +5882,7 @@ _ENGINE_PROTECTED:
         Vec2   c   = div.coeffs();
         double x   = ( _viewport->west() - _origin.x ) * ( 1.0 / c.x );
         double end = ( _viewport->east() - _origin.x ) * ( 1.0 / c.x ); 
-        double h   = abs( ( end - x ) / _viewport->size().width );
+        double h   = abs( ( end - x ) / _viewport->size().x );
 
         Vec2 v1{ x, std::invoke( func, x ) };
         x += h;

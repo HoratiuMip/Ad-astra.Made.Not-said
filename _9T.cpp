@@ -2849,8 +2849,8 @@ public:
 
     Surface(
         std::string_view title,
-        Crd2             crd      = { 0.0, 0.0 },
-        Vec2             size     = { 0.5, 0.5 },
+        Crd2             crd      = { 0, 0 },
+        Vec2             size     = { 512, 512 },
         SURFACE_THREAD   launch   = SURFACE_THREAD_THROUGH,
         Echo             echo     = {}
     )
@@ -2944,10 +2944,6 @@ _ENGINE_PROTECTED:
             if( sync ) sync->release(); return;
         }
 
-
-        Vec2 ss_crd = _coord.scaled_for_screen_space();
-        Vec2 ss_sz = _size.scaled_for_screen_space();
-
         _hwnd = CreateWindowEx(
             WS_EX_ACCEPTFILES,
 
@@ -2955,7 +2951,7 @@ _ENGINE_PROTECTED:
 
             SOLID_STYLE,
 
-            ss_crd.x, ss_crd.y, ss_sz.x, ss_sz.y,
+            _coord.x, _coord.y, _size.x, _size.y,
 
             NULL, NULL,
 
@@ -3176,12 +3172,22 @@ public:
     }
 
 public:
-    Crd2 coord() const {
-        return _coord;
+    Vec2& scale( Vec2& vec ) {
+        vec.x *= _size.x;
+        vec.y *= _size.y;
+
+        return vec;
     }
 
-    Crd2 ss_coord() const {
-        return _coord.scaled_for_screen_space();
+    Vec2 scaled( const Vec2& vec ) {
+        Vec2 res{ vec };
+
+        return scale( res );
+    }
+
+public:
+    Crd2 coord() const {
+        return _coord;
     }
 
     Crd2 os_crd() const {
@@ -3202,10 +3208,6 @@ public:
 
     Vec2 size() const {
         return _size;
-    }
-
-    Vec2 ss_size() const {
-        return _size.scaled_for_screen_space();
     }
 
     Vec2 os_size() const {
@@ -3498,7 +3500,7 @@ public:
                 ( LPVOID* ) &_wic_factory
             ) == S_OK,
 
-            "<constructor>: CoCreateInstance."
+            "<constructor>: CoCreateInstance()"
         );
 
         
@@ -3508,8 +3510,9 @@ public:
                 &_factory
             ) == S_OK,
 
-            "<constructor>: D2D1CreateFactory."
+            "<constructor>: D2D1CreateFactory()"
         );
+
 
         ECHO_ASSERT_AND_THROW( 
             _factory->CreateHwndRenderTarget(
@@ -3522,7 +3525,7 @@ public:
                 &_target
             ) == S_OK,
 
-            "<constructor>: _factory->CreateHwndRenderTarget"
+            "<constructor>: _factory->CreateHwndRenderTarget()"
         );
 
 
@@ -3626,18 +3629,18 @@ public:
         auto& d = br.y; auto& r = br.x;
 
         /* UDRL */
-        auto code_of = [ & ] ( const Vec2& p ) -> uint8_t {
+        auto code_of = [ & ] ( const Vec2& p ) -> char {
             return ( ( p.y > u ) << 3 ) |
                    ( ( p.y < d ) << 2 ) |
                    ( ( p.x > r ) << 1 ) |
                      ( p.x < l );
         };
 
-        auto code1 = code_of( p1 );
-        auto code2 = code_of( p2 );
+        char code1 = code_of( p1 );
+        char code2 = code_of( p2 );
 
-        auto move_X = [ & ] ( Vec2& mov, const Vec2& piv, auto& code ) -> void {
-            for( int8_t sh = 3; sh >= 0; --sh )
+        auto move_X = [ & ] ( Vec2& mov, const Vec2& piv, char& code ) -> void {
+            for( char sh = 3; sh >= 0; --sh )
                 if( ( code >> sh ) & 1 ) {
                     switch( sh ) {
                         case 3: mov = { ( u - mov.y ) / ( piv.y - mov.y ) * ( piv.x - mov.x ) + mov.x, u }; break;
@@ -3669,7 +3672,7 @@ public:
             phase ^= 1;
         }
     }
-
+    
 };
 
 
@@ -5214,8 +5217,8 @@ RenderWrap2& Renderer2::line(
     const Brush2& brush
 ) {
     return this->line(
-        this->pull_crd( v1 ),
-        this->pull_crd( v2 ),
+        this->pull_crd( v1.scaled_for_screen_space() ),
+        this->pull_crd( v2.scaled_for_screen_space() ),
         brush
     );
 }

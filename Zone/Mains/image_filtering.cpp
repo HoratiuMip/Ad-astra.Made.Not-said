@@ -4,18 +4,22 @@
 #include <vector>
 #include <cmath>
 
-#define TARGET_PATH "ahri.bmp"
-#define DUMP_PATH "ahri_blur.bmp"
+#define TARGET_PATH "ahri_blur.bmp"
+#define DUMP_PATH "ahri_blur_diff.bmp"
 
 
 struct rgb {
-    char b = 0;
-    char g = 0;
-    char r = 0;
+    unsigned char b = 0;
+    unsigned char g = 0;
+    unsigned char r = 0;
 };
 
 
 class Filter {
+public:
+    static constexpr auto PI = 3.14159265359;
+    static constexpr auto E  = 2.71828182846;
+
 public:
     using Container = std::vector< float >;
     using Sequence  = std::vector< std::pair< char, char > >;
@@ -65,10 +69,7 @@ public:
     }
 
 public:
-    static Filter gaussian( size_t n, float s ) {
-        static constexpr auto PI = 3.14159265359;
-        static constexpr auto E  = 2.71828182846;
-
+    static Filter gaussian_low( size_t n, float s ) {
         Container cnt{};
         cnt.reserve( n * n );
 
@@ -89,6 +90,37 @@ public:
         return { n, std::move( cnt ) };
     }
 
+    static Filter gaussian_high( size_t n, float s ) {
+        Container cnt{};
+        cnt.reserve( n * n );
+
+        auto seq = gen_seq( n );
+
+        float sum = 0.0;
+        
+        for( auto& p : seq )
+            sum += cnt.emplace_back(
+                1.0 - std::pow( E, 
+                     -p.first * p.first / ( 2.0 * s * s )
+                     +
+                     -p.second * p.second / ( 2.0 * s * s )
+                ) 
+            );
+
+        for( auto& v : cnt )
+            v /= sum;
+
+        return { n, std::move( cnt ) };
+    }
+
+    static Filter flat_3x3() {
+        return { 3, Container{ { -1, -1, -1, -1, 0, -1, -1, -1, -1 } } };
+    }
+
+    static Filter identity( size_t n ) {
+        return { 1, Container{ { 0 } } };
+    }
+
 };
 
 
@@ -107,9 +139,10 @@ auto conv( const char* raw_buf, size_t w, size_t h, size_t sz ) {
         return reinterpret_cast< rgb* >( ptr );
     };
 
+    #define STRIDE_PX_1( px ) ( px->r << 16 | px->g << 8 | px->b )
+    #define STRIDE_PX_3( r, g, b ) ( r << 16 | g << 8 | b )
 
-    auto filter = Filter::gaussian( 7, 2 );
-
+    auto filter = Filter::gaussian_high( 13, 27 );
 
     for( size_t y = 0; y < h; ++y ) {
         for( size_t x = 0; x < w; ++x ) {
@@ -122,16 +155,51 @@ auto conv( const char* raw_buf, size_t w, size_t h, size_t sz ) {
                 if( ny >= h || nx >= w ) continue;
 
                 auto px = at( buf, ny, nx ); 
+ 
+                /*//dov
+                switch( STRIDE_PX_1( px ) ) {
+                    case STRIDE_PX_3( 255, 100, 0 ): {
+                        sum[ 0 ] += 255;
+                        sum[ 1 ] += 100;
+                        sum[ 2 ] += 0;
+                    break; }
+
+                    case STRIDE_PX_3( 15, 83, 255 ): {
+                        sum[ 0 ] += 255;
+                        sum[ 1 ] += 255;
+                        sum[ 2 ] += 255;
+                    break; }
+
+                    default: {
+                        if( px->r >= 200 && px->g <= 180 && px->b <= 180 ) {
+                            sum[ 0 ] += 255;
+                            sum[ 1 ] += 100;
+                            sum[ 2 ] += 0;
+                            break;
+                        }
+
+                        sum[ 0 ] += 0;
+                        sum[ 1 ] += 0;
+                        sum[ 2 ] += 0;
+                    break; }
+                }
+
+                continue;
+                */
+
                 sum[ 0 ] += filter( s.first, s.second ) * px->r;
                 sum[ 1 ] += filter( s.first, s.second ) * px->g;
                 sum[ 2 ] += filter( s.first, s.second ) * px->b;
                 
-            }
+            } 
+            
+            //for( auto& s : sum ) s/= 8.0;
 
             auto px = at( res, y, x );
-            px->r = ( x == 500 && y == 500 ) ? 255 : sum[ 0 ];
-            px->g = ( x == 500 && y == 500 ) ? 255 : sum[ 1 ];
-            px->b = ( x == 500 && y == 500 ) ? 255 : sum[ 2 ]; 
+            //auto bpx = at( buf, y, x );
+            px->r = sum[ 0 ];
+            px->g = sum[ 1 ];
+            px->b = sum[ 2 ]; 
         }
     }
 
@@ -145,7 +213,7 @@ int main() {
 
     if( !file ) {
         std::cout << "TARGET FAULT";
-        return 0;
+        return 1;
     }
 
 

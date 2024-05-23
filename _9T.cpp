@@ -1719,18 +1719,6 @@ public:
         return { 0.0, 0.0 };
     }
 
-public:
-    Vec2& scale_for_screen_space() {
-        x *= Env::width();
-        y *= Env::height();
-
-        return *this;
-    }
-
-    Vec2 scaled_for_screen_space() const {
-        return { x * Env::width(), y * Env::height() };
-    }
-
 };
 
 
@@ -3172,15 +3160,19 @@ public:
     }
 
 public:
-    Vec2& scale( Vec2& vec ) {
+    template< typename T >
+    requires( std::is_base_of_v< Vec2, T > )
+    T& scale( T& vec ) {
         vec.x *= _size.x;
         vec.y *= _size.y;
 
         return vec;
     }
 
-    Vec2 scaled( const Vec2& vec ) {
-        Vec2 res{ vec };
+    template< typename T >
+    requires( std::is_base_of_v< Vec2, T > )
+    T scaled( const T& vec ) {
+        T res{ vec };
 
         return scale( res );
     }
@@ -3242,8 +3234,6 @@ public:
     Surface& move_to( Vec2 crd ) {
         _coord = crd;
 
-        crd.scale_for_screen_space();
-
         SetWindowPos(
             _hwnd,
             0,
@@ -3257,8 +3247,6 @@ public:
 
     Surface& size_to( Vec2 size ) {
         _size = size;
-
-        size.scale_for_screen_space();
 
         SetWindowPos(
             _hwnd,
@@ -3455,13 +3443,21 @@ public:
     virtual Vec2 size() const = 0;
 
 public:
-    virtual Vec2 pull_vec( const Crd2& crd ) const = 0;
+    Vec2 pull_vec( const Crd2& crd ) {
+        return { 2.0 * crd.x - 1.0, 2.0 * ( 1.0 - crd.y ) - 1.0 };
+    }
 
-    virtual Crd2 pull_crd( const Vec2& vec ) const = 0;
+    Crd2 pull_crd( const Vec2& vec ) {
+        return { ( vec.x + 1.0 ) / 2.0, 1.0 - ( vec.y + 1.0 ) / 2.0 };
+    }
 
-    virtual void push_vec( Crd2& crd ) const = 0;
+    void push_vec( Crd2& crd ) {
+        crd = this->pull_vec( crd );
+    }
 
-    virtual void push_crd( Vec2& vec ) const = 0;
+    void push_crd( Vec2& vec ) {
+        vec = this->pull_crd( vec );
+    }
 
 public:
     RenderWrap2& render_wrap() {
@@ -3563,23 +3559,6 @@ public:
     auto factory()     { return _factory; }
     auto target()      { return _target; }
     auto wic_factory() { return _wic_factory; }
-
-public:
-    Vec2 pull_vec( const Crd2& crd ) const override {
-        return _surface->pull_vec( crd );
-    }
-
-    Crd2 pull_crd( const Vec2& vec ) const override {
-        return _surface->pull_crd( vec );
-    }
-
-    void push_vec( Crd2& crd ) const override {
-        _surface->push_vec( crd );
-    }
-
-    void push_crd( Vec2& vec ) const override {
-        _surface->push_crd( vec );
-    }
 
 public:
     Renderer2& open() {
@@ -3722,28 +3701,6 @@ public:
     Crd2 coord()  const override { return _render_wrap->pull_crd( _origin ); }
     Vec2 origin() const override { return _origin; }
     Vec2 size()   const override { return _size; }
-
-public:
-    Vec2 pull_vec( const Crd2& crd ) const override {
-        return { crd.x - _size.x / 2.0, _size.y / 2.0 - crd.y };
-    }
-
-    Crd2 pull_crd( const Vec2& vec ) const override {
-        return { 
-            vec.x + _size.x / 2.0f, 
-            _size.y / 2.0f - vec.y 
-        };
-    }
-
-    void push_vec( Crd2& crd ) const override {
-        crd.x -= _size.x / 2.0;
-        crd.y = _size.y / 2.0 - crd.y;
-    }
-
-    void push_crd( Vec2& vec ) const override {
-        vec.x += _size.x / 2.0;
-        vec.y = _size.y / 2.0 - vec.y;
-    }
 
 public:
     Viewport2& origin_to( Vec2 vec ) {
@@ -5204,7 +5161,7 @@ RenderWrap2& Renderer2::line(
     const Brush2& brush
 ) {
     _target->DrawLine(
-        c1, c2,
+        _surface->scaled( c1 ), _surface->scaled( c2 ),
         brush.brush(),
         brush.width()
     );
@@ -5217,8 +5174,8 @@ RenderWrap2& Renderer2::line(
     const Brush2& brush
 ) {
     return this->line(
-        this->pull_crd( v1.scaled_for_screen_space() ),
-        this->pull_crd( v2.scaled_for_screen_space() ),
+        this->pull_crd( v1 ),
+        this->pull_crd( v2 ),
         brush
     );
 }

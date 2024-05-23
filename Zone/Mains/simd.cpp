@@ -84,6 +84,18 @@ int main( int argc, char* argv[] ) {
     double refresh_threshold = 1.0;
 
 
+    for( size_t n = 1; n <= 4; ++n ) {
+        static std::string line_name = "line0";
+
+        Shared< SolidBrush2 > line_brush{ new SolidBrush2{ render, Chroma{ 100, 100, 100, 255 }, 1.0 } };
+
+        *( line_name.end() - 1 ) = static_cast< char >( n + '0' );
+        system.insert( { line_name, System2Node::Function{ [ n ] ( double x ) -> double {
+            return n;
+        } } } ).first->second.give_brush( line_brush );
+    }
+
+
     std::string graph_data_base_name = "data0";
     auto* graph_data = &system.insert( { graph_data_base_name, System2Node::Collection{} } ).first->second.collection();
     graph_data->emplace_back( 0, 0 );

@@ -44,8 +44,8 @@
     #define PI 3.141592653
 #endif
 
-#if !defined( e )
-    #define e 2.7182818284
+#if !defined( EUL )
+    #define EUL 2.7182818284
 #endif
 
 
@@ -68,6 +68,8 @@
 
 #if defined( IXT_GL_DIRECT_2D1 )
     #define _ENGINE_GL_DIRECT_2D1
+#elif defined( IXT_GL_NONE )
+    #define _ENGINE_GL_NONE
 #else
     #error Define target graphics library.
 #endif
@@ -129,6 +131,8 @@ namespace _ENGINE_NAMESPACE {
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
+
 #include <filesystem>
 
 #include <vector>

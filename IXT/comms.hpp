@@ -1,8 +1,10 @@
 #pragma once
+/*
+*/
 
 #include "descriptor.hpp"
 #include "concepts.hpp"
-#include "console.hpp"
+#include "os.hpp"
 
 
 
@@ -28,27 +30,27 @@ public:
 
 public:
     struct Color {
-        CONSOLE_TEXT_COLOR   value   = CONSOLE_TEXT_COLOR_WHITE;
+        OS::CONSOLE_CLR   value   = OS::CONSOLE_CLR_WHITE;
     };
 
-    static Color gray() { return { CONSOLE_TEXT_COLOR_GRAY }; }
-    static Color blue() { return { CONSOLE_TEXT_COLOR_BLUE }; }
-    static Color green() { return { CONSOLE_TEXT_COLOR_GREEN }; }
-    static Color red() { return { CONSOLE_TEXT_COLOR_RED }; }
-    static Color pink() { return { CONSOLE_TEXT_COLOR_PINK }; }
-    static Color yellow() { return { CONSOLE_TEXT_COLOR_YELLOW }; }
-    static Color white() { return { CONSOLE_TEXT_COLOR_WHITE }; }
+    static Color gray() { return { OS::CONSOLE_CLR_GRAY }; }
+    static Color blue() { return { OS::CONSOLE_CLR_BLUE }; }
+    static Color green() { return { OS::CONSOLE_CLR_GREEN }; }
+    static Color red() { return { OS::CONSOLE_CLR_RED }; }
+    static Color pink() { return { OS::CONSOLE_CLR_TURQ }; }
+    static Color yellow() { return { OS::CONSOLE_CLR_YELLOW }; }
+    static Color white() { return { OS::CONSOLE_CLR_WHITE }; }
 
 public:
     struct LineType {
-        Color   color   = { CONSOLE_TEXT_COLOR_PINK };
+        Color   color   = { OS::CONSOLE_CLR_TURQ };
     };
 
-    static LineType ok() { return { CONSOLE_TEXT_COLOR_GREEN }; }
-    static LineType warning() { return { CONSOLE_TEXT_COLOR_YELLOW }; }
-    static LineType error() { return { CONSOLE_TEXT_COLOR_RED }; }
-    static LineType pending() { return { CONSOLE_TEXT_COLOR_BLUE }; }
-    static LineType intel() { return { CONSOLE_TEXT_COLOR_PINK }; }
+    static LineType ok() { return { OS::CONSOLE_CLR_GREEN }; }
+    static LineType warning() { return { OS::CONSOLE_CLR_YELLOW }; }
+    static LineType error() { return { OS::CONSOLE_CLR_RED }; }
+    static LineType pending() { return { OS::CONSOLE_CLR_BLUE }; }
+    static LineType intel() { return { OS::CONSOLE_CLR_TURQ }; }
 
 public:
     Log()
@@ -62,7 +64,8 @@ public:
 public:
     ~Log() {
         if( _depth == 0 )
-            delete _content;
+            if( _content != nullptr )
+                delete _content;
     }
 
 _ENGINE_PROTECTED:
@@ -102,11 +105,12 @@ public:
     Log& operator << ( const LineType& line_type ) {
         auto type_str = [ &line_type ] () -> const char* {
             switch( line_type.color.value ) {
-                case CONSOLE_TEXT_COLOR_GREEN:  return "OK";
-                case CONSOLE_TEXT_COLOR_YELLOW: return "WARNING";
-                case CONSOLE_TEXT_COLOR_RED:    return "ERROR";
-                case CONSOLE_TEXT_COLOR_BLUE:   return "PENDING";
-                case CONSOLE_TEXT_COLOR_PINK:   return "INTEL";
+                case OS::CONSOLE_CLR_GREEN:  return "OK";
+                case OS::CONSOLE_CLR_YELLOW: return "WARNING";
+                case OS::CONSOLE_CLR_RED:    return "ERROR";
+                case OS::CONSOLE_CLR_BLUE:   return "PENDING";
+                case OS::CONSOLE_CLR_TURQ:   return "INTEL";
+                default: break;
             }
             
             return "UNKNOWN";
@@ -114,11 +118,12 @@ public:
 
         auto type_fill = [ &line_type ] () -> const char* {
             switch( line_type.color.value ) {
-                case CONSOLE_TEXT_COLOR_GREEN:  return "     ";
-                case CONSOLE_TEXT_COLOR_YELLOW: return "";
-                case CONSOLE_TEXT_COLOR_RED:    return "  ";
-                case CONSOLE_TEXT_COLOR_BLUE:   return "";
-                case CONSOLE_TEXT_COLOR_PINK:   return "  ";
+                case OS::CONSOLE_CLR_GREEN:  return "     ";
+                case OS::CONSOLE_CLR_YELLOW: return "";
+                case OS::CONSOLE_CLR_RED:    return "  ";
+                case OS::CONSOLE_CLR_BLUE:   return "";
+                case OS::CONSOLE_CLR_TURQ:   return "  ";
+                default: break;
             }
             
             return "";
@@ -180,7 +185,7 @@ public:
             auto desc = log._descs().at( at_desc++ ); 
 
             if( _sup_clr ) {
-                console_text_color_to( desc & Log::desc_color_mask );
+                OS::Console::clr_to( desc & Log::desc_color_mask );
             }
         };
 
@@ -207,7 +212,7 @@ public:
         ( *_stream ) << std::endl;
 
         if( _sup_clr ) {
-            console_text_color_to( CONSOLE_TEXT_COLOR_WHITE );
+            OS::Console::clr_to( OS::CONSOLE_CLR_WHITE );
         }
     }
 

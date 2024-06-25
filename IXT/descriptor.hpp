@@ -51,6 +51,7 @@
 
 
 #define _ENGINE_NAMESPACE IXT
+#define _ENGINE_STR       "IXT"
 
 
 
@@ -166,6 +167,7 @@ namespace _ENGINE_NAMESPACE {
 
 #include <type_traits>
 #include <typeindex>
+#include <typeinfo>
 
 #if defined( _ENGINE_OS_WINDOWS )
     #include <windows.h>
@@ -179,3 +181,33 @@ namespace _ENGINE_NAMESPACE {
 
 
 #pragma endregion Includes
+
+
+
+#pragma region UId
+
+
+
+namespace _ENGINE_NAMESPACE {
+    typedef   void*   UId;
+
+    class UIdDescriptor {
+    public:
+        UId uid() const {
+            return ( void* )( this );
+        }
+
+    };
+};
+
+
+
+#pragma endregion UId
+
+
+
+namespace _ENGINE_NAMESPACE {
+    std::ostream& splash( const char* title = _ENGINE_STR ) {
+        return std::cout << "[ " << title << " ]";
+    }
+};

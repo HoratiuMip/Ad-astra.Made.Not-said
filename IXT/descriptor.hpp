@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _ENGINE_DESCRIPTOR_HPP
+#define _ENGINE_DESCRIPTOR_HPP
 /*
 -----------------------------------------
 -   Descriptor
@@ -52,6 +53,9 @@
 
 #define _ENGINE_NAMESPACE IXT
 #define _ENGINE_STR       "IXT"
+
+#define _ENGINE_STRUCT_NAME( name ) _ENGINE_STR "::" name
+#define _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( name ) virtual std::string_view struct_name() const override { return _ENGINE_STRUCT_NAME( name ); }
 
 
 
@@ -191,10 +195,15 @@ namespace _ENGINE_NAMESPACE {
 namespace _ENGINE_NAMESPACE {
     typedef   void*   UId;
 
-    class UIdDescriptor {
+    class Descriptor {
     public:
         UId uid() const {
             return ( void* )( this );
+        }
+
+    public:
+        virtual std::string_view struct_name() const {
+            return _ENGINE_STRUCT_NAME( "Descriptor" );
         }
 
     };
@@ -206,8 +215,22 @@ namespace _ENGINE_NAMESPACE {
 
 
 
+#pragma region UTH
+
+
+
 namespace _ENGINE_NAMESPACE {
-    std::ostream& splash( const char* title = _ENGINE_STR ) {
-        return std::cout << "[ " << title << " ]";
-    }
+    class UTH : public Descriptor {
+    public:
+        
+
+    };
 };
+
+
+
+#pragma endregion UTH
+
+
+
+#endif

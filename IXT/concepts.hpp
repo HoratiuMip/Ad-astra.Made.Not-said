@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _ENGINE_CONCEPTS_HPP
+#define _ENGINE_CONCEPTS_HPP
 /*
 -----------------------------------------
 -   Concepts
@@ -25,3 +26,7 @@ template< typename T > concept is_std_ostringstream_pushable = requires {
 
 
 };
+
+
+
+#endif

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _ENGINE_COMMS_HPP
+#define _ENGINE_COMMS_HPP
 /*
 */
 
@@ -12,9 +13,17 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-#define IXT_COMMS_ECHO Echo echo = {}
+#define IXT_COMMS_ECHO_ARG Echo echo = {}
 
 
+
+enum ECHO_STATUS {
+    ECHO_STATUS_OK      = 0,
+    ECHO_STATUS_WARNING = 1,
+    ECHO_STATUS_ERROR   = 2,
+    ECHO_STATUS_INTEL   = 3,
+    ECHO_STATUS_PENDING = 4
+};
 
 class Echo {
 public:
@@ -29,29 +38,14 @@ public:
     static constexpr descriptor_t   desc_color_mask   = 0b1111;
     static constexpr char           desc_switch       = '$';
 
-public:
-    struct Color {
-        OS::CONSOLE_CLR   value   = OS::CONSOLE_CLR_WHITE;
+_ENGINE_PROTECTED:
+    inline static OS::CONSOLE_CLR _status_colors[] = {
+        OS::CONSOLE_CLR_GREEN, OS::CONSOLE_CLR_YELLOW, OS::CONSOLE_CLR_RED, OS::CONSOLE_CLR_TURQ, OS::CONSOLE_CLR_BLUE
     };
 
-    static Color gray() { return { OS::CONSOLE_CLR_GRAY }; }
-    static Color blue() { return { OS::CONSOLE_CLR_BLUE }; }
-    static Color green() { return { OS::CONSOLE_CLR_GREEN }; }
-    static Color red() { return { OS::CONSOLE_CLR_RED }; }
-    static Color pink() { return { OS::CONSOLE_CLR_TURQ }; }
-    static Color yellow() { return { OS::CONSOLE_CLR_YELLOW }; }
-    static Color white() { return { OS::CONSOLE_CLR_WHITE }; }
-
-public:
-    struct LineType {
-        Color   color   = { OS::CONSOLE_CLR_TURQ };
+    inline static const char* _status_strs[] = {
+        "OK", "WARNING", "ERROR", "INTEL", "PENDING"
     };
-
-    static LineType ok() { return { OS::CONSOLE_CLR_GREEN }; }
-    static LineType warning() { return { OS::CONSOLE_CLR_YELLOW }; }
-    static LineType error() { return { OS::CONSOLE_CLR_RED }; }
-    static LineType pending() { return { OS::CONSOLE_CLR_BLUE }; }
-    static LineType intel() { return { OS::CONSOLE_CLR_TURQ }; }
 
 public:
     Echo();
@@ -61,20 +55,20 @@ public:
     {}
 
 _ENGINE_PROTECTED:
-    Echo( Dump* dump )
-    : _dump{ dump }
+    Echo( Dump* dump, int64_t depth )
+    : _dump{ dump }, _depth{ depth }
     {}
 
 public:
     ~Echo();
 
 _ENGINE_PROTECTED:
-    enum _CONTENT_INDEX {
+    enum _DUMP_ACCESS_IDX {
         _STR, _DESCS
     };
 
-    Dump*    _dump    = nullptr;
-    size_t   _depth   = 0;
+    Dump*     _dump    = nullptr;
+    int64_t   _depth   = 0;
 
 _ENGINE_PROTECTED:
     inline auto& _str() {
@@ -95,60 +89,102 @@ public:
     }
 
 public:
-    Echo& operator << ( const Color& color ) {
-        this->_descs().emplace_back( color.value );
+    Echo& push_desc( descriptor_t desc ) {
+        this->_descs().emplace_back( desc );
         this->_str() << desc_switch;
 
         return *this;
     }
 
-    Echo& operator << ( const LineType& line_type ) {
-        auto type_str = [ &line_type ] () -> const char* {
-            switch( line_type.color.value ) {
-                case OS::CONSOLE_CLR_GREEN:  return "OK";
-                case OS::CONSOLE_CLR_YELLOW: return "WARNING";
-                case OS::CONSOLE_CLR_RED:    return "ERROR";
-                case OS::CONSOLE_CLR_BLUE:   return "PENDING";
-                case OS::CONSOLE_CLR_TURQ:   return "INTEL";
-                default: break;
-            }
-            
-            return "UNKNOWN";
-        };
+    Echo& push_color( OS::CONSOLE_CLR color ) {
+        return this->push_desc( color & desc_color_mask );
+    }
 
-        auto type_fill = [ &line_type ] () -> const char* {
-            switch( line_type.color.value ) {
-                case OS::CONSOLE_CLR_GREEN:  return "     ";
-                case OS::CONSOLE_CLR_YELLOW: return "";
-                case OS::CONSOLE_CLR_RED:    return "  ";
-                case OS::CONSOLE_CLR_BLUE:   return "";
-                case OS::CONSOLE_CLR_TURQ:   return "  ";
-                default: break;
-            }
-            
-            return "";
-        };
-        
-        this->_str() << '\n';
+    Echo& gray()   { return this->push_color( OS::CONSOLE_CLR_GRAY ); }
+    Echo& blue()   { return this->push_color( OS::CONSOLE_CLR_BLUE ); }
+    Echo& green()  { return this->push_color( OS::CONSOLE_CLR_GREEN ); }
+    Echo& red()    { return this->push_color( OS::CONSOLE_CLR_RED ); }
+    Echo& pink()   { return this->push_color( OS::CONSOLE_CLR_TURQ ); }
+    Echo& yellow() { return this->push_color( OS::CONSOLE_CLR_YELLOW ); }
+    Echo& white()  { return this->push_color( OS::CONSOLE_CLR_WHITE ); }
 
-        this->operator<<( white() )
-        << "[ " << line_type.color << type_str() << white() << " ]" << type_fill() << ' ';
+_ENGINE_PROTECTED:
+    inline static struct _UnknownInvoker : public Descriptor {
+        _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "UnknownInvoker" );
+    } _unknown_invoker_placeholder;
 
-        if( _depth != 0 )
-            this->operator<<( pink() );
-        for( size_t l = 1; l <= _depth; ++l )
-            this->_str() << '-';
+public:
+    Echo& operator () ( const Descriptor& invoker, ECHO_STATUS status ) {
+        if( !this->_str().view().empty() )
+            this->operator<<( '\n' );
 
-        this->operator<<( white() );
+        this->white()
+        .operator<<( "[ " )
+        .push_color( _status_colors[ status ] )
+        .operator<<( _status_strs[ status ] )
+        .white()
+        .operator<<( " ]\t" )
+        .blue();
 
-        return *this;
+        for( int64_t n = 1; n <= _depth; ++n )
+            this->operator<<( '|' );
+
+        return this->white()
+        .operator<<( "[ " )
+        .gray()
+        .operator<<( invoker.struct_name() )
+        .white()
+        .operator<<( " ][ " )
+        .gray()
+        .operator<<( invoker.uid() )
+        .white()
+        .operator<<( " ]" )
+        .blue()
+        .operator<<( " -> " )
+        .white();
+    }
+
+    Echo& operator() ( const Descriptor* invoker, ECHO_STATUS status ) {
+        return this->operator()( *invoker, status );
+    }
+
+    template< typename T >
+    requires ( !std::is_base_of_v< Descriptor, T > )
+    Echo& operator() ( const T& invoker, ECHO_STATUS status ) {
+        return this->operator()( _unknown_invoker_placeholder, status );
+    }
+
+    Echo& operator [] ( const Descriptor& invoker ) {
+        if( !this->_str().view().empty() )
+            this->operator<<( '\n' );
+
+        return this->white()
+        .operator<<( "[ " )
+        .red()
+        .operator<<( invoker.struct_name() )
+        .white()
+        .operator<<( " ][ " )
+        .red()
+        .operator<<( invoker.uid() )
+        .white()
+        .operator<<( " ]" )
+        .red()
+        .operator<<( " -> " )
+        .white();
+    }
+
+    Echo& operator[] ( const Descriptor* invoker ) {
+        return this->operator[]( *invoker );
     }
 
 };
 
 
 
-class Comms : public UIdDescriptor {
+class Comms : public Descriptor {
+public:
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Comms" );
+
 public:
     using out_stream_t = std::ostream;
 
@@ -223,11 +259,6 @@ public:
 
 public:
     void out( const Echo& echo ) {
-        if( echo._depth != 0 ) {
-            std::unique_lock lock{ OS::console };
-            _splash() << "Echo out invoked from depth " << echo._depth << ". Proceeding...\n";
-        }
-
         auto        view    = echo._str().view();
         const char* p       = view.data();
         size_t      at_desc = 0;
@@ -255,7 +286,7 @@ public:
             p = q + 1;
         }
 
-        ( *_stream ) << std::endl;
+        ( *_stream ) << "\n\n";
     }
 
     void raw( const Echo& echo ) {
@@ -265,11 +296,11 @@ public:
     }
 
 public:
-    Echo::Dump* new_echo_dump() {
+    [[ nodiscard ]] Echo::Dump* new_echo_dump() {
         Echo::Dump* dump = new Echo::Dump{};
 
         if( dump == nullptr ) {
-            _splash() << "Echo dump bad alloc.\n";
+            std::cout << "Echo dump bad alloc.\n";
             return nullptr;
         }
 
@@ -277,44 +308,44 @@ public:
     }
 
     void delete_echo_dump( Echo::Dump* dump ) {
+        delete dump;
         _supervisor.erase( dump );
-    }
-
-_ENGINE_PROTECTED:
-    static std::ostream& _splash() {
-        splash() << "[ ";
-        OS::console.clr_to( OS::CONSOLE_CLR_RED );
-        std::cout << "COMMS";
-        OS::console.clr_to( OS::CONSOLE_CLR_WHITE );
-        std::cout << " ] ";
-
-        return std::cout;
     }
 
 _ENGINE_PROTECTED:
     static void _flush( OS::SIG code );
 
-} comms;
+}; inline Comms comms;
 
 
 
-Echo::Echo()
+inline Echo::Echo()
 : _dump{ comms.new_echo_dump() }
 {}
 
-Echo::~Echo() {
+inline Echo::~Echo() {
+    if( _depth > 0 ) return;
+    
+    if( _dump == nullptr ) return;
+
+    this->_str().put( 0 );
+    comms.out( *this );
+
     if( _depth == 0 )
-        if( _dump != nullptr )
-            comms.delete_echo_dump( std::exchange( _dump, nullptr ) );
+        comms.delete_echo_dump( std::exchange( _dump, nullptr ) );
 }
 
 
 
-void Comms::_flush( OS::SIG code ) {
+inline void Comms::_flush( OS::SIG code ) {
     for( auto dump : comms._supervisor )
-        comms.out( Echo{ dump } );
+        Echo{ dump, -1 };
 }
 
 
 
 };
+
+
+
+#endif

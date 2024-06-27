@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _ENGINE_OS_HPP
+#define _ENGINE_OS_HPP
 /*
 */
 
@@ -32,22 +33,14 @@ public:
     } 
 
 public:
-    std::recursive_mutex   r_mutex   = {};
+    std::recursive_mutex   mtx   = {};
 
 public:
-    inline void lock() {
-        r_mutex.lock();
+    inline operator decltype( mtx )& () {
+        return mtx;
     }
 
-    inline void unlock() {
-        r_mutex.unlock();
-    }
-
-    inline operator decltype( r_mutex )& () {
-        return r_mutex;
-    }
-
-} console;
+}; inline Console console;
 
 
 
@@ -68,14 +61,22 @@ enum SIG : int {
     SIG_TERMINATE = SIGTERM
 };
 
-class SigInterceptor {
+class SigInterceptor : public Descriptor {
+public:
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "OS::SigInterceptor" );
+
 _ENGINE_PROTECTED:
     inline static constexpr const SIG   _codes[]   = {
         SIG_ABORT, SIG_FLOAT, SIG_ILLEGAL, SIG_INTERRUPT, SIG_MEMORY, SIG_TERMINATE
     };
 
-    inline static const char*    _codes_cstr[]   = {
-        "SIG_ABORT", "SIG_FLOAT", "SIG_ILLEGAL", "SIG_INTERRUPT", "SIG_MEMORY", "SIG_TERMINATE"
+    inline static std::map< SIG, const char* >   _codes_strs   = {
+        { SIG_ABORT, "SIG_ABORT" },
+        { SIG_FLOAT, "SIG_FLOAT" },
+        { SIG_ILLEGAL, "SIG_ILLEGAL" },
+        { SIG_INTERRUPT, "SIG_INTERRUPT" },
+        { SIG_MEMORY, "SIG_MEMORY" },
+        { SIG_TERMINATE, "SIG_TERMINATE" }
     };
 
 public:
@@ -103,37 +104,14 @@ public:
 _ENGINE_PROTECTED:
     static void _callback_proc( SIG code );
 
-_ENGINE_PROTECTED:
-    static std::ostream& _splash() {
-        splash() << "[ ";
-        OS::console.clr_to( CONSOLE_CLR_RED );
-        std::cout << "OS SIGNAL INTERCEPTOR";
-        OS::console.clr_to( CONSOLE_CLR_WHITE );
-        std::cout << " ] ";
-
-        return std::cout;
-    }
-
-} sig_interceptor;
-
-void SigInterceptor::_callback_proc( SIG code ) {
-    console.lock();
-    _splash() << "Intercepted signal #" << code << ". Invoking callbacks...\n";
-    console.unlock();
-
-    for( auto& [ _, callback ] : sig_interceptor._callbacks )
-        std::invoke( callback, code );
-
-    console.lock();
-    _splash() << "Callbacks executed for signal #" << code << ". " \
-    "Press [ ENTER ] to continue... Beware, continuing might crash the program. Read stdout first.\n";
-    console.unlock();
-
-    std::string s; std::getline( std::cin, s );
-}
+}; inline SigInterceptor sig_interceptor;
 
 #endif
 
 
 
 }; };
+
+
+
+#endif

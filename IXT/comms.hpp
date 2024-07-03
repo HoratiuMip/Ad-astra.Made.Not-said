@@ -13,7 +13,8 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-#define IXT_COMMS_ECHO_ARG Echo echo = {}
+#define _ENGINE_COMMS_ECHO_ARG Echo echo = {}
+#define IXT_COMMS_ECHO_ARG _ENGINE_COMMS_ECHO_ARG
 
 
 
@@ -110,7 +111,7 @@ public:
 
 _ENGINE_PROTECTED:
     inline static struct _UnknownInvoker : public Descriptor {
-        _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "UnknownInvoker" );
+        _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Echo::UnknownInvoker" );
     } _unknown_invoker_placeholder;
 
 public:

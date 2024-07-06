@@ -37,7 +37,7 @@ public:
     static size_t byte_count( std::string_view path ) {
         std::ifstream file( path.data(), std::ios_base::binary );
 
-        return size( file );
+        return byte_count( file );
     }
 
 public:

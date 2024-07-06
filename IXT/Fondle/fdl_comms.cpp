@@ -1,6 +1,8 @@
-//#define IXT_OS_WINDOWS
-//#define IXT_GL_NONE
-#include "..\comms.hpp"
+/*
+[ DESCRIPTION ]
+    |>> Example of comms usage.
+*/
+#include "comms.hpp"
 
 using namespace IXT;
 
@@ -43,15 +45,11 @@ int main() {
     X x{ 5 }; Y y{ 5 };
 
 
-    // Crash flush. Comms will output active echos if a system violation occurs.
+    // Crash flush. Comms will output active echos if a termination signal is raised.
     {
         Echo echo1{}; echo1( nullptr, ECHO_STATUS_INTEL ) << "Some random info.";
         Echo echo2{}; echo2( nullptr, ECHO_STATUS_WARNING ) << "Some info hinting to why the violation might have occured.";
 
         std::cout << *( int* )nullptr;
     }
-
- 
-
-    return 0;
 }

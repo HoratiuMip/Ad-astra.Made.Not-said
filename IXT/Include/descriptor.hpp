@@ -67,6 +67,8 @@
 
 #if defined( IXT_OS_WINDOWS )
     #define _ENGINE_OS_WINDOWS
+#elif defined( IXT_OS_NONE )
+    #define _ENGINE_OS_NONE
 #else
     #error Define target operating system.
 #endif

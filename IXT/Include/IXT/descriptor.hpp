@@ -1,38 +1,5 @@
-#ifndef _ENGINE_DESCRIPTOR_HPP
-#define _ENGINE_DESCRIPTOR_HPP
+#pragma once
 /*
------------------------------------------
--   Descriptor
--       Home of all defines, typedefs and includes used by the engine. 
--
------------------------------------------
--   [[ Pre-include defines ]] 
--       Definitions for altering the behaviour of the engine.
--
--       "[ DEFINITION CLASS ]*" - the '*' means that one of the following shall be defined.
--       "DEFINITION*" - the '*' means that this definition is mandatory.
--             
-
--       [ Constants ]
--           PI
--           e
--       
--       [ General behaviour ]
--           IXT_ALL_PUBLIC - all class data/functions are public.
--
--       [ Target OS ]*
--           IXT_OS_WINDOWS
--
--       [ Target GL ]*
--           IXT_GL_DIRECT_2D1
--
--       [ Geometry and Graphics ] - floating point precision, 
--                                   defaults to "float", single precision,
--                                   typedef'd as "ggfloat_t".
--           IXT_GG_FLOAT_LONG_DOUBLE
--           IXT_GG_FLOAT_DOUBLE
--
------------------------------------------
 */
 
 
@@ -52,10 +19,11 @@
 
 
 #define _ENGINE_NAMESPACE IXT
-#define _ENGINE_STR       "IXT"
+#define _ENGINE_STR "IXT"
 
 #define _ENGINE_STRUCT_NAME( name ) _ENGINE_STR "::" name
 #define _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( name ) virtual std::string_view struct_name() const override { return _ENGINE_STRUCT_NAME( name ); }
+#define IXT_DESCRIPTOR_STRUCT_NAME_OVERRIDE( name ) virtual std::string_view struct_name() const override { return name; }
 
 
 
@@ -87,29 +55,6 @@
     #define _ENGINE_GG_FLOAT_TYPE double
 #else
     #define _ENGINE_GG_FLOAT_TYPE float
-#endif
-
-
-
-
-#define _ENGINE_ECHO_ADD_PREFIX( type ) "IXT::" type
-
-#define _ENGINE_ECHO_IDENTIFY_METHOD( type ) virtual std::string_view echo_name() const override { return _ENGINE_ECHO_ADD_PREFIX( type ); }
-
-#define _ENGINE_ECHO_DFD_ARG Echo echo = {}
-
-
-
-#if defined( IXT_ECHO )
-        #define _ENGINE_ECHO
-#endif
-
-#if defined( IXT_UNIQUE_SURFACE )
-    #define _ENGINE_UNIQUE_SURFACE
-#endif
-
-#if defined( IXT_THROW_ON_FAULT )
-    #define ENGINE_THROW_ON_FAULT
 #endif
 
 
@@ -199,11 +144,17 @@ namespace _ENGINE_NAMESPACE {
 
     class Descriptor {
     public:
+        /**
+         * @brief Unique Id of Descriptor instance.
+         */
         UId uid() const {
             return ( void* )( this );
         }
 
     public:
+        /**
+         * @brief Used by engine components to print invokers.
+         */
         virtual std::string_view struct_name() const {
             return _ENGINE_STRUCT_NAME( "Descriptor" );
         }
@@ -233,6 +184,3 @@ namespace _ENGINE_NAMESPACE {
 
 #pragma endregion UTH
 
-
-
-#endif

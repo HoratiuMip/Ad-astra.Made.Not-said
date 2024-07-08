@@ -1,13 +1,8 @@
-#ifndef _ENGINE_BIT_MANIP_HPP
-#define _ENGINE_BIT_MANIP_HPP
+#pragma once
 /*
-
-[ CAUTION ]
-    |>> Bytes class assumes for now Intel x86-64 arhitecture, which is LITTLE ENDIAN.
-
 */
 
-#include "descriptor.hpp"
+#include <IXT/descriptor.hpp>
 
 
 
@@ -104,7 +99,3 @@ public:
 
 
 };
-
-
-
-#endif

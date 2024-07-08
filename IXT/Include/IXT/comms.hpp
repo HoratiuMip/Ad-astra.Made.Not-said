@@ -1,11 +1,10 @@
-#ifndef _ENGINE_COMMS_HPP
-#define _ENGINE_COMMS_HPP
+#pragma once
 /*
 */
 
-#include "descriptor.hpp"
-#include "concepts.hpp"
-#include "os.hpp"
+#include <IXT/descriptor.hpp>
+#include <IXT/concepts.hpp>
+#include <IXT/os.hpp>
 
 
 
@@ -72,11 +71,19 @@ _ENGINE_PROTECTED:
     int64_t   _depth   = 0;
 
 _ENGINE_PROTECTED:
-    inline auto& _str() {
+    auto& _str() {
         return std::get< _STR >( *_dump );
     }
 
-    inline auto& _descs() {
+    const auto& _str() const {
+        return std::get< _STR >( *_dump );
+    }
+
+    auto& _descs() {
+        return std::get< _DESCS >( *_dump );
+    }
+
+    const auto& _descs() const {
         return std::get< _DESCS >( *_dump );
     }
 
@@ -204,7 +211,7 @@ public:
         _desc_procs.emplace( typeid( nullptr ), [] ( [[ maybe_unused ]] Echo::descriptor_t ) -> void {} );
 
         _desc_procs.emplace( typeid( std::cout ), [] ( Echo::descriptor_t desc ) -> void {
-            OS::console.clr_to( static_cast< OS::CONSOLE_CLR >( desc & Echo::desc_color_mask ) );
+            OS::console.clr_with( static_cast< OS::CONSOLE_CLR >( desc & Echo::desc_color_mask ) );
         } );
 
         this->stream_to< T >( stream );
@@ -301,7 +308,10 @@ public:
         Echo::Dump* dump = new Echo::Dump{};
 
         if( dump == nullptr ) {
-            std::cout << "Echo dump bad alloc.\n";
+            throw std::runtime_error{ 
+                std::string{ _ENGINE_STR } + "::" + __func__ + ": Echo::Dump bad alloc."
+            };
+
             return nullptr;
         }
 
@@ -314,39 +324,10 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    static void _flush( OS::SIG code );
+    static void _flush( OS::sig_t code );
 
 }; inline Comms comms;
 
 
 
-inline Echo::Echo()
-: _dump{ comms.new_echo_dump() }
-{}
-
-inline Echo::~Echo() {
-    if( _depth > 0 ) return;
-    
-    if( _dump == nullptr ) return;
-
-    this->_str().put( 0 );
-    comms.out( *this );
-
-    if( _depth == 0 )
-        comms.delete_echo_dump( std::exchange( _dump, nullptr ) );
-}
-
-
-
-inline void Comms::_flush( OS::SIG code ) {
-    for( auto dump : comms._supervisor )
-        Echo{ dump, -1 };
-}
-
-
-
 };
-
-
-
-#endif

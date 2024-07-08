@@ -2,9 +2,12 @@
 [ DESCRIPTION ]
     |>> Example of comms usage.
 */
-#include "comms.hpp"
+#include <iostream>
+
+#include <IXT/comms.hpp>
 
 using namespace IXT;
+
 
 struct X : public Descriptor {
     X() = default;
@@ -15,6 +18,8 @@ struct X : public Descriptor {
 };
 
 struct Y : public Descriptor {
+    IXT_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Y" );
+
     Y( int n, IXT_COMMS_ECHO_ARG ) 
     : x{ n, echo }
     {
@@ -23,6 +28,7 @@ struct Y : public Descriptor {
 
     X x = {};
 };
+
 
 int main() {
     // Set comms stream to std::cout, which is optional since std::cout is the default output stream.

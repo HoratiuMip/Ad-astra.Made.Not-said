@@ -1,12 +1,11 @@
-#ifndef _ENGINE_ENDEC_HPP
-#define _ENGINE_ENDEC_HPP
+#pragma once
 /*
 */
 
-#include "descriptor.hpp"
-#include "comms.hpp"
-#include "file_manip.hpp"
-#include "bit_manip.hpp"
+#include <IXT/descriptor.hpp>
+#include <IXT/comms.hpp>
+#include <IXT/file_manip.hpp>
+#include <IXT/bit_manip.hpp>
 
 
 
@@ -108,5 +107,3 @@ public:
 
 
 };
-
-#endif

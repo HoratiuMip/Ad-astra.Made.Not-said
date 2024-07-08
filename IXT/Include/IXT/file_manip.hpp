@@ -1,9 +1,8 @@
-#ifndef _ENGINE_FILE_MANIP_HPP
-#define _ENGINE_FILE_MANIP_HPP
+#pragma once
 /*
 */
 
-#include "descriptor.hpp"
+#include <IXT/descriptor.hpp>
 
 
 
@@ -121,6 +120,3 @@ public:
 
 };
 
-
-
-#endif

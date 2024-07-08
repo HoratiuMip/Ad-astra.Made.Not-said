@@ -1,12 +1,10 @@
-#ifndef _ENGINE_OS_CPP
-#define _ENGINE_OS_CPP
 /*
 */
 
-#include "os.hpp"
+#include <IXT/os.hpp>
 
-#include "descriptor.hpp"
-#include "comms.hpp"
+#include <IXT/descriptor.hpp>
+#include <IXT/comms.hpp>
 
 
 
@@ -14,10 +12,18 @@ namespace _ENGINE_NAMESPACE { namespace OS {
 
 
 
-void SigInterceptor::_callback_proc( SIG code ) {
-    Echo{}[ sig_interceptor ] 
-    << "Intercepted signal #" << code << ' ' << _codes_strs[ code ]
-    << ". Executing callbacks...";
+void SigInterceptor::_callback_proc( sig_t code ) {
+    {
+        Echo echo{}; 
+        echo[ sig_interceptor ] << "Intercepted signal #" << code << ' ' << _codes_strs[ code ] << '.';
+
+        if( sig_interceptor._callbacks.empty() ) {
+            echo << " No callbacks to execute...";
+            return;
+        }
+        
+        echo << " Executing " << sig_interceptor._callbacks.size() << " callbacks...";
+    }
 
     for( auto& [ _, callback ] : sig_interceptor._callbacks )
         std::invoke( callback, code );
@@ -32,7 +38,3 @@ void SigInterceptor::_callback_proc( SIG code ) {
 
 
 } };
-
-
-
-#endif

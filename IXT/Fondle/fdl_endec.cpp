@@ -2,7 +2,7 @@
 [ DESCRIPTION ]
     |>> Example of Endec usage.
 */
-#include "endec.hpp"
+#include <IXT/endec.hpp>
 
 using namespace IXT;
 

@@ -1,9 +1,8 @@
-#ifndef _ENGINE_OS_HPP
-#define _ENGINE_OS_HPP
+#pragma once
 /*
 */
 
-#include "descriptor.hpp"
+#include <IXT/descriptor.hpp>
 
 
 
@@ -26,14 +25,26 @@ enum CONSOLE_CLR : char {
 
 class Console {
 public:
-    void clr_to( CONSOLE_CLR clr ) {
-        static auto handle = GetStdHandle( STD_OUTPUT_HANDLE );
-
-        SetConsoleTextAttribute( handle, clr );
-    } 
+    Console()
+    : _h_std_out{ GetStdHandle( STD_OUTPUT_HANDLE ) }
+    {}
 
 public:
-    std::recursive_mutex   mtx   = {};
+    Console& clr_with( CONSOLE_CLR clr ) {
+        SetConsoleTextAttribute( _h_std_out, clr );
+        return *this;
+    } 
+
+    Console& crs_at( std::pair< short, short > crd ) {
+        SetConsoleCursorPosition( _h_std_out, COORD{ crd.second, crd.first } );
+        return *this;
+    }
+
+public:
+    std::recursive_mutex   mtx          = {};
+
+_ENGINE_PROTECTED:
+    HANDLE                 _h_std_out   = nullptr;
 
 public:
     inline operator decltype( mtx )& () {
@@ -60,17 +71,18 @@ enum SIG : int {
     SIG_MEMORY    = SIGSEGV, 
     SIG_TERMINATE = SIGTERM
 };
+typedef   int   sig_t;
 
 class SigInterceptor : public Descriptor {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "OS::SigInterceptor" );
 
 _ENGINE_PROTECTED:
-    inline static constexpr const SIG   _codes[]   = {
+    inline static constexpr const sig_t   _codes[]   = {
         SIG_ABORT, SIG_FLOAT, SIG_ILLEGAL, SIG_INTERRUPT, SIG_MEMORY, SIG_TERMINATE
     };
 
-    inline static std::map< SIG, const char* >   _codes_strs   = {
+    inline static std::map< sig_t, const char* >   _codes_strs   = {
         { SIG_ABORT, "SIG_ABORT" },
         { SIG_FLOAT, "SIG_FLOAT" },
         { SIG_ILLEGAL, "SIG_ILLEGAL" },
@@ -87,7 +99,7 @@ public:
 
 _ENGINE_PROTECTED:
     using cbmap_key_t   = UId;
-    using cbmap_value_t = std::function< void( SIG ) >;
+    using cbmap_value_t = std::function< void( sig_t ) >;
 
 _ENGINE_PROTECTED:
     std::map< cbmap_key_t, cbmap_value_t >   _callbacks   = {};
@@ -102,7 +114,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    static void _callback_proc( SIG code );
+    static void _callback_proc( sig_t code );
 
 }; inline SigInterceptor sig_interceptor;
 
@@ -112,6 +124,3 @@ _ENGINE_PROTECTED:
 
 }; };
 
-
-
-#endif

@@ -135,6 +135,23 @@ namespace _ENGINE_NAMESPACE {
 
 
 
+namespace _ENGINE_NAMESPACE {
+
+    static std::string_view VERSION = "@IXT_VERSION@";
+    static std::string_view VERSION_ALIAS = "@IXT_VERSION_ALIAS@";
+
+    static const int VERSION_MAJOR = @IXT_VERSION_MAJOR@;
+    static const int VERSION_MINOR = @IXT_VERSION_MINOR@;
+    static const int VERSION_PATCH = @IXT_VERSION_PATCH@;
+
+
+    static std::string_view ASSETS_DIR = "@IXT_ASSETS_PATH@";
+@IXT_CXX_ASSETS_PATHS@
+
+};
+
+
+
 #pragma region UId
 
 

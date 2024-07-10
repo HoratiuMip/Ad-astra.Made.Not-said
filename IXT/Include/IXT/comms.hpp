@@ -135,7 +135,7 @@ public:
         .blue();
 
         for( int64_t n = 1; n <= _depth; ++n )
-            this->operator<<( '|' );
+            this->operator<<( "\\>" );
 
         return this->white()
         .operator<<( "[ " )
@@ -157,9 +157,15 @@ public:
     }
 
     template< typename T >
-    requires ( !std::is_base_of_v< Descriptor, T > )
+    requires( !is_descriptor_tolerant< T > )
     Echo& operator() ( const T& invoker, ECHO_STATUS status ) {
         return this->operator()( _unknown_invoker_placeholder, status );
+    }
+
+    template< typename T >
+    requires( !is_descriptor_tolerant< T > )
+    Echo& operator() ( const T* invoker, ECHO_STATUS status ) {
+        return this->operator()( *invoker, status );
     }
 
     Echo& operator [] ( const Descriptor& invoker ) {

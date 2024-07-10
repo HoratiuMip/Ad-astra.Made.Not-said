@@ -1,6 +1,4 @@
 /*
-[ DESCRIPTION ]
-    |>> Example of comms usage.
 */
 #include <iostream>
 

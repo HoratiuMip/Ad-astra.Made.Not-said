@@ -9,8 +9,24 @@ set( IXT_LIBRARY_NAME "IXT" )
 set(
     IXT_COMPONENTS
     "bit_manip" "comms" "concepts" "descriptor" "endec"
-    "file_manip" "os"
+    "file_manip" "os" "audio"
 )
+
+
+# IXT externals.
+set(
+    IXT_EXTERNAL_LIBS
+    "-lwinmm"
+    "-ld2d1"
+    "-lole32"
+    "-lComdlg32"
+    "-lDwrite"
+    "-lwindowscodecs"
+    "-lopengl32"
+    "-lglu32"
+    "-lgdi32"
+)
+
 
 # IXTDescriptor has been included.
 set( IXT_INCLUDED TRUE )

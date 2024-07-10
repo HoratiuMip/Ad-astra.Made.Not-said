@@ -1,6 +1,4 @@
 /*
-[ DESCRIPTION ]
-    |>> Example of Endec usage.
 */
 #include <IXT/endec.hpp>
 
@@ -9,7 +7,7 @@ using namespace IXT;
 
 
 int main() {
-    Endec::Wav< double > wav{ "Assets/song.wav" };
+    Endec::Wav< double > wav{ ASSET_WAV_SAX_PATH };
 
     std::cout << std::setw( 20 ) << "Sample count: " << wav.sample_count << '\n';
     std::cout << std::setw( 20 ) << "Channel count: " << wav.channel_count << '\n';

@@ -21,8 +21,10 @@ void SigInterceptor::_callback_proc( sig_t code ) {
             echo << " No callbacks to execute...";
             return;
         }
+
+        size_t callbacks_count = sig_interceptor._callbacks.size();
         
-        echo << " Executing " << sig_interceptor._callbacks.size() << " callbacks...";
+        echo << " Executing " << callbacks_count << " callback" << ( callbacks_count == 1 ? "" : "s" ) << "...";
     }
 
     for( auto& [ _, callback ] : sig_interceptor._callbacks )

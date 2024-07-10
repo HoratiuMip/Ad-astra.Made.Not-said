@@ -13,6 +13,35 @@ include( "IXTDescriptor" )
 # ------------ # PROJECT IXTFondle
 set( IXT_PROJECT_FONDLE_NAME "IXTFondle" )
 
+set( IXT_VERSION "v1.0.0" )
+set( IXT_VERSION_ALIAS "Ice Sleep" )
+set( IXT_VERSION_MAJOR 1 )
+set( IXT_VERSION_MINOR 0 )
+set( IXT_VERSION_PATCH 0 )
+
+
+# IXT assets.
+set( IXT_ASSETS_PATH "${CMAKE_CURRENT_LIST_DIR}/Fondle/Assets" )
+set( IXT_CXX_ASSETS_PATHS "" )
+file( GLOB assets_paths "${IXT_ASSETS_PATH}/*" )
+
+foreach( path ${assets_paths} )
+    string( FIND ${path} "/" pos REVERSE )
+    math( EXPR pos "${pos} + 1" )
+    string( SUBSTRING ${path} ${pos} -1 asset_file )
+
+    string( FIND ${asset_file} "." pos REVERSE )
+    string( SUBSTRING ${asset_file} 0 ${pos} asset_name )
+    math( EXPR pos "${pos} + 1" )
+    string( SUBSTRING ${asset_file} ${pos} -1 asset_ext )
+
+    string( TOUPPER ${asset_name} asset_name )
+    string( TOUPPER ${asset_ext} asset_ext )
+
+    string( APPEND IXT_CXX_ASSETS_PATHS "\tstatic std::string_view ASSET_${asset_ext}_${asset_name}_PATH = \"${path}\";\n" )
+endforeach()
+
+
 # Project details.
 project(
     "${IXT_PROJECT_FONDLE_NAME}"
@@ -29,7 +58,7 @@ add_compile_definitions(
 
 
 # Set those folders' paths into variables.
-set( IXT_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/Include/IXT" )
+set( IXT_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/Include" )
 set( IXT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/Source" )
 
 
@@ -38,14 +67,18 @@ add_subdirectory( "Source" )
 add_subdirectory( "Include" )
 
 
-# All executables of this project.
-set( EXES "comms" "endec" )
+if( IXT_FONDLES_TO_BUILD STREQUAL "ALL" ) 
+    set( IXT_FONDLES_TO_BUILD ${IXT_COMPONENTS} )
+endif()
 
-foreach( exe ${EXES} )
+foreach( exe ${IXT_FONDLES_TO_BUILD} )
     # Add each executable and its sources/includes.
-    add_executable( ${exe} "Fondle/fdl_${exe}.cpp" )
+    if( EXISTS "${CMAKE_CURRENT_LIST_DIR}/Fondle/fdl_${exe}.cpp")
+        add_executable( ${exe} "Fondle/fdl_${exe}.cpp" )
+        
+        target_link_libraries( ${exe} PUBLIC ${IXT_LIBRARY_NAME} ${IXT_EXTERNAL_LIBS} )
+        
+        target_include_directories( ${exe} PUBLIC ${IXT_INCLUDE_DIR} )
+    endif()
 
-    target_link_libraries( ${exe} PUBLIC ${IXT_LIBRARY_NAME} )
-    
-    target_include_directories( ${exe} PUBLIC ${IXT_INCLUDE_DIR} )
 endforeach()

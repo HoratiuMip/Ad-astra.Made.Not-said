@@ -5,14 +5,14 @@
 #include <IXT/descriptor.hpp>
 #include <IXT/endec.hpp>
 #include <IXT/comms.hpp>
+#include <IXT/concepts.hpp>
 
 namespace _ENGINE_NAMESPACE {
 
 
 
 class Wave;
-class WaveSlave;
-class WaveMaster;
+class WaveBehaviour;
 class Audio;
 
 
@@ -25,20 +25,22 @@ public:
     friend class Audio;
 
 public:
-    typedef   uint16_t   channel_t;
+    typedef   uint16_t   tunnel_t;
+    typedef   double     volume_t;
+    typedef   double     velocity_t;
 
 public:
-    typedef   std::function< double( double, channel_t ) >   Filter;
+    typedef   std::function< double( double, tunnel_t ) >   Filter;
 
 public:
     Wave() = default;
 
-    Wave( const Wave& ) = default;
-
-    Wave( Wave&& ) = delete;
+    Wave( std::shared_ptr< Audio > audio )
+    : _audio{ std::move( audio ) }
+    {}
 
 _ENGINE_PROTECTED:
-    Audio*   _audio   = nullptr;
+    std::shared_ptr< Audio >   _audio   = nullptr;
 
 public:
     bool is_playing() const;
@@ -46,41 +48,41 @@ public:
     void play();
 
 public:
-    virtual void prepare_play() = 0;
+    virtual void set() = 0;
 
     virtual void stop() = 0;
 
     virtual bool done() const = 0;
 
 public:
-    Wave& lock_on( Audio& audio ) {
-        _audio = &audio;
+    bool is_docked() const {
+        return _audio != nullptr;
+    }
+
+    Wave& dock_in( std::shared_ptr< Audio > audio ) {
+        _audio = std::move( audio );
         return *this;
     }
 
-    Wave& release_lock() {
+    Wave& dock_out() {
         _audio = nullptr;
         return *this;
     }
 
-    Wave& reset_lock( Audio& audio ) {
-        return this->release_lock(), this->lock_on( audio );
-    }
-
 public:
-    Audio& lock() const {
+    Audio& audio() const {
         return *_audio;
     }
 
 
 _ENGINE_PROTECTED:
-    virtual double _sample( channel_t channel, bool advance ) = 0;
+    virtual double _sample( double elapsed, tunnel_t tunnel, bool advance ) = 0;
 
 };
 
 
-template< typename T >
-class WaveBehaviourDescriptor {
+
+struct WaveMetas {
 _ENGINE_PROTECTED:
     double         _volume     = 1.0;
     bool           _paused     = false;
@@ -90,18 +92,19 @@ _ENGINE_PROTECTED:
     Wave::Filter   _filter     = {};
 
 public:
-    bool volume() const {
+    Wave::volume_t volume() const {
         return _volume;
-    }
+    } 
 
-    T& volume_at( double vlm ) {
+public:
+    WaveMetas& volume_at( Wave::volume_t vlm ) {
         _volume = std::clamp( vlm, -1.0, 1.0 );
-        return static_cast< T& >( *this );
+        return *this;
     }
 
-    T& volume_tweak( const auto& op, const auto& rhs ) {
+    WaveMetas& volume_tweak( const auto& op, const auto& rhs ) {
         _volume = std::clamp( std::invoke( op, _volume, rhs ), -1.0, 1.0 );
-        return static_cast< T& >( *this );
+        return *this;
     }
 
 public:
@@ -109,19 +112,19 @@ public:
         return _paused;
     }
 
-    T& pause() {
+    WaveMetas& pause() {
         _paused = true;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
-    T& resume() {
+    WaveMetas& resume() {
         _paused = false;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
-    T& pause_tweak() {
+    WaveMetas& pause_tweak() {
         _paused ^= true;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
 public:
@@ -129,19 +132,19 @@ public:
         return _muted;
     }
 
-    T& mute() {
+    WaveMetas& mute() {
         _muted = true;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
-    T& unmute() {
+    WaveMetas& unmute() {
         _muted = false;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
-    T& mute_tweak() {
+    WaveMetas& mute_tweak() {
         _muted ^= true;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
 public:
@@ -149,34 +152,34 @@ public:
         return _looping;
     }
 
-    T& loop() {
+    WaveMetas& loop() {
         _looping = true;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
-    T& unloop() {
+    WaveMetas& unloop() {
         _looping = false;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
-    T& loop_tweak() {
+    WaveMetas& loop_tweak() {
         _looping ^= true;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
 public:
-    double velocity() const {
+    Wave::velocity_t velocity() const {
         return _velocity;
     }
 
-    T& velocity_at( double vlc ) {
+    WaveMetas& velocity_at( Wave::velocity_t vlc ) {
         _velocity = vlc;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
-    T& velocity_tweak( const auto& op, const auto& rhs ) {
+    WaveMetas& velocity_tweak( const auto& op, const auto& rhs ) {
         _velocity = std::invoke( op, _velocity, rhs );
-        return static_cast< T& >( *this );
+        return *this;
     }
 
 public:
@@ -184,43 +187,23 @@ public:
         return _filter;
     }
 
-    T& filter_with( const Wave::Filter& flt ) {
+    WaveMetas& filter_with( const Wave::Filter& flt ) {
         _filter = flt;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
-    T& remove_filter() {
+    WaveMetas& remove_filter() {
         _filter = nullptr;
-        return static_cast< T& >( *this );
+        return *this;
     }
 
 };
 
 
-class WaveSlave : public Wave {
-public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "WaveSlave" );
 
-_ENGINE_PROTECTED:
-    WaveMaster*   _master   = nullptr;
-
-};
-
-
-class WaveMaster : public Wave, public WaveBehaviourDescriptor< WaveMaster > {
-public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "WaveMaster" );
-};
-
-
-
-
-class Audio : public Descriptor, public WaveBehaviourDescriptor< Audio > {
+class Audio : public Descriptor, public WaveMetas {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Audio" );
-
-_ENGINE_PROTECTED:
-    friend class Wave;
 
 public:
     Audio() = default;
@@ -228,14 +211,14 @@ public:
     Audio(
         std::string_view   device,
         size_t             sample_rate          = 48'000,
-        size_t             channel_count        = 1,
+        size_t             tunnel_count         = 1,
         size_t             block_count          = 16,
         size_t             block_sample_count   = 256,
         _ENGINE_COMMS_ECHO_ARG
     )
     : _sample_rate       { sample_rate },
       _time_step         { 1.0 / _sample_rate },
-      _channel_count     { channel_count },
+      _tunnel_count      { tunnel_count },
       _block_count       { block_count },
       _block_sample_count{ block_sample_count },
       _block_current     { 0 },
@@ -265,7 +248,7 @@ public:
         wave_format.wFormatTag      = WAVE_FORMAT_PCM;
         wave_format.nSamplesPerSec  = _sample_rate;
         wave_format.wBitsPerSample  = sizeof( int ) * 8;
-        wave_format.nChannels       = _channel_count;
+        wave_format.nChannels       = _tunnel_count;
         wave_format.nBlockAlign     = ( wave_format.wBitsPerSample / 8 ) * wave_format.nChannels;
         wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec * wave_format.nBlockAlign;
         wave_format.cbSize          = 0;
@@ -344,27 +327,28 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    volatile bool                  _powered              = false;
+    volatile bool                          _powered              = false;
 
-    size_t                         _sample_rate          = 0;
-    double                         _time_step            = 0.0;
-    size_t                         _channel_count        = 0;
-    size_t                         _block_count          = 0;
-    size_t                         _block_sample_count   = 0;
-    size_t                         _block_current        = 0;
-    std::unique_ptr< int[] >       _block_memory         = nullptr;
+    size_t                                 _sample_rate          = 0;
+    double                                 _time_step            = 0.0;
+    double                                 _elapsed              = 0.0;
+    size_t                                 _tunnel_count         = 0;
+    size_t                                 _block_count          = 0;
+    size_t                                 _block_sample_count   = 0;
+    size_t                                 _block_current        = 0;
+    std::unique_ptr< int[] >               _block_memory         = nullptr;
 
-    std::unique_ptr< WAVEHDR[] >   _wave_headers         = nullptr;
-    HWAVEOUT                       _wave_out             = nullptr;
-    std::string                    _device               = {};
+    std::unique_ptr< WAVEHDR[] >           _wave_headers         = nullptr;
+    HWAVEOUT                               _wave_out             = nullptr;
+    std::string                            _device               = {};
 
-    std::thread                    _thread               = {};
+    std::thread                            _thread               = {};
 
-    std::atomic< size_t >          _free_block_count     = 0;
-    std::condition_variable        _cnd_var              = {};
-    std::mutex                     _mtx                  = {};
+    std::atomic< size_t >                  _free_block_count     = 0;
+    std::condition_variable                _cnd_var              = {};
+    std::mutex                             _mtx                  = {};
 
-    std::list< Wave* >             _waves                = {};
+    std::list< std::shared_ptr< Wave > >   _waves                = {};
 
 _ENGINE_PROTECTED:
     void _main() {
@@ -373,17 +357,15 @@ _ENGINE_PROTECTED:
         );
 
         
-        auto sample = [ this ] ( size_t channel ) -> double {
+        auto sample = [ this ] ( Wave::tunnel_t tunnel ) -> double {
             double amp = 0.0;
 
             if( _paused ) return amp;
-           
-            bool advance = ( channel == _channel_count - 1 );
 
-            for( Wave* wave : _waves )
-                amp += wave->_sample( channel, advance );
+            for( auto& wave : _waves )
+                amp += wave->_sample( _elapsed, tunnel, tunnel == _tunnel_count - 1 );
 
-            return _filter ? _filter( amp, channel ) : amp
+            return _filter ? _filter( amp, tunnel ) : amp
                    * _volume * !_muted;
         };
 
@@ -404,18 +386,21 @@ _ENGINE_PROTECTED:
                 waveOutUnprepareHeader( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
 
 
-            _waves.remove_if( [] ( Wave* wave ) {
+            _waves.remove_if( [] ( auto& wave ) {
                 return wave->done();
             } );
             
             
             size_t current_block = _block_current * _block_sample_count;
 
-            for( size_t n = 0; n < _block_sample_count; n += _channel_count )
-                for( size_t ch = 0; ch < _channel_count; ++ch )
-                    _block_memory[ current_block + n + ch ] = static_cast< int >( 
-                        std::clamp( sample( ch ), -1.0, 1.0 ) * max_sample 
+            for( size_t n = 0; n < _block_sample_count; n += _tunnel_count ) {
+                for( size_t tnl = 0; tnl < _tunnel_count; ++tnl )
+                    _block_memory[ current_block + n + tnl ] = static_cast< int >( 
+                        std::clamp( sample( tnl ), -1.0, 1.0 ) * max_sample 
                     );
+                
+                _elapsed += _time_step;
+            }
             
             
             waveOutPrepareHeader( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
@@ -447,7 +432,7 @@ _ENGINE_PROTECTED:
             break; }
 
             case WOM_CLOSE: {
-                /* Here were the uniques delete[]'d */
+                
             break; }
         }
     }
@@ -484,15 +469,31 @@ public:
         return _time_step;
     }
 
-    size_t channel_count() const {
-        return _channel_count;
+    size_t tunnel_count() const {
+        return _tunnel_count;
+    }
+
+public:
+    bool is_playing( const Wave& wave ) {
+        return std::find_if( _waves.begin(), _waves.end(), [ &wave ] ( auto& entry ) -> bool {
+            return entry->uid() == wave.uid();
+        } ) != _waves.end();
+    }
+
+    Audio& play( std::shared_ptr< Wave > wave ) {
+        wave->set();
+
+        if( !this->is_playing( *wave ) )
+            _waves.emplace_back( std::move( wave ) );
+
+        return *this;
     }
 
 };
 
 
 
-class Sound : public WaveMaster {
+class Sound : public Wave, public WaveMetas {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Sound" );
 
@@ -500,26 +501,12 @@ public:
     Sound() = default;
 
     Sound( 
-        Audio&             audio, 
-        std::string_view   path, 
+        std::shared_ptr< Audio >   audio, 
+        std::string_view           path, 
         _ENGINE_COMMS_ECHO_ARG 
     )
-    : Sound{ path, echo }
+    : Wave{ std::move( audio ) }
     {
-        _audio = &audio;
-
-        if( _sample_rate != _audio->sample_rate() )
-            echo( this, ECHO_STATUS_WARNING ) << "Sample rate does not match with locked on audio's.";
-
-
-        if( _channel_count != _audio->channel_count() )
-            echo( this, ECHO_STATUS_WARNING ) << "Channel count does not match with locked on audio's.";
-    }
-
-    Sound( 
-        std::string_view   path,
-        _ENGINE_COMMS_ECHO_ARG
-    ) {
         using namespace std::string_literals;
 
 
@@ -529,18 +516,30 @@ public:
             _stream         = std::move( wav.stream );
             _sample_rate    = wav.sample_rate;
             _sample_count   = wav.sample_count;
-            _channel_count  = wav.channel_count;
+            _tunnel_count  = wav.tunnel_count;
 
-            echo( this, ECHO_STATUS_OK ) << "Created from \"" << path.data() << "\".";
+            echo( this, ECHO_STATUS_OK ) << "Created from: \"" << path.data() << "\".";
             return;
         }
 
         echo( this, ECHO_STATUS_ERROR ) << "Unsupported format: \"" << path.substr( path.find_last_of( '.' ) ) << "\".";
+    
+
+        if( !audio ) return;
+
+        if( _sample_rate != _audio->sample_rate() )
+            echo( this, ECHO_STATUS_WARNING ) << "Sample rate does not match with docked in audio's.";
+
+
+        if( _tunnel_count != _audio->tunnel_count() )
+            echo( this, ECHO_STATUS_WARNING ) << "Tunnel count does not match with docked in audio's.";
     }
 
-    Sound( const Sound& ) = default;
-
-    Sound( Sound&& ) = delete;
+    Sound( 
+        std::string_view   path,
+        _ENGINE_COMMS_ECHO_ARG
+    ) : Sound{ nullptr, path, echo }
+    {}
 
 
     ~Sound() {
@@ -548,16 +547,16 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    std::shared_ptr< double[] >    _stream          = nullptr;
+    std::shared_ptr< double[] >    _stream         = nullptr;
 
-    std::list< double >            _needles         = {};
+    std::list< double >            _needles        = {};
 
-    uint64_t                       _sample_rate     = 0;
-    uint64_t                       _sample_count    = 0;
-    uint16_t                       _channel_count   = 0;
+    uint64_t                       _sample_rate    = 0;
+    uint64_t                       _sample_count   = 0;
+    uint16_t                       _tunnel_count   = 0;
 
 public:
-    virtual void prepare_play() override {
+    virtual void set() override {
         _needles.push_back( 0.0 );
     }
 
@@ -570,15 +569,15 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    virtual double _sample( channel_t channel, bool advance ) override {
+    virtual double _sample( double elapsed, Wave::tunnel_t tunnel, bool advance ) override {
         double amp = 0.0;
 
         if( _paused ) return amp;
 
-        _needles.remove_if( [ this, &amp, &channel, &advance ] ( double& at ) {
-            double raw = _stream[ static_cast< size_t >( at ) * _channel_count + channel ];
+        _needles.remove_if( [ this, &amp, &tunnel, &advance ] ( double& at ) {
+            double raw = _stream[ static_cast< size_t >( at ) * _tunnel_count + tunnel ];
 
-            amp +=  _filter ? _filter( raw, channel ) : raw
+            amp +=  _filter ? _filter( raw, tunnel ) : raw
                     *
                     _volume * !_muted;
 
@@ -602,16 +601,12 @@ _ENGINE_PROTECTED:
     }
 
 public:
-    bool is_locked() const {
-        return _audio != nullptr;
-    }
-
     bool has_stream() const {
         return _stream != nullptr;
     }
 
     operator bool () const {
-        return this->is_locked() && this->has_stream();
+        return this->is_docked() && this->has_stream();
     }
 
 public:
@@ -619,8 +614,8 @@ public:
         return _sample_rate;
     }
 
-    size_t channel_count() const {
-        return _channel_count;
+    size_t tunnel_count() const {
+        return _tunnel_count;
     }
 
     size_t sample_count() const {

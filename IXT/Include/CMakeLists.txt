@@ -11,7 +11,7 @@ foreach( component ${IXT_COMPONENTS} )
 endforeach()
 
 target_include_directories( 
-    ${IXT_LIBRARY_NAME} 
+    ${IXT_LIB_NAME} 
     PUBLIC "./" "${CMAKE_CURRENT_BINARY_DIR}/Configured"
 )
 

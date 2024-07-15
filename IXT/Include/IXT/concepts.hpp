@@ -21,4 +21,13 @@ template< typename T > concept is_descriptor_tolerant =
 
 
 
+template< bool C, typename T >
+struct volatile_attr {
+    using type = std::conditional_t< C, T, std::monostate >;
+};
+template< bool C, typename T >
+using volatile_attr_t = typename volatile_attr< C, T >::type;
+
+
+
 };

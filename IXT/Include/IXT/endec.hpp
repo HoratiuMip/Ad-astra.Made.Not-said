@@ -49,7 +49,7 @@ public:
             file.read( raw_stream.get(), byte_count );
 
 
-            channel_count = Bytes::as< uint16_t, 2, BIT_END_LITTLE >( raw_stream.get() + 22 );
+            tunnel_count = Bytes::as< uint16_t, 2, BIT_END_LITTLE >( raw_stream.get() + 22 );
 
             sample_rate = Bytes::as< uint32_t, 4, BIT_END_LITTLE >( raw_stream.get() + 24 );
 
@@ -82,11 +82,11 @@ public:
             }
 
 
-            if( sample_count % channel_count != 0 )
+            if( sample_count % tunnel_count != 0 )
                 echo( this, ECHO_STATUS_WARNING ) << "Sample count does not distribute evenly on channel count.";
 
             
-            sample_count /= channel_count;
+            sample_count /= tunnel_count;
 
 
             echo( this, ECHO_STATUS_OK ) << "Created from: \"" << path.data() << "\".";
@@ -98,7 +98,7 @@ public:
         uint64_t                 sample_rate       = 0;
         uint16_t                 bits_per_sample   = 0;
         uint64_t                 sample_count      = 0;
-        uint16_t                 channel_count     = 0;
+        uint16_t                 tunnel_count      = 0;
 
     };
 

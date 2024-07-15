@@ -13,4 +13,6 @@ foreach( component ${IXT_COMPONENTS} )
 
 endforeach()
 
-add_library( ${IXT_LIBRARY_NAME} STATIC ${sources} )
+add_library( ${IXT_LIB_NAME} STATIC ${sources} )
+
+target_link_libraries( ${IXT_LIB_NAME} PUBLIC ${IXT_EXT_LIBS} )

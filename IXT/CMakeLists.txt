@@ -5,16 +5,43 @@ set( CMAKE_CXX_STANDARD 23 )
 set( CMAKE_CXX_EXTENSIONS ON )
 
 
-list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/CMake" )
-include( "IXTDescriptor" )
+cmake_minimum_required( VERSION 3.30.0 )
 
+
+# Name of IXT library.
+set( IXT_LIB_NAME "IXT" CACHE STRING "IXT lib name." FORCE )
+
+
+# IXT components. Every component has a .hpp and, possibly, a .cpp file.
+set(
+    IXT_COMPONENTS
+    "bit_manip" "comms" "concepts" "descriptor" "endec"
+    "file_manip" "os" "audio"
+    CACHE STRING "IXT engine components." FORCE
+)
+
+
+# IXT externals.
+set(
+    IXT_EXT_LIBS
+    "-lwinmm"
+    "-ld2d1"
+    "-lole32"
+    "-lComdlg32"
+    "-lDwrite"
+    "-lwindowscodecs"
+    "-lopengl32"
+    "-lglu32"
+    "-lgdi32"
+    CACHE STRING "IXT external dependencies." FORCE
+)
 
 
 # ------------ # PROJECT IXTFondle
 set( IXT_PROJECT_FONDLE_NAME "IXTFondle" )
 
 set( IXT_VERSION "v1.0.0" )
-set( IXT_VERSION_ALIAS "Ice Sleep" )
+set( IXT_VERSION_ALIAS "Frost Slumber" )
 set( IXT_VERSION_MAJOR 1 )
 set( IXT_VERSION_MINOR 0 )
 set( IXT_VERSION_PATCH 0 )
@@ -76,7 +103,7 @@ foreach( exe ${IXT_FONDLES_TO_BUILD} )
     if( EXISTS "${CMAKE_CURRENT_LIST_DIR}/Fondle/fdl_${exe}.cpp")
         add_executable( ${exe} "Fondle/fdl_${exe}.cpp" )
         
-        target_link_libraries( ${exe} PUBLIC ${IXT_LIBRARY_NAME} ${IXT_EXTERNAL_LIBS} )
+        target_link_libraries( ${exe} PUBLIC ${IXT_LIB_NAME} )
         
         target_include_directories( ${exe} PUBLIC ${IXT_INCLUDE_DIR} )
     endif()

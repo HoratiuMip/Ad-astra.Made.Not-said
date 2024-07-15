@@ -1,3 +1,5 @@
+# IXT "Nine-tailed" engine.
+
 ## Wording choice.
 
 ### General:
@@ -13,16 +15,13 @@
 
 > - For primitives, the typedef is full lower-case and followed by '**_t**', like in ***stdint.h***.<br>
 > `typedef int sig_t`<br>
-> - For structures, the typedef follows the structure wording( see below ).
+> - For structures, the typedef follows the ***Structure*** wording.
 
 ### Enumerations:
 
-> - The enum name is written in full upper-case. Words separated by '**_**'.
+> - The enum name is written in full upper-case, words separated by '**_**'.
 > - Each enum constant is precedented by the enum name.<br>
-> `enum SIG {`<br>
-> `SIG_MEMORY`<br>
-> `...`<br>
-> `}`
+> `enum SIG : int { SIG_MEMORY, SIG_FLOAT, ... };`
 
 ### Structures:
 
@@ -31,3 +30,15 @@
 > - Abbreviations follow the same rules.<br>
 > `struct SigInterceptor`<br>
 > `class IPPipe`
+
+### Variables:
+
+> - Local variables have full lower-case letters, words separated by '**_**'.
+> - The same is used for function arguments.<br>
+> `int some_int = 9;`
+> - Any protected/private variables have an extra '**_**' at the beginning.<br>
+> `protected: int _some_int = 9;`
+
+### Functions: 
+
+> - Following the same rules as the ***Variables*** wording.

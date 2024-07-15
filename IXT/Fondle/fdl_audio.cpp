@@ -13,11 +13,12 @@ using namespace IXT;
 int main() {
     Endec::Wav< int > sample_wav{ ASSET_WAV_SAX_PATH };
 
-    Audio audio{ 
+    auto audio = std::make_shared< Audio >( 
         Audio::devices()[ 0 ], 
-        sample_wav.sample_rate, sample_wav.channel_count, 
+        sample_wav.sample_rate, sample_wav.tunnel_count, 
         32, 256 
-    };
+    );
+
 
     std::map< decltype( _getch() ), std::shared_ptr< Wave > > sample_map{
         { '1', std::make_shared< Sound >( audio, ASSET_WAV_SAX_PATH ) },
@@ -28,7 +29,7 @@ int main() {
     
     for( auto cmd = _getch(); cmd != '0'; cmd = _getch() ) {
         try {
-            sample_map.at( cmd )->play();
+            audio->play( sample_map.at( cmd ) );
         } catch( std::out_of_range& err ) {
             std::cout << err.what() << '\n';
         }

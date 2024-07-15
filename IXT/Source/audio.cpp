@@ -10,16 +10,11 @@ namespace _ENGINE_NAMESPACE {
 
 
 bool Wave::is_playing() const {
-    return std::find( _audio->_waves.begin(), _audio->_waves.end(), this )
-           !=
-           _audio->_waves.end();
+    return _audio->is_playing( *this );
 }
 
 void Wave::play() {
-    this->prepare_play();
-
-    if( !this->is_playing() )
-        _audio->_waves.push_back( this );
+    _audio->play( std::shared_ptr< Wave >( this, [] ( [[maybe_unused]] Wave* ) {} ) );
 }
 
 

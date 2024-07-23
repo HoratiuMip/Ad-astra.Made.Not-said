@@ -11,93 +11,34 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-class Wave;
-class WaveBehaviour;
-class Audio;
-
-
-
-class Wave : public Descriptor {
-public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Wave" );
-
-public:
-    friend class Audio;
-
-public:
-    typedef   uint16_t   tunnel_t;
-    typedef   double     volume_t;
-    typedef   double     velocity_t;
-
-public:
-    typedef   std::function< double( double, tunnel_t ) >   Filter;
-
-public:
-    Wave() = default;
-
-    Wave( std::shared_ptr< Audio > audio )
-    : _audio{ std::move( audio ) }
-    {}
-
-_ENGINE_PROTECTED:
-    std::shared_ptr< Audio >   _audio   = nullptr;
-
-public:
-    bool is_playing() const;
-
-    void play();
-
-public:
-    virtual void set() = 0;
-
-    virtual void stop() = 0;
-
-    virtual bool done() const = 0;
-
-public:
-    bool is_docked() const {
-        return _audio != nullptr;
-    }
-
-    Wave& dock_in( std::shared_ptr< Audio > audio ) {
-        _audio = std::move( audio );
-        return *this;
-    }
-
-    Wave& dock_out() {
-        _audio = nullptr;
-        return *this;
-    }
-
-public:
-    Audio& audio() const {
-        return *_audio;
-    }
-
-
-_ENGINE_PROTECTED:
-    virtual double _sample( double elapsed, tunnel_t tunnel, bool advance ) = 0;
-
-};
+class  Wave;
+struct WaveMetas;
+class  Audio;
 
 
 
 struct WaveMetas {
+public:
+    typedef   uint16_t                                      tunnel_t;
+    typedef   double                                        volume_t;
+    typedef   double                                        velocity_t;
+    typedef   std::function< double( double, tunnel_t ) >   Filter;
+
 _ENGINE_PROTECTED:
-    double         _volume     = 1.0;
-    bool           _paused     = false;
-    bool           _muted      = false;
-    bool           _looping    = false;
-    double         _velocity   = 1.0;
-    Wave::Filter   _filter     = {};
+    double   _volume     = 1.0;
+    bool     _paused     = false;
+    bool     _muted      = false;
+    bool     _looping    = false;
+    double   _velocity   = 1.0;
+    Filter   _filter     = {};
 
 public:
-    Wave::volume_t volume() const {
+    volume_t volume() const {
         return _volume;
     } 
 
 public:
-    WaveMetas& volume_at( Wave::volume_t vlm ) {
+    WaveMetas& volume_at( volume_t vlm ) {
         _volume = std::clamp( vlm, -1.0, 1.0 );
         return *this;
     }
@@ -168,11 +109,11 @@ public:
     }
 
 public:
-    Wave::velocity_t velocity() const {
+    velocity_t velocity() const {
         return _velocity;
     }
 
-    WaveMetas& velocity_at( Wave::velocity_t vlc ) {
+    WaveMetas& velocity_at( velocity_t vlc ) {
         _velocity = vlc;
         return *this;
     }
@@ -183,11 +124,11 @@ public:
     }
 
 public:
-    Wave::Filter filter() const {
+    Filter filter() const {
         return _filter;
     }
 
-    WaveMetas& filter_with( const Wave::Filter& flt ) {
+    WaveMetas& filter_with( const Filter& flt ) {
         _filter = flt;
         return *this;
     }
@@ -196,6 +137,63 @@ public:
         _filter = nullptr;
         return *this;
     }
+
+};
+
+class Wave : public Descriptor, public WaveMetas {
+public:
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Wave" );
+
+public:
+    friend class Audio;
+
+public:
+    Wave() = default;
+
+    Wave( SPtr< Audio > audio )
+    : _audio{ std::move( audio ) }
+    {}
+
+_ENGINE_PROTECTED:
+    SPtr< Audio >   _audio   = nullptr;
+
+public:
+    bool is_playing() const;
+
+    void play();
+
+    void play( SPtr< Wave > self );
+
+public:
+    virtual void set() = 0;
+
+    virtual void stop() = 0;
+
+    virtual bool done() const = 0;
+
+public:
+    bool is_docked() const {
+        return _audio != nullptr;
+    }
+
+    Wave& dock_in( SPtr< Audio > audio ) {
+        _audio = std::move( audio );
+        return *this;
+    }
+
+    Wave& dock_out() {
+        _audio = nullptr;
+        return *this;
+    }
+
+public:
+    Audio& audio() const {
+        return *_audio;
+    }
+
+
+_ENGINE_PROTECTED:
+    virtual double _sample( double elapsed, tunnel_t tunnel, bool advance ) = 0;
 
 };
 
@@ -210,10 +208,10 @@ public:
 
     Audio(
         std::string_view   device,
-        size_t             sample_rate          = 48'000,
-        size_t             tunnel_count         = 1,
-        size_t             block_count          = 16,
-        size_t             block_sample_count   = 256,
+        uint64_t           sample_rate          = 48'000,
+        uint16_t           tunnel_count         = 1,
+        uint64_t           block_count          = 16,
+        uint64_t           block_sample_count   = 256,
         _ENGINE_COMMS_ECHO_ARG
     )
     : _sample_rate       { sample_rate },
@@ -327,28 +325,28 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    volatile bool                          _powered              = false;
+    volatile bool               _powered              = false;
 
-    size_t                                 _sample_rate          = 0;
-    double                                 _time_step            = 0.0;
-    double                                 _elapsed              = 0.0;
-    size_t                                 _tunnel_count         = 0;
-    size_t                                 _block_count          = 0;
-    size_t                                 _block_sample_count   = 0;
-    size_t                                 _block_current        = 0;
-    std::unique_ptr< int[] >               _block_memory         = nullptr;
+    uint64_t                    _sample_rate          = 0;
+    double                      _time_step            = 0.0;
+    double                      _elapsed              = 0.0;
+    uint16_t                    _tunnel_count         = 0;
+    uint64_t                    _block_count          = 0;
+    uint64_t                    _block_sample_count   = 0;
+    uint64_t                    _block_current        = 0;
+    UPtr< int[] >               _block_memory         = nullptr;
 
-    std::unique_ptr< WAVEHDR[] >           _wave_headers         = nullptr;
-    HWAVEOUT                               _wave_out             = nullptr;
-    std::string                            _device               = {};
+    UPtr< WAVEHDR[] >           _wave_headers         = nullptr;
+    HWAVEOUT                    _wave_out             = nullptr;
+    std::string                 _device               = {};
 
-    std::thread                            _thread               = {};
+    std::thread                 _thread               = {};
 
-    std::atomic< size_t >                  _free_block_count     = 0;
-    std::condition_variable                _cnd_var              = {};
-    std::mutex                             _mtx                  = {};
+    std::atomic< uint64_t >     _free_block_count     = 0;
+    std::condition_variable     _cnd_var              = {};
+    std::mutex                  _mtx                  = {};
 
-    std::list< std::shared_ptr< Wave > >   _waves                = {};
+    std::list< SPtr< Wave > >   _waves                = {};
 
 _ENGINE_PROTECTED:
     void _main() {
@@ -469,7 +467,11 @@ public:
         return _time_step;
     }
 
-    size_t tunnel_count() const {
+    double elapsed() const {
+        return _elapsed;
+    }
+
+    uint16_t tunnel_count() const {
         return _tunnel_count;
     }
 
@@ -480,7 +482,11 @@ public:
         } ) != _waves.end();
     }
 
-    Audio& play( std::shared_ptr< Wave > wave ) {
+    Audio& play( Wave& wave ) {
+        return this->play( SPtr< Wave >( &wave, [] ( [[maybe_unused]] Wave* ) {} ) );
+    }
+
+    Audio& play( SPtr< Wave > wave ) {
         wave->set();
 
         if( !this->is_playing( *wave ) )
@@ -489,11 +495,18 @@ public:
         return *this;
     }
 
+    Audio& stop() {
+        for( auto& w : _waves )
+            w->stop();
+
+        return *this;
+    }
+
 };
 
 
 
-class Sound : public Wave, public WaveMetas {
+class Sound : public Wave {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Sound" );
 
@@ -501,8 +514,8 @@ public:
     Sound() = default;
 
     Sound( 
-        std::shared_ptr< Audio >   audio, 
-        std::string_view           path, 
+        SPtr< Audio >      audio, 
+        std::string_view   path, 
         _ENGINE_COMMS_ECHO_ARG 
     )
     : Wave{ std::move( audio ) }
@@ -519,20 +532,19 @@ public:
             _tunnel_count  = wav.tunnel_count;
 
             echo( this, ECHO_STATUS_OK ) << "Created from: \"" << path.data() << "\".";
-            return;
-        }
-
-        echo( this, ECHO_STATUS_ERROR ) << "Unsupported format: \"" << path.substr( path.find_last_of( '.' ) ) << "\".";
+        } else
+            echo( this, ECHO_STATUS_ERROR ) << "Unsupported format: \"" << path.substr( path.find_last_of( '.' ) ) << "\".";
     
 
-        if( !audio ) return;
+        if( !_audio ) return;
 
         if( _sample_rate != _audio->sample_rate() )
             echo( this, ECHO_STATUS_WARNING ) << "Sample rate does not match with docked in audio's.";
 
-
         if( _tunnel_count != _audio->tunnel_count() )
             echo( this, ECHO_STATUS_WARNING ) << "Tunnel count does not match with docked in audio's.";
+
+        echo( this, ECHO_STATUS_OK ) << "Audio docked.";
     }
 
     Sound( 
@@ -547,13 +559,13 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    std::shared_ptr< double[] >    _stream         = nullptr;
+    SPtr< double[] >      _stream         = nullptr;
 
-    std::list< double >            _needles        = {};
+    std::list< double >   _needles        = {};
 
-    uint64_t                       _sample_rate    = 0;
-    uint64_t                       _sample_count   = 0;
-    uint16_t                       _tunnel_count   = 0;
+    uint64_t              _sample_rate    = 0;
+    uint64_t              _sample_count   = 0;
+    uint16_t              _tunnel_count   = 0;
 
 public:
     virtual void set() override {
@@ -629,62 +641,52 @@ public:
 };
 
 
-/*
-class Synth : public UTH,
-              public Wave, 
-              public WaveBehaviourDescriptor< Synth,
-                  WAVE_BEHAVIOUR_DESC_HAS_VOLUME   |
-                  WAVE_BEHAVIOUR_DESC_PAUSABLE     |
-                  WAVE_BEHAVIOUR_DESC_MUTABLE      |
-                  WAVE_BEHAVIOUR_DESC_HAS_VELOCITY |
-                  WAVE_BEHAVIOUR_DESC_HAS_FILTER
-              >
-{
+
+class Synth : public Wave {
 public:
-    _ENGINE_ECHO_IDENTIFY_METHOD( "Synth" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Synth" );
 
 public:
-    typedef   std::function< double( double, size_t ) >   Function;
+    typedef   std::function< double( double, Wave::tunnel_t ) >   Generator;
 
 public:
     Synth() = default;
 
     Synth( 
-        Audio&     audio,
-        Function   function,
-        _ENGINE_ECHO_DFD_ARG
+        SPtr< Audio >   audio,
+        Generator       generator,
+        double          decay_in_secs,
+        _ENGINE_COMMS_ECHO_ARG
     )
-    : Synth{ function, echo }
+    : Wave{ std::move( audio ) }, _generator{ generator }
     {
-        _audio = &audio;
+        echo( this, ECHO_STATUS_OK ) << "Created from source generator.";
 
-        _decay_step = 1.0 / _audio->sample_rate();
+        if( !_audio ) return;
+
+
+        this->decay_in( decay_in_secs );
+
+
+        echo( this, ECHO_STATUS_OK ) << "Audio docked.";
     }
 
     Synth(
-        Function   function,
-        _ENGINE_ECHO_DFD_ARG
+        Generator   generator,
+        _ENGINE_COMMS_ECHO_ARG
     )
-    : _function( function )
-    {
-        echo( this, ECHO_LOG_OK, "Created from source function." );
-    }
-
-
-    Synth( const Synth& ) = default;
-
-    Synth( Synth&& ) = delete;
+    : Synth{ nullptr, generator, 0.0 }
+    {}
 
 _ENGINE_PROTECTED:
-    Function   _function        = {};
+    Generator   _generator    = {};
 
-    double     _elapsed         = 0.0;
-
-    double     _decay           = 1.0;
-    double     _decay_step      = 0.0;
+    double      _elapsed      = 0.0;
+    double      _decay        = 1.0;
+    double      _decay_step   = 0.0;
 
 public:
-    virtual void prepare_play() override {
+    virtual void set() override {
         _elapsed = 0.0;
         _decay   = 1.0;
     }
@@ -694,29 +696,43 @@ public:
     }
 
     virtual bool done() const override {
-        return _decay == 0.0;
+        return _decay <= 1e-6;
     }
 
 
 _ENGINE_PROTECTED:
-    virtual double _sample( size_t channel, bool advance ) override {
+    virtual double _sample( double elapsed, Wave::tunnel_t tunnel, bool advance ) override {
+        if( _paused ) return 0.0;
+
         if( advance )
-            _elapsed += _audio->time_step() * _velocity;
+            _elapsed += _audio->time_step() * _velocity * _audio->velocity();
 
-        _decay = std::clamp( _decay - _decay_step, 0.0, 1.0 ); 
+        _decay -= _decay_step;
+        
+        if( this->Synth::done() ) {
+            if( _looping )
+                this->Synth::set();
+            else
+                return 0.0;
+        }
 
-        return _decay * _function( _elapsed, channel ) * _volume;
+        return _decay * std::invoke( _generator, _elapsed, tunnel ) * _volume * !_muted;
     }
 
 public:
     Synth& decay_in( double secs ) {
         _decay_step = 1.0 / ( secs * _audio->sample_rate() );
-
         return *this;
     }
 
+public:
+    static Generator gen_sine( double amp, double freq ) {
+        return [ amp, freq ] ( double elapsed, [[maybe_unused]] Wave::tunnel_t ) -> double {
+            return sin( freq * 2.0 * PI * elapsed ) * amp; 
+        };
+    }
+
 };
-*/
 
 
 

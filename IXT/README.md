@@ -1,5 +1,35 @@
 # IXT "Nine-tailed" engine.
 
+`|`<br>
+`|`<br>
+`|`<br>
+
+## To do.
+
+### Godlike:
+
+> - Get sac. <br>
+
+### High:
+
+> - OS::SigInterceptor handling for all cases. ( some terminates are not intercepted now ) <br>
+
+### Medium:
+
+> - PID audio sampling, don't make "non-continous" jump from last_amp to current_amp. <br>
+
+### Low:
+
+> - <br>
+
+### Perhaps:
+
+> - Some smart pointer wrappers, more ops and behavs.<br>
+
+`|`<br>
+`|`<br>
+`|`<br>
+
 ## Wording choice.
 
 ### General:

@@ -14,7 +14,11 @@ bool Wave::is_playing() const {
 }
 
 void Wave::play() {
-    _audio->play( std::shared_ptr< Wave >( this, [] ( [[maybe_unused]] Wave* ) {} ) );
+    _audio->play( *this );
+}
+
+void Wave::play( SPtr< Wave > self ) {
+    _audio->play( std::move( self ) );
 }
 
 

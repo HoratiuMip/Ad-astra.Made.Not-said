@@ -37,7 +37,7 @@ public:
 
             size_t byte_count = File::byte_count( file );
 
-            std::unique_ptr< char[] > raw_stream{ new char[ byte_count ] };
+            UPtr< char[] > raw_stream{ new char[ byte_count ] };
 
 
             if( !raw_stream ) {
@@ -49,15 +49,15 @@ public:
             file.read( raw_stream.get(), byte_count );
 
 
-            tunnel_count = Bytes::as< uint16_t, 2, BIT_END_LITTLE >( raw_stream.get() + 22 );
+            tunnel_count = Bytes::as< uint16_t, 2, BIT_END_LITTLE >( &22[ raw_stream.get() ] );
 
-            sample_rate = Bytes::as< uint32_t, 4, BIT_END_LITTLE >( raw_stream.get() + 24 );
+            sample_rate = Bytes::as< uint32_t, 4, BIT_END_LITTLE >( &24[ raw_stream.get() ] );
 
-            bits_per_sample = Bytes::as< uint16_t, 2, BIT_END_LITTLE >( raw_stream.get() + 34 );
+            bits_per_sample = Bytes::as< uint16_t, 2, BIT_END_LITTLE >( &34[ raw_stream.get() ] );
 
             uint16_t bytes_per_sample = bits_per_sample / 8;
 
-            sample_count = Bytes::as< uint64_t, 4, BIT_END_LITTLE >( raw_stream.get() + 40 ) / bytes_per_sample;
+            sample_count = Bytes::as< uint64_t, 4, BIT_END_LITTLE >( &40[ raw_stream.get() ] ) / bytes_per_sample;
 
 
             stream.reset( new T[ sample_count ] );
@@ -73,12 +73,12 @@ public:
 
                 for( size_t n = 0; n < sample_count; ++n )
                     stream[ n ] = static_cast< T >(
-                                    Bytes::as< int, BIT_END_LITTLE >( raw_stream.get() + 44 + n * bytes_per_sample, bytes_per_sample )
+                                    Bytes::as< int, BIT_END_LITTLE >( &44[ raw_stream.get() ] + n * bytes_per_sample, bytes_per_sample )
                                 ) / max_sample;
             } else {
                 for( size_t n = 0; n < sample_count; ++n )
                     stream[ n ] = static_cast< T >(
-                                    Bytes::as< int, BIT_END_LITTLE >( raw_stream.get() + 44 + n * bytes_per_sample, bytes_per_sample ) );
+                                    Bytes::as< int, BIT_END_LITTLE >( &44[ raw_stream.get() ] + n * bytes_per_sample, bytes_per_sample ) );
             }
 
 
@@ -93,12 +93,12 @@ public:
         }
 
     
-        std::shared_ptr< T[] >   stream            = {};
+        SPtr< T[] >   stream            = {};
 
-        uint64_t                 sample_rate       = 0;
-        uint16_t                 bits_per_sample   = 0;
-        uint64_t                 sample_count      = 0;
-        uint16_t                 tunnel_count      = 0;
+        uint64_t      sample_rate       = 0;
+        uint16_t      bits_per_sample   = 0;
+        uint64_t      sample_count      = 0;
+        uint16_t      tunnel_count      = 0;
 
     };
 

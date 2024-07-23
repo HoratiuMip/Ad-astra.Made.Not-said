@@ -63,20 +63,6 @@
 
 
 
-#pragma region Typedefs
-
-
-
-namespace _ENGINE_NAMESPACE {
-    typedef   _ENGINE_GG_FLOAT_TYPE    ggfloat_t;
-};
-
-
-
-#pragma endregion Typedefs
-
-
-
 #pragma region Includes
 
 
@@ -132,6 +118,23 @@ namespace _ENGINE_NAMESPACE {
 
 
 #pragma endregion Includes
+
+
+
+#pragma region Typedefs
+
+
+
+namespace _ENGINE_NAMESPACE {
+    typedef   _ENGINE_GG_FLOAT_TYPE    ggfloat_t;
+
+    template< typename T > using UPtr = std::unique_ptr< T >;
+    template< typename T > using SPtr = std::shared_ptr< T >;
+};
+
+
+
+#pragma endregion Typedefs
 
 
 

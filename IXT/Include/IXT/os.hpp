@@ -23,6 +23,11 @@ enum CONSOLE_CLR : char {
     CONSOLE_CLR_WHITE  = 15
 };
 
+struct ConsoleCursor {
+    short   row   = 0;
+    short   col   = 0;
+};
+
 class Console {
 public:
     Console()
@@ -35,21 +40,20 @@ public:
         return *this;
     } 
 
-    Console& crs_at( std::pair< short, short > crd ) {
-        SetConsoleCursorPosition( _h_std_out, COORD{ crd.second, crd.first } );
+    Console& crs_at( ConsoleCursor crd ) {
+        SetConsoleCursorPosition( _h_std_out, COORD{ crd.col, crd.row } );
         return *this;
     }
 
-public:
-    std::recursive_mutex   mtx          = {};
+    ConsoleCursor crs() const {
+        CONSOLE_SCREEN_BUFFER_INFO  cinf{};
+        GetConsoleScreenBufferInfo( _h_std_out, &cinf );
+
+        return { cinf.dwCursorPosition.Y, cinf.dwCursorPosition.X };
+    }
 
 _ENGINE_PROTECTED:
-    HANDLE                 _h_std_out   = nullptr;
-
-public:
-    inline operator decltype( mtx )& () {
-        return mtx;
-    }
+    HANDLE   _h_std_out   = nullptr;
 
 }; inline Console console;
 

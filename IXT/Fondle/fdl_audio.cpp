@@ -26,18 +26,21 @@ int main() {
         { '3', std::make_shared< Sound >( audio, ASSET_WAV_90S_PATH ) },
         { 'q', std::make_shared< Synth >( audio, Synth::gen_sine( 0.5, 220 ), 3.0 ) },
         { 'w', std::make_shared< Synth >( audio, Synth::gen_sine( 0.5, 440 ), 3.0 ) },
-        { 'e', std::make_shared< Synth >( audio, Synth::gen_sine( 0.5, 880 ), 3.0 ) }
+        { 'e', std::make_shared< Synth >( audio, Synth::gen_sine( 0.5, 880 ), 3.0 ) },
+        { 'r', std::make_shared< Synth >( audio, Synth::gen_cos( 0.5, 440 ), 3.0 ) }
     };
 
 
     std::string_view menu_str = 
-    "1, 2, 3 - play waves.\n"
-    "q, w, e\n"
-    "4, 5    - volume up/down.\n"
-    "6, 7    - velocity up/down.\n"
-    "8       - loop all.\n"
-    "9       - stop all.\n"
-    "0       - exit.\n";
+    "[ 1, 2, 3    ] - play waves.\n"
+    "[ q, w, e, r ] /\n"
+    "[ 4, 5       ] - volume down/up.\n"
+    "[ 6, 7       ] - velocity down/up.\n"
+    "[ 8          ] - loop all.\n"
+    "[ 9          ] - stop all.\n"
+    "[ 0          ] - exit.\n";
+
+    auto crs = OS::console.crs();
     std::cout << menu_str;
     
     for( auto cmd = std::tolower( _getch() ); cmd != '0'; cmd = std::tolower( _getch() ) ) {
@@ -66,10 +69,17 @@ int main() {
             }
         }
 
+        OS::console.crs_at( crs );
         std::cout << menu_str << '\n'
-        << std::left << std::setw( 10 ) << "Volume: " << audio->volume() << '\n'
-        << std::left << std::setw( 10 ) << "Velocity: " << audio->velocity() << '\n'
-        << std::left << std::setw( 10 ) << "Looping: " << std::boolalpha << sample_map.begin()->second->is_looping() << "\n\n";
+        << std::left << std::setw( 10 ) << "Volume: " << std::setw( 16 ) << audio->volume() << '\n'
+        << std::left << std::setw( 10 ) << "Velocity: " << std::setw( 16 ) << audio->velocity() << '\n'
+        << std::left << std::setw( 10 ) << "Looping: " << std::boolalpha << sample_map.begin()->second->is_looping() << " \n\n";
+
+        
+        static char progress_chars[] = { '|', '/', '-', '\\' };
+        static uint64_t progress_at = 0;
+
+        std::cout << "[ " << progress_chars[ progress_at++ % std::size( progress_chars ) ] << " ]";
     }
 
 }

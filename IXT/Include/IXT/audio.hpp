@@ -732,6 +732,18 @@ public:
         };
     }
 
+    static Generator gen_cos( double amp, double freq ) {
+        return [ amp, freq ] ( double elapsed, [[maybe_unused]] Wave::tunnel_t ) -> double {
+            return cos( freq * 2.0 * PI * elapsed ) * amp; 
+        };
+    }
+
+    static Generator gen_flat( double amp ) {
+        return [ amp ] ( double elapsed, [[maybe_unused]] Wave::tunnel_t ) -> double {
+            return amp;
+        };
+    }
+
 };
 
 

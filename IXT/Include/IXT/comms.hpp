@@ -332,6 +332,15 @@ public:
 _ENGINE_PROTECTED:
     static void _flush( OS::sig_t code );
 
+public:
+    decltype( _out_mtx )& mtx() {
+        return _out_mtx;
+    }
+
+    operator decltype( _out_mtx )& () {
+        return this->mtx();
+    }
+
 }; inline Comms comms;
 
 

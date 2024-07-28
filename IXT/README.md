@@ -13,6 +13,8 @@
 ### High:
 
 > - OS::SigInterceptor handling for all cases. ( some terminates are not intercepted now ) <br>
+> - Do no base fondle executables on component names, iterate Fondle directory instead. <br>
+> - Separate CLust2Hookable. <br>
 
 ### Medium:
 

@@ -16,7 +16,7 @@ set( IXT_LIB_NAME "IXT" CACHE STRING "IXT lib name." FORCE )
 set(
     IXT_COMPONENTS
     "bit_manip" "comms" "concepts" "descriptor" "endec"
-    "file_manip" "os" "audio"
+    "file_manip" "os" "audio" "aritm"
     CACHE STRING "IXT engine components." FORCE
 )
 
@@ -80,7 +80,7 @@ project(
 # Preprocessor defines.
 add_compile_definitions(
     IXT_OS_WINDOWS
-    IXT_GL_NONE
+    IXT_GL_DIRECT_2D1
 )
 
 

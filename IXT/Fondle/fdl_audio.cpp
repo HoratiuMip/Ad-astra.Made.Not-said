@@ -16,7 +16,7 @@ int main() {
     auto audio = std::make_shared< Audio >( 
         Audio::devices()[ 0 ], 
         sample_wav.sample_rate, sample_wav.tunnel_count, 
-        32, 256 
+        32, 128 
     );
 
 
@@ -32,13 +32,13 @@ int main() {
 
 
     std::string_view menu_str = 
-    "[ 1, 2, 3    ] - play waves.\n"
+    "[ 1, 2, 3 ]    - play waves.\n"
     "[ q, w, e, r ] /\n"
-    "[ 4, 5       ] - volume down/up.\n"
-    "[ 6, 7       ] - velocity down/up.\n"
-    "[ 8          ] - loop all.\n"
-    "[ 9          ] - stop all.\n"
-    "[ 0          ] - exit.\n";
+    "[ 4, 5 ]       - volume down/up.\n"
+    "[ 6, 7 ]       - velocity down/up.\n"
+    "[ 8 ]          - loop all.\n"
+    "[ 9 ]          - stop all.\n"
+    "[ 0 ]          - exit.\n";
 
     auto crs = OS::console.crs();
     std::cout << menu_str;

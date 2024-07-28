@@ -218,13 +218,39 @@ public:
       _time_step         { 1.0 / _sample_rate },
       _tunnel_count      { tunnel_count },
       _block_count       { block_count },
-      _block_sample_count{ block_sample_count },
+      _block_sample_count{ block_sample_count * tunnel_count },
       _block_current     { 0 },
-      _block_memory      { nullptr },
+      _blocks_memory      { nullptr },
       _wave_headers      { nullptr },
       _device            { device.data() },
       _free_block_count  { block_count }
     {
+        _blocks_memory.reset( new int[ _block_count * _block_sample_count ] );
+
+        if( !_blocks_memory ) {
+            echo( this, ECHO_STATUS_ERROR ) << "Blocks bad alloc."; 
+            return;
+        }
+
+        std::fill_n( _blocks_memory.get(), _block_count * _block_sample_count, 0 );
+
+
+        _wave_headers.reset( new WAVEHDR[ _block_count ] );
+
+        if( !_wave_headers ) {
+            echo( this, ECHO_STATUS_ERROR ) << "Wave headers bad alloc.";
+            return;
+        }
+
+        std::fill_n( ( char* ) _wave_headers.get(), sizeof( WAVEHDR ) * _block_count, 0 );
+
+
+        for( size_t n = 0; n < _block_count; ++n ) {
+            _wave_headers[ n ].dwBufferLength = sizeof( int ) * _block_sample_count;
+            _wave_headers[ n ].lpData = ( char* ) ( _blocks_memory.get() + ( n * _block_sample_count ) );
+        }
+
+
         uint32_t dev_idx = 0;
 
         auto devs = devices();
@@ -262,32 +288,6 @@ public:
         if( result != S_OK ) {
             echo( this, ECHO_STATUS_ERROR ) << "Could NOT open wave to device.";
             return;
-        }
-
-
-        _block_memory.reset( new int[ _block_count * _block_sample_count ] );
-
-        if( !_block_memory ) {
-            echo( this, ECHO_STATUS_ERROR ) << "Blocks bad alloc."; 
-            return;
-        }
-
-        std::fill_n( _block_memory.get(), _block_count * _block_sample_count, 0 );
-
-
-        _wave_headers.reset( new WAVEHDR[ _block_count ] );
-
-        if( !_wave_headers ) {
-            echo( this, ECHO_STATUS_ERROR ) << "Wave headers bad alloc.";
-            return;
-        }
-
-        std::fill_n( ( char* ) _wave_headers.get(), sizeof( WAVEHDR ) * _block_count, 0 );
-
-
-        for( size_t n = 0; n < _block_count; ++n ) {
-            _wave_headers[ n ].dwBufferLength = sizeof( int ) * _block_sample_count;
-            _wave_headers[ n ].lpData = ( char* ) ( _block_memory.get() + ( n * _block_sample_count ) );
         }
 
 
@@ -331,10 +331,11 @@ _ENGINE_PROTECTED:
     double                      _time_step            = 0.0;
     double                      _elapsed              = 0.0;
     uint16_t                    _tunnel_count         = 0;
+
     uint64_t                    _block_count          = 0;
     uint64_t                    _block_sample_count   = 0;
     uint64_t                    _block_current        = 0;
-    UPtr< int[] >               _block_memory         = nullptr;
+    UPtr< int[] >               _blocks_memory        = nullptr;
 
     UPtr< WAVEHDR[] >           _wave_headers         = nullptr;
     HWAVEOUT                    _wave_out             = nullptr;
@@ -354,7 +355,7 @@ _ENGINE_PROTECTED:
             std::numeric_limits< int >::max()
         );
 
-        
+ 
         auto sample = [ this ] ( Wave::tunnel_t tunnel ) -> double {
             double amp = 0.0;
 
@@ -369,37 +370,34 @@ _ENGINE_PROTECTED:
 
         
         while( _powered ) {
-            if( 
-                size_t fbc_compare = 0;
-                _free_block_count.compare_exchange_strong( fbc_compare, 0, std::memory_order_relaxed, std::memory_order_relaxed ) 
-            ) {
-                std::unique_lock< std::mutex > lock{ _mtx };
-                _cnd_var.wait( lock );
+            if( _free_block_count.load( std::memory_order_consume ) == 0 ) {
+                std::unique_lock< std::mutex > lock{ _mtx, std::defer_lock_t{} };
+
+                if( lock.try_lock() )
+                    _cnd_var.wait( lock );
             }
 
-            _free_block_count.fetch_sub( 1, std::memory_order_relaxed );
+            _free_block_count.fetch_sub( 1, std::memory_order_release );
 
            
             if( _wave_headers[ _block_current ].dwFlags & WHDR_PREPARED )
                 waveOutUnprepareHeader( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
-
-
             _waves.remove_if( [] ( auto& wave ) {
                 return wave->done();
             } );
             
             
-            size_t current_block = _block_current * _block_sample_count;
+            auto current_block = _blocks_memory.get() + _block_current * _block_sample_count;
 
-            for( size_t n = 0; n < _block_sample_count; n += _tunnel_count ) {
-                for( size_t tnl = 0; tnl < _tunnel_count; ++tnl )
-                    _block_memory[ current_block + n + tnl ] = static_cast< int >( 
+            for( uint64_t n = 0; n < _block_sample_count; n += _tunnel_count ) {
+                for( uint16_t tnl = 0; tnl < _tunnel_count; ++tnl )
+                    current_block[ n + tnl ] = static_cast< int >( 
                         std::clamp( sample( tnl ), -1.0, 1.0 ) * max_sample 
                     );
                 
                 _elapsed += _time_step;
             }
-            
+
             
             waveOutPrepareHeader( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
             waveOutWrite( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
@@ -423,7 +421,8 @@ _ENGINE_PROTECTED:
             break; }
 
             case WOM_DONE: {
-                _free_block_count.fetch_add( 1, std::memory_order_relaxed );
+                if( _free_block_count.fetch_add( 1, std::memory_order_relaxed ) != 0 ) 
+                    break;
 
                 std::unique_lock< std::mutex > lock{ _mtx };
                 _cnd_var.notify_one();

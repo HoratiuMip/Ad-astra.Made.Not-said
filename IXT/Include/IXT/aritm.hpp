@@ -65,6 +65,12 @@ public:
 
 class Vec2 {
 public:
+    static ggfloat_t norm(
+        ggfloat_t x, ggfloat_t y
+    ) {
+        return sqrt( x*x + y*y );
+    }
+
     static ggfloat_t dot_product(
         ggfloat_t x1, ggfloat_t y1,
         ggfloat_t x2, ggfloat_t y2
@@ -77,6 +83,21 @@ public:
         ggfloat_t x2, ggfloat_t y2
     ) {
         return x1*y2 + x2*y1;
+    }
+
+    static void project(
+        ggfloat_t x1, ggfloat_t y1,
+        ggfloat_t x2, ggfloat_t y2,
+        ggfloat_t* xi, ggfloat_t* yi
+    ) {
+        ggfloat_t dot = dot_product( x1, y1, x2, y2 );
+        ggfloat_t n2  = norm( x2, y2 );
+
+        n2  *= n2;
+        dot /= n2;
+
+        *xi = x2 * dot;
+        *yi = y2 * dot;
     }
 
 public:
@@ -368,7 +389,7 @@ template< typename T > concept ggX_result =
 
 class Ray2 {
 public:
-    static bool do_intersect( 
+    static bool intersection_assert( 
         ggfloat_t ox1, ggfloat_t oy1, ggfloat_t dx1, ggfloat_t dy1,
         ggfloat_t ox2, ggfloat_t oy2, ggfloat_t dx2, ggfloat_t dy2
     ) {
@@ -385,11 +406,43 @@ public:
         return true;
     }
 
+    static bool intersection_point(
+        ggfloat_t ox1, ggfloat_t oy1, ggfloat_t dx1, ggfloat_t dy1,
+        ggfloat_t ox2, ggfloat_t oy2, ggfloat_t dx2, ggfloat_t dy2,
+        ggfloat_t* ix, ggfloat_t* iy
+    ) {
+        ggfloat_t det = dy1*-dx2 + dx1*dy2;
+
+        if( det == 0.0 ) return false;
+
+        ggfloat_t sx = -( -ox1*dy1 + oy1*dx1 );
+        ggfloat_t sy = -( -ox2*dy2 + oy2*dx2 );
+
+        ggfloat_t x = ( sx*-dx2 + dx1*sy ) / det;
+        ggfloat_t y = ( dy1*sy - sx*dy2 ) / det;
+        ggfloat_t vx = x - ox1;
+        ggfloat_t vy = y - oy1;
+
+        if( vx < 0.0 || vx > dx1 ) return false;
+        if( vy < 0.0 || vy > dy1 ) return false;
+ 
+        vx = x - ox2;
+        vy = y - oy2; 
+
+        if( vx < 0.0 || vx > dx2 ) return false;
+        if( vy < 0.0 || vy > dy2 ) return false;
+
+        *ix = x;
+        *iy = y;
+
+        return true;
+    }
+
 public:
     Ray2() = default;
 
     Ray2( Vec2 org, Vec2 v )
-    : origin( org ), vec( v )
+    : origin{ org }, vec{ v }
     {}
 
 public:

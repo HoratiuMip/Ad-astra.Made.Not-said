@@ -65,10 +65,16 @@ public:
 
 class Vec2 {
 public:
+    static ggfloat_t norm_sq(
+        ggfloat_t x, ggfloat_t y
+    ) {
+        return x*x + y*y;
+    }
+
     static ggfloat_t norm(
         ggfloat_t x, ggfloat_t y
     ) {
-        return sqrt( x*x + y*y );
+        return sqrt( norm( x, y ) );
     }
 
     static ggfloat_t dot_product(
@@ -100,6 +106,8 @@ public:
         *yi = y2 * dot;
     }
 
+///
+///
 public:
     Vec2() = default;
 
@@ -111,22 +119,26 @@ public:
     : Vec2{ x, x }
     {}
 
+///
+///
 public:
     ggfloat_t   x   = 0.0;
     ggfloat_t   y   = 0.0;
 
+///
+///
 public:
-    ggfloat_t dot( const Vec2& other ) const {
+    ggfloat_t dot( Vec2 other ) const {
         return dot_product( this->x, this->y, other.x, other.y );
     }
 
 public:
     ggfloat_t mag_sq() const {
-        return x * x + y * y;
+        return norm_sq( x, y );
     }
 
     ggfloat_t mag() const {
-        return sqrt( this->mag_sq() );
+        return norm( x, y );
     }
 
     ggfloat_t angel() const {
@@ -134,23 +146,25 @@ public:
     }
 
 public:
-    ggfloat_t dist_sq_to( const Vec2& other ) const {
-        return ( other.x - x ) * ( other.x - x ) + ( other.y - y ) * ( other.y - y );
+    ggfloat_t dist_sq( Vec2 other ) const {
+        return norm_sq( other.x - x, other.y - y );
     }
 
-    ggfloat_t dist_to( const Vec2& other ) const {
-        return sqrt( this->dist_sq_to( other ) );
+    ggfloat_t dist( Vec2 other ) const {
+        return norm( other.x - x, other.y - y );
     }
 
 public:
-    Vec2 respect_to( const Vec2& other ) const {
+    Vec2 respect( Vec2 other ) const {
         return { x - other.x, y - other.y };
     }
 
-    Vec2 operator () ( const Vec2& other ) const {
-        return this->respect_to( other );
+    Vec2 operator () ( Vec2 other ) const {
+        return this->respect( other );
     }
 
+///
+///
 public:
     Vec2& normalize() {
         return *this /= this->mag();
@@ -184,7 +198,7 @@ public:
 
 public:
     Vec2& approach( const Vec2 other, ggfloat_t dist ) {
-        return this->polar( other.respect_to( *this ).angel(), dist );
+        return this->polar( other.respect( *this ).angel(), dist );
     }
 
     Vec2 approached( const Vec2 other, ggfloat_t dist ) const {
@@ -202,8 +216,8 @@ public:
         return *this;
     }
 
-    Vec2& spin( ggfloat_t theta, const Vec2& other ) {
-        *this = this->respect_to( other ).spin( theta ) + other;
+    Vec2& spin( ggfloat_t theta, Vec2 other ) {
+        *this = this->respect( other ).spin( theta ) + other;
 
         return *this;
     }
@@ -212,12 +226,24 @@ public:
         return Vec2{ *this }.spin( theta );
     }
 
-    Vec2 spinned( ggfloat_t theta, const Vec2& other ) const {
+    Vec2 spinned( ggfloat_t theta, Vec2 other ) const {
         return Vec2{ *this }.spin( theta, other );
     }
 
 public:
-    bool is_further_than( const Vec2& other, HEADING heading ) const {
+    Vec2& project( Vec2 other ) {
+        project( x, y, other.x, other.y, &x, &y );
+        return *this;
+    }
+
+    Vec2 projected( Vec2 other ) {
+        return Vec2{ *this }.project( other );
+    }
+
+///
+///
+public:
+    bool is_further_than( Vec2 other, HEADING heading ) const {
         switch( heading ) {
             case HEADING_NORTH: return y > other.y;
             case HEADING_EAST:  return x > other.x;
@@ -228,15 +254,10 @@ public:
         return false;
     }
 
+///
+///
 public:
-    template< typename X_T >
-    auto X( const Ray2& ray ) const;
-
-    template< typename X_T >
-    auto X( const Clust2& clust ) const;
-
-public:
-    Vec2& operator = ( const Vec2& other ) {
+    Vec2& operator = ( Vec2 other ) {
         x = other.x; y = other.y; return *this;
     }
 
@@ -244,23 +265,23 @@ public:
         x = y = val; return *this;
     }
 
-    bool operator == ( const Vec2& other ) const {
+    bool operator == ( Vec2 other ) const {
         return x == other.x && y == other.y;
     }
 
-    Vec2 operator + ( const Vec2& other ) const {
+    Vec2 operator + ( Vec2 other ) const {
         return { x + other.x, y + other.y };
     }
 
-    Vec2 operator - ( const Vec2& other ) const {
+    Vec2 operator - ( Vec2 other ) const {
         return { x - other.x, y - other.y };
     }
 
-    Vec2 operator * ( const Vec2& other ) const {
+    Vec2 operator * ( Vec2 other ) const {
         return { x * other.x, y * other.y };
     }
 
-    Vec2 operator / ( const Vec2& other ) const {
+    Vec2 operator / ( Vec2 other ) const {
         return { x / other.x, y / other.y };
     }
 
@@ -288,28 +309,28 @@ public:
         return { x, y + delta };
     }
 
-    Vec2& operator += ( const Vec2& other ) {
+    Vec2& operator += ( Vec2 other ) {
         x += other.x;
         y += other.y;
 
         return *this;
     }
 
-    Vec2& operator -= ( const Vec2& other ) {
+    Vec2& operator -= ( Vec2 other ) {
         x -= other.x;
         y -= other.y;
 
         return *this;
     }
 
-    Vec2& operator *= ( const Vec2& other ) {
+    Vec2& operator *= ( Vec2 other ) {
         x *= other.x;
         y *= other.y;
 
         return *this;
     }
 
-    Vec2& operator /= ( const Vec2& other ) {
+    Vec2& operator /= ( Vec2 other ) {
         x /= other.x;
         y /= other.y;
 
@@ -346,6 +367,8 @@ public:
         return ( *this ) * -1.0;
     }
 
+///
+///
 public:
     static Vec2 O() {
         return { 0.0, 0.0 };
@@ -384,8 +407,6 @@ public:
 
 template< typename T > concept ggX_result =
     std::is_same_v< bool, T > || std::is_same_v< Vec2, T >;
-
-
 
 class Ray2 {
 public:
@@ -438,6 +459,8 @@ public:
         return true;
     }
 
+///
+///
 public:
     Ray2() = default;
 
@@ -445,10 +468,14 @@ public:
     : origin{ org }, vec{ v }
     {}
 
+///
+///
 public:
     Vec2   origin   = {};
     Vec2   vec      = {};
 
+///
+///
 public:
     Vec2 drop() const {
         return origin + vec;
@@ -459,58 +486,27 @@ public:
         return ( this->drop().y - origin.y ) / ( this->drop().x - origin.x );
     }
 
-    ggfloat_t y_int() const {
-        return origin.y - this->slope() * origin.x;
-    }
-
-    std::tuple< ggfloat_t, ggfloat_t, ggfloat_t > coeffs() const {
-        return { vec.y, -vec.x, vec.y * origin.x - vec.x * origin.y };
-    }
-
+///
+///
 public:
-    template< typename X_T >
-    auto X( const Vec2& vec ) const {
-        this->X< X_T >( Ray2{ Vec2::O(), vec } );
-    }
-
-    template< typename X_T >
+    template< ggX_result X_T >
     auto X( const Ray2& other ) const {
-        if constexpr( std::is_same_v< bool, X_T > )
-            return this->_intersect_vec( other ).has_value();
-        else if constexpr( std::is_same_v< Vec2, X_T > )
-            return this->_intersect_vec( other );
-    }
+        if constexpr( std::is_same_v< bool, X_T > ) {
+            return intersection_assert( 
+                origin.x, origin.y, vec.x, vec.y,
+                other.origin.x, other.origin.y, other.vec.x, other.vec.y
+            );
+        } else if constexpr( std::is_same_v< Vec2, X_T > ) {
+            using RetType = std::optional< Vec2 >;
 
-    template< typename X_T >
-    auto X( const Clust2& clust ) const;
+            Vec2 result;
 
-_ENGINE_PROTECTED:
-    std::optional< Vec2 > _intersect_vec( const Ray2& other ) const {
-        /* Hai noroc nea' Peter +respect. */
-
-        static auto has_any_normal_component = [] ( Vec2 normalized ) -> bool {
-            return ( normalized.x >= 0.0 && normalized.x <= 1.0 )
-                    ||
-                    ( normalized.y >= 0.0 && normalized.y <= 1.0 );
-        };
-
-        auto [ alpha, bravo, charlie ] = this->coeffs();
-        auto [ delta, echo, foxtrot ] = other.coeffs();
-
-        ggfloat_t golf = alpha * echo - bravo * delta;
-
-        if( golf == 0.0 ) return {};
-
-        Vec2 X_vec = {
-            ( charlie * echo - bravo * foxtrot ) / golf,
-            ( alpha * foxtrot - delta * charlie ) / golf
-        };
-
-        if( !has_any_normal_component( X_vec( origin ) / vec ) ) return {};
-
-        if( !has_any_normal_component( X_vec( other.origin ) / other.vec ) ) return {};
-
-        return X_vec;
+            return intersection_point( 
+                origin.x, origin.y, vec.x, vec.y,
+                other.origin.x, other.origin.y, other.vec.x, other.vec.y,
+                &result.x, &result.y
+            ) ? RetType{ result } : RetType{};
+        }
     }
 
 };
@@ -521,6 +517,8 @@ class Clust2 {
 public:
     typedef   std::pair< Vec2, Vec2 >   Vrtx;
 
+///
+///
 public:
     Clust2() = default;
 
@@ -557,11 +555,11 @@ public:
 
 public:
     Clust2( const Clust2& other )
-        : _origin( other._origin ),
-            _vrtx  ( other._vrtx ),
-            _scaleX( other._scaleX ),
-            _scaleY( other._scaleY ),
-            _angel ( other._angel )
+    : _origin{ other._origin },
+      _vrtx  { other._vrtx },
+      _scaleX{ other._scaleX },     
+      _scaleY{ other._scaleY },
+      _angel { other._angel }
     {}
 
     Clust2& operator = ( const Clust2& other ) {
@@ -592,6 +590,8 @@ public:
         return *this;
     }
 
+///
+///
 _ENGINE_PROTECTED:
     Vec2                  _origin   = {};
     std::vector< Vrtx >   _vrtx     = {};
@@ -600,6 +600,8 @@ _ENGINE_PROTECTED:
     ggfloat_t             _scaleY   = 1.0;
     ggfloat_t             _angel    = 0.0;
 
+///
+///
 public:
     Vec2 origin() const {
         return _origin;
@@ -651,6 +653,8 @@ public:
         return this->scaleX();
     }
 
+///
+///
 public:
     Clust2& relocate_at( const Vec2& vec ) {
         _origin = vec;
@@ -662,7 +666,7 @@ public:
     }
 
     Clust2& relocate_by( size_t idx, const Vec2& vec ) {
-        _origin += vec.respect_to( this->operator()( idx ) );
+        _origin += vec.respect( this->operator()( idx ) );
         return *this;
     }
 
@@ -732,6 +736,8 @@ public:
         return *this;
     }
 
+///
+///
 public:
     static Clust2 triangle( ggfloat_t edge_length ) {
         Vec2 vrtx = { 0.0, edge_length * sqrt( 3.0 ) / 3.0 };
@@ -802,6 +808,8 @@ public:
         return { vrtx, vrtx + edge_count };
     }
 
+///
+///
 public:
     size_t extreme_idx( HEADING heading ) {
         size_t ex_idx = 0;
@@ -823,12 +831,9 @@ public:
                 ( system == SYSTEM_GLOBAL ? this->origin() : Vec2::O() );
     }
 
+///
+///
 public:
-    template< typename X_T >
-    auto X( const Vec2& vec ) const {
-        return this->X< X_T >( Ray2{ Vec2::O(), vec } );
-    }
-
     template< typename X_T >
     auto X( const Ray2& ray ) const {
         if constexpr( std::is_same_v< bool, X_T > )
@@ -892,6 +897,8 @@ public:
         
     }
 
+///
+///
 _ENGINE_PROTECTED:
     void _refresh() {
         for( Vrtx& v : _vrtx )
@@ -906,6 +913,140 @@ _ENGINE_PROTECTED:
         return { ( *this )( idx1 ), ( *this )( idx2 )( ( *this )( idx1 ) ) };
     }
 
+///
+///
+public:
+    class InnerVrtxIterator {
+    public:
+        using UTHItr = std::vector< Vrtx >::iterator;
+
+    public:
+        InnerVrtxIterator( const UTHItr& itr )
+        : _itr{ itr }
+        {}
+
+    _ENGINE_PROTECTED:
+        UTHItr   _itr   = {};
+
+    public:
+        InnerVrtxIterator& operator ++ () {
+            ++_itr;
+            return *this;
+        }
+
+        InnerVrtxIterator& operator -- () {
+            --_itr;
+            return *this;
+        }
+
+        InnerVrtxIterator operator ++ ( [[maybe_unused]] int ) {
+            auto last = _itr;
+            ++_itr;
+            return { last };
+        }
+
+        InnerVrtxIterator operator -- ( [[maybe_unused]] int ) {
+            auto last = _itr;
+            --_itr;
+            return { last };
+        }
+
+    public:
+        bool operator == ( const InnerVrtxIterator& other ) const {
+            return _itr == other._itr;
+        }
+
+    public:
+        Vec2& operator * () {
+            return _itr->first;
+        }
+
+        Vec2* operator -> () {
+            return &_itr->first;
+        }
+
+    };
+
+    InnerVrtxIterator inner_vrtx_begin() {
+        return { _vrtx.begin() };
+    }
+
+    InnerVrtxIterator inner_vrtx_end() {
+        return { _vrtx.end() };
+    }
+
+public:
+    class OutterVrtxIterator {
+    public:
+        using UTHItr = std::vector< Vrtx >::iterator;
+
+    public:
+        OutterVrtxIterator( const UTHItr& itr, Vec2* org )
+        : _itr{ itr }, _org{ org }
+        {}
+
+    _ENGINE_PROTECTED:
+        UTHItr   _itr   = {};
+        Vec2*    _org   = { nullptr };
+
+    public:
+        OutterVrtxIterator& operator ++ () {
+            ++_itr;
+            return *this;
+        }
+
+        OutterVrtxIterator& operator -- () {
+            --_itr;
+            return *this;
+        }
+
+        OutterVrtxIterator operator ++ ( [[maybe_unused]] int ) {
+            auto last = _itr;
+            ++_itr;
+            return { last, _org };
+        }
+
+        OutterVrtxIterator operator -- ( [[maybe_unused]] int ) {
+            auto last = _itr;
+            --_itr;
+            return { last, _org };
+        }
+
+    public:
+        bool operator == ( const OutterVrtxIterator& other ) const {
+            return _itr == other._itr;
+        }
+
+    public:
+        Vec2 operator * () {
+            return _itr->first + *_org;
+        }
+
+    };
+
+    OutterVrtxIterator outter_vrtx_begin() {
+        return { _vrtx.begin(), &_origin };
+    }
+
+    OutterVrtxIterator outter_vrtx_end() {
+        return { _vrtx.end(), &_origin };
+    }
+
+public:
+    class InnerRayIterator {
+
+    };
+
+    InnerRayIterator inner_ray_begin() {
+
+    }
+
+    InnerRayIterator inner_ray_end() {
+
+    }
+
+///
+///
 public:
     static Clust2 from_file( std::string_view path ) {
         std::ifstream file( path.data() );
@@ -932,24 +1073,6 @@ public:
     }
 
 };
-
-
-
-template< typename X_T >
-auto Vec2::X( const Ray2& ray ) const {
-    return ray.X< X_T >( *this );
-}
-
-template< typename X_T >
-auto Vec2::X( const Clust2& clust ) const {
-    return clust.X< X_T >( *this );
-}
-
-
-template< typename X_T >
-auto Ray2::X( const Clust2& clust ) const {
-    return clust.X< X_T >( *this );
-}
 
 
 

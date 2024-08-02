@@ -106,8 +106,6 @@ public:
         *yi = y2 * dot;
     }
 
-///
-///
 public:
     Vec2() = default;
 
@@ -119,14 +117,10 @@ public:
     : Vec2{ x, x }
     {}
 
-///
-///
 public:
     ggfloat_t   x   = 0.0;
     ggfloat_t   y   = 0.0;
 
-///
-///
 public:
     ggfloat_t dot( Vec2 other ) const {
         return dot_product( this->x, this->y, other.x, other.y );
@@ -163,8 +157,6 @@ public:
         return this->respect( other );
     }
 
-///
-///
 public:
     Vec2& normalize() {
         return *this /= this->mag();
@@ -240,8 +232,6 @@ public:
         return Vec2{ *this }.project( other );
     }
 
-///
-///
 public:
     bool is_further_than( Vec2 other, HEADING heading ) const {
         switch( heading ) {
@@ -254,8 +244,6 @@ public:
         return false;
     }
 
-///
-///
 public:
     Vec2& operator = ( Vec2 other ) {
         x = other.x; y = other.y; return *this;
@@ -367,8 +355,6 @@ public:
         return ( *this ) * -1.0;
     }
 
-///
-///
 public:
     static Vec2 O() {
         return { 0.0, 0.0 };
@@ -459,8 +445,6 @@ public:
         return true;
     }
 
-///
-///
 public:
     Ray2() = default;
 
@@ -468,14 +452,10 @@ public:
     : origin{ org }, vec{ v }
     {}
 
-///
-///
 public:
     Vec2   origin   = {};
     Vec2   vec      = {};
 
-///
-///
 public:
     Vec2 drop() const {
         return origin + vec;
@@ -486,8 +466,6 @@ public:
         return ( this->drop().y - origin.y ) / ( this->drop().x - origin.x );
     }
 
-///
-///
 public:
     template< ggX_result X_T >
     auto X( const Ray2& other ) const {
@@ -517,8 +495,6 @@ class Clust2 {
 public:
     typedef   std::pair< Vec2, Vec2 >   Vrtx;
 
-///
-///
 public:
     Clust2() = default;
 
@@ -590,8 +566,6 @@ public:
         return *this;
     }
 
-///
-///
 _ENGINE_PROTECTED:
     Vec2                  _origin   = {};
     std::vector< Vrtx >   _vrtx     = {};
@@ -600,8 +574,6 @@ _ENGINE_PROTECTED:
     ggfloat_t             _scaleY   = 1.0;
     ggfloat_t             _angel    = 0.0;
 
-///
-///
 public:
     Vec2 origin() const {
         return _origin;
@@ -653,8 +625,6 @@ public:
         return this->scaleX();
     }
 
-///
-///
 public:
     Clust2& relocate_at( const Vec2& vec ) {
         _origin = vec;
@@ -736,8 +706,6 @@ public:
         return *this;
     }
 
-///
-///
 public:
     static Clust2 triangle( ggfloat_t edge_length ) {
         Vec2 vrtx = { 0.0, edge_length * sqrt( 3.0 ) / 3.0 };
@@ -808,8 +776,6 @@ public:
         return { vrtx, vrtx + edge_count };
     }
 
-///
-///
 public:
     size_t extreme_idx( HEADING heading ) {
         size_t ex_idx = 0;
@@ -831,18 +797,16 @@ public:
                 ( system == SYSTEM_GLOBAL ? this->origin() : Vec2::O() );
     }
 
-///
-///
 public:
-    template< typename X_T >
+    template< ggX_result X_T >
     auto X( const Ray2& ray ) const {
         if constexpr( std::is_same_v< bool, X_T > )
-            return this->_intersect_ray_bool( ray );
+            return this->_intersection_with_ray_assert( ray );
         else if constexpr( std::is_same_v< Vec2, X_T > )
-            return this->_intersect_ray_vec( ray );
+            return this->_intersection_with_ray_points( ray );
     }
 
-    template< typename X_T >
+    template< ggX_result X_T >
     auto X( const Clust2& other ) const {
         if constexpr( std::is_same_v< bool, X_T > )
             return this->_intersect_bool( other );
@@ -851,23 +815,23 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    bool _intersect_ray_bool( const Ray2& ray ) const {
-        for( size_t idx = 0; idx < this->vrtx_count(); ++idx )
-            if( this->_mkray( idx ).X< bool >( ray ) )
-                return true;
+    bool _intersection_with_ray_assert( const Ray2& ray ) const {
+        /*for( auto itr = this->outter_ray_begin(); itr != this->outter_ray_end(); ++itr )
+            if( itr->X< bool >( ray ) )
+                return true;*/
 
         return false;
     }
 
-    std::vector< Vec2 > _intersect_ray_vec( const Ray2& ray ) const {
+    std::vector< Vec2 > _intersection_with_ray_points( const Ray2& ray ) const {
         std::vector< Vec2 > Xs{};
 
-        for( size_t idx = 0; idx < this->vrtx_count(); ++idx ) {
-            auto vec = this->_mkray( idx ).X< Vec2 >( ray );
+        /*for( auto itr = this->outter_ray_begin(); itr != this->outter_ray_end(); ++itr ) {
+            auto point = itr->X< Vec2 >( ray );
 
-            if( vec.has_value() )
-                Xs.push_back( vec.value() );
-        }
+            if( point.has_value() )
+                Xs.push_back( point.value() );
+        }*/
 
         return Xs;
     }
@@ -897,8 +861,6 @@ public:
         
     }
 
-///
-///
 _ENGINE_PROTECTED:
     void _refresh() {
         for( Vrtx& v : _vrtx )
@@ -913,140 +875,256 @@ _ENGINE_PROTECTED:
         return { ( *this )( idx1 ), ( *this )( idx2 )( ( *this )( idx1 ) ) };
     }
 
-///
-///
-public:
-    class InnerVrtxIterator {
-    public:
-        using UTHItr = std::vector< Vrtx >::iterator;
+
+_ENGINE_PROTECTED:
+    using _itrs_t = decltype( _vrtx )::iterator;
+    using _itrs_ct = decltype( _vrtx )::const_iterator;
+
+_ENGINE_PROTECTED:
+    template< bool is_const >
+    struct _inner_vrtx_iterator_base {
+    _ENGINE_PROTECTED:
+        using _uth_itr_t = std::conditional_t< is_const, _itrs_ct, _itrs_t >;
 
     public:
-        InnerVrtxIterator( const UTHItr& itr )
+        _inner_vrtx_iterator_base( _uth_itr_t itr )
         : _itr{ itr }
         {}
 
     _ENGINE_PROTECTED:
-        UTHItr   _itr   = {};
+        _uth_itr_t   _itr   = {};
 
     public:
-        InnerVrtxIterator& operator ++ () {
+        _inner_vrtx_iterator_base& operator ++ () {
             ++_itr;
             return *this;
         }
 
-        InnerVrtxIterator& operator -- () {
-            --_itr;
-            return *this;
-        }
-
-        InnerVrtxIterator operator ++ ( [[maybe_unused]] int ) {
+        _inner_vrtx_iterator_base operator ++ ( [[maybe_unused]] int ) {
             auto last = _itr;
-            ++_itr;
-            return { last };
-        }
+            
+            this->operator++();
 
-        InnerVrtxIterator operator -- ( [[maybe_unused]] int ) {
-            auto last = _itr;
-            --_itr;
             return { last };
         }
 
     public:
-        bool operator == ( const InnerVrtxIterator& other ) const {
+        bool operator == ( const _inner_vrtx_iterator_base& other ) const {
             return _itr == other._itr;
         }
 
     public:
-        Vec2& operator * () {
+        std::conditional_t< is_const, const Vec2&, Vec2& > operator * () {
             return _itr->first;
         }
 
-        Vec2* operator -> () {
+        std::conditional_t< is_const, const Vec2*, Vec2* > operator -> () {
             return &_itr->first;
         }
 
     };
 
-    InnerVrtxIterator inner_vrtx_begin() {
+public:
+    struct inner_vrtx_iterator : _inner_vrtx_iterator_base< false > {
+        using _inner_vrtx_iterator_base::_inner_vrtx_iterator_base;
+    };
+
+    inner_vrtx_iterator inner_vrtx_begin() {
         return { _vrtx.begin() };
     }
 
-    InnerVrtxIterator inner_vrtx_end() {
+    inner_vrtx_iterator inner_vrtx_end() {
         return { _vrtx.end() };
     }
 
-public:
-    class OutterVrtxIterator {
-    public:
-        using UTHItr = std::vector< Vrtx >::iterator;
+    struct cinner_vrtx_iterator : _inner_vrtx_iterator_base< true > {
+        using _inner_vrtx_iterator_base::_inner_vrtx_iterator_base;
+    };
+
+    cinner_vrtx_iterator cinner_vrtx_begin() const {
+        return { _vrtx.cbegin() };
+    }
+
+    cinner_vrtx_iterator cinner_vrtx_end() const {
+        return { _vrtx.cend() };
+    }
+
+_ENGINE_PROTECTED:
+    template< bool is_const >
+    struct _outter_vrtx_iterator_base {
+    _ENGINE_PROTECTED:
+        using _uth_itr_t = std::conditional_t< is_const, _itrs_ct, _itrs_t >;
+        using _uth_ref_t = std::conditional_t< is_const, const Clust2*, Clust2* >;
 
     public:
-        OutterVrtxIterator( const UTHItr& itr, Vec2* org )
-        : _itr{ itr }, _org{ org }
+        _outter_vrtx_iterator_base( _uth_itr_t itr, _uth_ref_t ref )
+        : _itr{ itr }, _ref{ ref }
         {}
 
     _ENGINE_PROTECTED:
-        UTHItr   _itr   = {};
-        Vec2*    _org   = { nullptr };
+        _uth_itr_t   _itr   = {};
+        _uth_ref_t   _ref   = { nullptr };
 
     public:
-        OutterVrtxIterator& operator ++ () {
+        _outter_vrtx_iterator_base& operator ++ () {
             ++_itr;
             return *this;
         }
 
-        OutterVrtxIterator& operator -- () {
-            --_itr;
-            return *this;
-        }
-
-        OutterVrtxIterator operator ++ ( [[maybe_unused]] int ) {
+        _outter_vrtx_iterator_base operator ++ ( [[maybe_unused]] int ) {
             auto last = _itr;
-            ++_itr;
-            return { last, _org };
-        }
+            
+            this->operator++();
 
-        OutterVrtxIterator operator -- ( [[maybe_unused]] int ) {
-            auto last = _itr;
-            --_itr;
-            return { last, _org };
+            return { last, _ref };
         }
 
     public:
-        bool operator == ( const OutterVrtxIterator& other ) const {
+        bool operator == ( const _outter_vrtx_iterator_base& other ) const {
             return _itr == other._itr;
         }
 
     public:
         Vec2 operator * () {
-            return _itr->first + *_org;
+            return _ref->_origin + _itr->first;
         }
 
     };
 
-    OutterVrtxIterator outter_vrtx_begin() {
-        return { _vrtx.begin(), &_origin };
+public:
+    struct outter_vrtx_iterator : _outter_vrtx_iterator_base< false > {
+        using _outter_vrtx_iterator_base::_outter_vrtx_iterator_base;
+    };
+
+    outter_vrtx_iterator outter_vrtx_begin() {
+        return { _vrtx.begin(), this };
     }
 
-    OutterVrtxIterator outter_vrtx_end() {
-        return { _vrtx.end(), &_origin };
+    outter_vrtx_iterator outter_vrtx_end() {
+        return { _vrtx.end(), nullptr };
     }
+
+    struct coutter_vrtx_iterator : _outter_vrtx_iterator_base< true > {
+        using _outter_vrtx_iterator_base::_outter_vrtx_iterator_base;
+    };
+
+    coutter_vrtx_iterator coutter_vrtx_begin() const {
+        return { _vrtx.cbegin(), this };
+    }
+
+    coutter_vrtx_iterator coutter_vrtx_end() const {
+        return { _vrtx.cend(), nullptr };
+    }
+
 
 public:
-    class InnerRayIterator {
+    struct inner_ray_iterator {
+    public:
+        using UTHItr = std::vector< Vrtx >::iterator;
+
+    public:
+        inner_ray_iterator( const UTHItr& itr, Clust2* ref )
+        : _itr{ itr }, _ref{ ref }
+        {}
+
+    _ENGINE_PROTECTED:
+        UTHItr    _itr   = {};
+        Clust2*   _ref   = { nullptr };
+
+    public:
+        inner_ray_iterator& operator ++ () {
+            ++_itr;
+            return *this;
+        }
+
+        inner_ray_iterator operator ++ ( [[maybe_unused]] int ) {
+            auto last = _itr;
+            
+            this->operator++();
+
+            return { last, _ref };
+        }
+
+    public:
+        bool operator == ( const inner_ray_iterator& other ) const {
+            return _itr == other._itr;
+        }
+
+    public:
+        Ray2 operator * () {
+            return { _ref->_origin, _itr->first };
+        }
 
     };
 
-    InnerRayIterator inner_ray_begin() {
-
+    inner_ray_iterator inner_ray_begin() {
+        return { _vrtx.begin(), this };
     }
 
-    InnerRayIterator inner_ray_end() {
-
+    inner_ray_iterator inner_ray_end() {
+        return { _vrtx.end(), nullptr };
     }
 
-///
-///
+public:
+    struct outter_ray_iterator {
+    public:
+        using UTHItr = std::vector< Vrtx >::iterator;
+
+    public:
+        outter_ray_iterator( const UTHItr& org, const UTHItr& drop, Clust2* ref )
+        : _org{ org }, _drop{ drop }, _ref{ ref }
+        {}
+
+    _ENGINE_PROTECTED:
+        UTHItr    _org    = {};
+        UTHItr    _drop   = {};
+        Clust2*   _ref    = { nullptr };
+
+    public:
+        outter_ray_iterator& operator ++ () {
+            if( _drop == _ref->_vrtx.begin() ) {
+                _org = _ref->_vrtx.begin();
+
+                return *this;
+            }
+            
+            ++_org;
+            ++_drop;
+
+            if( _drop == _ref->_vrtx.end() )
+                _drop = _ref->_vrtx.begin();
+
+            return *this;
+        }
+
+        outter_ray_iterator operator ++ ( [[maybe_unused]] int ) {
+            auto last = std::make_pair( _org, _drop );
+            
+            this->operator++();
+
+            return { last.first, last.second, _ref };
+        }
+
+    public:
+        bool operator == ( const outter_ray_iterator& other ) const {
+            return _org == other._org && _drop == other._drop;
+        }
+
+    public:
+        Ray2 operator * () {
+            return { _ref->_origin + _org->first, _drop->second };
+        }
+
+    };
+
+    outter_ray_iterator outter_ray_begin() {
+        return { _vrtx.begin(), _vrtx.begin() + 1, this };
+    }
+
+    outter_ray_iterator outter_ray_end() {
+        return { _vrtx.begin(), _vrtx.begin(), nullptr };
+    }
+
 public:
     static Clust2 from_file( std::string_view path ) {
         std::ifstream file( path.data() );

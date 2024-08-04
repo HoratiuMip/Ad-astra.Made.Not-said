@@ -18,4 +18,7 @@ int main() {
 
     for( auto itr = clust.coutter_vrtx_begin(); itr != clust.coutter_vrtx_end(); ++itr )
         std::cout << (*itr).x << ' ' << (*itr).y << '\n';
+
+    for( auto itr = clust.cinner_ray_begin(); itr != clust.cinner_ray_end(); ++itr )
+        std::cout << (*itr).origin.x << ' ' << (*itr).origin.y << ' ' << (*itr).vec.x << ' ' << (*itr).vec.y << '\n';
 }

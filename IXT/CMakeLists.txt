@@ -47,10 +47,13 @@ set( IXT_VERSION_MINOR 0 )
 set( IXT_VERSION_PATCH 0 )
 
 
-# IXT assets.
-set( IXT_ASSETS_PATH "${CMAKE_CURRENT_LIST_DIR}/Fondle/Assets" )
-set( IXT_CXX_ASSETS_PATHS "" )
-file( GLOB assets_paths "${IXT_ASSETS_PATH}/*" )
+# IXT fondling.
+set( IXT_FONDLE_DIR "${CMAKE_CURRENT_LIST_DIR}/Fondle" )
+set( IXT_FONDLE_ASSETS_DIR "${IXT_FONDLE_DIR}/Assets" )
+
+set( IXT_IN_CXX_ASSETS_PATHS "" )
+
+file( GLOB assets_paths "${IXT_FONDLE_ASSETS_DIR}/*" )
 
 foreach( path ${assets_paths} )
     string( FIND ${path} "/" pos REVERSE )
@@ -65,7 +68,7 @@ foreach( path ${assets_paths} )
     string( TOUPPER ${asset_name} asset_name )
     string( TOUPPER ${asset_ext} asset_ext )
 
-    string( APPEND IXT_CXX_ASSETS_PATHS "\tstatic std::string_view ASSET_${asset_ext}_${asset_name}_PATH = \"${path}\";\n" )
+    string( APPEND IXT_IN_CXX_ASSETS_PATHS "\tstatic std::string_view ASSET_${asset_ext}_${asset_name}_PATH = \"${path}\";\n" )
 endforeach()
 
 
@@ -94,14 +97,34 @@ add_subdirectory( "Source" )
 add_subdirectory( "Include" )
 
 
+# IXT fondles to build.
 if( IXT_FONDLES_TO_BUILD STREQUAL "ALL" ) 
-    set( IXT_FONDLES_TO_BUILD ${IXT_COMPONENTS} )
+    file( GLOB files_paths "${IXT_FONDLE_DIR}/*" )
+    
+    foreach( file_path ${files_paths} )
+        string( REGEX MATCH "fdl_[a-z]+.cpp$" file_path ${file_path} )
+        
+        if( file_path )
+            list( APPEND IXT_FONDLES_TO_BUILD ${file_path} )
+        endif()
+
+    endforeach()
+    
+    set( _ftb_are_source_files ON )
+else()
+    set( _ftb_are_source_files OFF )
 endif()
 
-foreach( exe ${IXT_FONDLES_TO_BUILD} )
-    # Add each executable and its sources/includes.
-    if( EXISTS "${CMAKE_CURRENT_LIST_DIR}/Fondle/fdl_${exe}.cpp")
-        add_executable( ${exe} "Fondle/fdl_${exe}.cpp" )
+foreach( source ${IXT_FONDLES_TO_BUILD} )
+    if( _ftb_are_source_files )
+        string( REGEX MATCH "^fdl_[a-z]+" exe ${source} )
+    else()
+        set( exe "fdl_${source}" )
+        set( source "${exe}.cpp" )
+    endif()
+    
+    if( EXISTS "${IXT_FONDLE_DIR}/${source}" )
+        add_executable( ${exe} "${IXT_FONDLE_DIR}/${source}" )
         
         target_link_libraries( ${exe} PUBLIC ${IXT_LIB_NAME} )
         

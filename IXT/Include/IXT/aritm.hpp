@@ -626,6 +626,14 @@ public:
     }
 
 public:
+    Clust2& push_base() {
+        for( auto& vrtx : _vrtx )
+            vrtx.second = vrtx.first;
+            
+        return *this;
+    }
+
+public:
     Clust2& relocate_at( const Vec2& vec ) {
         _origin = vec;
         return *this;
@@ -877,14 +885,14 @@ _ENGINE_PROTECTED:
 
 
 _ENGINE_PROTECTED:
-    using _itrs_t = decltype( _vrtx )::iterator;
-    using _itrs_ct = decltype( _vrtx )::const_iterator;
+    using _vrtx_itr_t = decltype( _vrtx )::iterator;
+    using _vrtx_citr_t = decltype( _vrtx )::const_iterator;
 
 _ENGINE_PROTECTED:
     template< bool is_const >
     struct _inner_vrtx_iterator_base {
     _ENGINE_PROTECTED:
-        using _uth_itr_t = std::conditional_t< is_const, _itrs_ct, _itrs_t >;
+        using _uth_itr_t = std::conditional_t< is_const, _vrtx_citr_t, _vrtx_itr_t >;
 
     public:
         _inner_vrtx_iterator_base( _uth_itr_t itr )
@@ -953,7 +961,7 @@ _ENGINE_PROTECTED:
     template< bool is_const >
     struct _outter_vrtx_iterator_base {
     _ENGINE_PROTECTED:
-        using _uth_itr_t = std::conditional_t< is_const, _itrs_ct, _itrs_t >;
+        using _uth_itr_t = std::conditional_t< is_const, _vrtx_citr_t, _vrtx_itr_t >;
         using _uth_ref_t = std::conditional_t< is_const, const Clust2*, Clust2* >;
 
     public:
@@ -1017,27 +1025,29 @@ public:
     }
 
 
-public:
-    struct inner_ray_iterator {
-    public:
-        using UTHItr = std::vector< Vrtx >::iterator;
+_ENGINE_PROTECTED:
+    template< bool is_const >
+    struct _inner_ray_iterator_base {
+    _ENGINE_PROTECTED:
+        using _uth_itr_t = std::conditional_t< is_const, _vrtx_citr_t, _vrtx_itr_t >;
+        using _uth_ref_t = std::conditional_t< is_const, const Clust2*, Clust2* >;
 
     public:
-        inner_ray_iterator( const UTHItr& itr, Clust2* ref )
+        _inner_ray_iterator_base( _uth_itr_t itr, _uth_ref_t ref )
         : _itr{ itr }, _ref{ ref }
         {}
 
     _ENGINE_PROTECTED:
-        UTHItr    _itr   = {};
-        Clust2*   _ref   = { nullptr };
+        _uth_itr_t   _itr   = {};
+        _uth_ref_t   _ref   = { nullptr };
 
     public:
-        inner_ray_iterator& operator ++ () {
+        _inner_ray_iterator_base& operator ++ () {
             ++_itr;
             return *this;
         }
 
-        inner_ray_iterator operator ++ ( [[maybe_unused]] int ) {
+        _inner_ray_iterator_base operator ++ ( [[maybe_unused]] int ) {
             auto last = _itr;
             
             this->operator++();
@@ -1046,7 +1056,7 @@ public:
         }
 
     public:
-        bool operator == ( const inner_ray_iterator& other ) const {
+        bool operator == ( const _inner_ray_iterator_base& other ) const {
             return _itr == other._itr;
         }
 
@@ -1055,6 +1065,15 @@ public:
             return { _ref->_origin, _itr->first };
         }
 
+        Vec2* operator -> () {
+            return &_itr->first;
+        }
+
+    };
+
+public:
+    struct inner_ray_iterator : _inner_ray_iterator_base< false > {
+        using _inner_ray_iterator_base::_inner_ray_iterator_base;
     };
 
     inner_ray_iterator inner_ray_begin() {
@@ -1065,25 +1084,42 @@ public:
         return { _vrtx.end(), nullptr };
     }
 
-public:
-    struct outter_ray_iterator {
-    public:
-        using UTHItr = std::vector< Vrtx >::iterator;
+    struct cinner_ray_iterator : _inner_ray_iterator_base< true > {
+        using _inner_ray_iterator_base::_inner_ray_iterator_base;
+    };
+
+    cinner_ray_iterator cinner_ray_begin() const {
+        return { _vrtx.cbegin(), this };
+    }
+
+    cinner_ray_iterator cinner_ray_end() const {
+        return { _vrtx.cend(), nullptr };
+    }
+
+_ENGINE_PROTECTED:
+    template< bool is_const >
+    struct _outter_ray_iterator_base {
+    _ENGINE_PROTECTED:
+        using _uth_itr_t = std::conditional_t< is_const, _vrtx_citr_t, _vrtx_itr_t >;
+        using _uth_ref_t = std::conditional_t< is_const, const Clust2*, Clust2* >;
 
     public:
-        outter_ray_iterator( const UTHItr& org, const UTHItr& drop, Clust2* ref )
+        _outter_ray_iterator_base( _uth_itr_t org, _uth_itr_t drop, _uth_ref_t ref )
         : _org{ org }, _drop{ drop }, _ref{ ref }
         {}
 
     _ENGINE_PROTECTED:
-        UTHItr    _org    = {};
-        UTHItr    _drop   = {};
-        Clust2*   _ref    = { nullptr };
+        _uth_itr_t   _org    = {};
+        _uth_itr_t   _drop   = {};
+        _uth_ref_t   _ref    = { nullptr };
 
     public:
-        outter_ray_iterator& operator ++ () {
-            if( _drop == _ref->_vrtx.begin() ) {
-                _org = _ref->_vrtx.begin();
+        _outter_ray_iterator_base& operator ++ () {
+            if( _drop == _ref->_vrtx.cbegin() ) {
+                if constexpr( is_const )
+                    _org = _ref->_vrtx.cbegin();
+                else
+                    _org = _ref->_vrtx.begin();
 
                 return *this;
             }
@@ -1091,13 +1127,17 @@ public:
             ++_org;
             ++_drop;
 
-            if( _drop == _ref->_vrtx.end() )
-                _drop = _ref->_vrtx.begin();
+            if( _drop == _ref->_vrtx.cend() ) {
+                if constexpr( is_const )
+                    _drop = _ref->_vrtx.cbegin();
+                else
+                    _drop = _ref->_vrtx.begin();
+            }
 
             return *this;
         }
 
-        outter_ray_iterator operator ++ ( [[maybe_unused]] int ) {
+        _outter_ray_iterator_base operator ++ ( [[maybe_unused]] int ) {
             auto last = std::make_pair( _org, _drop );
             
             this->operator++();
@@ -1106,15 +1146,20 @@ public:
         }
 
     public:
-        bool operator == ( const outter_ray_iterator& other ) const {
+        bool operator == ( const _outter_ray_iterator_base& other ) const {
             return _org == other._org && _drop == other._drop;
         }
 
     public:
         Ray2 operator * () {
-            return { _ref->_origin + _org->first, _drop->second };
+            return { _ref->_origin + _org->first, _drop->first - _org->first };
         }
 
+    };
+
+public:
+    struct outter_ray_iterator : _outter_ray_iterator_base< false > {
+        using _outter_ray_iterator_base::_outter_ray_iterator_base;
     };
 
     outter_ray_iterator outter_ray_begin() {
@@ -1124,6 +1169,19 @@ public:
     outter_ray_iterator outter_ray_end() {
         return { _vrtx.begin(), _vrtx.begin(), nullptr };
     }
+
+    struct coutter_ray_iterator : _outter_ray_iterator_base< true > {
+        using _outter_ray_iterator_base::_outter_ray_iterator_base;
+    };
+
+    coutter_ray_iterator coutter_ray_begin() const {
+        return { _vrtx.cbegin(), _vrtx.cbegin() + 1, this };
+    }
+
+    coutter_ray_iterator coutter_ray_end() const {
+        return { _vrtx.cbegin(), _vrtx.cbegin(), nullptr };
+    }
+
 
 public:
     static Clust2 from_file( std::string_view path ) {

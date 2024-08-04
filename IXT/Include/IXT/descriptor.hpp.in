@@ -149,7 +149,7 @@ namespace _ENGINE_NAMESPACE {
 
 
     static std::string_view ASSETS_DIR = "@IXT_ASSETS_PATH@";
-@IXT_CXX_ASSETS_PATHS@
+@IXT_IN_CXX_ASSETS_PATHS@
 
 };
 

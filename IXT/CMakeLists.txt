@@ -16,7 +16,7 @@ set( IXT_LIB_NAME "IXT" CACHE STRING "IXT lib name." FORCE )
 set(
     IXT_COMPONENTS
     "bit_manip" "comms" "concepts" "descriptor" "endec"
-    "file_manip" "os" "audio" "aritm"
+    "file_manip" "os" "audio" "aritm" "surface"
     CACHE STRING "IXT engine components." FORCE
 )
 

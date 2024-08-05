@@ -58,6 +58,10 @@
 #endif
 
 
+#if defined( IXT_UNIQUE_SURFACE )
+    #define _ENGINE_UNIQUE_SURFACE
+#endif
+
 
 #pragma endregion Defines
 
@@ -155,19 +159,19 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-#pragma region UId
+#pragma region XtDx
 
 
 
 namespace _ENGINE_NAMESPACE {
-    typedef   void*   UId;
+    typedef   void*   XtDx;
 
     class Descriptor {
     public:
         /**
          * @brief Unique Id of Descriptor instance.
          */
-        UId uid() const {
+        XtDx xtdx() const {
             return ( void* )( this );
         }
 
@@ -184,7 +188,7 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-#pragma endregion UId
+#pragma endregion XtDx
 
 
 

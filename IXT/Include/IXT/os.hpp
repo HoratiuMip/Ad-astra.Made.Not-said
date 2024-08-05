@@ -102,19 +102,19 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    using cbmap_key_t   = UId;
+    using cbmap_key_t   = XtDx;
     using cbmap_value_t = std::function< void( sig_t ) >;
 
 _ENGINE_PROTECTED:
     std::map< cbmap_key_t, cbmap_value_t >   _callbacks   = {};
 
 public:
-    void push_on_external_exception( const cbmap_key_t& uid, const cbmap_value_t& callback ) {
-        _callbacks.insert( std::make_pair( uid, callback ) );
+    void push_on_external_exception( const cbmap_key_t& xtdx, const cbmap_value_t& callback ) {
+        _callbacks.insert( std::make_pair( xtdx, callback ) );
     }
 
-    void pop_on_external_exception( const cbmap_key_t& uid ) {
-        _callbacks.erase( uid );
+    void pop_on_external_exception( const cbmap_key_t& xtdx ) {
+        _callbacks.erase( xtdx );
     }
 
 _ENGINE_PROTECTED:

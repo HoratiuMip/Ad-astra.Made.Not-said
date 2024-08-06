@@ -283,6 +283,12 @@ _ENGINE_PROTECTED:
 
 };
 
+enum SURFACE_STYLE {
+    SURFACE_STYLE_LIQUID = WS_SIZEBOX | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE,
+    SURFACE_STYLE_SOLID  = WS_POPUP | WS_VISIBLE
+
+};
+
 class Surface : public Descriptor,
                 public SurfaceEventSentry 
 {
@@ -300,49 +306,12 @@ public:
         std::string_view title,
         Crd2             crd      = { 0, 0 },
         Vec2             size     = { 512, 512 },
-        SURFACE_THREAD   launch   = SURFACE_THREAD_THROUGH,
+        SURFACE_STYLE    style    = SURFACE_STYLE_LIQUID,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : _coord( crd ), _size( size )
+    : _title{ title.data() }, _coord( crd ), _size( size ), _style{ style }
     {
-        #if defined( _ENGINE_UNIQUE_SURFACE )
-            _ptr = this;
-        #endif
-
-        _wnd_class.cbSize        = sizeof( WNDCLASSEX );
-        _wnd_class.hInstance     = GetModuleHandle( NULL );
-        _wnd_class.lpfnWndProc   = event_proc_router_1;
-        _wnd_class.lpszClassName = title.data();
-        _wnd_class.hbrBackground = HBRUSH( COLOR_INACTIVECAPTIONTEXT );
-        _wnd_class.hCursor       = LoadCursor( NULL, IDC_ARROW );
-
-
-        switch( launch ) {
-            case SURFACE_THREAD_THROUGH: goto L_THREAD_THROUGH;
-
-            case SURFACE_THREAD_ACROSS: goto L_THREAD_ACROSS;
-
-            default: echo( this, ECHO_STATUS_ERROR ) << "Bad thread launch argument."; return;
-        }
-
-
-        L_THREAD_THROUGH: {
-            std::invoke( _main, this, nullptr, echo );
-        } return;
-
-
-        L_THREAD_ACROSS: {
-            std::binary_semaphore sync{ 0 };
-
-            _thread = std::thread( _main, this, &sync, echo );
-
-            if( _thread.joinable() ) {
-                echo( this, ECHO_STATUS_PENDING ) << "Waiting for across window creation...";
-
-                sync.acquire();
-            } else
-                echo( this, ECHO_STATUS_ERROR ) << "Main thread bad invoke.";
-        } return;
+        echo( this, ECHO_STATUS_OK ) << "Set.";
     }
 
 
@@ -352,22 +321,11 @@ public:
 
 
     ~Surface() {
-        SendMessage( _hwnd, _SURFACE_EVENT_DESTROY, WPARAM{}, LPARAM{} );
-
-        if( _thread.joinable() )
-            _thread.join();
-
-        #if defined( _ENGINE_UNIQUE_SURFACE )
-            _ptr = nullptr;
-        #endif
+        this->downlink();
     }
 
-public:
-    typedef   std::array< SURFKEY_STATE, SurfKey::COUNT >   Keys;
-
 _ENGINE_PROTECTED:
-    static constexpr auto   LIQUID_STYLE   = WS_OVERLAPPED | WS_SIZEBOX | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE;
-    static constexpr auto   SOLID_STYLE    = WS_POPUP | WS_VISIBLE;
+    typedef   std::array< SURFKEY_STATE, SurfKey::COUNT >   _SurfKeyArray;
 
 _ENGINE_PROTECTED:
 #if defined( _ENGINE_UNIQUE_SURFACE )
@@ -376,14 +334,17 @@ _ENGINE_PROTECTED:
     HWND                     _hwnd        = NULL;
     WNDCLASSEX               _wnd_class   = {};
     std::thread              _thread      = {};
+
     Crd2                     _coord       = {};
     Vec2                     _size        = {};
+    SURFACE_STYLE            _style       = SURFACE_STYLE_LIQUID;
+    std::string              _title       = {};
 
     SurfaceTrace             _trace       = {};
 
     Vec2                     _pointer     = {};
     Vec2                     _pointer_l   = {};
-    Keys                     _keys        = {};
+    _SurfKeyArray            _key_array   = { SURFKEY_STATE_UP };
 
 _ENGINE_PROTECTED:
     void _main( std::binary_semaphore* sync, _ENGINE_COMMS_ECHO_ARG ) {
@@ -393,14 +354,20 @@ _ENGINE_PROTECTED:
             if( sync ) sync->release(); return;
         }
 
+        
+        RECT rect{ _coord.x, _coord.y, _coord.x + _size.x, _coord.y + _size.y };
+        if( !AdjustWindowRect( &rect, _style, false ) )
+            echo( this, ECHO_STATUS_WARNING ) << "Bad window size adjustment.";
+
+
         _hwnd = CreateWindowEx(
             WS_EX_ACCEPTFILES,
 
             _wnd_class.lpszClassName, _wnd_class.lpszClassName,
 
-            SOLID_STYLE,
+            _style,
 
-            _coord.x, _coord.y, _size.x, _size.y,
+            rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
 
             NULL, NULL,
 
@@ -462,7 +429,7 @@ _ENGINE_PROTECTED:
         auto key_proc = [ this ] ( SURFKEY_STATE state, WPARAM w_param ) -> void {
             SurfKey key = static_cast< SurfKey >( w_param );
 
-            _keys[ key ] = state;
+            _key_array[ key ] = state;
 
             this->invoke_sequence< SurfaceOnKey >( _trace, key, state );
         };
@@ -474,6 +441,9 @@ _ENGINE_PROTECTED:
 
             break; }
 
+            case WM_DESTROY: {
+                
+            break; }
 
             case _SURFACE_EVENT_DESTROY: {
                 DestroyWindow( hwnd );
@@ -602,6 +572,62 @@ _ENGINE_PROTECTED:
     }
 
 public:
+    Surface& uplink( SURFACE_THREAD launch = SURFACE_THREAD_THROUGH, _ENGINE_COMMS_ECHO_ARG ) {
+        #if defined( _ENGINE_UNIQUE_SURFACE )
+            _ptr = this;
+        #endif
+
+        _wnd_class.cbSize        = sizeof( WNDCLASSEX );
+        _wnd_class.hInstance     = GetModuleHandle( NULL );
+        _wnd_class.lpfnWndProc   = event_proc_router_1;
+        _wnd_class.lpszClassName = _title.data();
+        _wnd_class.hbrBackground = HBRUSH( COLOR_INACTIVECAPTIONTEXT );
+        _wnd_class.hCursor       = LoadCursor( NULL, IDC_ARROW );
+
+
+        switch( launch ) {
+            case SURFACE_THREAD_THROUGH: goto L_THREAD_THROUGH;
+
+            case SURFACE_THREAD_ACROSS: goto L_THREAD_ACROSS;
+
+            default: echo( this, ECHO_STATUS_ERROR ) << "Bad thread launch argument."; return *this;
+        }
+
+
+        L_THREAD_THROUGH: {
+            std::invoke( _main, this, nullptr, echo );
+        } return *this;
+
+
+        L_THREAD_ACROSS: {
+            std::binary_semaphore sync{ 0 };
+
+            _thread = std::thread( _main, this, &sync, echo );
+
+            if( _thread.joinable() ) {
+                echo( this, ECHO_STATUS_PENDING ) << "Waiting for across window creation...";
+
+                sync.acquire();
+            } else
+                echo( this, ECHO_STATUS_ERROR ) << "Main thread bad invoke.";
+        } return *this;
+    }
+
+    void downlink( _ENGINE_COMMS_ECHO_ARG ) {
+        SendMessage( _hwnd, _SURFACE_EVENT_DESTROY, WPARAM{}, LPARAM{} );
+
+        if( !UnregisterClassA( _wnd_class.lpszClassName, GetModuleHandle( NULL ) ) )
+            echo( this, ECHO_STATUS_ERROR ) << "Bad window class unregistration.";
+
+        if( _thread.joinable() )
+            _thread.join();
+
+        #if defined( _ENGINE_UNIQUE_SURFACE )
+            _ptr = nullptr;
+        #endif
+    }
+
+public:
     Vec2 pull_vec( const Crd2& crd ) const {
         return { crd.x - _size.x / 2.0, _size.y / 2.0 - crd.y };
     }
@@ -681,13 +707,13 @@ public:
 
 public:
     Surface& solidify() {
-        SetWindowLongPtr( _hwnd, GWL_STYLE, SOLID_STYLE );
+        SetWindowLongPtr( _hwnd, GWL_STYLE, _style = SURFACE_STYLE_SOLID );
 
         return *this;
     }
 
     Surface& liquify() {
-        SetWindowLongPtr( _hwnd, GWL_STYLE, LIQUID_STYLE );
+        SetWindowLongPtr( _hwnd, GWL_STYLE, _style = SURFACE_STYLE_LIQUID );
 
         return *this;
     }
@@ -734,7 +760,7 @@ public:
     }
 
 public:
-    Vec2 vec() const {
+    Vec2 pointer() const {
         return _pointer;
     }
 
@@ -743,7 +769,7 @@ public:
     }
 
     Crd2 crd() const {
-        return this->pull_crd( vec() );
+        return this->pull_crd( pointer() );
     }
 
     Crd2 l_crd() const {
@@ -754,7 +780,7 @@ public:
     size_t any_down( Keys... keys ) const {
         size_t count = 0;
 
-        ( ( count += ( _keys[ keys ] == SURFKEY_STATE_DOWN ) ), ... );
+        ( ( count += ( _key_array[ keys ] == SURFKEY_STATE_DOWN ) ), ... );
 
         return count;
     }
@@ -767,7 +793,7 @@ public:
         ( ( sum +=
             std::exchange( at, at * 2 )
             *
-            ( _keys[ keys ] == SURFKEY_STATE_DOWN )
+            ( _key_array[ keys ] == SURFKEY_STATE_DOWN )
         ), ... );
 
         return sum;
@@ -775,11 +801,11 @@ public:
 
     template< typename ...Keys >
     bool all_down( Keys... keys ) const {
-        return any_down( keys... ) == sizeof...( Keys );
+        return this->any_down( keys... ) == sizeof...( Keys );
     }
 
     bool down( SurfKey key ) const {
-        return _keys[ key ] == SURFKEY_STATE_DOWN;
+        return _key_array[ key ] == SURFKEY_STATE_DOWN;
     }
 
 public:
@@ -808,12 +834,12 @@ public:
 class Mouse {
 public:
 #if defined( _ENGINE_UNIQUE_SURFACE )
-    static Vec2 vec() {
+    static Vec2 pointer() {
         return Surface::get()->_pointer;
     }
 
     static Crd2 crd() {
-        return Surface::get()->pull_crd( vec() );
+        return Surface::get()->pull_crd( pointer() );
     }
 #endif
 

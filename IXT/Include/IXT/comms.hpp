@@ -89,9 +89,9 @@ _ENGINE_PROTECTED:
 
 public:
     template< typename T >
-    requires is_std_ostringstream_pushable< T >
-    Echo& operator << ( const T& frag ) {
-        this->_str() << frag;
+    requires is_std_ostringstream_pushable< std::decay_t< T > >
+    Echo& operator << ( T&& frag ) {
+        this->_str() << std::forward< T >( frag );
 
         return *this;
     }
@@ -131,7 +131,7 @@ public:
         .push_color( _status_colors[ status ] )
         .operator<<( _status_strs[ status ] )
         .white()
-        .operator<<( " ]\t" )
+        .operator<<( " ]   \t" )
         .blue();
 
         for( int64_t n = 1; n <= _depth; ++n )

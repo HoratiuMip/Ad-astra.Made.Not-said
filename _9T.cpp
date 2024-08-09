@@ -2625,11 +2625,11 @@ public:
 
 
 
-enum SCROLL_DIRECTION {
-    SCROLL_DIRECTION_UP, 
-    SCROLL_DIRECTION_DOWN, 
-    SCROLL_DIRECTION_LEFT, 
-    SCROLL_DIRECTION_RIGHT
+enum SURFSCROLL_DIRECTION {
+    SURFSCROLL_DIRECTION_UP, 
+    SURFSCROLL_DIRECTION_DOWN, 
+    SURFSCROLL_DIRECTION_LEFT, 
+    SURFSCROLL_DIRECTION_RIGHT
 };
 
 
@@ -2682,7 +2682,7 @@ struct SurfaceTrace {
 
 typedef   std::function< void( Vec2, Vec2, SurfaceTrace& ) >                   OnMouse;
 typedef   std::function< void( Key, KEY_STATE, SurfaceTrace& ) >               OnKey;
-typedef   std::function< void( Vec2, SCROLL_DIRECTION, SurfaceTrace& ) >       OnScroll;
+typedef   std::function< void( Vec2, SURFSCROLL_DIRECTION, SurfaceTrace& ) >       OnScroll;
 typedef   std::function< void( std::vector< std::string >, SurfaceTrace& ) >   OnFiledrop;
 typedef   std::function< void( Crd2, Crd2, SurfaceTrace& ) >                   OnMove;
 typedef   std::function< void( Vec2, Vec2, SurfaceTrace& ) >                   OnResize;
@@ -3045,7 +3045,7 @@ _ENGINE_PROTECTED:
                     _mouse,
                     GET_WHEEL_DELTA_WPARAM( w_param ) < 0
                     ?
-                    SCROLL_DIRECTION_DOWN : SCROLL_DIRECTION_UP
+                    SURFSCROLL_DIRECTION_DOWN : SURFSCROLL_DIRECTION_UP
                 );
 
                 break;
@@ -3816,7 +3816,7 @@ public:
 
         .plug< SURFACE_EVENT_SCROLL >( 
             this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
-            [ this ] ( Vec2 vec, SCROLL_DIRECTION dir, auto& trace ) -> void {
+            [ this ] ( Vec2 vec, SURFSCROLL_DIRECTION dir, auto& trace ) -> void {
                 if( !this->contains_g( vec ) ) return;
 
                 this->invoke_sequence< OnScroll >( trace, vec - _origin, dir );
@@ -5639,10 +5639,10 @@ public:
 
         _viewport->plug< SURFACE_EVENT_SCROLL >( 
             this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
-            [ this ] ( Vec2 vec, SCROLL_DIRECTION dir, auto& trace ) -> void {
+            [ this ] ( Vec2 vec, SURFSCROLL_DIRECTION dir, auto& trace ) -> void {
                 auto& s = this->surface();
 
-                double sgn   = dir == SCROLL_DIRECTION_UP ? 1.0 : -1.0;
+                double sgn   = dir == SURFSCROLL_DIRECTION_UP ? 1.0 : -1.0;
                 double tweak = 4.6 * sgn;
 
                 switch( ( s.down( Key::CTRL ) << 1 ) | s.down( Key::SHIFT ) ) {

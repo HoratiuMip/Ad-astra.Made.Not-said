@@ -88,11 +88,11 @@ public:
 
 
 
-enum SCROLL_DIRECTION {
-    SCROLL_DIRECTION_UP, 
-    SCROLL_DIRECTION_DOWN, 
-    SCROLL_DIRECTION_LEFT, 
-    SCROLL_DIRECTION_RIGHT
+enum SURFSCROLL_DIRECTION {
+    SURFSCROLL_DIRECTION_UP, 
+    SURFSCROLL_DIRECTION_DOWN, 
+    SURFSCROLL_DIRECTION_LEFT, 
+    SURFSCROLL_DIRECTION_RIGHT
 };
 
 
@@ -146,7 +146,7 @@ struct SurfaceTrace {
 
 typedef   std::function< void( Vec2, Vec2, SurfaceTrace& ) >                   SurfaceOnPointer;
 typedef   std::function< void( SurfKey, SURFKEY_STATE, SurfaceTrace& ) >       SurfaceOnKey;
-typedef   std::function< void( Vec2, SCROLL_DIRECTION, SurfaceTrace& ) >       SurfaceOnScroll;
+typedef   std::function< void( Vec2, SURFSCROLL_DIRECTION, SurfaceTrace& ) >       SurfaceOnScroll;
 typedef   std::function< void( std::vector< std::string >, SurfaceTrace& ) >   SurfaceOnFiledrop;
 typedef   std::function< void( Crd2, Crd2, SurfaceTrace& ) >                   SurfaceOnMove;
 typedef   std::function< void( Vec2, Vec2, SurfaceTrace& ) >                   SurfaceOnResize;
@@ -155,7 +155,7 @@ typedef   std::function< void() >                                              S
 
 class SurfaceEventSentry {
 _ENGINE_PROTECTED:
-    SurfaceOnPointer                       _on_mouse             = {};
+    SurfaceOnPointer                     _on_ptr               = {};
     SurfaceOnKey                         _on_key               = {};
     SurfaceOnScroll                      _on_scroll            = {};
     SurfaceOnFiledrop                    _on_filedrop          = {};
@@ -163,7 +163,7 @@ _ENGINE_PROTECTED:
     SurfaceOnResize                      _on_resize            = {};
     SurfaceOnDestroy                     _on_destroy           = {};
 
-    std::map< XtDx, SurfaceOnPointer >     _sckt_mouse[ 2 ]      = {};
+    std::map< XtDx, SurfaceOnPointer >   _sckt_mouse[ 2 ]      = {};
     std::map< XtDx, SurfaceOnKey >       _sckt_key[ 2 ]        = {};
     std::map< XtDx, SurfaceOnScroll >    _sckt_scroll[ 2 ]     = {};
     std::map< XtDx, SurfaceOnFiledrop >  _sckt_filedrop[ 2 ]   = {};
@@ -200,12 +200,12 @@ public:
     }
 
     template< SURFACE_EVENT event, typename Function >
-    SurfaceEventSentry& plug( const XtDx& xtdx, SURFACE_SOCKET_PLUG at, Function function ) {
+    SurfaceEventSentry& socket_plug( const XtDx& xtdx, SURFACE_SOCKET_PLUG at, Function function ) {
         this->_seq_from_event< event >().second[ at ].insert( { xtdx, function } );
         return *this;
     }
 
-    SurfaceEventSentry& unplug( const XtDx& xtdx, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
+    SurfaceEventSentry& socket_unplug( const XtDx& xtdx, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
         this->_unplug( xtdx, at, _sckt_mouse );
         this->_unplug( xtdx, at, _sckt_key );
         this->_unplug( xtdx, at, _sckt_scroll );
@@ -216,7 +216,7 @@ public:
     }
 
     template< SURFACE_EVENT event >
-    SurfaceEventSentry& unplug( const XtDx& xtdx, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
+    SurfaceEventSentry& socket_unplug( const XtDx& xtdx, std::optional< SURFACE_SOCKET_PLUG > at = {} ) {
         this->_unplug( xtdx, at, this->_seq_from_event< event >().second );
         return *this;
     }
@@ -236,7 +236,7 @@ _ENGINE_PROTECTED:
     template< typename Master >
     auto _seq_from_type() {
         if constexpr( std::is_same_v< Master, SurfaceOnPointer > ) 
-            return std::make_pair( std::ref( _on_mouse ), std::ref( _sckt_mouse ) );
+            return std::make_pair( std::ref( _on_ptr ), std::ref( _sckt_mouse ) );
 
         if constexpr( std::is_same_v< Master, SurfaceOnKey > ) 
             return std::make_pair( std::ref( _on_key ), std::ref( _sckt_key ) );
@@ -260,7 +260,7 @@ _ENGINE_PROTECTED:
     template< SURFACE_EVENT event >
     auto _seq_from_event() {
         if constexpr( event == SURFACE_EVENT_MOUSE ) 
-            return std::make_pair( std::ref( _on_mouse ), std::ref( _sckt_mouse ) );
+            return std::make_pair( std::ref( _on_ptr ), std::ref( _sckt_mouse ) );
 
         if constexpr( event == SURFACE_EVENT_KEY ) 
             return std::make_pair( std::ref( _on_key ), std::ref( _sckt_key ) );
@@ -309,7 +309,7 @@ public:
         SURFACE_STYLE    style    = SURFACE_STYLE_LIQUID,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : _title{ title.data() }, _coord( crd ), _size( size ), _style{ style }
+    : _title{ title.data() }, _position( crd ), _size( size ), _style{ style }
     {
         echo( this, ECHO_STATUS_OK ) << "Set.";
     }
@@ -335,7 +335,7 @@ _ENGINE_PROTECTED:
     WNDCLASSEX               _wnd_class   = {};
     std::thread              _thread      = {};
 
-    Crd2                     _coord       = {};
+    Crd2                     _position    = {};
     Vec2                     _size        = {};
     SURFACE_STYLE            _style       = SURFACE_STYLE_LIQUID;
     std::string              _title       = {};
@@ -355,7 +355,7 @@ _ENGINE_PROTECTED:
         }
 
         
-        RECT rect{ _coord.x, _coord.y, _coord.x + _size.x, _coord.y + _size.y };
+        RECT rect{ _position.x, _position.y, _position.x + _size.x, _position.y + _size.y };
         if( !AdjustWindowRect( &rect, _style, false ) )
             echo( this, ECHO_STATUS_WARNING ) << "Bad window size adjustment.";
 
@@ -476,7 +476,7 @@ _ENGINE_PROTECTED:
                     _pointer,
                     GET_WHEEL_DELTA_WPARAM( w_param ) < 0
                     ?
-                    SCROLL_DIRECTION_DOWN : SCROLL_DIRECTION_UP
+                    SURFSCROLL_DIRECTION_DOWN : SURFSCROLL_DIRECTION_UP
                 );
 
                 break;
@@ -553,9 +553,9 @@ _ENGINE_PROTECTED:
 
 
             case WM_MOVE: {
-                Crd2 new_coord = { LOWORD( l_param ), HIWORD( l_param ) };
+                Crd2 new_pos = { ( int16_t )LOWORD( l_param ), ( int16_t )HIWORD( l_param ) };
 
-                this->invoke_sequence< SurfaceOnMove >( _trace, new_coord, std::exchange( _coord, new_coord ) );
+                this->invoke_sequence< SurfaceOnMove >( _trace, new_pos, std::exchange( _position, new_pos ) );
 
             break; }
 
@@ -665,8 +665,8 @@ public:
     }
 
 public:
-    Crd2 coord() const {
-        return _coord;
+    Crd2 pos() const {
+        return _position;
     }
 
     Crd2 os_crd() const {
@@ -677,12 +677,12 @@ public:
         return { rect.left, rect.top };
     }
 
-    ggfloat_t x() const {
-        return _coord.x;
+    ggfloat_t pos_x() const {
+        return _position.x;
     }
 
-    ggfloat_t y() const {
-        return _coord.y;
+    ggfloat_t pos_y() const {
+        return _position.y;
     }
 
     Vec2 size() const {
@@ -719,7 +719,7 @@ public:
     }
 
     Surface& move_to( Vec2 crd ) {
-        _coord = crd;
+        _position = crd;
 
         SetWindowPos(
             _hwnd,

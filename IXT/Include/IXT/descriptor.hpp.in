@@ -171,8 +171,12 @@ namespace _ENGINE_NAMESPACE {
         /**
          * @brief Unique Id of Descriptor instance.
          */
-        XtDx xtdx() const {
-            return ( void* )( this );
+        XtDx xtdx_this() const {
+            return ( void* )this;
+        }
+
+        XtDx xtdx_name() const {
+            return ( void* )this->struct_name().data();
         }
 
     public:

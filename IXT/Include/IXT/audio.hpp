@@ -291,7 +291,7 @@ public:
         }
 
 
-        _powered = true;
+        _powered.store( true, std::memory_order_seq_cst );
 
         _thread = std::thread( _main, this );
 
@@ -313,7 +313,7 @@ public:
 
 
     ~Audio() {
-        _powered = false;
+        _powered.store( false, std::memory_order_seq_cst );
 
         _cnd_var.notify_one();
 
@@ -325,7 +325,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    volatile bool               _powered              = false;
+    std::atomic< bool >         _powered              = false;
 
     uint64_t                    _sample_rate          = 0;
     double                      _time_step            = 0.0;
@@ -369,7 +369,7 @@ _ENGINE_PROTECTED:
         };
 
         
-        while( _powered ) {
+        while( _powered.load( std::memory_order_relaxed ) ) {
             if( _free_block_count.load( std::memory_order_consume ) == 0 ) {
                 std::unique_lock< std::mutex > lock{ _mtx, std::defer_lock_t{} };
 
@@ -477,7 +477,7 @@ public:
 public:
     bool is_playing( const Wave& wave ) {
         return std::find_if( _waves.begin(), _waves.end(), [ &wave ] ( auto& node ) -> bool {
-            return node->xtdx() == wave.xtdx();
+            return node->xtdx_this() == wave.xtdx_this();
         } ) != _waves.end();
     }
 

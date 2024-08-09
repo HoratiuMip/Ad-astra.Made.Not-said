@@ -144,7 +144,7 @@ public:
         .white()
         .operator<<( " ][ " )
         .gray()
-        .operator<<( invoker.xtdx() )
+        .operator<<( invoker.xtdx_this() )
         .white()
         .operator<<( " ]" )
         .blue()
@@ -179,7 +179,7 @@ public:
         .white()
         .operator<<( " ][ " )
         .red()
-        .operator<<( invoker.xtdx() )
+        .operator<<( invoker.xtdx_this() )
         .white()
         .operator<<( " ]" )
         .red()
@@ -223,7 +223,7 @@ public:
         this->stream_to< T >( stream );
 
 
-        OS::sig_interceptor.push_on_external_exception( this->xtdx(), _flush );
+        OS::sig_interceptor.push_on_external_exception( this->xtdx_this(), _flush );
     }
 
 _ENGINE_PROTECTED:

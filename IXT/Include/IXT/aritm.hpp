@@ -63,6 +63,8 @@ public:
 
 
 
+template< typename T > concept is_vec2_base = std::is_base_of_v< Vec2, T >;
+
 class Vec2 {
 public:
     static ggfloat_t norm_sq(
@@ -391,8 +393,7 @@ public:
 
 
 
-template< typename T > concept ggX_result =
-    std::is_same_v< bool, T > || std::is_same_v< Vec2, T >;
+template< typename T > concept ggX_result = std::is_same_v< bool, T > || std::is_same_v< Vec2, T >;
 
 class Ray2 {
 public:

@@ -16,6 +16,10 @@ using namespace IXT;
 struct MyKeySeqTrigger : public Descriptor {
     IXT_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "MyKeySeqTrigger" );
 
+    XtDx xtdx() const override {
+        return ( void* )this->struct_name().data();
+    };
+
 
     bool   triggered   = false;
 
@@ -28,7 +32,7 @@ struct MyKeySeqTrigger : public Descriptor {
 
     void init( Surface& surf, IXT_COMMS_ECHO_ARG ) {
         surf.socket_plug< SURFACE_EVENT_KEY >( 
-            this->xtdx_name(), SURFACE_SOCKET_PLUG_AT_EXIT,
+            this->xtdx(), SURFACE_SOCKET_PLUG_AT_EXIT,
             [ this ] ( SurfKey key, SURFKEY_STATE state, SurfaceTrace& trace ) -> void {
                 if( state == SURFKEY_STATE_UP ) return;
 
@@ -49,7 +53,7 @@ struct MyKeySeqTrigger : public Descriptor {
     }
 
     void kill( Surface& surf ) {
-        surf.socket_unplug( this->xtdx_name() );
+        surf.socket_unplug( this->xtdx() );
     }
 };
 
@@ -103,11 +107,19 @@ int main() {
         OS::console.crs_at( initial_crs );
         
 
-        std::cout << std::fixed << std::setprecision( 0 ) 
-                  << "Pointer:  x[" << surface.pointer().x << "] y[" << surface.pointer().y 
-                  << std::setw( 10 ) << std::left << "]." << '\n';
+        std::cout << std::fixed
+                  << "Pointer: "
+                  << std::setprecision( 0 ) 
+                  << "\n\tVL: x[" << surface.ptr_vl().x << "] y[" << surface.ptr_vl().y << "] "
+                  << std::setprecision( 3 ) 
+                  << "\n\tVG: x[" << surface.ptr_vg().x << "] y[" << surface.ptr_vg().y << "] "
+                  << std::setprecision( 0 ) 
+                  << "\n\tCL: x[" << surface.ptr_cl().x << "] y[" << surface.ptr_cl().y << "] "
+                  << std::setprecision( 3 ) 
+                  << "\n\tCG: x[" << surface.ptr_cg().x << "] y[" << surface.ptr_cg().y
+                  << std::setw( 10 ) << std::left << "]." << "\n\n";
 
-        std::cout << "Position: x[" << surface.pos_x() << "] y[" << surface.pos_y()
+        std::cout << "Position: x[" << surface.pos().x << "] y[" << surface.pos().y
                   << std::setw( 10 ) << std::left << "]." << '\n';
 
         std::cout << "Size:     w[" << surface.width() << "] h[" << surface.height()

@@ -146,7 +146,7 @@ struct SurfaceTrace {
 
 typedef   std::function< void( Vec2, Vec2, SurfaceTrace& ) >                   SurfaceOnPointer;
 typedef   std::function< void( SurfKey, SURFKEY_STATE, SurfaceTrace& ) >       SurfaceOnKey;
-typedef   std::function< void( Vec2, SURFSCROLL_DIRECTION, SurfaceTrace& ) >       SurfaceOnScroll;
+typedef   std::function< void( Vec2, SURFSCROLL_DIRECTION, SurfaceTrace& ) >   SurfaceOnScroll;
 typedef   std::function< void( std::vector< std::string >, SurfaceTrace& ) >   SurfaceOnFiledrop;
 typedef   std::function< void( Crd2, Crd2, SurfaceTrace& ) >                   SurfaceOnMove;
 typedef   std::function< void( Vec2, Vec2, SurfaceTrace& ) >                   SurfaceOnResize;
@@ -304,12 +304,12 @@ public:
 
     Surface(
         std::string_view title,
-        Crd2             crd      = { 0, 0 },
+        Crd2             pos      = { 0, 0 },
         Vec2             size     = { 512, 512 },
         SURFACE_STYLE    style    = SURFACE_STYLE_LIQUID,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : _title{ title.data() }, _position( crd ), _size( size ), _style{ style }
+    : _title{ title.data() }, _position( pos ), _size( size ), _style{ style }
     {
         echo( this, ECHO_STATUS_OK ) << "Set.";
     }
@@ -329,22 +329,22 @@ _ENGINE_PROTECTED:
 
 _ENGINE_PROTECTED:
 #if defined( _ENGINE_UNIQUE_SURFACE )
-    inline static Surface*   _ptr         = nullptr;
+    inline static Surface*   _ptr            = nullptr;
 #endif
-    HWND                     _hwnd        = NULL;
-    WNDCLASSEX               _wnd_class   = {};
-    std::thread              _thread      = {};
+    HWND                     _hwnd           = NULL;
+    WNDCLASSEX               _wnd_class      = {};
+    std::thread              _thread         = {};
 
-    Crd2                     _position    = {};
-    Vec2                     _size        = {};
-    SURFACE_STYLE            _style       = SURFACE_STYLE_LIQUID;
-    std::string              _title       = {};
+    Crd2                     _position       = {};
+    Vec2                     _size           = {};
+    SURFACE_STYLE            _style          = SURFACE_STYLE_LIQUID;
+    std::string              _title          = {};
 
-    SurfaceTrace             _trace       = {};
+    SurfaceTrace             _trace          = {};
 
-    Vec2                     _pointer     = {};
-    Vec2                     _pointer_l   = {};
-    _SurfKeyArray            _key_array   = { SURFKEY_STATE_UP };
+    Vec2                     _pointer        = {};
+    Vec2                     _prev_pointer   = {};
+    _SurfKeyArray            _key_array      = { SURFKEY_STATE_UP };
 
 _ENGINE_PROTECTED:
     void _main( std::binary_semaphore* sync, _ENGINE_COMMS_ECHO_ARG ) {
@@ -355,7 +355,13 @@ _ENGINE_PROTECTED:
         }
 
         
-        RECT rect{ _position.x, _position.y, _position.x + _size.x, _position.y + _size.y };
+        RECT rect{ 
+            static_cast< decltype( RECT::bottom ) >( _position.x ), 
+            static_cast< decltype( RECT::bottom ) >( _position.y ),
+            static_cast< decltype( RECT::bottom ) >( _position.x + _size.x ), 
+            static_cast< decltype( RECT::bottom ) >( _position.y + _size.y ) 
+        };
+
         if( !AdjustWindowRect( &rect, _style, false ) )
             echo( this, ECHO_STATUS_WARNING ) << "Bad window size adjustment.";
 
@@ -464,7 +470,7 @@ _ENGINE_PROTECTED:
 
 
             case WM_MOUSEMOVE: {
-                Vec2 new_pointer = this->pull_vec( { LOWORD( l_param ), HIWORD( l_param ) } );
+                Vec2 new_pointer = this->pull_axis( Crd2{ LOWORD( l_param ), HIWORD( l_param ) } );
 
                 this->invoke_sequence< SurfaceOnPointer >( _trace, new_pointer, _pointer_l = std::exchange( _pointer, new_pointer ) );
 
@@ -553,7 +559,10 @@ _ENGINE_PROTECTED:
 
 
             case WM_MOVE: {
-                Crd2 new_pos = { ( int16_t )LOWORD( l_param ), ( int16_t )HIWORD( l_param ) };
+                Crd2 new_pos = { 
+                    static_cast< ggfloat_t >( ( int16_t )LOWORD( l_param ) ), 
+                    static_cast< ggfloat_t >( ( int16_t )HIWORD( l_param ) )
+                };
 
                 this->invoke_sequence< SurfaceOnMove >( _trace, new_pos, std::exchange( _position, new_pos ) );
 
@@ -628,40 +637,51 @@ public:
     }
 
 public:
-    Vec2 pull_vec( const Crd2& crd ) const {
-        return { crd.x - _size.x / 2.0, _size.y / 2.0 - crd.y };
+    Vec2 pull_axis( const Crd2 crd ) const {
+        return { crd.x - _size.x / 2.0_ggf, _size.y / 2.0_ggf - crd.y };
     }
 
-    Crd2 pull_crd( const Vec2& vec ) const {
+    Crd2 pull_axis( const Vec2& vec ) const {
         return { vec.x + _size.x / 2.0f, _size.y / 2.0f - vec.y };
     }
 
-    void push_vec( Crd2& crd ) const {
+    void push_axis( Crd2& crd ) const {
         crd.x -= _size.x / 2.0;
         crd.y = _size.y / 2.0 - crd.y;
     }
 
-    void push_crd( Vec2& vec ) const {
+    void push_axis( Vec2& vec ) const {
         vec.x += _size.x / 2.0;
         vec.y = _size.y / 2.0 - vec.y;
     }
 
 public:
-    template< typename T >
-    requires( std::is_base_of_v< Vec2, T > )
-    T& scale( T& vec ) {
+    auto& localize( is_vec2_base auto& vec ) const {
         vec.x *= _size.x;
         vec.y *= _size.y;
 
         return vec;
     }
 
-    template< typename T >
-    requires( std::is_base_of_v< Vec2, T > )
-    T scaled( const T& vec ) {
+    template< is_vec2_base T >
+    T localized( const T vec ) const {
         T res{ vec };
 
-        return scale( res );
+        return this->localize( res );
+    }
+
+    auto& globalize( is_vec2_base auto& vec ) const {
+        vec.x /= _size.x;
+        vec.y /= _size.y;
+
+        return vec;
+    }
+
+    template< is_vec2_base T >
+    T globalized( const T vec ) const {
+        T res{ vec };
+
+        return this->globalize( res );
     }
 
 public:
@@ -669,32 +689,8 @@ public:
         return _position;
     }
 
-    Crd2 os_crd() const {
-        RECT rect = {};
-
-        GetWindowRect( _hwnd, &rect );
-
-        return { rect.left, rect.top };
-    }
-
-    ggfloat_t pos_x() const {
-        return _position.x;
-    }
-
-    ggfloat_t pos_y() const {
-        return _position.y;
-    }
-
     Vec2 size() const {
         return _size;
-    }
-
-    Vec2 os_size() const {
-        RECT rect = {};
-
-        GetWindowRect( _hwnd, &rect );
-
-        return { rect.right - rect.left, rect.bottom - rect.top };
     }
 
     ggfloat_t width() const {
@@ -760,22 +756,40 @@ public:
     }
 
 public:
-    Vec2 pointer() const {
+    Vec2 ptr_vl() const {
         return _pointer;
     }
 
-    Vec2 l_vec() const {
-        return _pointer_l;
+    Vec2 ptr_vg() const {
+        return this->globalized( _pointer );
     }
 
-    Crd2 crd() const {
-        return this->pull_crd( pointer() );
+    Vec2 ptr_pvl() const {
+        return _prev_pointer;
     }
 
-    Crd2 l_crd() const {
-        return this->pull_crd( l_vec() );
+    Vec2 ptr_pvg() const {
+        return this->globalized( _prev_pointer );
+    }
+    
+
+    Crd2 ptr_cl() const {
+        return this->pull_axis( this->ptr_vl() );
     }
 
+    Crd2 ptr_cg() const {
+        return this->globalized( this->ptr_cl() );
+    }
+
+    Crd2 ptr_pcl() const {
+        return this->pull_axis( this->ptr_pvl() );
+    }
+
+    Crd2 ptr_pcg() const {
+        return this->globalized( this->ptr_pcl() );
+    }
+
+public:
     template< typename ...Keys >
     size_t any_down( Keys... keys ) const {
         size_t count = 0;
@@ -791,8 +805,8 @@ public:
         size_t at = 1;
 
         ( ( sum +=
-            std::exchange( at, at * 2 )
-            *
+            std::exchange( at, at << 1 )
+            &
             ( _key_array[ keys ] == SURFKEY_STATE_DOWN )
         ), ... );
 

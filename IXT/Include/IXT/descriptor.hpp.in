@@ -164,35 +164,59 @@ namespace _ENGINE_NAMESPACE {
 
 
 namespace _ENGINE_NAMESPACE {
-    typedef   void*   XtDx;
 
-    class Descriptor {
-    public:
-        /**
-         * @brief Unique Id of Descriptor instance.
-         */
-        XtDx xtdx_this() const {
-            return ( void* )this;
-        }
 
-        XtDx xtdx_name() const {
-            return ( void* )this->struct_name().data();
-        }
 
-    public:
-        /**
-         * @brief Used by engine components to print invokers.
-         */
-        virtual std::string_view struct_name() const {
-            return _ENGINE_STRUCT_NAME( "Descriptor" );
-        }
+typedef   void*   XtDx;
 
-    };
+class Descriptor {
+public:
+    /**
+     * @brief IXT Index. An identification method for any Descriptor descendant.
+     */
+    virtual XtDx xtdx() const {
+        return ( void* )this;
+    }
+
+public:
+    /**
+     * @brief String name for Descriptor descendants.
+     */
+    virtual std::string_view struct_name() const {
+        return _ENGINE_STRUCT_NAME( "Descriptor" );
+    }
+
+};
+
+
+
 };
 
 
 
 #pragma endregion XtDx
+
+
+
+#pragma region Literals
+
+
+
+namespace _ENGINE_NAMESPACE {
+    
+
+
+inline ggfloat_t operator ""_ggf ( long double flt ) {
+    return static_cast< ggfloat_t >( flt );
+}
+
+
+
+};
+
+
+
+#pragma endregion Literals
 
 
 

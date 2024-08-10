@@ -10,10 +10,18 @@
 
 > - Get sac. <br>
 
+### Current:
+
+> - Surface matter states. <br>
+> - Surface hide/show cursor. <br>
+> - SurfaceEventSentry force. <br>
+> - Surface move/resize. <br>
+> - SurfKey high/low byte. <br>
+
 ### High:
 
 > - OS::SigInterceptor handling for all cases. ( some terminates are not intercepted now ) <br>
-> - Do no base fondle executables on component names, iterate Fondle directory instead. <br>
+> - ~~Do no base fondle executables on component names, iterate Fondle directory instead.~~ <br>
 > - Separate CLust2Hookable. <br>
 
 ### Medium:
@@ -22,7 +30,7 @@
 
 ### Low:
 
-> - <br>
+> - Surface VL/VG/CL/CG out of bounds when resizing window. ( see fondle ) <br>
 
 ### Perhaps:
 

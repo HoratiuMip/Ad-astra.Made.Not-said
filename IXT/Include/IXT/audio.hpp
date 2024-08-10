@@ -477,7 +477,7 @@ public:
 public:
     bool is_playing( const Wave& wave ) {
         return std::find_if( _waves.begin(), _waves.end(), [ &wave ] ( auto& node ) -> bool {
-            return node->xtdx_this() == wave.xtdx_this();
+            return node->xtdx() == wave.xtdx();
         } ) != _waves.end();
     }
 

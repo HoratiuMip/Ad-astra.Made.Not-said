@@ -9,14 +9,14 @@ cmake_minimum_required( VERSION 3.30.0 )
 
 
 # Name of IXT library.
-set( IXT_LIB_NAME "IXT" CACHE STRING "IXT lib name." FORCE )
+set( IXT_LIB_NAME "IXTLib" CACHE STRING "IXT lib name." FORCE )
 
 
 # IXT components. Every component has a .hpp and, possibly, a .cpp file.
 set(
     IXT_COMPONENTS
     "bit_manip" "comms" "concepts" "descriptor" "endec"
-    "file_manip" "os" "audio" "aritm" "surface"
+    "file_manip" "os" "audio" "aritm" "surface" "env"
     CACHE STRING "IXT engine components." FORCE
 )
 
@@ -81,10 +81,7 @@ project(
 
 
 # Preprocessor defines.
-add_compile_definitions(
-    IXT_OS_WINDOWS
-    IXT_GL_DIRECT_2D1
-)
+#target_compile_definitions( ${IXT_LIB_NAME} ${IXT_PREPROCESSOR_DEFS} )
 
 
 # Set those folders' paths into variables.

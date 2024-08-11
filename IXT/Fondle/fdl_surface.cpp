@@ -24,28 +24,22 @@ struct MyKeySeqTrigger : public Descriptor {
     bool   triggered   = false;
 
 
-    SurfKey seq[ 5 ] = {
-        SurfKey::S, SurfKey::O, SurfKey::U, SurfKey::N, SurfKey::D
-    };
-    size_t seq_at = 0;
-
-
     void init( Surface& surf, IXT_COMMS_ECHO_ARG ) {
         surf.socket_plug< SURFACE_EVENT_KEY >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_EXIT,
-            [ this ] ( SurfKey key, SURFKEY_STATE state, SurfaceTrace& trace ) -> void {
+            [ this, &surf, seq_at = 0ULL ] ( SurfKey key, SURFKEY_STATE state, SurfaceTrace& trace ) mutable -> void {
                 if( state == SURFKEY_STATE_UP ) return;
 
                 if( triggered )
                     std::cout << '\a';
 
-                if( key == seq[ seq_at++ ] ) {
-                    if( seq_at != std::size( seq ) ) return;
-
-                    triggered ^= true;
-                } else {
-                    seq_at = 0;
+                if( key == seq_at++[ "SWITCH" ] ) {
+                    if( seq_at != strlen( "SWITCH" ) ) return;
+                    
+                    ( triggered ^= true );// ? surf.solidify() : surf.liquify();
                 }
+
+                seq_at = 0;
             }
         );
 
@@ -60,7 +54,7 @@ struct MyKeySeqTrigger : public Descriptor {
 
 
 int main() {
-    Surface surface{ "IXT Surface", Crd2{ 64 }, Vec2{ 512 }, SURFACE_STYLE_LIQUID };
+    Surface surface{ "IXT Surface", Crd2{ 64 }, Vec2{ 512 }, SURFACE_STYLE_LIQUID};
     surface.uplink( SURFACE_THREAD_ACROSS );
     surface.downlink();
 
@@ -74,9 +68,39 @@ int main() {
     int vscroll = 0;
 
 
-    surface.on< SURFACE_EVENT_KEY >( [ &pressed ] ( SurfKey key, SURFKEY_STATE state, SurfaceTrace& trace ) -> void {
+    surface.on< SURFACE_EVENT_KEY >( [ &pressed, &surface ] ( SurfKey key, SURFKEY_STATE state, SurfaceTrace& trace ) -> void {
         if( key != SurfKey::ENTER && std::ranges::find( pressed, key ) == pressed.end() ) {
             pressed.push_back( key );
+        }
+
+        if( state != SURFKEY_STATE_DOWN ) return;
+
+        switch( key ) {
+            case SurfKey::LMB: {
+                static Crd2 poss[] = {
+                    { 50 }, { 300 }, { 50, 300 }, { 300, 50 }
+                };
+                static int8_t poss_at = 0;
+
+                surface.relocate( poss[ poss_at ] );
+                ( ++poss_at ) %= std::size( poss );
+            break; }
+
+            case SurfKey::RMB: {
+                static Vec2 szs[] = {
+                    { 64 }, { 128 }, { 256 }, { 512 }
+                };
+                static int8_t szs_at = 0;
+
+                surface.resize( szs[ szs_at ] );
+                ( ++szs_at ) %= std::size( szs );
+            break; }
+
+            case SurfKey::MMB: {
+                static bool hidden = false;
+
+                ( hidden ^= true ) ? surface.hide_def_ptr() : surface.show_def_ptr();
+            break; }
         }
     } );
 

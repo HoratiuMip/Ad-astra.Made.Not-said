@@ -15,4 +15,6 @@ endforeach()
 
 add_library( ${IXT_LIB_NAME} STATIC ${sources} )
 
+target_compile_definitions( ${IXT_LIB_NAME} PUBLIC ${IXT_PREPROCESSOR_DEFS} )
+
 target_link_libraries( ${IXT_LIB_NAME} PUBLIC ${IXT_EXT_LIBS} )

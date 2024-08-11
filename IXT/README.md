@@ -4,37 +4,46 @@
 `|`<br>
 `|`<br>
 
+> Build instructions after __To do.__ section. <br>
+
+`|`<br>
+`|`<br>
+`|`<br>
+
 ## To do.
 
 ### Godlike:
 
 > - Get sac. <br>
 
-### Current:
+### Working on:
 
-> - Surface matter states. <br>
-> - Surface hide/show cursor. <br>
-> - SurfaceEventSentry force. <br>
-> - Surface move/resize. <br>
-> - SurfKey high/low byte. <br>
+> - Renderer. <br>
 
 ### High:
 
 > - OS::SigInterceptor handling for all cases. ( some terminates are not intercepted now ) <br>
 > - ~~Do no base fondle executables on component names, iterate Fondle directory instead.~~ <br>
-> - Separate CLust2Hookable. <br>
+> - Separate Clust2Hookable. <br>
 
 ### Medium:
 
-> - PID audio sampling, don't make "non-continous" jump from last_amp to current_amp. <br>
+> - During audio sampling, don't make "non-continous" jump from last_amp to current_amp. <br>
 
 ### Low:
 
 > - Surface VL/VG/CL/CG out of bounds when resizing window. ( see fondle ) <br>
+> - Surface style change invokes resize sequence, kill yourself MS, kindly. <br>
 
 ### Perhaps:
 
 > - Some smart pointer wrappers, more ops and behavs.<br>
+
+`|`<br>
+`|`<br>
+`|`<br>
+
+## Build
 
 `|`<br>
 `|`<br>

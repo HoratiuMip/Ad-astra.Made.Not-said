@@ -5,6 +5,7 @@
 #include <IXT/descriptor.hpp>
 #include <IXT/comms.hpp>
 #include <IXT/aritm.hpp>
+#include <IXT/env.hpp>
 
 
 
@@ -44,16 +45,25 @@ public:
 public:
     SurfKey() = default;
 
-    SurfKey( short key )
+    SurfKey( int16_t key )
     : value( key )
     {}
 
 public:
-    short   value   = NONE;
+    int16_t   value   = NONE;
 
 public:
-    operator short () const {
+    operator int16_t () const {
         return value;
+    }
+
+public:
+    int8_t high() const {
+        return static_cast< int8_t >( value >> 8 );
+    }
+
+    int8_t low() const {
+        return static_cast< int8_t >( value );
     }
 
 public:
@@ -65,6 +75,10 @@ public:
         return value == val;
     }
 
+    bool operator == ( const char c ) const {
+        return this->low() == c;
+    }
+
     std::strong_ordering operator <=> ( const SurfKey& other ) const {
         return value <=> other.value;
     }
@@ -73,13 +87,17 @@ public:
         return value <=> val;
     }
 
+    std::strong_ordering operator <=> ( const char c ) const {
+        return this->low() <=> c;
+    }
+
 public:
 #if defined( _ENGINE_UNIQUE_SURFACE )
-    template< typename ...Keys > static size_t any_down( Keys... keys );
+    template< typename ...Keys > static size_t down_any( Keys... keys );
 
-    template< typename ...Keys > static size_t tgl_down( Keys... keys );
+    template< typename ...Keys > static size_t down_tgl( Keys... keys );
 
-    template< typename ...Keys > static bool all_down( Keys... keys );
+    template< typename ...Keys > static bool down_all( Keys... keys );
 
     static bool down( SurfKey key );
 #endif
@@ -109,7 +127,7 @@ enum SURFACE_EVENT {
     _SURFACE_EVENT_DESTROY = 69100,
     _SURFACE_EVENT_CURSOR_HIDE, 
     _SURFACE_EVENT_CURSOR_SHOW,
-    _SURFACE_EVENT_FORCE
+    _SURFACE_EVENT_FORCE_SOCKET_PTR
 };
 
 enum SURFACE_THREAD {
@@ -355,14 +373,9 @@ _ENGINE_PROTECTED:
         }
 
         
-        RECT rect{ 
-            static_cast< decltype( RECT::bottom ) >( _position.x ), 
-            static_cast< decltype( RECT::bottom ) >( _position.y ),
-            static_cast< decltype( RECT::bottom ) >( _position.x + _size.x ), 
-            static_cast< decltype( RECT::bottom ) >( _position.y + _size.y ) 
-        };
+        Vec2 adjusted = this->_adjust_size_for( _style );
 
-        if( !AdjustWindowRect( &rect, _style, false ) )
+        if( adjusted == Vec2::O() )
             echo( this, ECHO_STATUS_WARNING ) << "Bad window size adjustment.";
 
 
@@ -373,7 +386,7 @@ _ENGINE_PROTECTED:
 
             _style,
 
-            rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
+            _position.x, _position.y, adjusted.x, adjusted.y,
 
             NULL, NULL,
 
@@ -435,7 +448,7 @@ _ENGINE_PROTECTED:
         auto key_proc = [ this ] ( SURFKEY_STATE state, WPARAM w_param ) -> void {
             SurfKey key = static_cast< SurfKey >( w_param );
 
-            _key_array[ key ] = state;
+            _key_array[ key.value ] = state;
 
             this->invoke_sequence< SurfaceOnKey >( _trace, key, state );
         };
@@ -461,10 +474,10 @@ _ENGINE_PROTECTED:
             break; }
 
             case _SURFACE_EVENT_CURSOR_SHOW: {
-                while( ShowCursor( true ) >= 0 );
+                while( ShowCursor( true ) < 0 );
             break; }
 
-            case _SURFACE_EVENT_FORCE :{
+            case _SURFACE_EVENT_FORCE_SOCKET_PTR :{
                 this->invoke_sequence< SurfaceOnPointer >( _trace, _pointer, _pointer );
             break; }
 
@@ -472,7 +485,7 @@ _ENGINE_PROTECTED:
             case WM_MOUSEMOVE: {
                 Vec2 new_pointer = this->pull_axis( Crd2{ LOWORD( l_param ), HIWORD( l_param ) } );
 
-                this->invoke_sequence< SurfaceOnPointer >( _trace, new_pointer, _pointer_l = std::exchange( _pointer, new_pointer ) );
+                this->invoke_sequence< SurfaceOnPointer >( _trace, new_pointer, _prev_pointer = std::exchange( _pointer, new_pointer ) );
 
             break; }
 
@@ -578,6 +591,28 @@ _ENGINE_PROTECTED:
         }
 
         return DefWindowProc( hwnd, event, w_param, l_param );
+    }
+
+_ENGINE_PROTECTED:
+    Vec2 _adjust_size_for( SURFACE_STYLE style ) const {
+        RECT rect{ 
+            static_cast< decltype( RECT::left ) >( _position.x ), 
+            static_cast< decltype( RECT::top ) >( _position.y ),
+            static_cast< decltype( RECT::right ) >( _position.x + _size.x ), 
+            static_cast< decltype( RECT::bottom ) >( _position.y + _size.y ) 
+        };
+
+        if( !AdjustWindowRect( &rect, style, false ) )
+            return { 256 };
+
+        return { 
+            static_cast< ggfloat_t >( rect.right - rect.left ), 
+            static_cast< ggfloat_t >( rect.bottom - rect.top )
+        };
+    }
+
+    void _swap_style( SURFACE_STYLE style ) {
+        SetWindowLongPtr( _hwnd, GWL_STYLE, _style = style );
     }
 
 public:
@@ -703,24 +738,22 @@ public:
 
 public:
     Surface& solidify() {
-        SetWindowLongPtr( _hwnd, GWL_STYLE, _style = SURFACE_STYLE_SOLID );
-
+        this->_swap_style( SURFACE_STYLE_SOLID );
         return *this;
     }
 
     Surface& liquify() {
-        SetWindowLongPtr( _hwnd, GWL_STYLE, _style = SURFACE_STYLE_LIQUID );
-
+        this->_swap_style( SURFACE_STYLE_LIQUID );
         return *this;
     }
 
-    Surface& move_to( Vec2 crd ) {
-        _position = crd;
+    Surface& relocate( Vec2 pos ) {
+        _position = pos;
 
         SetWindowPos(
             _hwnd,
             0,
-            crd.x, crd.y,
+            pos.x, pos.y,
             0, 0,
             SWP_NOSIZE
         );
@@ -728,14 +761,16 @@ public:
         return *this;
     }
 
-    Surface& size_to( Vec2 size ) {
+    Surface& resize( Vec2 size ) {
         _size = size;
+
+        auto adj = this->_adjust_size_for( _style );
 
         SetWindowPos(
             _hwnd,
             0,
             0, 0,
-            size.x, size.y,
+            adj.x, adj.y,
             SWP_NOMOVE
         );
 
@@ -743,15 +778,13 @@ public:
     }
 
 public:
-    Surface& hide_cursor() {
+    Surface& hide_def_ptr() {
         SendMessage( _hwnd, _SURFACE_EVENT_CURSOR_HIDE, WPARAM{}, LPARAM{} );
-
         return *this;
     }
 
-    Surface& show_cursor() {
+    Surface& show_def_ptr() {
         SendMessage( _hwnd, _SURFACE_EVENT_CURSOR_SHOW, WPARAM{}, LPARAM{} );
-
         return *this;
     }
 
@@ -791,7 +824,7 @@ public:
 
 public:
     template< typename ...Keys >
-    size_t any_down( Keys... keys ) const {
+    size_t down_any( Keys... keys ) const {
         size_t count = 0;
 
         ( ( count += ( _key_array[ keys ] == SURFKEY_STATE_DOWN ) ), ... );
@@ -800,7 +833,7 @@ public:
     }
 
     template< typename ...Keys >
-    size_t tgl_down( Keys... keys ) const {
+    size_t down_tgl( Keys... keys ) const {
         size_t sum = 0;
         size_t at = 1;
 
@@ -814,12 +847,12 @@ public:
     }
 
     template< typename ...Keys >
-    bool all_down( Keys... keys ) const {
-        return this->any_down( keys... ) == sizeof...( Keys );
+    bool down_all( Keys... keys ) const {
+        return this->down_any( keys... ) == sizeof...( Keys );
     }
 
     bool down( SurfKey key ) const {
-        return _key_array[ key ] == SURFKEY_STATE_DOWN;
+        return _key_array[ key.value ] == SURFKEY_STATE_DOWN;
     }
 
 public:
@@ -828,8 +861,8 @@ public:
     }
 
 public:
-    Surface& force_plug() {
-        SendMessage( _hwnd, _SURFACE_EVENT_FORCE, WPARAM{}, LPARAM{} );
+    Surface& force_socket_ptr() {
+        SendMessage( _hwnd, _SURFACE_EVENT_FORCE_SOCKET_PTR, WPARAM{}, LPARAM{} );
 
         return *this;
     }
@@ -845,33 +878,58 @@ public:
 
 
 
-class Mouse {
+class SurfPtr {
 public:
 #if defined( _ENGINE_UNIQUE_SURFACE )
-    static Vec2 pointer() {
-        return Surface::get()->_pointer;
+    static Vec2 vl() {
+        return Surface::get()->ptr_vl();
     }
 
-    static Crd2 crd() {
-        return Surface::get()->pull_crd( pointer() );
+    static Vec2 vg() {
+        return Surface::get()->ptr_vg();
     }
+
+    static Vec2 pvl() {
+        return Surface::get()->ptr_pvl();
+    }
+
+    static Vec2 pvg() {
+        return Surface::get()->ptr_pvg();
+    }
+    
+
+    static Crd2 cl() {
+        return Surface::get()->ptr_cl();
+    }
+
+    static Crd2 cg() {
+        return Surface::get()->ptr_cg();
+    }
+
+    static Crd2 pcl() {
+        return Surface::get()->ptr_pcl();
+    }
+
+    static Crd2 pcg() {
+        return Surface::get()->ptr_pcg();
+    }
+
 #endif
 
 public:
-    static Vec2 g_vec() {
-        auto [ x, y ] = g_crd();
+    static Vec2 env_v() {
+        auto [ x, y ] = SurfPtr::env_c();
 
         return { 
-            x ,//- Env::width_2(), 
-            -y //+ Env::height_2()
+            x - Env::w<2.>(), 
+            -y + Env::h<2.>()
         };
     }
 
-    static Crd2 g_crd() {
-        POINT p;
-        GetCursorPos( &p );
+    static Crd2 env_c() {
+        POINT p; GetCursorPos( &p );
 
-        return { p.x, p.y };
+        return { static_cast< ggfloat_t >( p.x ), static_cast< ggfloat_t >( p.y ) };
     }
 
 };

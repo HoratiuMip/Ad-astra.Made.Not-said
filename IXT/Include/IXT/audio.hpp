@@ -6,6 +6,7 @@
 #include <IXT/endec.hpp>
 #include <IXT/comms.hpp>
 #include <IXT/concepts.hpp>
+#include <IXT/volatile_ptr.hpp>
 
 namespace _ENGINE_NAMESPACE {
 
@@ -347,7 +348,7 @@ _ENGINE_PROTECTED:
     std::condition_variable     _cnd_var              = {};
     std::mutex                  _mtx                  = {};
 
-    std::list< SPtr< Wave > >   _waves                = {};
+    std::list< VPtr< Wave > >   _waves                = {};
 
 _ENGINE_PROTECTED:
     void _main() {
@@ -481,11 +482,7 @@ public:
         } ) != _waves.end();
     }
 
-    Audio& play( Wave& wave ) {
-        return this->play( SPtr< Wave >( &wave, [] ( [[maybe_unused]] Wave* ) {} ) );
-    }
-
-    Audio& play( SPtr< Wave > wave ) {
+    Audio& play( VPtr< Wave > wave ) {
         wave->set();
 
         if( !this->is_playing( *wave ) )

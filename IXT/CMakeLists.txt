@@ -15,8 +15,19 @@ set( IXT_LIB_NAME "IXTLib" CACHE STRING "IXT lib name." FORCE )
 # IXT components. Every component has a .hpp and, possibly, a .cpp file.
 set(
     IXT_COMPONENTS
-    "bit_manip" "comms" "concepts" "descriptor" "endec"
-    "file_manip" "os" "audio" "aritm" "surface" "env"
+    "aritm" 
+    "audio" 
+    "bit_manip" 
+    "comms" 
+    "concepts" 
+    "descriptor" 
+    "endec"
+    "env"
+    "file_manip" 
+    "os" 
+    "render2" 
+    "surface" 
+    "volatile_ptr"
     CACHE STRING "IXT engine components." FORCE
 )
 

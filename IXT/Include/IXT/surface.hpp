@@ -676,7 +676,7 @@ public:
         return { crd.x - _size.x / 2.0_ggf, _size.y / 2.0_ggf - crd.y };
     }
 
-    Crd2 pull_axis( const Vec2& vec ) const {
+    Crd2 pull_axis( const Vec2 vec ) const {
         return { vec.x + _size.x / 2.0f, _size.y / 2.0f - vec.y };
     }
 
@@ -856,7 +856,7 @@ public:
     }
 
 public:
-    HWND hwnd() {
+    HWND handle() {
         return _hwnd;
     }
 

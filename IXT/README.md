@@ -1,20 +1,23 @@
 # IXT "Nine-tailed" engine.
 
-`|`<br>
-`|`<br>
-`|`<br>
-
-> Build instructions after __To do.__ section. <br>
+Godlike masterwork engine approved by punchcard/asm/C goddess Ahri. <br>
+Make it work again. <br>
 
 `|`<br>
 `|`<br>
 `|`<br>
 
-## To do.
+## Build [ ╠═Σ ].
+
+`|`<br>
+`|`<br>
+`|`<br>
+
+## Progress [ ■■■■ . . . . . . . . ].
 
 ### Godlike:
 
-> - Get sac. <br>
+> - Acquire <span style="color:magenta">sac</span>. <br>
 
 ### Working on:
 
@@ -23,12 +26,13 @@
 ### High:
 
 > - OS::SigInterceptor handling for all cases. ( some terminates are not intercepted now ) <br>
-> - ~~Do no base fondle executables on component names, iterate Fondle directory instead.~~ <br>
+> - <span style="color:red">~~Do no base fondle executables on component names, iterate Fondle directory instead.~~</span> <br>
 > - Separate Clust2Hookable. <br>
 
 ### Medium:
 
 > - During audio sampling, don't make "non-continous" jump from last_amp to current_amp. <br>
+> - <span style="color:red">~~VolatilePtr array specializations.~~</span> <br>
 
 ### Low:
 
@@ -37,19 +41,13 @@
 
 ### Perhaps:
 
-> - Some smart pointer wrappers, more ops and behavs.<br>
+> - <span style="color:red">~~Some smart pointer wrappers, more ops and behavs.~~</span> <br>
 
 `|`<br>
 `|`<br>
 `|`<br>
 
-## Build
-
-`|`<br>
-`|`<br>
-`|`<br>
-
-## Wording choice.
+## Wording choice [ αßΓπ ].
 
 ### General:
 

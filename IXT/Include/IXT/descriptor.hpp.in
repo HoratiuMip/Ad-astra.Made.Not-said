@@ -218,21 +218,3 @@ inline ggfloat_t operator ""_ggf ( long double flt ) {
 
 #pragma endregion Literals
 
-
-
-#pragma region UTH
-
-
-
-namespace _ENGINE_NAMESPACE {
-    class UTH : public Descriptor {
-    public:
-        
-
-    };
-};
-
-
-
-#pragma endregion UTH
-

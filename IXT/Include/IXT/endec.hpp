@@ -6,6 +6,7 @@
 #include <IXT/comms.hpp>
 #include <IXT/file_manip.hpp>
 #include <IXT/bit_manip.hpp>
+#include <IXT/volatile_ptr.hpp>
 
 
 
@@ -18,7 +19,7 @@ public:
     template< typename T >
     class Wav : public Descriptor {
     public:
-        _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Endec::Wav< T >" );
+        _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Endec::Wav<T>" );
 
     public:
         Wav() = default;
@@ -37,7 +38,7 @@ public:
 
             size_t byte_count = File::byte_count( file );
 
-            UPtr< char[] > raw_stream{ new char[ byte_count ] };
+            VPtr< char[] > raw_stream{ new char[ byte_count ], enslave_t{} };
 
 
             if( !raw_stream ) {
@@ -93,7 +94,7 @@ public:
         }
 
     
-        SPtr< T[] >   stream            = {};
+        VPtr< T[] >   stream            = nullptr;
 
         uint64_t      sample_rate       = 0;
         uint16_t      bits_per_sample   = 0;

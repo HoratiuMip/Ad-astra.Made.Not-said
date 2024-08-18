@@ -14,4 +14,3 @@ target_include_directories(
     ${IXT_LIB_NAME} 
     PUBLIC "./" "${CMAKE_CURRENT_BINARY_DIR}/Configured"
 )
-

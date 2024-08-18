@@ -6,7 +6,6 @@
 #include <IXT/comms.hpp>
 #include <IXT/file_manip.hpp>
 #include <IXT/bit_manip.hpp>
-#include <IXT/volatile_ptr.hpp>
 
 
 
@@ -34,11 +33,11 @@ public:
                 echo( this, ECHO_STATUS_ERROR ) << "Could NOT open file: \"" << path.data() << "\".";
                 return;
             }
-
+        
 
             size_t byte_count = File::byte_count( file );
 
-            VPtr< char[] > raw_stream{ new char[ byte_count ], enslave_t{} };
+            UPtr< char[] > raw_stream{ new char[ byte_count ] };
 
 
             if( !raw_stream ) {
@@ -94,7 +93,7 @@ public:
         }
 
     
-        VPtr< T[] >   stream            = nullptr;
+        SPtr< T[] >   stream            = nullptr;
 
         uint64_t      sample_rate       = 0;
         uint16_t      bits_per_sample   = 0;

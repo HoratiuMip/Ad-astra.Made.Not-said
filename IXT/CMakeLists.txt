@@ -44,6 +44,8 @@ set(
     "-lopengl32"
     "-lglu32"
     "-lgdi32"
+    "libcomctl32.a"
+    "libcomdlg32.a"
     CACHE STRING "IXT external dependencies." FORCE
 )
 

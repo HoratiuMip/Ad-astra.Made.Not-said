@@ -3,22 +3,19 @@
 
 #include <iostream>
 
-#include <IXT/aritm.hpp>
+#include <IXT/surface.hpp>
+#include <IXT/render2.hpp>
+#include <IXT/env.hpp>
 
 using namespace IXT;
 
-
-
 int main() {
-    auto clust = Clust2::triangle( 10.0 );
-    clust.relocate_at( { 0.0, 10.0 } );
+    Surface surface{ "RenderFondle", { 0, 0 }, { Env::w<2.>(), Env::h<2.>() }, SURFACE_STYLE_LIQUID };
+    surface.uplink( SURFACE_THREAD_ACROSS );
+    Renderer2 renderer{ surface };
 
-    for( auto itr = clust.cinner_vrtx_begin(); itr != clust.cinner_vrtx_end(); ++itr )
-        std::cout << itr->x << ' ' << itr->y << '\n';
 
-    for( auto itr = clust.coutter_vrtx_begin(); itr != clust.coutter_vrtx_end(); ++itr )
-        std::cout << (*itr).x << ' ' << (*itr).y << '\n';
-
-    for( auto itr = clust.cinner_ray_begin(); itr != clust.cinner_ray_end(); ++itr )
-        std::cout << (*itr).origin.x << ' ' << (*itr).origin.y << ' ' << (*itr).vec.x << ' ' << (*itr).vec.y << '\n';
+    while( !surface.down( SurfKey::ESC ) ) {
+       
+    }
 }

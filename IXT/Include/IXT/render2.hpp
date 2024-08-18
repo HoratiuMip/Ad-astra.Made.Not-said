@@ -4,6 +4,7 @@
 
 #include <IXT/descriptor.hpp>
 #include <IXT/comms.hpp>
+#include <IXT/surface.hpp>
 #include <IXT/volatile_ptr.hpp>
 
 namespace _ENGINE_NAMESPACE {
@@ -69,15 +70,18 @@ public:
 public:
     RenderSpec2() = default;
 
-    RenderSpec2( SPtr< RenderSpec2 > other ) 
+    RenderSpec2( VPtr< RenderSpec2 > other ) 
     : _super_spec{ std::move( other ) },
-      _renderer{ other._renderer }
+      _renderer{ other->_renderer }
     {}
 
 _ENGINE_PROTECTED:
-    RenderSpec2( const Renderer2& renderer )
-    : _renderer{ &renderer }
+    RenderSpec2( Renderer2& renderer )
+    : _renderer{ &renderer, weak_link_t{} }
     {}
+
+public:
+    virtual ~RenderSpec2() {}
 
 _ENGINE_PROTECTED:
     VPtr< RenderSpec2 >   _super_spec    = nullptr;
@@ -101,11 +105,11 @@ public:
 
 public:
     Vec2 pull_axis( const Crd2 crd ) {
-        return { 2.0 * crd.x - 1.0, 2.0 * ( 1.0 - crd.y ) - 1.0 };
+        return { 2.0_ggf * crd.x - 1.0_ggf, 2.0_ggf * ( 1.0_ggf - crd.y ) - 1.0_ggf };
     }
 
     Crd2 pull_axis( const Vec2 vec ) {
-        return { ( vec.x + 1.0 ) / 2.0, 1.0 - ( vec.y + 1.0 ) / 2.0 };
+        return { ( vec.x + 1.0_ggf ) / 2.0_ggf, 1.0_ggf - ( vec.y + 1.0_ggf ) / 2.0_ggf };
     }
 
     void push_axis( Crd2& crd ) {
@@ -138,51 +142,59 @@ public:
 public:
     Renderer2() = default;
 
-    Renderer2( Surface& surface, _ENGINE_COMMS_ECHO_ARG )
-    : RenderSpec2{ *this }, _surface{ &surface }
+    Renderer2( VPtr< Surface > surface, _ENGINE_COMMS_ECHO_ARG )
+    : RenderSpec2{ *this }, _surface{ std::move( surface ) }
     {
-        ECHO_ASSERT_AND_THROW( CoInitialize( nullptr ) == S_OK, "<constructor>: CoInitialize." );
+        void* tmp_ptr = nullptr;
 
+        if( CoInitialize( nullptr ) != S_OK ) { 
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: CoInitialize() failure.";
+            return;
+        }    
 
-        ECHO_ASSERT_AND_THROW(
+        if(
             CoCreateInstance(
                 CLSID_WICImagingFactory,
                 NULL,
                 CLSCTX_INPROC_SERVER,
                 IID_IWICImagingFactory,
-                ( LPVOID* ) &_wic_factory
-            ) == S_OK,
+                &tmp_ptr
+            ) != S_OK 
+        ) {
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: CoCreateInstance() failure.";
+            return;
+        }
+        _wic_factory.reset( tmp_ptr, weak_link_t{} );
 
-            "<constructor>: CoCreateInstance()"
-        );
+        if( 
+            D2D1CreateFactory( 
+                D2D1_FACTORY_TYPE_MULTI_THREADED, 
+                reinterpret_cast< decltype( _factory )::T** >( &tmp_ptr ) 
+            ) != S_OK 
+        ) {
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: D2D1CreateFactory() failure.";
+            return;
+        }
+        _factory.reset( tmp_ptr, weak_link_t{} );
 
-        
-        ECHO_ASSERT_AND_THROW(
-            D2D1CreateFactory(
-                D2D1_FACTORY_TYPE_MULTI_THREADED,
-                &_factory
-            ) == S_OK,
-
-            "<constructor>: D2D1CreateFactory()"
-        );
-
-
-        ECHO_ASSERT_AND_THROW( 
+        if( 
             _factory->CreateHwndRenderTarget(
                 D2D1::RenderTargetProperties(),
                 D2D1::HwndRenderTargetProperties(
-                    _surface->hwnd(),
+                    _surface->handle(),
                     D2D1::SizeU( _surface->width(), _surface->height() ),
                     D2D1_PRESENT_OPTIONS_IMMEDIATELY
                 ),
-                &_target
-            ) == S_OK,
+                reinterpret_cast< decltype( _target )::T** >( &tmp_ptr )
+            ) != S_OK
+        ) {
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: _factory->CreateHwndRenderTarget() failure.";
+            return;
+        }
+        _target.reset( tmp_ptr, weak_link_t{} );
 
-            "<constructor>: _factory->CreateHwndRenderTarget()"
-        );
 
-
-        echo( this, ECHO_LOG_OK, "Created." );
+        echo( this, ECHO_STATUS_OK ) << "Created.";
     }
 
 
@@ -191,7 +203,7 @@ public:
     Renderer2( Renderer2&& ) = delete;
 
 public:
-    ~Renderer2() {
+    ~Renderer2() override {
         if( _factory ) _factory->Release();
 
         if( _wic_factory ) _wic_factory->Release();
@@ -213,18 +225,18 @@ public:
     }
 
 public:
-    auto factory()     { return _factory; }
-    auto target()      { return _target; }
-    auto wic_factory() { return _wic_factory; }
+    ID2D1Factory*          factory()     { return _factory; }
+    ID2D1HwndRenderTarget* target()      { return _target; }
+    IWICImagingFactory*    wic_factory() { return _wic_factory; }
 
 public:
-    Renderer2& open() {
+    Renderer2& charge() {
         _target->BeginDraw();
 
         return *this;
     }
 
-    Renderer2& execute() {
+    Renderer2& blast() {
         _target->EndDraw();
 
         return *this;
@@ -259,12 +271,13 @@ public:
         return *this;
     }
 
+/*
 public:
     static std::optional< std::pair< Vec2, Vec2 > > clip_CohenSutherland( const Vec2& tl, const Vec2& br, Vec2 p1, Vec2 p2 ) {
         auto& u = tl.y; auto& l = tl.x;
         auto& d = br.y; auto& r = br.x;
 
-        /* UDRL */
+        // UDRL 
         auto code_of = [ & ] ( const Vec2& p ) -> char {
             return ( ( p.y > u ) << 3 ) |
                    ( ( p.y < d ) << 2 ) |
@@ -308,6 +321,7 @@ public:
             phase ^= 1;
         }
     }
+*/
     
 };
 
@@ -317,30 +331,30 @@ class Viewport2 : public RenderSpec2,
                   public SurfaceEventSentry
 {
 public:
-    _ENGINE_ECHO_IDENTIFY_METHOD( "Viewport2" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Viewport2" );
 
 public:
     Viewport2() = default;
 
     Viewport2(
-        RenderSpec2&   render_wrap,
+        RenderSpec2&   render_spec,
         Vec2           org,
         Vec2           sz,
-        Echo           echo          = {}
+        _ENGINE_COMMS_ECHO_ARG
     )
-    : RenderSpec2{ render_wrap },
+    : RenderSpec2{ render_spec },
       _origin{ org }, _size{ sz }, _size2{ sz.x / 2.0f, sz.y / 2.0f }
     {
-        echo( this, ECHO_LOG_OK, "Created." );
+        echo( this, ECHO_STATUS_OK ) << "Created.";
     }
 
     Viewport2(
-        RenderSpec2&   render_wrap,
+        RenderSpec2&   render_spec,
         Crd2           crd,
         Vec2           sz,
-        Echo           echo          = {}
+        _ENGINE_COMMS_ECHO_ARG
     )
-    : Viewport2{ render_wrap, render_wrap.pull_vec( crd ) + Vec2{ sz.x / 2.0, -sz.y / 2.0 }, sz, echo }
+    : Viewport2{ render_spec, render_spec.pull_axis( crd ) + Vec2{ sz.x / 2.0_ggf, -sz.y / 2.0_ggf }, sz, echo }
     {}
 
 
@@ -355,19 +369,24 @@ _ENGINE_PROTECTED:
     bool   _restricted   = false;
 
 public:
-    Crd2 coord()  const override { return _super_spec->pull_crd( _origin ); }
+    Surface& surface() {
+        return _renderer->surface();
+    }
+
+public:
+    Crd2 coord()  const override { return _super_spec->pull_axis( _origin ); }
     Vec2 origin() const override { return _origin; }
     Vec2 size()   const override { return _size; }
 
 public:
-    Viewport2& origin_to( Vec2 vec ) {
+    Viewport2& relocate( Vec2 vec ) {
         _origin = vec;
 
         return *this;
     }
 
-    Viewport2& coord_to( Crd2 crd ) {
-        return this->origin_to( _super_spec->pull_vec( crd ) );
+    Viewport2& relocate( Crd2 crd ) {
+        return this->relocate( _super_spec->pull_axis( crd ) );
     }
 
 public:
@@ -380,35 +399,35 @@ public:
     }
 
 public:
-    GFTYPE east_g() const {
+    ggfloat_t east_g() const {
         return _origin.x + _size2.x;
     }
 
-    GFTYPE west_g() const {
+    ggfloat_t west_g() const {
         return _origin.x - _size2.x;
     }
 
-    GFTYPE north_g() const {
+    ggfloat_t north_g() const {
         return _origin.y + _size2.y;
     }
 
-    GFTYPE south_g() const {
+    ggfloat_t south_g() const {
         return _origin.y - _size2.y;
     }
 
-    GFTYPE east() const {
+    ggfloat_t east() const {
         return _size2.x;
     }
 
-    GFTYPE west() const {
+    ggfloat_t west() const {
         return -_size2.x;
     }
 
-    GFTYPE north() const {
+    ggfloat_t north() const {
         return _size2.y;
     }
 
-    GFTYPE south() const {
+    ggfloat_t south() const {
         return -_size2.y;
     }
 
@@ -431,8 +450,8 @@ public:
     Viewport2& restrict() {
         if( _restricted ) return *this;
 
-        auto tl = _super_spec->pull_crd( this->top_left_g() );
-        auto br = _super_spec->pull_crd( this->bot_right_g() );
+        auto tl = _super_spec->pull_axis( this->top_left_g() );
+        auto br = _super_spec->pull_axis( this->bot_right_g() );
 
         _renderer->target()->PushAxisAlignedClip(
             D2D1::RectF( tl.x, tl.y, br.x, br.y ),
@@ -462,28 +481,28 @@ public:
     Viewport2& uplink() {
         this->surface()
 
-        .plug< SURFACE_EVENT_MOUSE >( 
-            this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
+        .socket_plug< SURFACE_EVENT_MOUSE >( 
+            this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, Vec2 lvec, auto& trace ) -> void {
                 if( !this->contains_g( vec ) ) return;
 
-                this->invoke_sequence< OnMouse >( trace, vec - _origin, lvec - _origin );
+                this->invoke_sequence< SurfaceOnPointer >( trace, vec - _origin, lvec - _origin );
             }
         )
 
-        .plug< SURFACE_EVENT_SCROLL >( 
-            this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
+        .socket_plug< SURFACE_EVENT_SCROLL >( 
+            this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, SURFSCROLL_DIRECTION dir, auto& trace ) -> void {
                 if( !this->contains_g( vec ) ) return;
 
-                this->invoke_sequence< OnScroll >( trace, vec - _origin, dir );
+                this->invoke_sequence< SurfaceOnScroll >( trace, vec - _origin, dir );
             }
         )
 
-        .plug< SURFACE_EVENT_KEY >( 
-            this->guid(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
-            [ this ] ( Key key, KEY_STATE state, auto& trace ) -> void {
-                this->invoke_sequence< OnKey >( trace, key, state );
+        .socket_plug< SURFACE_EVENT_KEY >( 
+            this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
+            [ this ] ( SurfKey key, SURFKEY_STATE state, auto& trace ) -> void {
+                this->invoke_sequence< SurfaceOnKey >( trace, key, state );
             }
         );
 
@@ -491,9 +510,7 @@ public:
     }
 
     Viewport2& downlink() {
-        Surface& srf = _renderer->surface();
-
-        srf.unplug( this->guid() );
+        _renderer->surface().socket_unplug( this->xtdx() );
 
         return *this;
     }
@@ -521,9 +538,9 @@ public:
 
 
 
-class Brush2 : public UTH {
+class Brush2 : public Descriptor {
 public:
-    _ENGINE_ECHO_IDENTIFY_METHOD( "Brush2" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Brush2" );
 
 public:
     Brush2() = default;
@@ -559,7 +576,7 @@ public:
 
 class SolidBrush2 : public Brush2 {
 public:
-    _ENGINE_ECHO_IDENTIFY_METHOD( "SolidBrush2" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "SolidBrush2" );
 
 public:
     SolidBrush2() = default;
@@ -572,16 +589,12 @@ public:
     )
     : Brush2{ w }
     {
-        ECHO_ASSERT_AND_THROW(
-            renderer.target()->CreateSolidColorBrush(
-                chroma,
-                &_brush
-            ) == S_OK,
+        if( renderer.target()->CreateSolidColorBrush( chroma, &_brush ) != S_OK ) {
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: renderer.target()->CreateSolidColorBrush() failure.";
+            return;
+        }
 
-            "<constructor>: renderer.target()->CreateSolidColorBrush"
-        );
-
-        echo( this, ECHO_LOG_OK, "Created." );
+        echo( this, ECHO_STATUS_OK ) << "Created.";
     }
 
 public:
@@ -645,8 +658,6 @@ public:
     }
 
 };
-
-
 
 
 

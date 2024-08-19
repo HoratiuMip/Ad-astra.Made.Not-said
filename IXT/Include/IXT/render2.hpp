@@ -135,7 +135,45 @@ public:
 
 
 
-class Renderer2 : public RenderSpec2 {
+enum RENDERER2_DEF_BRUSH {
+    RENDERER2_DEF_BRUSH_VOLATILE = 0x00'00'00'FF'00'00'00'00,
+    RENDERER2_DEF_BRUSH_RED      = 0xFF'00'00'FF'00'00'00'01,
+    RENDERER2_DEF_BRUSH_GREEN    = 0x00'FF'00'FF'00'00'00'02, 
+    RENDERER2_DEF_BRUSH_BLUE     = 0x00'00'FF'FF'00'00'00'03,
+    RENDERER2_DEF_BRUSH_WHITE    = 0xFF'FF'FF'FF'00'00'00'04,
+    RENDERER2_DEF_BRUSH_BLACK    = 0x00'00'00'FF'00'00'00'05,
+
+    RENDERER2_DEF_BRUSH_RGBA_MASK = 0xFF'FF'FF'FF'00'00'00'00,
+    RENDERER2_DEF_BRUSH_IDX_MASK  = ~RENDERER2_DEF_BRUSH_RGBA_MASK,
+
+    _RENDERER2_DEF_BRUSH_FORCE_QWORD = 0xFF'FF'FF'FF'FF'FF'FF'FF
+};
+
+class Renderer2DefaultBrushes {
+public:
+    Renderer2DefaultBrushes() = default;
+
+    Renderer2DefaultBrushes( Renderer2& renderer, _ENGINE_COMMS_ECHO_ARG );
+
+public:
+    Renderer2DefaultBrushes& operator = ( Renderer2DefaultBrushes&& other ) {
+        _default_brushes = std::move( other._default_brushes );
+        return *this;
+    }
+
+_ENGINE_PROTECTED:
+    std::vector< VPtr< Brush2 > >   _default_brushes   = {};
+
+public:
+    Brush2& pull( RENDERER2_DEF_BRUSH idx ) {
+        return *_default_brushes[ idx & RENDERER2_DEF_BRUSH_IDX_MASK ];
+    }
+
+};
+
+class Renderer2 : public RenderSpec2,
+                  public Renderer2DefaultBrushes
+{
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Renderer2" );
 
@@ -192,6 +230,9 @@ public:
             return;
         }
         _target.reset( tmp_ptr, weak_link_t{} );
+
+
+        static_cast< Renderer2DefaultBrushes& >( *this ) = Renderer2DefaultBrushes{ *this, echo };
 
 
         echo( this, ECHO_STATUS_OK ) << "Created.";

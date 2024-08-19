@@ -14,17 +14,15 @@ int main() {
     surface.uplink( SURFACE_THREAD_ACROSS );
     Renderer2 render{ surface };
 
-    SolidBrush2 brush{ render, RGBA{ 0, 0, 255 }, 3 };
-
 
     while( !surface.down( SurfKey::ESC ) ) {
         render.charge().fill( RGBA{ 0 } );
 
         render
-        .line( Vec2{ -.5, .5 }, surface.ptr_vg(), brush )
-        .line( Vec2{ .5, .5 }, surface.ptr_vg(), brush )
-        .line( Vec2{ .5, -.5 }, surface.ptr_vg(), brush )
-        .line( Vec2{ -.5, -.5 }, surface.ptr_vg(), brush );
+        .line( Vec2{ -.5, .5 }, surface.ptr_vg(), render.pull( RENDERER2_DEF_BRUSH_GREEN ) )
+        .line( Vec2{ .5, .5 }, surface.ptr_vg(), render.pull( RENDERER2_DEF_BRUSH_GREEN ) )
+        .line( Vec2{ .5, -.5 }, surface.ptr_vg(), render.pull( RENDERER2_DEF_BRUSH_GREEN ) )
+        .line( Vec2{ -.5, -.5 }, surface.ptr_vg(), render.pull( RENDERER2_DEF_BRUSH_GREEN ) );
 
         render.splash();
     }

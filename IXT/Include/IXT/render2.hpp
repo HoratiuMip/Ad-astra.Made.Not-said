@@ -19,24 +19,24 @@ class Brush2;
 
 
 
-class Chroma {
+class RGBA {
 public:
-    Chroma() = default;
+    RGBA() = default;
 
-    Chroma( float r, float g, float b, float a = 1.0f )
+    RGBA( float r, float g, float b, float a = 1.0f )
     : r{ r }, g{ g }, b{ b }, a{ a }
     {}
 
-    Chroma( float rgb, float a = 1.0f )
-    : Chroma{ rgb, rgb, rgb, a }
+    RGBA( float rgb, float a = 1.0f )
+    : RGBA{ rgb, rgb, rgb, a }
     {}
 
-    Chroma( std::integral auto r, std::integral auto g, std::integral auto b, uint8_t a = 255 )
+    RGBA( std::integral auto r, std::integral auto g, std::integral auto b, uint8_t a = 255 )
     : r{ r / 255.0f }, g{ g / 255.0f }, b{ b / 255.0f }, a{ a / 255.0f }
     {}
 
-    Chroma( std::integral auto rgb, uint8_t a = 255 )
-    : Chroma{ rgb, rgb, rgb, a }
+    RGBA( std::integral auto rgb, uint8_t a = 255 )
+    : RGBA{ rgb, rgb, rgb, a }
     {}
 
 public:
@@ -88,7 +88,7 @@ _ENGINE_PROTECTED:
     VPtr< Renderer2 >     _renderer      = nullptr;
 
 public:
-    virtual RenderSpec2& fill( const Chroma& ) = 0;
+    virtual RenderSpec2& fill( const RGBA& ) = 0;
 
     virtual RenderSpec2& fill( const Brush2& ) = 0;
 
@@ -104,12 +104,12 @@ public:
     virtual Vec2 size() const = 0;
 
 public:
-    Vec2 pull_axis( const Crd2 crd ) {
+    Vec2 pull_axis( Crd2 crd ) {
         return { 2.0_ggf * crd.x - 1.0_ggf, 2.0_ggf * ( 1.0_ggf - crd.y ) - 1.0_ggf };
     }
 
-    Crd2 pull_axis( const Vec2 vec ) {
-        return { ( vec.x + 1.0_ggf ) / 2.0_ggf, 1.0_ggf - ( vec.y + 1.0_ggf ) / 2.0_ggf };
+    Crd2 pull_axis( Vec2 vec ) {
+        return { vec.x + .5_ggf, .5_ggf - vec.y };
     }
 
     void push_axis( Crd2& crd ) {
@@ -236,7 +236,7 @@ public:
         return *this;
     }
 
-    Renderer2& blast() {
+    Renderer2& splash() {
         _target->EndDraw();
 
         return *this;
@@ -248,7 +248,7 @@ public:
     Vec2 size()   const override { return _surface->size(); }
 
 public:
-    RenderSpec2& fill( const Chroma& chroma ) override;
+    RenderSpec2& fill( const RGBA& rgba ) override;
 
     RenderSpec2& fill( const Brush2& brush ) override;
 
@@ -517,7 +517,7 @@ public:
 
 public:
     Viewport2& fill(
-        const Chroma& chroma
+        const RGBA& rgba
     );
 
     Viewport2& fill(
@@ -583,13 +583,13 @@ public:
 
     SolidBrush2(
         Renderer2& renderer,
-        Chroma     chroma   = {},
+        RGBA       rgba     = {},
         float      w        = 1.0,
         Echo       echo     = {}
     )
     : Brush2{ w }
     {
-        if( renderer.target()->CreateSolidColorBrush( chroma, &_brush ) != S_OK ) {
+        if( renderer.target()->CreateSolidColorBrush( rgba, &_brush ) != S_OK ) {
             echo( this, ECHO_STATUS_ERROR ) << "<constructor>: renderer.target()->CreateSolidColorBrush() failure.";
             return;
         }
@@ -611,44 +611,44 @@ public:
     }
 
 public:
-    Chroma chroma() const {
+    RGBA rgba() const {
         auto [ r, g, b, a ] = _brush->GetColor();
         return { r, g, b, a };
     }
 
     float r() const {
-        return this->chroma().r;
+        return this->rgba().r;
     }
 
     float g() const {
-        return this->chroma().g;
+        return this->rgba().g;
     }
 
     float b() const {
-        return this->chroma().b;
+        return this->rgba().b;
     }
 
     float a() const {
-        return this->chroma().a;
+        return this->rgba().a;
     }
 
 public:
-    SolidBrush2& chroma_to( Chroma c ) {
+    SolidBrush2& rgba_to( RGBA c ) {
         _brush->SetColor( c );
 
         return *this;
     }
 
     SolidBrush2& r_to( float value ) {
-        return chroma_to( { value, g(), b() } );
+        return rgba_to( { value, g(), b() } );
     }
 
     SolidBrush2& g_to( float value ) {
-        return chroma_to( { r(), value, b() } );
+        return rgba_to( { r(), value, b() } );
     }
 
     SolidBrush2& b_to( float value ) {
-        return chroma_to( { r(), g(), value } );
+        return rgba_to( { r(), g(), value } );
     }
 
     SolidBrush2& a_to( float value ) {

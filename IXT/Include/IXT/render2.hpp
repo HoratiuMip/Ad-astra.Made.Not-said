@@ -5,7 +5,7 @@
 #include <IXT/descriptor.hpp>
 #include <IXT/comms.hpp>
 #include <IXT/surface.hpp>
-#include <IXT/volatile_ptr.hpp>
+#include <IXT/volatile-ptr.hpp>
 
 namespace _ENGINE_NAMESPACE {
 

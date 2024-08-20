@@ -3,7 +3,7 @@
 */
 
 #include <IXT/descriptor.hpp>
-#include <IXT/file_manip.hpp>
+#include <IXT/file-manip.hpp>
 
 namespace _ENGINE_NAMESPACE {
 

@@ -17,17 +17,17 @@ set(
     IXT_COMPONENTS
     "aritm" 
     "audio" 
-    "bit_manip" 
+    "bit-manip" 
     "comms" 
     "concepts" 
     "descriptor" 
     "endec"
     "env"
-    "file_manip" 
+    "file-manip" 
     "os" 
     "render2" 
     "surface" 
-    "volatile_ptr"
+    "volatile-ptr"
     CACHE STRING "IXT engine components." FORCE
 )
 
@@ -112,7 +112,7 @@ if( IXT_FONDLES_TO_BUILD STREQUAL "ALL" )
     file( GLOB files_paths "${IXT_FONDLE_DIR}/*" )
     
     foreach( file_path ${files_paths} )
-        string( REGEX MATCH "fdl_[a-z]+.cpp$" file_path ${file_path} )
+        string( REGEX MATCH "fdl-[a-z]+.cpp$" file_path ${file_path} )
         
         if( file_path )
             list( APPEND IXT_FONDLES_TO_BUILD ${file_path} )
@@ -127,9 +127,9 @@ endif()
 
 foreach( source ${IXT_FONDLES_TO_BUILD} )
     if( _ftb_are_source_files )
-        string( REGEX MATCH "^fdl_[a-z]+" exe ${source} )
+        string( REGEX MATCH "^fdl-[a-z]+" exe ${source} )
     else()
-        set( exe "fdl_${source}" )
+        set( exe "fdl-${source}" )
         set( source "${exe}.cpp" )
     endif()
     

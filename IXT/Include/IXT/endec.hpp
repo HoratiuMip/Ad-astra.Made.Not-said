@@ -4,8 +4,8 @@
 
 #include <IXT/descriptor.hpp>
 #include <IXT/comms.hpp>
-#include <IXT/file_manip.hpp>
-#include <IXT/bit_manip.hpp>
+#include <IXT/file-manip.hpp>
+#include <IXT/bit-manip.hpp>
 
 
 

@@ -6,7 +6,7 @@
 #include <IXT/endec.hpp>
 #include <IXT/comms.hpp>
 #include <IXT/concepts.hpp>
-#include <IXT/volatile_ptr.hpp>
+#include <IXT/volatile-ptr.hpp>
 
 namespace _ENGINE_NAMESPACE {
 

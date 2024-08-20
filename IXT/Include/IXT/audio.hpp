@@ -155,6 +155,9 @@ public:
     : _audio{ std::move( audio ) }
     {}
 
+public:
+    virtual ~Wave() = default;
+
 _ENGINE_PROTECTED:
     SPtr< Audio >   _audio   = nullptr;
 

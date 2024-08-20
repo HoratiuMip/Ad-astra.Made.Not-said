@@ -81,7 +81,7 @@ _ENGINE_PROTECTED:
     {}
 
 public:
-    virtual ~RenderSpec2() {}
+    virtual ~RenderSpec2() = default;
 
 _ENGINE_PROTECTED:
     VPtr< RenderSpec2 >   _super_spec    = nullptr;

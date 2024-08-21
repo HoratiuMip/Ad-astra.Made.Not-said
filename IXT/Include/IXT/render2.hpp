@@ -40,9 +40,9 @@ public:
     {}
 
 public:
-    float   r   = 0.0;
-    float   g   = 0.32;   /* dark verdian for nyjucu aka iupremacy */
-    float   b   = 0.23;
+    float   r   = .0;
+    float   g   = .32;   /* dark verdian for nyjucu aka iupremacy */
+    float   b   = .23;
     float   a   = 1.0;
 
 public:
@@ -72,7 +72,7 @@ public:
 
     RenderSpec2( VPtr< RenderSpec2 > other ) 
     : _super_spec{ std::move( other ) },
-      _renderer{ other->_renderer }
+      _renderer{ _super_spec->_renderer }
     {}
 
 _ENGINE_PROTECTED:
@@ -105,7 +105,7 @@ public:
 
 public:
     Vec2 pull_axis( Crd2 crd ) {
-        return { 2.0_ggf * crd.x - 1.0_ggf, 2.0_ggf * ( 1.0_ggf - crd.y ) - 1.0_ggf };
+        return { crd.x - .5_ggf, .5_ggf - crd.y };
     }
 
     Crd2 pull_axis( Vec2 vec ) {
@@ -135,18 +135,18 @@ public:
 
 
 
-enum RENDERER2_DEF_BRUSH {
-    RENDERER2_DEF_BRUSH_VOLATILE = 0x00'00'00'FF'00'00'00'00,
-    RENDERER2_DEF_BRUSH_RED      = 0xFF'00'00'FF'00'00'00'01,
-    RENDERER2_DEF_BRUSH_GREEN    = 0x00'FF'00'FF'00'00'00'02, 
-    RENDERER2_DEF_BRUSH_BLUE     = 0x00'00'FF'FF'00'00'00'03,
-    RENDERER2_DEF_BRUSH_WHITE    = 0xFF'FF'FF'FF'00'00'00'04,
-    RENDERER2_DEF_BRUSH_BLACK    = 0x00'00'00'FF'00'00'00'05,
+enum RENDERER2_DFT_BRUSH {
+    RENDERER2_DFT_BRUSH_VOLATILE = 0x00'00'00'FF'00'00'00'00,
+    RENDERER2_DFT_BRUSH_RED      = 0xFF'00'00'FF'00'00'00'01,
+    RENDERER2_DFT_BRUSH_GREEN    = 0x00'FF'00'FF'00'00'00'02, 
+    RENDERER2_DFT_BRUSH_BLUE     = 0x00'00'FF'FF'00'00'00'03,
+    RENDERER2_DFT_BRUSH_WHITE    = 0xFF'FF'FF'FF'00'00'00'04,
+    RENDERER2_DFT_BRUSH_BLACK    = 0x00'00'00'FF'00'00'00'05,
 
-    RENDERER2_DEF_BRUSH_RGBA_MASK = 0xFF'FF'FF'FF'00'00'00'00,
-    RENDERER2_DEF_BRUSH_IDX_MASK  = ~RENDERER2_DEF_BRUSH_RGBA_MASK,
+    RENDERER2_DFT_BRUSH_RGBA_MASK = 0xFF'FF'FF'FF'00'00'00'00,
+    RENDERER2_DFT_BRUSH_IDX_MASK  = ~RENDERER2_DFT_BRUSH_RGBA_MASK,
 
-    _RENDERER2_DEF_BRUSH_FORCE_QWORD = 0xFF'FF'FF'FF'FF'FF'FF'FF
+    _RENDERER2_DFT_BRUSH_FORCE_QWORD = 0xFF'FF'FF'FF'FF'FF'FF'FF
 };
 
 class Renderer2DefaultBrushes {
@@ -165,8 +165,12 @@ _ENGINE_PROTECTED:
     std::vector< VPtr< Brush2 > >   _default_brushes   = {};
 
 public:
-    Brush2& pull( RENDERER2_DEF_BRUSH idx ) {
-        return *_default_brushes[ idx & RENDERER2_DEF_BRUSH_IDX_MASK ];
+    Brush2& pull( RENDERER2_DFT_BRUSH idx ) {
+        return *_default_brushes[ idx & RENDERER2_DFT_BRUSH_IDX_MASK ];
+    }
+
+    Brush2& operator [] ( RENDERER2_DFT_BRUSH idx ) {
+        return this->pull( idx );
     }
 
 };
@@ -378,24 +382,24 @@ public:
     Viewport2() = default;
 
     Viewport2(
-        RenderSpec2&   render_spec,
-        Vec2           org,
-        Vec2           sz,
+        VPtr< RenderSpec2 >   render_spec,
+        Vec2                  org,
+        Vec2                  sz,
         _ENGINE_COMMS_ECHO_ARG
     )
     : RenderSpec2{ render_spec },
-      _origin{ org }, _size{ sz }, _size2{ sz.x / 2.0f, sz.y / 2.0f }
+      _origin{ org }, _size{ sz }, _size2{ sz / 2}
     {
         echo( this, ECHO_STATUS_OK ) << "Created.";
     }
 
     Viewport2(
-        RenderSpec2&   render_spec,
-        Crd2           crd,
-        Vec2           sz,
+        VPtr< RenderSpec2 >   render_spec,
+        Crd2                  crd,
+        Vec2                  sz,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : Viewport2{ render_spec, render_spec.pull_axis( crd ) + Vec2{ sz.x / 2.0_ggf, -sz.y / 2.0_ggf }, sz, echo }
+    : Viewport2{ render_spec, render_spec->pull_axis( crd ), sz, echo }
     {}
 
 
@@ -557,23 +561,23 @@ public:
     }
 
 public:
-    Viewport2& fill(
+    RenderSpec2& fill(
         const RGBA& rgba
-    );
+    ) override;
 
-    Viewport2& fill(
+    RenderSpec2& fill(
         const Brush2& brush
-    );
+    ) override;
 
-    Viewport2& line(
+    RenderSpec2& line(
         Crd2 c1, Crd2 c2,
         const Brush2& brush
-    );
+    ) override;
 
-    Viewport2& line(
+    RenderSpec2& line(
         Vec2 v1, Vec2 v2,
         const Brush2& brush
-    );
+    ) override;
 
 };
 

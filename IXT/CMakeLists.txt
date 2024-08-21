@@ -27,6 +27,7 @@ set(
     "os" 
     "render2" 
     "surface" 
+    "tempo"
     "volatile-ptr"
     CACHE STRING "IXT engine components." FORCE
 )
@@ -94,7 +95,7 @@ project(
 
 
 # Preprocessor defines.
-#target_compile_definitions( ${IXT_LIB_NAME} ${IXT_PREPROCESSOR_DEFS} )
+#target_compile_definitions( ${IXT_LIB_NAME} ${IXT_PREPROCESSOR_DEFINITIONS} )
 
 
 # Set those folders' paths into variables.

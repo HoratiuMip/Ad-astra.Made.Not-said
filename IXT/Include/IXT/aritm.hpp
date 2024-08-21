@@ -717,7 +717,7 @@ public:
 
 public:
     static Clust2 triangle( ggfloat_t edge_length ) {
-        Vec2 vrtx = { 0.0, edge_length * sqrt( 3.0 ) / 3.0 };
+        Vec2 vrtx = { 0.0_ggf, edge_length * ( ggfloat_t )sqrt( 3.0 ) / 3.0_ggf };
 
         return std::vector< Vec2 >( {
             vrtx,
@@ -763,7 +763,7 @@ public:
         const T& generator
     ) {
         static auto scalar = [] ( const auto& generator, ggfloat_t min ) -> ggfloat_t {
-            return ( static_cast< ggfloat_t >( std::invoke( generator ) % 10001 ) / 10000 )
+            return ( ( ggfloat_t )( std::invoke( generator ) % 10001 ) / 10000 )
                     * ( 1.0 - min ) + min;
         };
 
@@ -867,7 +867,7 @@ _ENGINE_PROTECTED:
 
 public:
     bool contains( Vec2 vec ) const {
-        
+        return false;
     }
 
 _ENGINE_PROTECTED:

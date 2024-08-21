@@ -13,9 +13,9 @@ namespace _ENGINE_NAMESPACE {
 
 
 #define  _ENGINE_COMMS_ECHO_ARG         Echo echo = {}
-#define  _ENGINE_COMMS_ECHO_NO_DFD_ARG  Echo echo
+#define  _ENGINE_COMMS_ECHO_NO_DFT_ARG  Echo echo
 #define  IXT_COMMS_ECHO_ARG             _ENGINE_COMMS_ECHO_ARG
-#define  IXT_COMMS_ECHO_NO_DFD_ARG      _ENGINE_COMMS_ECHO_NO_DFD_ARG
+#define  IXT_COMMS_ECHO_NO_DFT_ARG      _ENGINE_COMMS_ECHO_NO_DFT_ARG
 
 
 

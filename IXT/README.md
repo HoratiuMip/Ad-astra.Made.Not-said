@@ -10,13 +10,19 @@ Make it work again. <br>
 ## Build [ ╠═Σ ].
 
 [ I ] Add the `IXT` directory in your project's `CMakeLists.txt` ( `add_subdirectory( <path_to_ixt_directory> )` ), with the following set:
-> - `IXT_FONDLES_TO_BUILD` - Inside `IXT/Fondle` there are several sources to showcase the engine's components capabilities. From a fondle source `fdl_<name>.cpp`, append `name` to `IXT_FONDLES_TO_BUILD` in order to build the executable `fdl_<name>`. <br> <br> Example: `-DIXT_FONDLES_TO_BUILD=comms;audio;surface`. <br>
+> - `IXT_FONDLES_TO_BUILD` - Inside `IXT/Fondle` there are several sources to showcase the engine's components capabilities. From a fondle source `fdl-<name>.cpp`, append `name` to `IXT_FONDLES_TO_BUILD` in order to build the executable `fdl-<name>`. <br> <br> Example: `-DIXT_FONDLES_TO_BUILD=comms;audio;surface`. <br>
 
-> - `IXT_PREPROCESSOR_DEFS` - Preprocessor defines for the engine's build. Some defines are mandatory, i.e. operating system and graphics library. ( see ***Preprocessor definitions*** section for more. ) <br> <br> Example: `-DIXT_PREPROCESSOR_DEFS=IXT_OS_WINDOWS;IXT_GL_DIRECT_2D1`. <br> 
+> - `IXT_PREPROCESSOR_DEFINITIONS` - Preprocessor defines for the engine's build. Some defines are mandatory, i.e. operating system and graphics library. ( see ***Preprocessor definitions*** section for more. ) <br> <br> Example: `-DIXT_PREPROCESSOR_DEFINITIONS=IXT_OS_WINDOWS;IXT_GL_DIRECT_2D1`. <br> 
 
 <br>
 
-[ II ] After `CMake` ran through the `IXT` directory tree, the requested fondles are built, `IXT_LIB_NAME` is forced in the `CMake` cache, and `IXTLib` is available with publicly linked include directories.
+[ II ] After `CMake` ran through the `IXT` directory tree, the requested fondles are prepared for build, `IXT_LIB_NAME` is forced in the `CMake` cache, and `IXTLib` is available with publicly linked include directories.
+
+<br>
+
+[ Quickies ]
+
+`cmake .. -DIXT_PREPROCESSOR_DEFINITIONS=IXT_OS_WINDOWS;IXT_GL_DIRECT_2D1 -DIXT_FONDLES_TO_BUILD=` <br>
 
 `|`<br>
 `|`<br>
@@ -37,6 +43,7 @@ Make it work again. <br>
 > - OS::SigInterceptor handling for all cases. ( some terminates are not intercepted now ) <br>
 > - <span style="color:red">~~Do no base fondle executables on component names, iterate Fondle directory instead.~~</span> <br>
 > - Separate Clust2Hookable. <br>
+> - STOP VPtr< T > ptr | some = move( ptr ) | ptr-> FOR FUCK'S SAKE. <br>
 
 ### Medium:
 
@@ -78,7 +85,7 @@ Make it work again. <br>
 
 > - The enum name is written in full upper-case, words separated by '**_**'.
 > - Each enum constant is precedented by the enum name.<br>
-> `enum SIG : int { SIG_MEMORY, SIG_FLOAT, ... };`
+> `enum SIG : int { SIG_SEGFAULT, SIG_FLOAT, ... };`
 
 ### Structures:
 

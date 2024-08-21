@@ -72,7 +72,7 @@ enum SIG : int {
     SIG_FLOAT     = SIGFPE, 
     SIG_ILLEGAL   = SIGILL, 
     SIG_INTERRUPT = SIGINT, 
-    SIG_MEMORY    = SIGSEGV, 
+    SIG_SEGFAULT  = SIGSEGV, 
     SIG_TERMINATE = SIGTERM
 };
 typedef   int   sig_t;
@@ -83,7 +83,7 @@ public:
 
 _ENGINE_PROTECTED:
     inline static constexpr const sig_t   _codes[]   = {
-        SIG_ABORT, SIG_FLOAT, SIG_ILLEGAL, SIG_INTERRUPT, SIG_MEMORY, SIG_TERMINATE
+        SIG_ABORT, SIG_FLOAT, SIG_ILLEGAL, SIG_INTERRUPT, SIG_SEGFAULT, SIG_TERMINATE
     };
 
     inline static std::map< sig_t, const char* >   _codes_strs   = {
@@ -91,7 +91,7 @@ _ENGINE_PROTECTED:
         { SIG_FLOAT, "SIG_FLOAT" },
         { SIG_ILLEGAL, "SIG_ILLEGAL" },
         { SIG_INTERRUPT, "SIG_INTERRUPT" },
-        { SIG_MEMORY, "SIG_MEMORY" },
+        { SIG_SEGFAULT, "SIG_SEGFAULT" },
         { SIG_TERMINATE, "SIG_TERMINATE" }
     };
 

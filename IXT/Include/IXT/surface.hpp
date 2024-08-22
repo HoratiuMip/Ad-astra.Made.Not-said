@@ -117,7 +117,7 @@ enum SURFSCROLL_DIRECTION {
 
 enum SURFACE_EVENT {
     SURFACE_EVENT_KEY, 
-    SURFACE_EVENT_MOUSE, 
+    SURFACE_EVENT_POINTER, 
     SURFACE_EVENT_SCROLL, 
     SURFACE_EVENT_FILEDROP, 
     SURFACE_EVENT_MOVE, 
@@ -190,9 +190,9 @@ _ENGINE_PROTECTED:
     std::map< XtDx, SurfaceOnDestroy >   _sckt_destroy[ 2 ]    = {};
 
 public:
-    template< typename Master, typename ...Args >
+    template< SURFACE_EVENT event, typename ...Args >
     void invoke_sequence( SurfaceTrace& trace, Args&&... args ) {
-        auto [ on, sckt ] = this->_seq_from_type< Master >();
+        auto [ on, sckt ] = this->_seq_from_event< event >();
 
         this->_invoke_sequence( on, sckt, trace, std::forward< Args >( args )... );
     }
@@ -253,7 +253,7 @@ _ENGINE_PROTECTED:
 _ENGINE_PROTECTED:
     template< typename Master >
     auto _seq_from_type() {
-        if constexpr( std::is_same_v< Master, SurfaceOnPointer > ) 
+        if constexpr( std::is_same_v< Master, SurfaceOnPointer > )
             return std::make_pair( std::ref( _on_ptr ), std::ref( _sckt_mouse ) );
 
         if constexpr( std::is_same_v< Master, SurfaceOnKey > ) 
@@ -265,10 +265,10 @@ _ENGINE_PROTECTED:
         if constexpr( std::is_same_v< Master, SurfaceOnFiledrop > ) 
             return std::make_pair( std::ref( _on_filedrop ), std::ref( _sckt_filedrop ) );
 
-        if constexpr( std::is_same_v< Master, SurfaceOnMove > ) 
+        if constexpr( std::is_same_v< Master, SurfaceOnMove > )
             return std::make_pair( std::ref( _on_move ), std::ref( _sckt_move ) );
 
-        if constexpr( std::is_same_v< Master, SurfaceOnResize > ) 
+        if constexpr( std::is_same_v< Master, SurfaceOnResize > )
             return std::make_pair( std::ref( _on_resize ), std::ref( _sckt_resize ) );
 
         if constexpr( std::is_same_v< Master, SurfaceOnDestroy > ) 
@@ -277,7 +277,7 @@ _ENGINE_PROTECTED:
 
     template< SURFACE_EVENT event >
     auto _seq_from_event() {
-        if constexpr( event == SURFACE_EVENT_MOUSE ) 
+        if constexpr( event == SURFACE_EVENT_POINTER ) 
             return std::make_pair( std::ref( _on_ptr ), std::ref( _sckt_mouse ) );
 
         if constexpr( event == SURFACE_EVENT_KEY ) 
@@ -301,6 +301,29 @@ _ENGINE_PROTECTED:
 
 };
 
+class SurfacePointerSentry {
+_ENGINE_PROTECTED:
+    Vec2   _pointer        = {};
+    Vec2   _prev_pointer   = {};
+public:
+    Vec2 ptr_v() const {
+        return _pointer;
+    }
+
+    Vec2 ptr_pv() const {
+        return _prev_pointer;
+    }
+
+    Crd2 ptr_c() const {
+        return pull_axis( _pointer );
+    }
+
+    Crd2 ptr_pc() const {
+        return pull_axis( _prev_pointer );
+    }
+
+};
+
 enum SURFACE_STYLE {
     SURFACE_STYLE_LIQUID = WS_SIZEBOX | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE,
     SURFACE_STYLE_SOLID  = WS_POPUP | WS_VISIBLE
@@ -308,7 +331,8 @@ enum SURFACE_STYLE {
 };
 
 class Surface : public Descriptor,
-                public SurfaceEventSentry 
+                public SurfaceEventSentry,
+                public SurfacePointerSentry
 {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Surface" );
@@ -360,8 +384,6 @@ _ENGINE_PROTECTED:
 
     SurfaceTrace             _trace          = {};
 
-    Vec2                     _pointer        = {};
-    Vec2                     _prev_pointer   = {};
     _SurfKeyArray            _key_array      = { SURFKEY_STATE_UP };
 
 _ENGINE_PROTECTED:
@@ -450,7 +472,7 @@ _ENGINE_PROTECTED:
 
             _key_array[ key.value ] = state;
 
-            this->invoke_sequence< SurfaceOnKey >( _trace, key, state );
+            this->invoke_sequence< SURFACE_EVENT_KEY >( _trace, key, state );
         };
 
         _trace.reset();
@@ -478,19 +500,19 @@ _ENGINE_PROTECTED:
             break; }
 
             case _SURFACE_EVENT_FORCE_SOCKET_PTR :{
-                this->invoke_sequence< SurfaceOnPointer >( _trace, _pointer, _pointer );
+                this->invoke_sequence< SURFACE_EVENT_POINTER >( _trace, _pointer, _pointer );
             break; }
 
 
             case WM_MOUSEMOVE: {
-                Vec2 new_pointer = this->pull_axis( Crd2{ LOWORD( l_param ), HIWORD( l_param ) } );
+                Vec2 new_pointer = pull_axis( ( Crd2 )( Crd2{ LOWORD( l_param ), HIWORD( l_param ) } / _size ) );
 
-                this->invoke_sequence< SurfaceOnPointer >( _trace, new_pointer, _prev_pointer = std::exchange( _pointer, new_pointer ) );
+                this->invoke_sequence< SURFACE_EVENT_POINTER >( _trace, new_pointer, _prev_pointer = std::exchange( _pointer, new_pointer ) );
 
             break; }
 
             case WM_MOUSEWHEEL: {
-                this->invoke_sequence< SurfaceOnScroll >(
+                this->invoke_sequence< SURFACE_EVENT_SCROLL >(
                     _trace,
                     _pointer,
                     GET_WHEEL_DELTA_WPARAM( w_param ) < 0
@@ -566,7 +588,7 @@ _ENGINE_PROTECTED:
                     files.emplace_back( file );
                 }
 
-                this->invoke_sequence< SurfaceOnFiledrop >( _trace, std::move( files ) );
+                this->invoke_sequence< SURFACE_EVENT_FILEDROP >( _trace, std::move( files ) );
 
             break; }
 
@@ -577,14 +599,14 @@ _ENGINE_PROTECTED:
                     static_cast< ggfloat_t >( ( int16_t )HIWORD( l_param ) )
                 };
 
-                this->invoke_sequence< SurfaceOnMove >( _trace, new_pos, std::exchange( _position, new_pos ) );
+                this->invoke_sequence< SURFACE_EVENT_MOVE >( _trace, new_pos, std::exchange( _position, new_pos ) );
 
             break; }
 
             case WM_SIZE: {
                 Vec2 new_size = { LOWORD( l_param ), HIWORD( l_param ) };
-
-                this->invoke_sequence< SurfaceOnResize >( _trace, new_size, std::exchange( _size, new_size ) );
+                
+                this->invoke_sequence< SURFACE_EVENT_RESIZE >( _trace, new_size, std::exchange( _size, new_size ) );
 
             break; }
 
@@ -617,10 +639,9 @@ _ENGINE_PROTECTED:
 
 public:
     Surface& uplink( SURFACE_THREAD launch = SURFACE_THREAD_THROUGH, _ENGINE_COMMS_ECHO_ARG ) {
-        #if defined( _ENGINE_UNIQUE_SURFACE )
-            _ptr = this;
-        #endif
-
+#if defined( _ENGINE_UNIQUE_SURFACE )
+         _ptr = this;
+#endif
         _wnd_class.cbSize        = sizeof( WNDCLASSEX );
         _wnd_class.hInstance     = GetModuleHandle( NULL );
         _wnd_class.lpfnWndProc   = event_proc_router_1;
@@ -628,33 +649,32 @@ public:
         _wnd_class.hbrBackground = HBRUSH( COLOR_INACTIVECAPTIONTEXT );
         _wnd_class.hCursor       = LoadCursor( NULL, IDC_ARROW );
 
-
         switch( launch ) {
-            case SURFACE_THREAD_THROUGH: goto L_THREAD_THROUGH;
+            case SURFACE_THREAD_THROUGH: goto l_thread_through;
 
-            case SURFACE_THREAD_ACROSS: goto L_THREAD_ACROSS;
+            case SURFACE_THREAD_ACROSS: goto l_thread_across;
 
             default: echo( this, ECHO_STATUS_ERROR ) << "Bad thread launch argument."; return *this;
         }
 
+l_thread_through: 
+        std::invoke( _main, this, nullptr, echo );
+        return *this;
 
-        L_THREAD_THROUGH: {
-            std::invoke( _main, this, nullptr, echo );
-        } return *this;
+l_thread_across: 
+{
+        std::binary_semaphore sync{ 0 };
 
+        _thread = std::thread( _main, this, &sync, echo );
 
-        L_THREAD_ACROSS: {
-            std::binary_semaphore sync{ 0 };
+        if( _thread.joinable() ) {
+            echo( this, ECHO_STATUS_PENDING ) << "Waiting for across window creation...";
 
-            _thread = std::thread( _main, this, &sync, echo );
-
-            if( _thread.joinable() ) {
-                echo( this, ECHO_STATUS_PENDING ) << "Waiting for across window creation...";
-
-                sync.acquire();
-            } else
-                echo( this, ECHO_STATUS_ERROR ) << "Main thread bad invoke.";
-        } return *this;
+            sync.acquire();
+        } else
+            echo( this, ECHO_STATUS_ERROR ) << "Main thread bad invoke.";
+} 
+        return *this;
     }
 
     void downlink( _ENGINE_COMMS_ECHO_ARG ) {
@@ -672,50 +692,25 @@ public:
     }
 
 public:
-    Vec2 pull_axis( const Crd2 crd ) const {
-        return { crd.x - _size.x / 2.0_ggf, _size.y / 2.0_ggf - crd.y };
-    }
-
-    Crd2 pull_axis( const Vec2 vec ) const {
-        return { vec.x + _size.x / 2.0f, _size.y / 2.0f - vec.y };
-    }
-
-    void push_axis( Crd2& crd ) const {
-        crd.x -= _size.x / 2.0;
-        crd.y = _size.y / 2.0 - crd.y;
-    }
-
-    void push_axis( Vec2& vec ) const {
-        vec.x += _size.x / 2.0;
-        vec.y = _size.y / 2.0 - vec.y;
-    }
-
-public:
     auto& localize( is_vec2_base auto& vec ) const {
-        vec.x *= _size.x;
-        vec.y *= _size.y;
-
+        vec *= _size;
         return vec;
     }
 
     template< is_vec2_base T >
     T localized( const T vec ) const {
         T res{ vec };
-
         return this->localize( res );
     }
 
     auto& globalize( is_vec2_base auto& vec ) const {
-        vec.x /= _size.x;
-        vec.y /= _size.y;
-
+        vec /= _size;
         return vec;
     }
 
     template< is_vec2_base T >
     T globalized( const T vec ) const {
         T res{ vec };
-
         return this->globalize( res );
     }
 
@@ -790,36 +785,19 @@ public:
 
 public:
     Vec2 ptr_vl() const {
-        return _pointer;
-    }
-
-    Vec2 ptr_vg() const {
-        return this->globalized( _pointer );
+        return this->localized( _pointer );
     }
 
     Vec2 ptr_pvl() const {
-        return _prev_pointer;
-    }
-
-    Vec2 ptr_pvg() const {
-        return this->globalized( _prev_pointer );
+        return this->localized( _prev_pointer );
     }
     
-
     Crd2 ptr_cl() const {
-        return this->pull_axis( this->ptr_vl() );
-    }
-
-    Crd2 ptr_cg() const {
-        return this->globalized( this->ptr_cl() );
+        return this->localized( this->ptr_c() );
     }
 
     Crd2 ptr_pcl() const {
-        return this->pull_axis( this->ptr_pvl() );
-    }
-
-    Crd2 ptr_pcg() const {
-        return this->globalized( this->ptr_pcl() );
+        return this->localized( this->ptr_pc() );
     }
 
 public:

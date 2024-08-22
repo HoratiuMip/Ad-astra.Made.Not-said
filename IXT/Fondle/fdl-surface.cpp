@@ -136,11 +136,11 @@ int main() {
                   << std::setprecision( 0 ) 
                   << "\n\tVL: x[" << surface.ptr_vl().x << "] y[" << surface.ptr_vl().y << "] "
                   << std::setprecision( 3 ) 
-                  << "\n\tVG: x[" << surface.ptr_vg().x << "] y[" << surface.ptr_vg().y << "] "
+                  << "\n\tVG: x[" << surface.ptr_v().x << "] y[" << surface.ptr_v().y << "] "
                   << std::setprecision( 0 ) 
                   << "\n\tCL: x[" << surface.ptr_cl().x << "] y[" << surface.ptr_cl().y << "] "
                   << std::setprecision( 3 ) 
-                  << "\n\tCG: x[" << surface.ptr_cg().x << "] y[" << surface.ptr_cg().y
+                  << "\n\tCG: x[" << surface.ptr_c().x << "] y[" << surface.ptr_c().y
                   << std::setw( 10 ) << std::left << "]." << "\n\n";
 
         std::cout << "Position: x[" << surface.pos().x << "] y[" << surface.pos().y

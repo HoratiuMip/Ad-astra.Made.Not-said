@@ -15,7 +15,7 @@ class RenderSpec2;
 class Renderer2;
 class Viewport2;
 
-class Brush2;
+class Sweep2;
 
 
 
@@ -90,11 +90,11 @@ _ENGINE_PROTECTED:
 public:
     virtual RenderSpec2& fill( const RGBA& ) = 0;
 
-    virtual RenderSpec2& fill( const Brush2& ) = 0;
+    virtual RenderSpec2& fill( const Sweep2& ) = 0;
 
-    virtual RenderSpec2& line( Crd2, Crd2, const Brush2& ) = 0;
+    virtual RenderSpec2& line( Crd2, Crd2, const Sweep2& ) = 0;
 
-    virtual RenderSpec2& line( Vec2, Vec2, const Brush2& ) = 0;
+    virtual RenderSpec2& line( Vec2, Vec2, const Sweep2& ) = 0;
 
 public:
     virtual Crd2 coord() const = 0;
@@ -102,23 +102,6 @@ public:
     virtual Vec2 origin() const = 0;
 
     virtual Vec2 size() const = 0;
-
-public:
-    Vec2 pull_axis( Crd2 crd ) {
-        return { crd.x - .5_ggf, .5_ggf - crd.y };
-    }
-
-    Crd2 pull_axis( Vec2 vec ) {
-        return { vec.x + .5_ggf, .5_ggf - vec.y };
-    }
-
-    void push_axis( Crd2& crd ) {
-        crd = this->pull_axis( crd );
-    }
-
-    void push_axis( Vec2& vec ) {
-        vec = this->pull_axis( vec );
-    }
 
 public:
     RenderSpec2& super_spec() {
@@ -135,48 +118,48 @@ public:
 
 
 
-enum RENDERER2_DFT_BRUSH {
-    RENDERER2_DFT_BRUSH_VOLATILE = 0x00'00'00'FF'00'00'00'00,
-    RENDERER2_DFT_BRUSH_RED      = 0xFF'00'00'FF'00'00'00'01,
-    RENDERER2_DFT_BRUSH_GREEN    = 0x00'FF'00'FF'00'00'00'02, 
-    RENDERER2_DFT_BRUSH_BLUE     = 0x00'00'FF'FF'00'00'00'03,
-    RENDERER2_DFT_BRUSH_WHITE    = 0xFF'FF'FF'FF'00'00'00'04,
-    RENDERER2_DFT_BRUSH_BLACK    = 0x00'00'00'FF'00'00'00'05,
+enum RENDERER2_DFT_SWEEP {
+    RENDERER2_DFT_SWEEP_VOLATILE = 0x00'00'00'FF'00'00'00'00,
+    RENDERER2_DFT_SWEEP_RED      = 0xFF'00'00'FF'00'00'00'01,
+    RENDERER2_DFT_SWEEP_GREEN    = 0x00'FF'00'FF'00'00'00'02, 
+    RENDERER2_DFT_SWEEP_BLUE     = 0x00'00'FF'FF'00'00'00'03,
+    RENDERER2_DFT_SWEEP_WHITE    = 0xFF'FF'FF'FF'00'00'00'04,
+    RENDERER2_DFT_SWEEP_BLACK    = 0x00'00'00'FF'00'00'00'05,
 
-    RENDERER2_DFT_BRUSH_RGBA_MASK = 0xFF'FF'FF'FF'00'00'00'00,
-    RENDERER2_DFT_BRUSH_IDX_MASK  = ~RENDERER2_DFT_BRUSH_RGBA_MASK,
+    RENDERER2_DFT_SWEEP_RGBA_MASK = 0xFF'FF'FF'FF'00'00'00'00,
+    RENDERER2_DFT_SWEEP_IDX_MASK  = ~RENDERER2_DFT_SWEEP_RGBA_MASK,
 
-    _RENDERER2_DFT_BRUSH_FORCE_QWORD = 0xFF'FF'FF'FF'FF'FF'FF'FF
+    _RENDERER2_DFT_SWEEP_FORCE_QWORD = 0xFF'FF'FF'FF'FF'FF'FF'FF
 };
 
-class Renderer2DefaultBrushes {
+class Renderer2DefaultSweeps {
 public:
-    Renderer2DefaultBrushes() = default;
+    Renderer2DefaultSweeps() = default;
 
-    Renderer2DefaultBrushes( Renderer2& renderer, _ENGINE_COMMS_ECHO_ARG );
+    Renderer2DefaultSweeps( Renderer2& renderer, _ENGINE_COMMS_ECHO_ARG );
 
 public:
-    Renderer2DefaultBrushes& operator = ( Renderer2DefaultBrushes&& other ) {
-        _default_brushes = std::move( other._default_brushes );
+    Renderer2DefaultSweeps& operator = ( Renderer2DefaultSweeps&& other ) {
+        _default_sweeps = std::move( other._default_sweeps );
         return *this;
     }
 
 _ENGINE_PROTECTED:
-    std::vector< VPtr< Brush2 > >   _default_brushes   = {};
+    std::vector< VPtr< Sweep2 > >   _default_sweeps   = {};
 
 public:
-    Brush2& pull( RENDERER2_DFT_BRUSH idx ) {
-        return *_default_brushes[ idx & RENDERER2_DFT_BRUSH_IDX_MASK ];
+    Sweep2& pull( RENDERER2_DFT_SWEEP idx ) {
+        return *_default_sweeps[ idx & RENDERER2_DFT_SWEEP_IDX_MASK ];
     }
 
-    Brush2& operator [] ( RENDERER2_DFT_BRUSH idx ) {
+    Sweep2& operator [] ( RENDERER2_DFT_SWEEP idx ) {
         return this->pull( idx );
     }
 
 };
 
 class Renderer2 : public RenderSpec2,
-                  public Renderer2DefaultBrushes
+                  public Renderer2DefaultSweeps
 {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Renderer2" );
@@ -236,7 +219,7 @@ public:
         _target.reset( tmp_ptr, weak_link_t{} );
 
 
-        static_cast< Renderer2DefaultBrushes& >( *this ) = Renderer2DefaultBrushes{ *this, echo };
+        *( Renderer2DefaultSweeps* )( this ) = Renderer2DefaultSweeps{ *this, echo };
 
 
         echo( this, ECHO_STATUS_OK ) << "Created.";
@@ -295,17 +278,17 @@ public:
 public:
     RenderSpec2& fill( const RGBA& rgba ) override;
 
-    RenderSpec2& fill( const Brush2& brush ) override;
+    RenderSpec2& fill( const Sweep2& sweep ) override;
 
 public:
     RenderSpec2& line(
         Crd2 c1, Crd2 c2,
-        const Brush2& brush
+        const Sweep2& sweep
     ) override;
 
     RenderSpec2& line(
         Vec2 v1, Vec2 v2,
-        const Brush2& brush
+        const Sweep2& sweep
     ) override;
 
 public:
@@ -399,7 +382,7 @@ public:
         Vec2                  sz,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : Viewport2{ render_spec, render_spec->pull_axis( crd ), sz, echo }
+    : Viewport2{ render_spec, pull_axis( crd ), sz, echo }
     {}
 
 
@@ -419,7 +402,7 @@ public:
     }
 
 public:
-    Crd2 coord()  const override { return _super_spec->pull_axis( _origin ); }
+    Crd2 coord()  const override { return pull_axis( _origin ); }
     Vec2 origin() const override { return _origin; }
     Vec2 size()   const override { return _size; }
 
@@ -431,7 +414,7 @@ public:
     }
 
     Viewport2& relocate( Crd2 crd ) {
-        return this->relocate( _super_spec->pull_axis( crd ) );
+        return this->relocate( pull_axis( crd ) );
     }
 
 public:
@@ -495,8 +478,8 @@ public:
     Viewport2& restrict() {
         if( _restricted ) return *this;
 
-        auto tl = _super_spec->pull_axis( this->top_left_g() );
-        auto br = _super_spec->pull_axis( this->bot_right_g() );
+        auto tl = pull_axis( this->top_left_g() );
+        auto br = pull_axis( this->bot_right_g() );
 
         _renderer->target()->PushAxisAlignedClip(
             D2D1::RectF( tl.x, tl.y, br.x, br.y ),
@@ -526,12 +509,12 @@ public:
     Viewport2& uplink() {
         this->surface()
 
-        .socket_plug< SURFACE_EVENT_MOUSE >( 
+        .socket_plug< SURFACE_EVENT_POINTER >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, Vec2 lvec, auto& trace ) -> void {
                 if( !this->contains_g( vec ) ) return;
 
-                this->invoke_sequence< SurfaceOnPointer >( trace, vec - _origin, lvec - _origin );
+                this->invoke_sequence< SURFACE_EVENT_POINTER >( trace, vec - _origin, lvec - _origin );
             }
         )
 
@@ -540,14 +523,14 @@ public:
             [ this ] ( Vec2 vec, SURFSCROLL_DIRECTION dir, auto& trace ) -> void {
                 if( !this->contains_g( vec ) ) return;
 
-                this->invoke_sequence< SurfaceOnScroll >( trace, vec - _origin, dir );
+                this->invoke_sequence< SURFACE_EVENT_SCROLL >( trace, vec - _origin, dir );
             }
         )
 
         .socket_plug< SURFACE_EVENT_KEY >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( SurfKey key, SURFKEY_STATE state, auto& trace ) -> void {
-                this->invoke_sequence< SurfaceOnKey >( trace, key, state );
+                this->invoke_sequence< SURFACE_EVENT_KEY >( trace, key, state );
             }
         );
 
@@ -566,35 +549,35 @@ public:
     ) override;
 
     RenderSpec2& fill(
-        const Brush2& brush
+        const Sweep2& sweep
     ) override;
 
     RenderSpec2& line(
         Crd2 c1, Crd2 c2,
-        const Brush2& brush
+        const Sweep2& sweep
     ) override;
 
     RenderSpec2& line(
         Vec2 v1, Vec2 v2,
-        const Brush2& brush
+        const Sweep2& sweep
     ) override;
 
 };
 
 
 
-class Brush2 : public Descriptor {
+class Sweep2 : public Descriptor {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Brush2" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Sweep2" );
 
 public:
-    Brush2() = default;
+    Sweep2() = default;
 
-    Brush2( float w )
+    Sweep2( float w )
     : _width( w )
     {}
 
-    virtual ~Brush2() {}
+    virtual ~Sweep2() {}
 
 _ENGINE_PROTECTED:
     float   _width   = 1.0;
@@ -609,32 +592,32 @@ public:
     }
 
 public:
-    virtual ID2D1Brush* brush() const = 0;
+    virtual ID2D1Brush* sweep() const = 0;
 
     operator ID2D1Brush* () const {
-        return this->brush();
+        return this->sweep();
     }
 
 };
 
 
 
-class SolidBrush2 : public Brush2 {
+class SolidSweep2 : public Sweep2 {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "SolidBrush2" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "SolidSweep2" );
 
 public:
-    SolidBrush2() = default;
+    SolidSweep2() = default;
 
-    SolidBrush2(
+    SolidSweep2(
         Renderer2& renderer,
         RGBA       rgba     = {},
         float      w        = 1.0,
         Echo       echo     = {}
     )
-    : Brush2{ w }
+    : Sweep2{ w }
     {
-        if( renderer.target()->CreateSolidColorBrush( rgba, &_brush ) != S_OK ) {
+        if( renderer.target()->CreateSolidColorBrush( rgba, &_sweep ) != S_OK ) {
             echo( this, ECHO_STATUS_ERROR ) << "<constructor>: renderer.target()->CreateSolidColorBrush() failure.";
             return;
         }
@@ -643,21 +626,21 @@ public:
     }
 
 public:
-    virtual ~SolidBrush2() {
-        if( _brush ) _brush->Release();
+    virtual ~SolidSweep2() {
+        if( _sweep ) _sweep->Release();
     }
 
 _ENGINE_PROTECTED:
-    ID2D1SolidColorBrush*   _brush   = nullptr;
+    ID2D1SolidColorBrush*   _sweep   = nullptr;
 
 public:
-    virtual ID2D1Brush* brush() const override {
-        return _brush;
+    virtual ID2D1Brush* sweep() const override {
+        return _sweep;
     }
 
 public:
     RGBA rgba() const {
-        auto [ r, g, b, a ] = _brush->GetColor();
+        auto [ r, g, b, a ] = _sweep->GetColor();
         return { r, g, b, a };
     }
 
@@ -678,26 +661,26 @@ public:
     }
 
 public:
-    SolidBrush2& rgba_to( RGBA c ) {
-        _brush->SetColor( c );
+    SolidSweep2& rgba( RGBA c ) {
+        _sweep->SetColor( c );
 
         return *this;
     }
 
-    SolidBrush2& r_to( float value ) {
-        return rgba_to( { value, g(), b() } );
+    SolidSweep2& r( float value ) {
+        return rgba( { value, g(), b() } );
     }
 
-    SolidBrush2& g_to( float value ) {
-        return rgba_to( { r(), value, b() } );
+    SolidSweep2& g( float value ) {
+        return rgba( { r(), value, b() } );
     }
 
-    SolidBrush2& b_to( float value ) {
-        return rgba_to( { r(), g(), value } );
+    SolidSweep2& b( float value ) {
+        return rgba( { r(), g(), value } );
     }
 
-    SolidBrush2& a_to( float value ) {
-        _brush->SetOpacity( value );
+    SolidSweep2& a( float value ) {
+        _sweep->SetOpacity( value );
 
         return *this;
     }

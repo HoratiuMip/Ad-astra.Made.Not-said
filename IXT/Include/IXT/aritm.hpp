@@ -364,8 +364,6 @@ public:
 
 };
 
-
-
 class Crd2 : public Vec2 {
 public:
     using Base = Vec2;
@@ -390,6 +388,23 @@ public:
     }
 
 };
+
+inline Vec2 pull_axis( Crd2 crd ) {
+    return { crd.x - .5_ggf, .5_ggf - crd.y };
+}
+
+inline Crd2 pull_axis( Vec2 vec ) {
+    return { vec.x + .5_ggf, .5_ggf - vec.y };
+}
+
+inline void push_axis( Crd2& crd ) {
+    crd = pull_axis( crd );
+}
+
+inline void push_axis( Vec2& vec ) {
+    vec = pull_axis( vec );
+}
+
 
 
 

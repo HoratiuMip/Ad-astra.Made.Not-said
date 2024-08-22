@@ -50,12 +50,19 @@ public:
     }
 
     template< TICK unit = TICK_SECS >
-    double lap(){
+    double lap() {
         using namespace std::chrono;
 
         auto now = high_resolution_clock::now();
 
         return duration< double >( now - std::exchange( _last_lap, now ) ).count() * TICK_MULS[ unit ];
+    }
+
+    template< TICK unit = TICK_SECS >
+    double cmpxchg_lap( double floating ) {
+        if( this->peek_lap< unit >() < floating )
+            return false;
+        return this->lap();
     }
 
 _ENGINE_PROTECTED:

@@ -44,6 +44,8 @@ Make it work again. <br>
 > - <span style="color:red">~~Do no base fondle executables on component names, iterate Fondle directory instead.~~</span> <br>
 > - Separate Clust2Hookable. <br>
 > - STOP VPtr< T > ptr | some = move( ptr ) | ptr-> FOR FUCK'S SAKE. <br>
+> - Operator new unretarded overload. <br>
+> - SurfaceEventSentry from type. <br>
 
 ### Medium:
 

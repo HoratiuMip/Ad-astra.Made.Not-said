@@ -20,7 +20,7 @@ int main() {
     Renderer2 render{ surface };
 
     Viewport2 port{ render, Crd2{ 0.5 }, Vec2{ 0.5 } };
-    port.uplink();
+    //port.uplink();
 
 
     struct Scenes : std::vector< std::function< void() > > {
@@ -41,25 +41,53 @@ int main() {
         render.charge().fill( RGBA{ 0 } );
 
         render
-        .line( Vec2{ -.5, .5 }, surface.ptr_vg(), render[ RENDERER2_DFT_BRUSH_GREEN ] )
-        .line( Vec2{ .5, .5 }, surface.ptr_vg(), render[ RENDERER2_DFT_BRUSH_GREEN ] )
-        .line( Vec2{ .5, -.5 }, surface.ptr_vg(), render[ RENDERER2_DFT_BRUSH_GREEN ] )
-        .line( Vec2{ -.5, -.5 }, surface.ptr_vg(), render[ RENDERER2_DFT_BRUSH_GREEN ] );
+        .line( Vec2{ -.5, .5 }, surface.ptr_v(), render[ RENDERER2_DFT_SWEEP_GREEN ] )
+        .line( Vec2{ .5, .5 }, surface.ptr_v(), render[ RENDERER2_DFT_SWEEP_GREEN ] )
+        .line( Vec2{ .5, -.5 }, surface.ptr_v(), render[ RENDERER2_DFT_SWEEP_GREEN ] )
+        .line( Vec2{ -.5, -.5 }, surface.ptr_v(), render[ RENDERER2_DFT_SWEEP_GREEN ] );
 
         render.splash();
     } );
 
 // Dephased sine lines via renderer.
     scenes.emplace_back( [ & ] () -> void {
-        static Ticker ticker;
+        static Ticker                    ticker          = {};
+        static constexpr size_t          arr_sz          = 60;
+        static std::pair< Vec2, Vec2 >   arr[ arr_sz ]   = {};
+        static size_t                    arr_at          = 0;
+        static ggfloat_t                 a_step          = 1.0 / arr_sz;
 
         render.charge().fill( RGBA{ 0 } );
 
-        render.line(
-            Vec2{ -.4, ( ggfloat_t )sin( ticker.up_time() * 2 ) / 2 },
-            Vec2{ .4, ( ggfloat_t )sin( ticker.up_time() * 3 ) / 2 },
-            render[ RENDERER2_DFT_BRUSH_BLUE ]
+        auto [ left_new, right_new ] = std::make_pair< Vec2, Vec2 >( 
+            { -.4, ( ggfloat_t )sin( ticker.up_time() * 2 ) / 2 },
+            { .4, ( ggfloat_t )sin( ticker.up_time() * 3 ) / 2 }
         );
+
+        auto& sweep = *( SolidSweep2* )&render[ RENDERER2_DFT_SWEEP_BLUE ];
+
+        render.line( left_new, right_new, sweep );
+
+        float  a_at = 1.0;
+        size_t at   = arr_at;
+        for( int8_t n = 1; n <= arr_sz; ++n ) {
+            auto [ left, right ] = arr[ at-- ];
+
+            sweep.a( a_at -= a_step );
+            render.line( left, right, sweep );
+
+            if( at == ~0ULL )
+                at = arr_sz - 1;
+        }
+
+        sweep.a( 1.0 );
+
+        if( ticker.cmpxchg_lap( 0.016 ) ) {
+            if( ++arr_at == arr_sz )
+                arr_at = 0;
+
+            arr[ arr_at ] = { left_new, right_new };
+        }
 
         render.splash();
     } );

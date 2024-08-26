@@ -104,6 +104,11 @@ public:
     virtual Vec2 size() const = 0;
 
 public:
+    virtual Vec2 local_dive( Vec2 ) const = 0;
+
+    virtual Crd2 local_dive( Crd2 ) const = 0;
+
+public:
     RenderSpec2& super_spec() {
         return *_super_spec;
     }
@@ -170,8 +175,6 @@ public:
     Renderer2( VPtr< Surface > surface, _ENGINE_COMMS_ECHO_ARG )
     : RenderSpec2{ *this }, _surface{ std::move( surface ) }
     {
-        void* tmp_ptr = nullptr;
-
         if( CoInitialize( nullptr ) != S_OK ) { 
             echo( this, ECHO_STATUS_ERROR ) << "<constructor>: CoInitialize() failure.";
             return;
@@ -183,24 +186,22 @@ public:
                 NULL,
                 CLSCTX_INPROC_SERVER,
                 IID_IWICImagingFactory,
-                &tmp_ptr
+                ( void** )&_wic_factory
             ) != S_OK 
         ) {
             echo( this, ECHO_STATUS_ERROR ) << "<constructor>: CoCreateInstance() failure.";
             return;
         }
-        _wic_factory.reset( tmp_ptr, weak_link_t{} );
 
         if( 
             D2D1CreateFactory( 
                 D2D1_FACTORY_TYPE_MULTI_THREADED, 
-                reinterpret_cast< decltype( _factory )::T** >( &tmp_ptr ) 
+                &_factory
             ) != S_OK 
         ) {
             echo( this, ECHO_STATUS_ERROR ) << "<constructor>: D2D1CreateFactory() failure.";
             return;
         }
-        _factory.reset( tmp_ptr, weak_link_t{} );
 
         if( 
             _factory->CreateHwndRenderTarget(
@@ -210,13 +211,12 @@ public:
                     D2D1::SizeU( _surface->width(), _surface->height() ),
                     D2D1_PRESENT_OPTIONS_IMMEDIATELY
                 ),
-                reinterpret_cast< decltype( _target )::T** >( &tmp_ptr )
+                &_target
             ) != S_OK
         ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: _factory->CreateHwndRenderTarget() failure.";
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: ID2D1Factory::CreateHwndRenderTarget() failure.";
             return;
         }
-        _target.reset( tmp_ptr, weak_link_t{} );
 
 
         *( Renderer2DefaultSweeps* )( this ) = Renderer2DefaultSweeps{ *this, echo };
@@ -240,12 +240,12 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    VPtr< Surface >                 _surface       = nullptr;
+    VPtr< Surface >          _surface       = nullptr;
 
-    VPtr< ID2D1Factory >            _factory       = nullptr;
-    VPtr< IWICImagingFactory >      _wic_factory   = nullptr;
+    ID2D1Factory*            _factory       = nullptr;
+    IWICImagingFactory*      _wic_factory   = nullptr;
 
-    VPtr< ID2D1HwndRenderTarget >   _target        = nullptr;
+    ID2D1HwndRenderTarget*   _target        = nullptr;
 
 public:
     Surface& surface() {
@@ -274,6 +274,15 @@ public:
     Crd2 coord()  const override { return { 0, 0 }; }
     Vec2 origin() const override { return { 0, 0 }; }
     Vec2 size()   const override { return _surface->size(); }
+
+public:
+    Vec2 local_dive( Vec2 vec ) const override {
+        return _surface->localize( vec );
+    }
+
+    Crd2 local_dive( Crd2 crd ) const override {
+        return _surface->localize( crd );
+    }
 
 public:
     RenderSpec2& fill( const RGBA& rgba ) override;
@@ -382,7 +391,7 @@ public:
         Vec2                  sz,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : Viewport2{ render_spec, pull_axis( crd ), sz, echo }
+    : Viewport2{ render_spec, pull_normal_axis( crd ), sz, echo }
     {}
 
 
@@ -402,9 +411,18 @@ public:
     }
 
 public:
-    Crd2 coord()  const override { return pull_axis( _origin ); }
+    Crd2 coord()  const override { return pull_normal_axis( _origin ); }
     Vec2 origin() const override { return _origin; }
     Vec2 size()   const override { return _size; }
+
+public:
+    Vec2 local_dive( Vec2 vec ) const override {
+        return _super_spec->local_dive( _origin + vec*_size );
+    }
+
+    Crd2 local_dive( Crd2 crd ) const override {
+        return _super_spec->local_dive( this->coord() + crd*_size );
+    }
 
 public:
     Viewport2& relocate( Vec2 vec ) {
@@ -414,7 +432,7 @@ public:
     }
 
     Viewport2& relocate( Crd2 crd ) {
-        return this->relocate( pull_axis( crd ) );
+        return this->relocate( pull_normal_axis( crd ) );
     }
 
 public:
@@ -478,8 +496,8 @@ public:
     Viewport2& restrict() {
         if( _restricted ) return *this;
 
-        auto tl = pull_axis( this->top_left_g() );
-        auto br = pull_axis( this->bot_right_g() );
+        auto tl = pull_normal_axis( this->top_left_g() );
+        auto br = pull_normal_axis( this->bot_right_g() );
 
         _renderer->target()->PushAxisAlignedClip(
             D2D1::RectF( tl.x, tl.y, br.x, br.y ),
@@ -618,7 +636,7 @@ public:
     : Sweep2{ w }
     {
         if( renderer.target()->CreateSolidColorBrush( rgba, &_sweep ) != S_OK ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: renderer.target()->CreateSolidColorBrush() failure.";
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: Renderer2::target()->CreateSolidColorBrush() failure.";
             return;
         }
 
@@ -626,7 +644,7 @@ public:
     }
 
 public:
-    virtual ~SolidSweep2() {
+    virtual ~SolidSweep2() override {
         if( _sweep ) _sweep->Release();
     }
 
@@ -686,6 +704,119 @@ public:
     }
 
 };
+
+struct LinearSweep2Chain : std::vector< D2D1_GRADIENT_STOP > {
+    LinearSweep2Chain& push( std::pair< RGBA, float > gs_pair ) {
+        this->emplace_back( D2D1_GRADIENT_STOP{
+            position: gs_pair.second,
+            color: gs_pair.first
+        } );
+
+        return *this;
+    }
+
+    size_t size() const {
+        return this->size();
+    }
+};
+
+class LinearSweep2 : public Sweep2 {
+public:
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "LinearSweep2" );
+
+public:
+    LinearSweep2() = default;
+
+    template< typename Itr >
+    LinearSweep2(
+        VPtr< RenderSpec2 >        render_spec,
+        Vec2                       launch,
+        Vec2                       land,
+        const LinearSweep2Chain&   chain,
+        float                      w        = 1.0,
+        _ENGINE_COMMS_ECHO_ARG
+    )
+    : Sweep2{ w }
+    {
+        _render_spec = std::move( render_spec );
+
+        if(
+            _render_spec->renderer().target()->CreateGradientStopCollection(
+                chain.data(),
+                chain.size(),
+                D2D1_GAMMA_2_2,
+                D2D1_EXTEND_MODE_CLAMP,
+                &_grads
+            ) != S_OK
+        ) {
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: Renderer2::target()->CreateGradientStopCollection() failure.";
+            return;
+        }
+
+        if(
+            _render_spec->renderer().target()->CreateLinearGradientBrush(
+                D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES{
+                    _render_spec->local_dive( pull_normal_axis( launch ) ),
+                    _render_spec->local_dive( pull_normal_axis( land ) )
+                },
+                D2D1_BRUSH_PROPERTIES {
+                    1.0,
+                    D2D1::Matrix3x2F::Identity()
+                },
+                _grads,
+                &_sweep
+            ) != S_OK
+        ) {
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: Renderer2::target()->CreateLinearGradientBrush() failure.";
+            return;
+        }
+
+        echo( this, ECHO_STATUS_OK ) << "Created.";
+    }
+
+public:
+    virtual ~LinearSweep2() override {
+        if( _sweep ) _sweep->Release();
+
+        if( _grads ) _grads->Release();
+    }
+
+_ENGINE_PROTECTED:
+    VPtr< RenderSpec2 >            _render_spec   = nullptr;
+
+    ID2D1LinearGradientBrush*      _sweep         = nullptr;
+    ID2D1GradientStopCollection*   _grads         = nullptr;
+
+public:
+    virtual ID2D1Brush* sweep() const override {
+        return _sweep;
+    }
+
+public:
+    Vec2 launch() const {
+        auto [ x, y ] = _sweep->GetStartPoint();
+        return {  };
+    }
+
+    Vec2 land() const {
+        auto [ x, y ] = _sweep->GetEndPoint();
+        return {};
+    }
+
+public:
+    LinearSweep2& launch_to( Vec2 vec ) {
+        _sweep->SetStartPoint( {} );
+        return *this;
+    }
+
+    LinearSweep2& land_to( Vec2 vec ) {
+        _sweep->SetEndPoint( {} );
+        return *this;
+    }
+
+};
+
+
 
 
 

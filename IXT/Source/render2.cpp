@@ -65,8 +65,8 @@ RenderSpec2& Renderer2::line(
     const Sweep2& brush
 ) {
     return this->line(
-        pull_axis( v1 ),
-        pull_axis( v2 ),
+        pull_normal_axis( v1 ),
+        pull_normal_axis( v2 ),
         brush
     );
 }
@@ -81,8 +81,8 @@ RenderSpec2& Viewport2::fill( const RGBA& rgba ) {
 }
 
 RenderSpec2& Viewport2::fill( const Sweep2& brush ) { 
-    auto tl = pull_axis( this->top_left_g() );
-    auto br = pull_axis( this->bot_right_g() );
+    auto tl = pull_normal_axis( this->top_left_g() );
+    auto br = pull_normal_axis( this->bot_right_g() );
 
     _renderer->target()->FillRectangle(
         D2D1_RECT_F{ tl.x, tl.y, br.x, br.y },
@@ -97,8 +97,8 @@ RenderSpec2& Viewport2::line(
     const Sweep2& brush
 ) { 
     return this->line(
-        pull_axis( c1 ),
-        pull_axis( c2 ),
+        pull_normal_axis( c1 ),
+        pull_normal_axis( c2 ),
         brush
     );
 }
@@ -108,8 +108,8 @@ RenderSpec2& Viewport2::line(
     const Sweep2& brush
 ) {
     _super_spec->line(
-        pull_axis( v1 * _size + _origin ),
-        pull_axis( v2 * _size + _origin ),
+        pull_normal_axis( v1 * _size + _origin ),
+        pull_normal_axis( v2 * _size + _origin ),
         brush
     );
 

@@ -315,17 +315,17 @@ public:
     }
 
     Crd2 ptr_c() const {
-        return pull_axis( _pointer );
+        return pull_normal_axis( _pointer );
     }
 
     Crd2 ptr_pc() const {
-        return pull_axis( _prev_pointer );
+        return pull_normal_axis( _prev_pointer );
     }
 
 };
 
 enum SURFACE_STYLE {
-    SURFACE_STYLE_LIQUID = WS_SIZEBOX | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE,
+    SURFACE_STYLE_LIQUID = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE,
     SURFACE_STYLE_SOLID  = WS_POPUP | WS_VISIBLE
 
 };
@@ -505,7 +505,7 @@ _ENGINE_PROTECTED:
 
 
             case WM_MOUSEMOVE: {
-                Vec2 new_pointer = pull_axis( ( Crd2 )( Crd2{ LOWORD( l_param ), HIWORD( l_param ) } / _size ) );
+                Vec2 new_pointer = pull_normal_axis( ( Crd2 )( Crd2{ LOWORD( l_param ), HIWORD( l_param ) } / _size ) );
 
                 this->invoke_sequence< SURFACE_EVENT_POINTER >( _trace, new_pointer, _prev_pointer = std::exchange( _pointer, new_pointer ) );
 

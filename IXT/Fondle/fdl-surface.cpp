@@ -36,7 +36,7 @@ struct MyKeySeqTrigger : public Descriptor {
                 if( key == seq_at++[ "SWITCH" ] ) {
                     if( seq_at != strlen( "SWITCH" ) ) return;
                     
-                    ( triggered ^= true );// ? surf.solidify() : surf.liquify();
+                    ( triggered ^= true );
                 }
 
                 seq_at = 0;

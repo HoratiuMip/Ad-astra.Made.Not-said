@@ -41,26 +41,27 @@ Make it work again. <br>
 ### High:
 
 > - OS::SigInterceptor handling for all cases. ( some terminates are not intercepted now ) <br>
-> - <span style="color:red">~~Do no base fondle executables on component names, iterate Fondle directory instead.~~</span> <br>
+> - <span style="color:orange">~~Do no base fondle executables on component names, iterate Fondle directory instead.~~</span> <br>
 > - Separate Clust2Hookable. <br>
-> - STOP VPtr< T > ptr | some = move( ptr ) | ptr-> FOR FUCK'S SAKE. <br>
-> - Operator new unretarded overload. <br>
+> - <span style="color:orange">~~STOP VPtr< T > ptr | some = move( ptr ) | ptr-> FOR FUCK'S SAKE.~~</span> <br>
+> - <span style="color:orange">~~Operator new unretarded overload.~~</span> <br>
 > - SurfaceEventSentry from type. <br>
 
 ### Medium:
 
 > - During audio sampling, don't make "non-continous" jump from last_amp to current_amp. <br>
-> - <span style="color:red">~~VolatilePtr array specializations.~~</span> <br>
+> - <span style="color:orange">~~VolatilePtr array specializations.~~</span> <br>
 > - Option to choose relative path for fondle default assets. <br>
+> - LinearSweep2 global dive from render spec. <br>
 
 ### Low:
 
-> - Surface VL/VG/CL/CG out of bounds when resizing window. ( see fondle ) <br>
-> - Surface style change invokes resize sequence, kill yourself MS, kindly. <br>
+> - <span style="color:orange">~~Surface VL/VG/CL/CG out of bounds when resizing window. ( see fondle )~~</span> <br>
+> - <span style="color:orange">~~Surface style change invokes resize sequence, kill yourself MS, kindly.~~</span> | Scrapped the idea of surface resizing, all resources would need reconstruction. <br>
 
 ### Perhaps:
 
-> - <span style="color:red">~~Some smart pointer wrappers, more ops and behavs.~~</span> <br>
+> - <span style="color:orange">~~Some smart pointer wrappers, more ops and behavs.~~</span> | Made VPtr< T >. <br>
 
 `|`<br>
 `|`<br>

@@ -137,7 +137,7 @@ enum RENDERER2_DFT_SWEEP {
     _RENDERER2_DFT_SWEEP_FORCE_QWORD = 0xFF'FF'FF'FF'FF'FF'FF'FF
 };
 
-class Renderer2DefaultSweeps {
+struct Renderer2DefaultSweeps {
 public:
     Renderer2DefaultSweeps() = default;
 
@@ -616,6 +616,17 @@ public:
         return this->sweep();
     }
 
+public:
+    float a() const {
+        return this->sweep()->GetOpacity();
+    }
+
+    Sweep2& a( float value ) {
+        this->sweep()->SetOpacity( value );
+        return *this;
+    }
+
+
 };
 
 
@@ -674,10 +685,6 @@ public:
         return this->rgba().b;
     }
 
-    float a() const {
-        return this->rgba().a;
-    }
-
 public:
     SolidSweep2& rgba( RGBA c ) {
         _sweep->SetColor( c );
@@ -697,26 +704,31 @@ public:
         return rgba( { r(), g(), value } );
     }
 
-    SolidSweep2& a( float value ) {
-        _sweep->SetOpacity( value );
-
-        return *this;
-    }
-
 };
 
+
+using LinearSweep2ChainLink = std::pair< RGBA, float >;
+
 struct LinearSweep2Chain : std::vector< D2D1_GRADIENT_STOP > {
-    LinearSweep2Chain& push( std::pair< RGBA, float > gs_pair ) {
+    LinearSweep2Chain() = default;
+
+    LinearSweep2Chain( std::initializer_list< LinearSweep2ChainLink > ls ) {
+        this->reserve( ls.size() );
+
+        for( auto& l : ls )
+            this->emplace_back( D2D1_GRADIENT_STOP{
+                position: l.second,
+                color: l.first
+            } );
+    }
+
+    LinearSweep2Chain& push( LinearSweep2ChainLink gs_pair ) {
         this->emplace_back( D2D1_GRADIENT_STOP{
             position: gs_pair.second,
             color: gs_pair.first
         } );
 
         return *this;
-    }
-
-    size_t size() const {
-        return this->size();
     }
 };
 
@@ -727,7 +739,6 @@ public:
 public:
     LinearSweep2() = default;
 
-    template< typename Itr >
     LinearSweep2(
         VPtr< RenderSpec2 >        render_spec,
         Vec2                       launch,
@@ -736,10 +747,8 @@ public:
         float                      w        = 1.0,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : Sweep2{ w }
+    : Sweep2{ w }, _render_spec{ std::move( render_spec ) }
     {
-        _render_spec = std::move( render_spec );
-
         if(
             _render_spec->renderer().target()->CreateGradientStopCollection(
                 chain.data(),
@@ -795,7 +804,7 @@ public:
 public:
     Vec2 launch() const {
         auto [ x, y ] = _sweep->GetStartPoint();
-        return {  };
+        return {};
     }
 
     Vec2 land() const {

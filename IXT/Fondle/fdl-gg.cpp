@@ -56,15 +56,12 @@ int main() {
         static std::pair< Vec2, Vec2 >   arr[ arr_sz ]   = {};
         static size_t                    arr_at          = 0;
         static ggfloat_t                 a_step          = 1.0 / arr_sz;
-        static LinearSweep2              sweep           = {};
-        static auto                      _sweep_init     = ( [ & ] () -> bool { 
-            new ( &sweep ) LinearSweep2{ render, { -.4, .0 }, { .4, .0 }, {
+        static LinearSweep2              sweep           = { 
+            render, { -.4, .0 }, { .4, .0 }, {
                 LinearSweep2ChainLink{ { 80, 10, 255 }, .0 },
                 LinearSweep2ChainLink{ { 255, 10, 80 }, 1.0 }
-            }, 3.0 };
-
-            return true;
-        } )();
+            }, 3.0 
+        };
 
         render.charge().fill( RGBA{ 0 } );
 

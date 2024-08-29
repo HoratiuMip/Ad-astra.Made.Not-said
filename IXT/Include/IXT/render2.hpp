@@ -97,9 +97,9 @@ public:
     virtual RenderSpec2& line( Vec2, Vec2, const Sweep2& ) = 0;
 
 public:
-    virtual Crd2 coord() const = 0;
+    virtual Crd2 crd() const = 0;
 
-    virtual Vec2 origin() const = 0;
+    virtual Vec2 org() const = 0;
 
     virtual Vec2 size() const = 0;
 
@@ -271,9 +271,9 @@ public:
     }
 
 public:
-    Crd2 coord()  const override { return { 0, 0 }; }
-    Vec2 origin() const override { return { 0, 0 }; }
-    Vec2 size()   const override { return _surface->size(); }
+    Crd2 crd() const override { return { 0, 0 }; }
+    Vec2 org() const override { return { 0, 0 }; }
+    Vec2 size() const override { return _surface->size(); }
 
 public:
     Vec2 local_dive( Vec2 vec ) const override {
@@ -411,23 +411,22 @@ public:
     }
 
 public:
-    Crd2 coord()  const override { return pull_normal_axis( _origin ); }
-    Vec2 origin() const override { return _origin; }
-    Vec2 size()   const override { return _size; }
+    Crd2 crd() const override { return pull_normal_axis( _origin ) - _size*.5; }
+    Vec2 org() const override { return _origin; }
+    Vec2 size() const override { return _size; }
 
 public:
     Vec2 local_dive( Vec2 vec ) const override {
-        return _super_spec->local_dive( _origin + vec*_size );
+        return _super_spec->local_dive( _origin + _size*vec );
     }
 
     Crd2 local_dive( Crd2 crd ) const override {
-        return _super_spec->local_dive( this->coord() + crd*_size );
+        return _super_spec->local_dive( this->crd() + _size*crd );
     }
 
 public:
     Viewport2& relocate( Vec2 vec ) {
         _origin = vec;
-
         return *this;
     }
 
@@ -768,7 +767,7 @@ public:
                     _render_spec->local_dive( pull_normal_axis( launch ) ),
                     _render_spec->local_dive( pull_normal_axis( land ) )
                 },
-                D2D1_BRUSH_PROPERTIES {
+                D2D1_BRUSH_PROPERTIES{
                     1.0,
                     D2D1::Matrix3x2F::Identity()
                 },

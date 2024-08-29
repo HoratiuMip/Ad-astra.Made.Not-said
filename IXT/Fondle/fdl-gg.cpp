@@ -19,8 +19,8 @@ int main() {
 
     Renderer2 render{ surface };
 
-    Viewport2 port{ render, Crd2{ 0.5 }, Vec2{ 0.5 } };
-    //port.uplink();
+    Viewport2 port{ render, Vec2{ .0 }, Vec2{ .5 } };
+    port.uplink();
 
 
     struct Scenes : std::vector< std::function< void() > > {
@@ -57,7 +57,7 @@ int main() {
         static size_t                    arr_at          = 0;
         static ggfloat_t                 a_step          = 1.0 / arr_sz;
         static LinearSweep2              sweep           = { 
-            render, { -.4, .0 }, { .4, .0 }, {
+            port, { -.4, .0 }, { .4, .0 }, {
                 LinearSweep2ChainLink{ { 80, 10, 255 }, .0 },
                 LinearSweep2ChainLink{ { 255, 10, 80 }, 1.0 }
             }, 3.0 
@@ -70,7 +70,7 @@ int main() {
             { .4, ( ggfloat_t )sin( ticker.up_time() * 3 ) / 2 }
         );
 
-        render.line( left_new, right_new, sweep );
+        port.line( left_new, right_new, sweep );
 
         float  a_at = 1.0;
         size_t at   = arr_at;
@@ -78,7 +78,7 @@ int main() {
             auto [ left, right ] = arr[ at-- ];
 
             sweep.a( a_at -= a_step );
-            render.line( left, right, sweep );
+            port.line( left, right, sweep );
 
             if( at == ~0ULL )
                 at = arr_sz - 1;

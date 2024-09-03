@@ -7,6 +7,12 @@ namespace _ENGINE_NAMESPACE {
 
 
 
+RenderSpec2::target_t* RenderSpec2::target() {
+    return _renderer->target();
+}
+
+
+
 Renderer2DefaultSweeps::Renderer2DefaultSweeps( Renderer2& renderer, _ENGINE_COMMS_ECHO_NO_DFT_ARG ) {
     for( auto enum_bytes : { 
         RENDERER2_DFT_SWEEP_VOLATILE,
@@ -18,7 +24,7 @@ Renderer2DefaultSweeps::Renderer2DefaultSweeps( Renderer2& renderer, _ENGINE_COM
     } ) {
         uint64_t bytes = ( ( uint64_t )( enum_bytes ) & ( uint64_t )( RENDERER2_DFT_SWEEP_RGBA_MASK ) ) >> 32; 
 
-        _default_sweeps.emplace_back( std::make_shared< SolidSweep2 >(
+        _default_sweeps.emplace_back( std::make_shared< SldSweep2 >(
             renderer, 
             RGBA{
                 ( uint8_t )( ( bytes & 0xFF'00'00'00 ) >> 24 ),
@@ -71,6 +77,11 @@ RenderSpec2& Renderer2::line(
     );
 }
 
+
+
+Viewport2& Viewport2::splash_bounds() {
+    
+}
 
 RenderSpec2& Viewport2::fill( const RGBA& rgba ) { 
     this->restrict();

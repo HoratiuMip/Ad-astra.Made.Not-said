@@ -19,7 +19,7 @@ int main() {
 
     Renderer2 render{ surface };
 
-    Viewport2 port{ render, Vec2{ .0 }, Vec2{ .5 } };
+    Viewport2 port{ render, Vec2{ .0 }, Vec2{ .6 } };
     port.uplink();
 
 
@@ -56,12 +56,14 @@ int main() {
         static std::pair< Vec2, Vec2 >   arr[ arr_sz ]   = {};
         static size_t                    arr_at          = 0;
         static ggfloat_t                 a_step          = 1.0 / arr_sz;
-        static LinearSweep2              sweep           = { 
-            port, { -.4, .0 }, { .4, .0 }, {
-                LinearSweep2ChainLink{ { 80, 10, 255 }, .0 },
-                LinearSweep2ChainLink{ { 255, 10, 80 }, 1.0 }
+        static RdlSweep2                 sweep           = { 
+            port, { .0, .0 }, { .0, .0 }, { .5, .5 }, {
+                Sweep2gcn_t{ { 80, 10, 255 }, .0 },
+                Sweep2gcn_t{ { 255, 10, 80 }, 1.0 }
             }, 3.0 
         };
+
+        sweep.org_at( surface.ptr_v() );
 
         render.charge().fill( RGBA{ 0 } );
 
@@ -86,7 +88,7 @@ int main() {
 
         sweep.a( 1.0 );
 
-        if( ticker.cmpxchg_lap( 0.016 ) ) {
+        if( ticker.cmpxchg_lap( 0.008 ) ) {
             if( ++arr_at == arr_sz )
                 arr_at = 0;
 

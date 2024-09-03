@@ -68,6 +68,9 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "RenderSpec2" );
 
 public:
+    using target_t = ID2D1HwndRenderTarget;
+
+public:
     RenderSpec2() = default;
 
     RenderSpec2( VPtr< RenderSpec2 > other ) 
@@ -104,9 +107,9 @@ public:
     virtual Vec2 size() const = 0;
 
 public:
-    virtual Vec2 local_dive( Vec2 ) const = 0;
+    virtual Vec2 direct_dive( Vec2 ) const = 0;
 
-    virtual Crd2 local_dive( Crd2 ) const = 0;
+    virtual Crd2 direct_dive( Crd2 ) const = 0;
 
 public:
     RenderSpec2& super_spec() {
@@ -118,6 +121,9 @@ public:
     }
 
     Surface& surface();
+
+public:
+    target_t* target();
 
 };
 
@@ -240,12 +246,12 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    VPtr< Surface >          _surface       = nullptr;
+    VPtr< Surface >       _surface       = nullptr;
 
-    ID2D1Factory*            _factory       = nullptr;
-    IWICImagingFactory*      _wic_factory   = nullptr;
+    ID2D1Factory*         _factory       = nullptr;
+    IWICImagingFactory*   _wic_factory   = nullptr;
 
-    ID2D1HwndRenderTarget*   _target        = nullptr;
+    target_t*             _target        = nullptr;
 
 public:
     Surface& surface() {
@@ -276,11 +282,11 @@ public:
     Vec2 size() const override { return _surface->size(); }
 
 public:
-    Vec2 local_dive( Vec2 vec ) const override {
+    Vec2 direct_dive( Vec2 vec ) const override {
         return _surface->localize( vec );
     }
 
-    Crd2 local_dive( Crd2 crd ) const override {
+    Crd2 direct_dive( Crd2 crd ) const override {
         return _surface->localize( crd );
     }
 
@@ -416,12 +422,12 @@ public:
     Vec2 size() const override { return _size; }
 
 public:
-    Vec2 local_dive( Vec2 vec ) const override {
-        return _super_spec->local_dive( _origin + _size*vec );
+    Vec2 direct_dive( Vec2 vec ) const override {
+        return _super_spec->direct_dive( _origin + _size*vec );
     }
 
-    Crd2 local_dive( Crd2 crd ) const override {
-        return _super_spec->local_dive( this->crd() + _size*crd );
+    Crd2 direct_dive( Crd2 crd ) const override {
+        return _super_spec->direct_dive( this->crd() + _size*crd );
     }
 
 public:
@@ -561,6 +567,9 @@ public:
     }
 
 public:
+    Viewport2& splash_bounds();
+
+public:
     RenderSpec2& fill(
         const RGBA& rgba
     ) override;
@@ -582,6 +591,31 @@ public:
 };
 
 
+
+using Sweep2gcn_t = std::pair< RGBA, float >;
+
+struct Sweep2gc : std::vector< D2D1_GRADIENT_STOP > {
+    Sweep2gc() = default;
+
+    Sweep2gc( std::initializer_list< Sweep2gcn_t > ls ) {
+        this->reserve( ls.size() );
+
+        for( auto& l : ls )
+            this->emplace_back( D2D1_GRADIENT_STOP{
+                position: l.second,
+                color: l.first
+            } );
+    }
+
+    Sweep2gc& push( Sweep2gcn_t gs_pair ) {
+        this->emplace_back( D2D1_GRADIENT_STOP{
+            position: gs_pair.second,
+            color: gs_pair.first
+        } );
+
+        return *this;
+    }
+};
 
 class Sweep2 : public Descriptor {
 public:
@@ -628,16 +662,14 @@ public:
 
 };
 
-
-
-class SolidSweep2 : public Sweep2 {
+class SldSweep2 : public Sweep2 {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "SolidSweep2" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "SldSweep2" );
 
 public:
-    SolidSweep2() = default;
+    SldSweep2() = default;
 
-    SolidSweep2(
+    SldSweep2(
         Renderer2& renderer,
         RGBA       rgba     = {},
         float      w        = 1.0,
@@ -654,7 +686,7 @@ public:
     }
 
 public:
-    virtual ~SolidSweep2() override {
+    virtual ~SldSweep2() override {
         if( _sweep ) _sweep->Release();
     }
 
@@ -685,71 +717,45 @@ public:
     }
 
 public:
-    SolidSweep2& rgba( RGBA c ) {
+    SldSweep2& rgba( RGBA c ) {
         _sweep->SetColor( c );
 
         return *this;
     }
 
-    SolidSweep2& r( float value ) {
+    SldSweep2& r( float value ) {
         return rgba( { value, g(), b() } );
     }
 
-    SolidSweep2& g( float value ) {
+    SldSweep2& g( float value ) {
         return rgba( { r(), value, b() } );
     }
 
-    SolidSweep2& b( float value ) {
+    SldSweep2& b( float value ) {
         return rgba( { r(), g(), value } );
     }
 
 };
 
-
-using LinearSweep2ChainLink = std::pair< RGBA, float >;
-
-struct LinearSweep2Chain : std::vector< D2D1_GRADIENT_STOP > {
-    LinearSweep2Chain() = default;
-
-    LinearSweep2Chain( std::initializer_list< LinearSweep2ChainLink > ls ) {
-        this->reserve( ls.size() );
-
-        for( auto& l : ls )
-            this->emplace_back( D2D1_GRADIENT_STOP{
-                position: l.second,
-                color: l.first
-            } );
-    }
-
-    LinearSweep2Chain& push( LinearSweep2ChainLink gs_pair ) {
-        this->emplace_back( D2D1_GRADIENT_STOP{
-            position: gs_pair.second,
-            color: gs_pair.first
-        } );
-
-        return *this;
-    }
-};
-
-class LinearSweep2 : public Sweep2 {
+class LnrSweep2 : public Sweep2 {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "LinearSweep2" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "LnrSweep2" );
 
 public:
-    LinearSweep2() = default;
+    LnrSweep2() = default;
 
-    LinearSweep2(
-        VPtr< RenderSpec2 >        render_spec,
-        Vec2                       launch,
-        Vec2                       land,
-        const LinearSweep2Chain&   chain,
-        float                      w        = 1.0,
+    LnrSweep2(
+        VPtr< RenderSpec2 >   render_spec,
+        Vec2                  launch,
+        Vec2                  land,
+        const Sweep2gc&       chain,
+        float                 w        = 1.0,
         _ENGINE_COMMS_ECHO_ARG
     )
     : Sweep2{ w }, _render_spec{ std::move( render_spec ) }
     {
         if(
-            _render_spec->renderer().target()->CreateGradientStopCollection(
+            _render_spec->target()->CreateGradientStopCollection(
                 chain.data(),
                 chain.size(),
                 D2D1_GAMMA_2_2,
@@ -757,15 +763,15 @@ public:
                 &_grads
             ) != S_OK
         ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: Renderer2::target()->CreateGradientStopCollection() failure.";
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: _render_spec->target()->CreateGradientStopCollection() failure.";
             return;
         }
 
         if(
-            _render_spec->renderer().target()->CreateLinearGradientBrush(
+            _render_spec->target()->CreateLinearGradientBrush(
                 D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES{
-                    _render_spec->local_dive( pull_normal_axis( launch ) ),
-                    _render_spec->local_dive( pull_normal_axis( land ) )
+                    _render_spec->direct_dive( pull_normal_axis( launch ) ),
+                    _render_spec->direct_dive( pull_normal_axis( land ) )
                 },
                 D2D1_BRUSH_PROPERTIES{
                     1.0,
@@ -775,7 +781,7 @@ public:
                 &_sweep
             ) != S_OK
         ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: Renderer2::target()->CreateLinearGradientBrush() failure.";
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: _render_spec->target()->CreateLinearGradientBrush() failure.";
             return;
         }
 
@@ -783,7 +789,7 @@ public:
     }
 
 public:
-    virtual ~LinearSweep2() override {
+    virtual ~LnrSweep2() override {
         if( _sweep ) _sweep->Release();
 
         if( _grads ) _grads->Release();
@@ -812,19 +818,137 @@ public:
     }
 
 public:
-    LinearSweep2& launch_to( Vec2 vec ) {
+    LnrSweep2& launch_at( Vec2 vec ) {
         _sweep->SetStartPoint( {} );
         return *this;
     }
 
-    LinearSweep2& land_to( Vec2 vec ) {
+    LnrSweep2& land_at( Vec2 vec ) {
         _sweep->SetEndPoint( {} );
         return *this;
     }
 
 };
 
+class RdlSweep2 : public Sweep2 {
+public:
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "RdlSweep2" );
 
+public:
+    RdlSweep2() = default;
+
+    RdlSweep2(
+        VPtr< RenderSpec2 >   render_spec,
+        Vec2                  org,
+        Vec2                  off,
+        Vec2                  rad,
+        const Sweep2gc        chain,
+        float                 w              = 1.0,
+        _ENGINE_COMMS_ECHO_ARG
+    )
+    : Sweep2{ w }, _render_spec{ std::move( render_spec ) }
+    {
+        if(
+            _render_spec->target()->CreateGradientStopCollection(
+                chain.data(),
+                chain.size(),
+                D2D1_GAMMA_2_2,
+                D2D1_EXTEND_MODE_CLAMP,
+                &_grads
+            ) != S_OK
+        ) {
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: _render_spec->target()->CreateGradientStopCollection failure.";
+            return;
+        }
+
+        rad = _render_spec->direct_dive( rad );
+
+        if(
+            _render_spec->target()->CreateRadialGradientBrush(
+                D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES{
+                    _render_spec->direct_dive( pull_normal_axis( org ) ),
+                    _render_spec->direct_dive( Crd2{ off.x, -off.y } ),
+                    rad.x, rad.y
+                },
+                _grads,
+                &_sweep
+            ) != S_OK
+        ) {
+            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: _render_spec->target()->CreateRadialGradientBrush failure.";
+            return;
+        }
+
+        echo( this, ECHO_STATUS_OK ) << "Created.";
+    }
+
+public:
+    virtual ~RdlSweep2() override {
+        if( _sweep ) _sweep->Release();
+
+        if( _grads ) _grads->Release();
+    }
+
+private:
+    VPtr< RenderSpec2 >            _render_spec   = nullptr;
+
+    ID2D1RadialGradientBrush*      _sweep         = nullptr;
+    ID2D1GradientStopCollection*   _grads         = nullptr;
+
+public:
+    virtual ID2D1Brush* sweep() const override {
+        return _sweep;
+    }
+
+public:
+    Vec2 org() const {
+        auto [ x, y ] = _sweep->GetCenter();
+        return {};
+    }
+
+    Vec2 off() const {
+        auto [ x, y ] = _sweep->GetGradientOriginOffset();
+        return {};
+    }
+
+    float radx() const {
+        return _sweep->GetRadiusX();
+    }
+
+    float rady() const {
+        return _sweep->GetRadiusY();
+    }
+
+    Vec2 rad() const {
+        return { this->radx(), this->rady() };
+    }
+
+public:
+    RdlSweep2& org_at( Vec2 vec ) {
+        _sweep->SetCenter( _render_spec->direct_dive( pull_normal_axis( vec ) ) );
+        return *this;
+    }
+
+    RdlSweep2& off_at( Vec2 off ) {
+        off.y *= -1;
+        _sweep->SetGradientOriginOffset( _render_spec->direct_dive( ( Crd2 )off ) );
+        return *this;
+    }
+
+    RdlSweep2& radx_at( ggfloat_t rx ) {
+        _sweep->SetRadiusX( rx );
+        return *this;
+    }
+
+    RdlSweep2& rady_at( ggfloat_t ry ) {
+        _sweep->SetRadiusY( ry );
+        return *this;
+    }
+
+    RdlSweep2& rad_at( Vec2 vec ) {
+        return this->radx_at( vec.x ).rady_at( vec.y );
+    }
+
+};
 
 
 

@@ -3,6 +3,9 @@
 Godlike masterwork engine approved by punchcard/asm/C goddess Ahri. <br>
 Make it work again. <br>
 
+Quick dictionary: <br>
+> - "ml4o" - most likely forever only <br>
+
 `|`<br>
 `|`<br>
 `|`<br>
@@ -20,7 +23,7 @@ Make it work again. <br>
 
 <br>
 
-[ Quickies ]
+[ Quick cmds ]
 
 `cmake .. -DIXT_PREPROCESSOR_DEFINITIONS=IXT_OS_WINDOWS;IXT_GL_DIRECT_2D1 -DIXT_FONDLES_TO_BUILD=` <br>
 
@@ -80,7 +83,7 @@ Make it work again. <br>
 
 ### Typedefs:
 
-> - For primitives, the typedef is full lower-case and followed by '**_t**', like in ***stdint.h***.<br>
+> - For primitives and short usings, the typedef is full lower-case and followed by '**_t**', like in ***stdint.h***.<br>
 > `typedef int sig_t`<br>
 > - For structures, the typedef follows the ***Structure*** wording.
 
@@ -118,9 +121,9 @@ Make it work again. <br>
 
 ### Mandatory:
 
-> - Operating system. Currently supporting: <br>
+> - Operating system. Currently(ml4o) supporting: <br>
 >   - `IXT_WINDOWS_OS` <br>
-> - Graphics library. Currently supporting: <br>
+> - Graphics library. Currently(ml4o) supporting: <br>
 >   - `IXT_GL_NONE` <br>
 >   - `IXT_GL_DIRECT_2D1` <br>
 
@@ -128,3 +131,17 @@ Make it work again. <br>
 
 > - Wether your project shall use only one Surface, thus enabling quicker event routing and some quicker accesses. <br>
 >   - `IXT_UNIQUE_SURFACE` <br>
+
+
+`|`<br>
+`|`<br>
+`|`<br>
+
+
+## Dictionary
+
+### render2:
+> - `Sweep2gc` - gradient chain. <br>
+> - `Sweep2gcn_t` - gradient chain node. <br>
+
+

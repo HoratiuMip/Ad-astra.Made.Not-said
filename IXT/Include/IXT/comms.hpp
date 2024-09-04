@@ -19,12 +19,12 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-enum ECHO_STATUS {
-    ECHO_STATUS_OK      = 0,
-    ECHO_STATUS_WARNING = 1,
-    ECHO_STATUS_ERROR   = 2,
-    ECHO_STATUS_INTEL   = 3,
-    ECHO_STATUS_PENDING = 4
+enum ECHO_LEVEL {
+    ECHO_LEVEL_OK      = 0,
+    ECHO_LEVEL_WARNING = 1,
+    ECHO_LEVEL_ERROR   = 2,
+    ECHO_LEVEL_INTEL   = 3,
+    ECHO_LEVEL_PENDING = 4
 };
 
 class Echo {
@@ -124,7 +124,7 @@ _ENGINE_PROTECTED:
     } _unknown_invoker_placeholder;
 
 public:
-    Echo& operator () ( const Descriptor& invoker, ECHO_STATUS status ) {
+    Echo& operator () ( const Descriptor& invoker, ECHO_LEVEL status ) {
         if( !this->_str().view().empty() )
             this->operator<<( '\n' );
 
@@ -154,19 +154,19 @@ public:
         .white();
     }
 
-    Echo& operator() ( const Descriptor* invoker, ECHO_STATUS status ) {
+    Echo& operator() ( const Descriptor* invoker, ECHO_LEVEL status ) {
         return this->operator()( *invoker, status );
     }
 
     template< typename T >
     requires( !is_descriptor_tolerant< T > )
-    Echo& operator() ( const T& invoker, ECHO_STATUS status ) {
+    Echo& operator() ( const T& invoker, ECHO_LEVEL status ) {
         return this->operator()( _unknown_invoker_placeholder, status );
     }
 
     template< typename T >
     requires( !is_descriptor_tolerant< T > )
-    Echo& operator() ( const T* invoker, ECHO_STATUS status ) {
+    Echo& operator() ( const T* invoker, ECHO_LEVEL status ) {
         return this->operator()( *invoker, status );
     }
 

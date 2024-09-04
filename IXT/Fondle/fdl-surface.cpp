@@ -43,7 +43,7 @@ struct MyKeySeqTrigger : public Descriptor {
             }
         );
 
-        echo( this, ECHO_STATUS_INTEL ) << "MyKeySeqTrigger engaged.";
+        echo( this, ECHO_LEVEL_INTEL ) << "MyKeySeqTrigger engaged.";
     }
 
     void kill( Surface& surf ) {

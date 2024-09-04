@@ -353,7 +353,7 @@ public:
     )
     : _title{ title.data() }, _position( pos ), _size( size ), _style{ style }
     {
-        echo( this, ECHO_STATUS_OK ) << "Set.";
+        echo( this, ECHO_LEVEL_OK ) << "Set.";
     }
 
 
@@ -389,7 +389,7 @@ _ENGINE_PROTECTED:
 _ENGINE_PROTECTED:
     void _main( std::binary_semaphore* sync, _ENGINE_COMMS_ECHO_ARG ) {
         if( !RegisterClassEx( &_wnd_class ) ) {
-            echo( this, ECHO_STATUS_ERROR ) << "Bad window class registration.";
+            echo( this, ECHO_LEVEL_ERROR ) << "Bad window class registration.";
 
             if( sync ) sync->release(); return;
         }
@@ -398,7 +398,7 @@ _ENGINE_PROTECTED:
         Vec2 adjusted = this->_adjust_size_for( _style );
 
         if( adjusted == Vec2::O() )
-            echo( this, ECHO_STATUS_WARNING ) << "Bad window size adjustment.";
+            echo( this, ECHO_LEVEL_WARNING ) << "Bad window size adjustment.";
 
 
         _hwnd = CreateWindowEx(
@@ -418,7 +418,7 @@ _ENGINE_PROTECTED:
         );
 
         if( !_hwnd ) {
-            echo( this, ECHO_STATUS_ERROR ) << "Bad window handle.";
+            echo( this, ECHO_LEVEL_ERROR ) << "Bad window handle.";
 
             if( sync ) sync->release(); return;
         }
@@ -426,7 +426,7 @@ _ENGINE_PROTECTED:
         SetWindowText( _hwnd, _wnd_class.lpszClassName );
 
 
-        echo( this, ECHO_STATUS_OK ) << ( sync ? "Created across." : "Created through." );
+        echo( this, ECHO_LEVEL_OK ) << ( sync ? "Created across." : "Created through." );
 
         if( sync ) sync->release();
 
@@ -654,7 +654,7 @@ public:
 
             case SURFACE_THREAD_ACROSS: goto l_thread_across;
 
-            default: echo( this, ECHO_STATUS_ERROR ) << "Bad thread launch argument."; return *this;
+            default: echo( this, ECHO_LEVEL_ERROR ) << "Bad thread launch argument."; return *this;
         }
 
 l_thread_through: 
@@ -668,11 +668,11 @@ l_thread_across:
         _thread = std::thread( _main, this, &sync, echo );
 
         if( _thread.joinable() ) {
-            echo( this, ECHO_STATUS_PENDING ) << "Waiting for across window creation...";
+            echo( this, ECHO_LEVEL_PENDING ) << "Waiting for across window creation...";
 
             sync.acquire();
         } else
-            echo( this, ECHO_STATUS_ERROR ) << "Main thread bad invoke.";
+            echo( this, ECHO_LEVEL_ERROR ) << "Main thread bad invoke.";
 } 
         return *this;
     }
@@ -681,7 +681,7 @@ l_thread_across:
         SendMessage( _hwnd, _SURFACE_EVENT_DESTROY, WPARAM{}, LPARAM{} );
 
         if( !UnregisterClassA( _wnd_class.lpszClassName, GetModuleHandle( NULL ) ) )
-            echo( this, ECHO_STATUS_ERROR ) << "Bad window class unregistration.";
+            echo( this, ECHO_LEVEL_ERROR ) << "Bad window class unregistration.";
 
         if( _thread.joinable() )
             _thread.join();

@@ -30,7 +30,7 @@ public:
             std::ifstream file{ path.data(), std::ios_base::binary };
 
             if( !file ) {
-                echo( this, ECHO_STATUS_ERROR ) << "Could NOT open file: \"" << path.data() << "\".";
+                echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.data() << "\".";
                 return;
             }
         
@@ -41,7 +41,7 @@ public:
 
 
             if( !raw_stream ) {
-                echo( this, ECHO_STATUS_ERROR ) << "Bad alloc for file read buffer.";
+                echo( this, ECHO_LEVEL_ERROR ) << "Bad alloc for file read buffer.";
                 return;
             }
 
@@ -63,7 +63,7 @@ public:
             stream.reset( new T[ sample_count ] );
 
             if( !stream ) {
-                echo( this, ECHO_STATUS_ERROR ) << "Bad alloc for stream buffer.";
+                echo( this, ECHO_LEVEL_ERROR ) << "Bad alloc for stream buffer.";
                 return;
             }
 
@@ -83,13 +83,13 @@ public:
 
 
             if( sample_count % tunnel_count != 0 )
-                echo( this, ECHO_STATUS_WARNING ) << "Sample count does not distribute evenly on channel count.";
+                echo( this, ECHO_LEVEL_WARNING ) << "Sample count does not distribute evenly on channel count.";
 
             
             sample_count /= tunnel_count;
 
 
-            echo( this, ECHO_STATUS_OK ) << "Created from: \"" << path.data() << "\".";
+            echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.data() << "\".";
         }
 
     

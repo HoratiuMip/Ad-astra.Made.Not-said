@@ -63,6 +63,8 @@ public:
 
 
 
+using RenderSpec2tmx = D2D1::Matrix3x2F;
+
 class RenderSpec2 : public Descriptor {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "RenderSpec2" );
@@ -107,9 +109,7 @@ public:
     virtual Vec2 size() const = 0;
 
 public:
-    virtual Vec2 direct_dive( Vec2 ) const = 0;
-
-    virtual Crd2 direct_dive( Crd2 ) const = 0;
+    virtual dword_t direct_dive( RenderSpec2tmx& ) const = 0;
 
 public:
     RenderSpec2& super_spec() {
@@ -182,7 +182,7 @@ public:
     : RenderSpec2{ *this }, _surface{ std::move( surface ) }
     {
         if( CoInitialize( nullptr ) != S_OK ) { 
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: CoInitialize() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: CoInitialize() failure.";
             return;
         }    
 
@@ -195,7 +195,7 @@ public:
                 ( void** )&_wic_factory
             ) != S_OK 
         ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: CoCreateInstance() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: CoCreateInstance() failure.";
             return;
         }
 
@@ -205,7 +205,7 @@ public:
                 &_factory
             ) != S_OK 
         ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: D2D1CreateFactory() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: D2D1CreateFactory() failure.";
             return;
         }
 
@@ -220,7 +220,7 @@ public:
                 &_target
             ) != S_OK
         ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: ID2D1Factory::CreateHwndRenderTarget() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: ID2D1Factory::CreateHwndRenderTarget() failure.";
             return;
         }
 
@@ -228,7 +228,7 @@ public:
         *( Renderer2DefaultSweeps* )( this ) = Renderer2DefaultSweeps{ *this, echo };
 
 
-        echo( this, ECHO_STATUS_OK ) << "Created.";
+        echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
 
 
@@ -282,12 +282,9 @@ public:
     Vec2 size() const override { return _surface->size(); }
 
 public:
-    Vec2 direct_dive( Vec2 vec ) const override {
-        return _surface->localize( vec );
-    }
-
-    Crd2 direct_dive( Crd2 crd ) const override {
-        return _surface->localize( crd );
+    dword_t direct_dive( RenderSpec2tmx& tmx ) const override {
+        tmx = tmx * RenderSpec2tmx::Scale( _surface->width(), _surface->height() );
+        return 0;
     }
 
 public:
@@ -371,7 +368,8 @@ public:
 
 
 class Viewport2 : public RenderSpec2,
-                  public SurfaceEventSentry
+                  public SurfaceEventSentry,
+                  public SurfacePointerSentry
 {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Viewport2" );
@@ -388,7 +386,7 @@ public:
     : RenderSpec2{ render_spec },
       _origin{ org }, _size{ sz }, _size2{ sz / 2}
     {
-        echo( this, ECHO_STATUS_OK ) << "Created.";
+        echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
 
     Viewport2(
@@ -422,12 +420,16 @@ public:
     Vec2 size() const override { return _size; }
 
 public:
-    Vec2 direct_dive( Vec2 vec ) const override {
-        return _super_spec->direct_dive( _origin + _size*vec );
-    }
+    dword_t direct_dive( RenderSpec2tmx& tmx ) const override {
+        Crd2 c = this->crd();
 
-    Crd2 direct_dive( Crd2 crd ) const override {
-        return _super_spec->direct_dive( this->crd() + _size*crd );
+        tmx = tmx
+              *
+              RenderSpec2tmx::Scale( _size.x, _size.y ) 
+              * 
+              RenderSpec2tmx::Translation( c.x, c.y );
+
+        return _super_spec->direct_dive( tmx ); 
     }
 
 public:
@@ -531,25 +533,24 @@ public:
 public:
     Viewport2& uplink() {
         this->surface()
-
         .socket_plug< SURFACE_EVENT_POINTER >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, Vec2 lvec, auto& trace ) -> void {
                 if( !this->contains_g( vec ) ) return;
 
-                this->invoke_sequence< SURFACE_EVENT_POINTER >( trace, vec - _origin, lvec - _origin );
+                this->invoke_sequence< SURFACE_EVENT_POINTER >( 
+                    trace, _pointer = ( vec - _origin ) / _size, _prev_pointer = ( lvec - _origin ) / _size 
+                );
             }
         )
-
         .socket_plug< SURFACE_EVENT_SCROLL >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, SURFSCROLL_DIRECTION dir, auto& trace ) -> void {
                 if( !this->contains_g( vec ) ) return;
 
-                this->invoke_sequence< SURFACE_EVENT_SCROLL >( trace, vec - _origin, dir );
+                this->invoke_sequence< SURFACE_EVENT_SCROLL >( trace, ( vec - _origin ) / _size, dir );
             }
         )
-
         .socket_plug< SURFACE_EVENT_KEY >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( SurfKey key, SURFKEY_STATE state, auto& trace ) -> void {
@@ -678,11 +679,11 @@ public:
     : Sweep2{ w }
     {
         if( renderer.target()->CreateSolidColorBrush( rgba, &_sweep ) != S_OK ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: Renderer2::target()->CreateSolidColorBrush() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: Renderer2::target()->CreateSolidColorBrush() failure.";
             return;
         }
 
-        echo( this, ECHO_STATUS_OK ) << "Created.";
+        echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
 
 public:
@@ -763,29 +764,28 @@ public:
                 &_grads
             ) != S_OK
         ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: _render_spec->target()->CreateGradientStopCollection() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: _render_spec->target()->CreateGradientStopCollection() failure.";
             return;
         }
+
+        auto tmx = RenderSpec2tmx::Identity();
+        _render_spec->direct_dive( tmx );
 
         if(
             _render_spec->target()->CreateLinearGradientBrush(
                 D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES{
-                    _render_spec->direct_dive( pull_normal_axis( launch ) ),
-                    _render_spec->direct_dive( pull_normal_axis( land ) )
+                    pull_normal_axis( launch ), pull_normal_axis( land )
                 },
-                D2D1_BRUSH_PROPERTIES{
-                    1.0,
-                    D2D1::Matrix3x2F::Identity()
-                },
+                D2D1_BRUSH_PROPERTIES{ w, tmx },
                 _grads,
                 &_sweep
             ) != S_OK
         ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: _render_spec->target()->CreateLinearGradientBrush() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: _render_spec->target()->CreateLinearGradientBrush() failure.";
             return;
         }
 
-        echo( this, ECHO_STATUS_OK ) << "Created.";
+        echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
 
 public:
@@ -857,28 +857,31 @@ public:
                 &_grads
             ) != S_OK
         ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: _render_spec->target()->CreateGradientStopCollection failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: _render_spec->target()->CreateGradientStopCollection failure.";
             return;
         }
 
-        rad = _render_spec->direct_dive( rad );
+        auto tmx = RenderSpec2tmx::Identity();
+        _render_spec->direct_dive( tmx );
 
         if(
             _render_spec->target()->CreateRadialGradientBrush(
                 D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES{
-                    _render_spec->direct_dive( pull_normal_axis( org ) ),
-                    _render_spec->direct_dive( Crd2{ off.x, -off.y } ),
+                    pull_normal_axis( org ), Crd2{ off.x, -off.y },
                     rad.x, rad.y
+                },
+                D2D1_BRUSH_PROPERTIES{
+                    w, tmx
                 },
                 _grads,
                 &_sweep
             ) != S_OK
         ) {
-            echo( this, ECHO_STATUS_ERROR ) << "<constructor>: _render_spec->target()->CreateRadialGradientBrush failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: _render_spec->target()->CreateRadialGradientBrush failure.";
             return;
         }
 
-        echo( this, ECHO_STATUS_OK ) << "Created.";
+        echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
 
 public:
@@ -924,13 +927,12 @@ public:
 
 public:
     RdlSweep2& org_at( Vec2 vec ) {
-        _sweep->SetCenter( _render_spec->direct_dive( pull_normal_axis( vec ) ) );
+        _sweep->SetCenter( pull_normal_axis( vec ) );
         return *this;
     }
 
     RdlSweep2& off_at( Vec2 off ) {
-        off.y *= -1;
-        _sweep->SetGradientOriginOffset( _render_spec->direct_dive( ( Crd2 )off ) );
+        _sweep->SetGradientOriginOffset( Crd2{ off.x, -off.y } );
         return *this;
     }
 

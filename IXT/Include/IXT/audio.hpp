@@ -232,7 +232,7 @@ public:
         _blocks_memory.reset( new int[ _block_count * _block_sample_count ] );
 
         if( !_blocks_memory ) {
-            echo( this, ECHO_STATUS_ERROR ) << "Blocks bad alloc."; 
+            echo( this, ECHO_LEVEL_ERROR ) << "Blocks bad alloc."; 
             return;
         }
 
@@ -242,7 +242,7 @@ public:
         _wave_headers.reset( new WAVEHDR[ _block_count ] );
 
         if( !_wave_headers ) {
-            echo( this, ECHO_STATUS_ERROR ) << "Wave headers bad alloc.";
+            echo( this, ECHO_LEVEL_ERROR ) << "Wave headers bad alloc.";
             return;
         }
 
@@ -266,7 +266,7 @@ public:
         }
 
         if( dev_idx == devs.size() ) {
-            echo( this, ECHO_STATUS_ERROR ) << "Device \"" << _device << "\" does not exist.";
+            echo( this, ECHO_LEVEL_ERROR ) << "Device \"" << _device << "\" does not exist.";
             return;
         }
 
@@ -290,7 +290,7 @@ public:
         );
 
         if( result != S_OK ) {
-            echo( this, ECHO_STATUS_ERROR ) << "Could NOT open wave to device.";
+            echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open wave to device.";
             return;
         }
 
@@ -300,14 +300,14 @@ public:
         _thread = std::thread( _main, this );
 
         if( !_thread.joinable() ) {
-            echo( this, ECHO_STATUS_ERROR ) << "Could NOT launch main thread."; 
+            echo( this, ECHO_LEVEL_ERROR ) << "Could NOT launch main thread."; 
             return;
         }
 
         std::unique_lock< std::mutex > lock{ _mtx };
         _cnd_var.notify_one();
 
-        echo( this, ECHO_STATUS_OK ) << "Created. Streaming to \"" << _device << "\".";
+        echo( this, ECHO_LEVEL_OK ) << "Created. Streaming to \"" << _device << "\".";
     }
 
 
@@ -530,20 +530,20 @@ public:
             _sample_count   = wav.sample_count;
             _tunnel_count  = wav.tunnel_count;
 
-            echo( this, ECHO_STATUS_OK ) << "Created from: \"" << path.data() << "\".";
+            echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.data() << "\".";
         } else
-            echo( this, ECHO_STATUS_ERROR ) << "Unsupported format: \"" << path.substr( path.find_last_of( '.' ) ) << "\".";
+            echo( this, ECHO_LEVEL_ERROR ) << "Unsupported format: \"" << path.substr( path.find_last_of( '.' ) ) << "\".";
     
 
         if( !_audio ) return;
 
         if( _sample_rate != _audio->sample_rate() )
-            echo( this, ECHO_STATUS_WARNING ) << "Sample rate does not match with docked in audio's.";
+            echo( this, ECHO_LEVEL_WARNING ) << "Sample rate does not match with docked in audio's.";
 
         if( _tunnel_count != _audio->tunnel_count() )
-            echo( this, ECHO_STATUS_WARNING ) << "Tunnel count does not match with docked in audio's.";
+            echo( this, ECHO_LEVEL_WARNING ) << "Tunnel count does not match with docked in audio's.";
 
-        echo( this, ECHO_STATUS_OK ) << "Audio docked.";
+        echo( this, ECHO_LEVEL_OK ) << "Audio docked.";
     }
 
     Sound( 
@@ -659,7 +659,7 @@ public:
     )
     : Wave{ std::move( audio ) }, _generator{ generator }
     {
-        echo( this, ECHO_STATUS_OK ) << "Created from source generator.";
+        echo( this, ECHO_LEVEL_OK ) << "Created from source generator.";
 
         if( !_audio ) return;
 
@@ -667,7 +667,7 @@ public:
         this->decay_in( decay_in_secs );
 
 
-        echo( this, ECHO_STATUS_OK ) << "Audio docked.";
+        echo( this, ECHO_LEVEL_OK ) << "Audio docked.";
     }
 
     Synth(

@@ -19,7 +19,7 @@ int main() {
 
     Renderer2 render{ surface };
 
-    Viewport2 port{ render, Vec2{ .0 }, Vec2{ .6 } };
+    Viewport2 port{ render, Crd2{ .3 }, Vec2{ .6 } };
     port.uplink();
 
 
@@ -63,7 +63,7 @@ int main() {
             }, 3.0 
         };
 
-        sweep.org_at( surface.ptr_v() );
+        sweep.org_at( port.ptr_v() );
 
         render.charge().fill( RGBA{ 0 } );
 

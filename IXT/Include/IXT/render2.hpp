@@ -111,6 +111,8 @@ public:
 public:
     virtual dword_t direct_dive( RenderSpec2tmx& ) const = 0;
 
+    virtual dword_t direct_dive( Crd2& ) const = 0;
+
 public:
     RenderSpec2& super_spec() {
         return *_super_spec;
@@ -136,6 +138,9 @@ enum RENDERER2_DFT_SWEEP {
     RENDERER2_DFT_SWEEP_BLUE     = 0x00'00'FF'FF'00'00'00'03,
     RENDERER2_DFT_SWEEP_WHITE    = 0xFF'FF'FF'FF'00'00'00'04,
     RENDERER2_DFT_SWEEP_BLACK    = 0x00'00'00'FF'00'00'00'05,
+    RENDERER2_DFT_SWEEP_MAGENTA  = 0xFF'00'FF'FF'00'00'00'06,
+
+    RENDER2_DFT_SWEEP_DFT = RENDERER2_DFT_SWEEP_MAGENTA,
 
     RENDERER2_DFT_SWEEP_RGBA_MASK = 0xFF'FF'FF'FF'00'00'00'00,
     RENDERER2_DFT_SWEEP_IDX_MASK  = ~RENDERER2_DFT_SWEEP_RGBA_MASK,
@@ -287,6 +292,11 @@ public:
         return 0;
     }
 
+    dword_t direct_dive( Crd2& crd ) const override {
+        crd *= _surface->size();
+        return 0;
+    }
+
 public:
     RenderSpec2& fill( const RGBA& rgba ) override;
 
@@ -384,7 +394,7 @@ public:
         _ENGINE_COMMS_ECHO_ARG
     )
     : RenderSpec2{ render_spec },
-      _origin{ org }, _size{ sz }, _size2{ sz / 2}
+      _origin{ org }, _size{ sz }, _size2{ sz / 2 }
     {
         echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
@@ -395,7 +405,7 @@ public:
         Vec2                  sz,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : Viewport2{ render_spec, pull_normal_axis( crd ), sz, echo }
+    : Viewport2{ render_spec, pull_normal_axis( Crd2{ crd + sz / 2 } ), sz, echo }
     {}
 
 
@@ -432,6 +442,12 @@ public:
         return _super_spec->direct_dive( tmx ); 
     }
 
+    dword_t direct_dive( Crd2& crd ) const override {
+        crd *= _size;
+        crd += this->crd();
+        return _super_spec->direct_dive( crd );
+    }
+
 public:
     Viewport2& relocate( Vec2 vec ) {
         _origin = vec;
@@ -443,55 +459,47 @@ public:
     }
 
 public:
-    Vec2 top_left_g() const {
+    Vec2 topl_v() const {
         return _origin + Vec2{ -_size2.x, _size2.y };
     }
 
-    Vec2 bot_right_g() const {
+    Vec2 botr_v() const {
         return _origin + Vec2{ _size2.x, -_size2.y };
     }
 
+    Crd2 topl_c() const {
+        return pull_normal_axis( this->topl_v() );
+    }
+
+    Crd2 botr_c() const {
+        return pull_normal_axis( this->botr_v() );
+    }
+
 public:
-    ggfloat_t east_g() const {
+    ggfloat_t east() const {
         return _origin.x + _size2.x;
     }
 
-    ggfloat_t west_g() const {
+    ggfloat_t west() const {
         return _origin.x - _size2.x;
     }
 
-    ggfloat_t north_g() const {
+    ggfloat_t north() const {
         return _origin.y + _size2.y;
     }
 
-    ggfloat_t south_g() const {
+    ggfloat_t south() const {
         return _origin.y - _size2.y;
     }
 
-    ggfloat_t east() const {
-        return _size2.x;
-    }
-
-    ggfloat_t west() const {
-        return -_size2.x;
-    }
-
-    ggfloat_t north() const {
-        return _size2.y;
-    }
-
-    ggfloat_t south() const {
-        return -_size2.y;
-    }
-
 public:
-    bool contains_g( Vec2 vec ) const {
-        Vec2 ref = this->top_left_g();
+    bool cages( Vec2 vec ) const {
+        Vec2 ref = this->topl_v();
         
         if( vec.is_further_than( ref, HEADING_NORTH ) || vec.is_further_than( ref, HEADING_WEST ) )
             return false;
 
-        ref = this->bot_right_g();
+        ref = this->botr_v();
 
         if( vec.is_further_than( ref, HEADING_SOUTH ) || vec.is_further_than( ref, HEADING_EAST ) )
             return false;
@@ -503,8 +511,10 @@ public:
     Viewport2& restrict() {
         if( _restricted ) return *this;
 
-        auto tl = pull_normal_axis( this->top_left_g() );
-        auto br = pull_normal_axis( this->bot_right_g() );
+        Crd2 tl = this->topl_c();
+        Crd2 br = this->botr_c();
+        _super_spec->direct_dive( tl );
+        _super_spec->direct_dive( br );
 
         _renderer->target()->PushAxisAlignedClip(
             D2D1::RectF( tl.x, tl.y, br.x, br.y ),
@@ -516,7 +526,7 @@ public:
         return *this;
     }
 
-    Viewport2& lift_restriction() {
+    Viewport2& lift_restrict() {
         if( !_restricted ) return *this;
 
         _renderer->target()->PopAxisAlignedClip();
@@ -536,7 +546,7 @@ public:
         .socket_plug< SURFACE_EVENT_POINTER >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, Vec2 lvec, auto& trace ) -> void {
-                if( !this->contains_g( vec ) ) return;
+                if( !this->cages( vec ) ) return;
 
                 this->invoke_sequence< SURFACE_EVENT_POINTER >( 
                     trace, _pointer = ( vec - _origin ) / _size, _prev_pointer = ( lvec - _origin ) / _size 
@@ -546,7 +556,7 @@ public:
         .socket_plug< SURFACE_EVENT_SCROLL >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, SURFSCROLL_DIRECTION dir, auto& trace ) -> void {
-                if( !this->contains_g( vec ) ) return;
+                if( !this->cages( vec ) ) return;
 
                 this->invoke_sequence< SURFACE_EVENT_SCROLL >( trace, ( vec - _origin ) / _size, dir );
             }
@@ -568,7 +578,7 @@ public:
     }
 
 public:
-    Viewport2& splash_bounds();
+    Viewport2& splash_bounds( RENDERER2_DFT_SWEEP sweep_idx = RENDER2_DFT_SWEEP_DFT );
 
 public:
     RenderSpec2& fill(

@@ -20,7 +20,8 @@ Renderer2DefaultSweeps::Renderer2DefaultSweeps( Renderer2& renderer, _ENGINE_COM
         RENDERER2_DFT_SWEEP_GREEN, 
         RENDERER2_DFT_SWEEP_BLUE,
         RENDERER2_DFT_SWEEP_WHITE,
-        RENDERER2_DFT_SWEEP_BLACK  
+        RENDERER2_DFT_SWEEP_BLACK,
+        RENDERER2_DFT_SWEEP_MAGENTA  
     } ) {
         uint64_t bytes = ( ( uint64_t )( enum_bytes ) & ( uint64_t )( RENDERER2_DFT_SWEEP_RGBA_MASK ) ) >> 32; 
 
@@ -79,21 +80,33 @@ RenderSpec2& Renderer2::line(
 
 
 
-Viewport2& Viewport2::splash_bounds() {
-    
+Viewport2& Viewport2::splash_bounds( RENDERER2_DFT_SWEEP sweep_idx ) {
+    Crd2 tl = this->topl_c();
+    Crd2 br = this->botr_c();
+    _super_spec->direct_dive( tl );
+    _super_spec->direct_dive( br );
+
+    Sweep2& sweep = _renderer->pull( sweep_idx );
+
+    _renderer->target()->DrawRectangle( 
+        D2D1::RectF( tl.x, tl.y, br.x, br.y ), 
+        sweep, sweep.width()
+    );
+
+    return *this;
 }
 
 RenderSpec2& Viewport2::fill( const RGBA& rgba ) { 
     this->restrict();
     _renderer->fill( rgba ); /* Poor man's fill. */
-    this->lift_restriction();
+    this->lift_restrict();
 
     return *this;
 }
 
 RenderSpec2& Viewport2::fill( const Sweep2& brush ) { 
-    auto tl = pull_normal_axis( this->top_left_g() );
-    auto br = pull_normal_axis( this->bot_right_g() );
+    auto tl = this->topl_c();
+    auto br = this->botr_c();
 
     _renderer->target()->FillRectangle(
         D2D1_RECT_F{ tl.x, tl.y, br.x, br.y },

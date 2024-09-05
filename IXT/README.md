@@ -6,9 +6,11 @@ Make it work again. <br>
 Quick dictionary: <br>
 > - "ml4o" - most likely forever only <br>
 
+
 `|`<br>
 `|`<br>
 `|`<br>
+
 
 ## Build [ ╠═Σ ].
 
@@ -27,9 +29,11 @@ Quick dictionary: <br>
 
 `cmake .. -DIXT_PREPROCESSOR_DEFINITIONS=IXT_OS_WINDOWS;IXT_GL_DIRECT_2D1 -DIXT_FONDLES_TO_BUILD=` <br>
 
+
 `|`<br>
 `|`<br>
 `|`<br>
+
 
 ## Progress [ ■■■■ . . . . . . . . ].
 
@@ -39,7 +43,7 @@ Quick dictionary: <br>
 
 ### Working on:
 
-> - Renderer. <br>
+> - RenderSpec2 shallow dives. <br>
 
 ### High:
 
@@ -65,10 +69,13 @@ Quick dictionary: <br>
 ### Perhaps:
 
 > - <span style="color:orange">~~Some smart pointer wrappers, more ops and behavs.~~</span> | Made `VPtr< T >`. <br>
+> - Use transforms instead of direct dives on render2. <br>
+
 
 `|`<br>
 `|`<br>
 `|`<br>
+
 
 ## Wording choice [ αßΓπ ].
 
@@ -113,9 +120,11 @@ Quick dictionary: <br>
 
 > - Following the same rules as the ***Variables*** wording.
 
+
 `|`<br>
 `|`<br>
 `|`<br>
+
 
 ## Preprocessor definitions [ ╔╬══█ ].
 
@@ -138,11 +147,55 @@ Quick dictionary: <br>
 `|`<br>
 
 
-## In C|CXX dictionary [ ¥ÆÖ-Ü£ ].
+## Components [ ¥ÆÖ-Ü£ ].
 
-### render2:
+For more in-depth examples or an interactive behaviour showcase, read/build the `fdl-<component>.cpp` files. <br>
+
+### `comms`:
+
+The globally available `comms` structure prints the so called `echo`s on their shallow surface destruction. Let: <br>
+```cxx
+struct X{
+    X( int x, IXT_COMMS_ECHO_ARG ) {
+        echo( this, ECHO_LEVEL_INTEL ) << "X";
+    } 
+};
+
+struct Y{
+    Y( int y, IXT_COMMS_ECHO_ARG )
+    : x{ y, echo }
+    {
+        echo( this, ECHO_LEVEL_INTEL ) << "Y";
+    }
+
+    X x;
+};
+```
+The moment `Y`'s constructor is called, the macro `IXT_COMMS_ECHO_ARG` provides a default-constructed `echo`. This `echo` is the head of the dive chain. `x{ y, echo }` is such a "dive". Since the `echo` of `X`'s constructor is build from another `echo`(`Y`'s), it will be considered to be at depth one. Should we have more dives, the following `echo`s shall be deeper and deeper. <br> <br>
+
+The shallow surface destruction is considered the one of the `echo` with depth zero, i.e. the default-constructed one. During this destruction the contents inserted in the `echo`s are printed by the `comms` structure, each line having its insertion depth symbolized by the count of `\>`. <br> <br>
+
+Finally, after constructing a `Y` structure, the output shall be: <br>
+```
+[ INTEL ]   \>[ <unknown>* ][ <address>* ] -> X
+[ INTEL ]   [ <unknown>* ][ <address>* ] -> Y
+```
+*\<unknown\> - the set name of the structure, irrelevant for this example. <br>
+*\<address\> - the address of the structure, effectively, `this`. <br>
+
+
+### `render2`:
+
+The 2D rendering structures.
+
+#### Dictionary:
 > - `RenderSpec2tmx` - transform matrix. <br>
 > - `Sweep2gc` - gradient chain. <br>
 > - `Sweep2gcn_t` - gradient chain node. <br>
+
+
+`|`<br>
+`|`<br>
+`|`<br>
 
 

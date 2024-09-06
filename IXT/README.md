@@ -59,7 +59,7 @@ Quick dictionary: <br>
 > - During audio sampling, don't make "non-continous" jump from last_amp to current_amp. <br>
 > - <span style="color:orange">~~VolatilePtr array specializations.~~</span> <br>
 > - Option to choose relative path for fondle default assets. <br>
-> - <span style="color:orange">~~LinearSweep2 global dive from render spec.~~</span> | Made `direct_dive` with both tmxs and vecs. <br>
+> - <span style="color:orange">~~LinearSweep2 global dive from render spec.~~</span> | Made `deep_dive` with both tmxs and vecs. <br>
 
 ### Low:
 

@@ -83,8 +83,8 @@ RenderSpec2& Renderer2::line(
 Viewport2& Viewport2::splash_bounds( RENDERER2_DFT_SWEEP sweep_idx ) {
     Crd2 tl = this->topl_c();
     Crd2 br = this->botr_c();
-    _super_spec->direct_dive( tl );
-    _super_spec->direct_dive( br );
+    _super_spec->deep_dive( tl );
+    _super_spec->deep_dive( br );
 
     Sweep2& sweep = _renderer->pull( sweep_idx );
 

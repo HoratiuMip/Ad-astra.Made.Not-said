@@ -109,9 +109,11 @@ public:
     virtual Vec2 size() const = 0;
 
 public:
-    virtual dword_t direct_dive( RenderSpec2tmx& ) const = 0;
+    virtual dword_t deep_dive( RenderSpec2tmx& ) const = 0;
 
-    virtual dword_t direct_dive( Crd2& ) const = 0;
+    virtual dword_t deep_dive( Crd2& ) const = 0;
+
+    virtual dword_t shallow_dive( Vec2& ) const = 0;
 
 public:
     RenderSpec2& super_spec() {
@@ -287,13 +289,17 @@ public:
     Vec2 size() const override { return _surface->size(); }
 
 public:
-    dword_t direct_dive( RenderSpec2tmx& tmx ) const override {
+    dword_t deep_dive( RenderSpec2tmx& tmx ) const override {
         tmx = tmx * RenderSpec2tmx::Scale( _surface->width(), _surface->height() );
         return 0;
     }
 
-    dword_t direct_dive( Crd2& crd ) const override {
+    dword_t deep_dive( Crd2& crd ) const override {
         crd *= _surface->size();
+        return 0;
+    }
+
+    dword_t shallow_dive( Vec2& vec ) const override {
         return 0;
     }
 
@@ -424,13 +430,20 @@ public:
         return _renderer->surface();
     }
 
+    SurfaceEventSentry& event_sentry() {
+        if( auto ptr = dynamic_cast< SurfaceEventSentry* >( _super_spec.get() ) )
+            return *ptr;
+        else
+            return this->surface();
+    }
+
 public:
     Crd2 crd() const override { return pull_normal_axis( _origin ) - _size*.5; }
     Vec2 org() const override { return _origin; }
     Vec2 size() const override { return _size; }
 
 public:
-    dword_t direct_dive( RenderSpec2tmx& tmx ) const override {
+    dword_t deep_dive( RenderSpec2tmx& tmx ) const override {
         Crd2 c = this->crd();
 
         tmx = tmx
@@ -439,13 +452,19 @@ public:
               * 
               RenderSpec2tmx::Translation( c.x, c.y );
 
-        return _super_spec->direct_dive( tmx ); 
+        return _super_spec->deep_dive( tmx ); 
     }
 
-    dword_t direct_dive( Crd2& crd ) const override {
+    dword_t deep_dive( Crd2& crd ) const override {
         crd *= _size;
         crd += this->crd();
-        return _super_spec->direct_dive( crd );
+        return _super_spec->deep_dive( crd );
+    }
+
+    dword_t shallow_dive( Vec2& vec ) const override {
+        vec *= _size;
+        vec += _origin;
+        return _super_spec->shallow_dive( vec );
     }
 
 public:
@@ -513,8 +532,8 @@ public:
 
         Crd2 tl = this->topl_c();
         Crd2 br = this->botr_c();
-        _super_spec->direct_dive( tl );
-        _super_spec->direct_dive( br );
+        _super_spec->deep_dive( tl );
+        _super_spec->deep_dive( br );
 
         _renderer->target()->PushAxisAlignedClip(
             D2D1::RectF( tl.x, tl.y, br.x, br.y ),
@@ -542,14 +561,17 @@ public:
 
 public:
     Viewport2& uplink() {
-        this->surface()
+        this->event_sentry()
         .socket_plug< SURFACE_EVENT_POINTER >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
-            [ this ] ( Vec2 vec, Vec2 lvec, auto& trace ) -> void {
+            [ this ] ( Vec2 vec, Vec2 prev_vec, auto& trace ) -> void {
                 if( !this->cages( vec ) ) return;
 
+                _pointer      = ( vec - _origin ) / _size;
+                _prev_pointer = ( prev_vec - _origin ) / _size;
+
                 this->invoke_sequence< SURFACE_EVENT_POINTER >( 
-                    trace, _pointer = ( vec - _origin ) / _size, _prev_pointer = ( lvec - _origin ) / _size 
+                    trace, _pointer, _prev_pointer
                 );
             }
         )
@@ -779,7 +801,7 @@ public:
         }
 
         auto tmx = RenderSpec2tmx::Identity();
-        _render_spec->direct_dive( tmx );
+        _render_spec->deep_dive( tmx );
 
         if(
             _render_spec->target()->CreateLinearGradientBrush(
@@ -872,7 +894,7 @@ public:
         }
 
         auto tmx = RenderSpec2tmx::Identity();
-        _render_spec->direct_dive( tmx );
+        _render_spec->deep_dive( tmx );
 
         if(
             _render_spec->target()->CreateRadialGradientBrush(

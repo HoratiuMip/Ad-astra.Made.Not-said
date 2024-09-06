@@ -22,7 +22,7 @@ int main() {
     Viewport2 port{ render, Crd2{ .0 }, Vec2{ .6 } };
     port.uplink();
 
-    Viewport2 port2{ port, Crd2{ .0 }, Vec2{ .6 } };
+    Viewport2 port2{ port, Vec2{ .1 }, Vec2{ .6 } };
     port2.uplink();
 
 
@@ -69,7 +69,6 @@ int main() {
         sweep.org_at( port2.ptr_v() );
 
         render.charge().fill( RGBA{ 0 } );
-        //port2.restrict();
 
         auto [ left_new, right_new ] = std::make_pair< Vec2, Vec2 >( 
             { -.4, ( ggfloat_t )sin( ticker.up_time() * 2 ) / 2 },
@@ -98,7 +97,7 @@ int main() {
 
             arr[ arr_at ] = { left_new, right_new };
         }
-        //port2.lift_restrict();
+      
         port.splash_bounds();
         port2.splash_bounds();
         render.splash();

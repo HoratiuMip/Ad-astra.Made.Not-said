@@ -131,7 +131,10 @@
 
 namespace _ENGINE_NAMESPACE {
     typedef   _ENGINE_GG_FLOAT_TYPE    ggfloat_t;
-    typedef   int                      dword_t;
+    typedef   int32_t                  dword_t;
+    typedef   uint32_t                 dwordu_t;
+    typedef   int64_t                  qword_t;
+    typedef   uint64_t                 qwordu_t;
 
     template< typename T > using UPtr = std::unique_ptr< T >;
     template< typename T > using SPtr = std::shared_ptr< T >;

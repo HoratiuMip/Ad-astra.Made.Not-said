@@ -189,7 +189,7 @@ public:
     : RenderSpec2{ *this }, _surface{ std::move( surface ) }
     {
         if( CoInitialize( nullptr ) != S_OK ) { 
-            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: CoInitialize() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: CoInitialize() failure.";
             return;
         }    
 
@@ -202,7 +202,7 @@ public:
                 ( void** )&_wic_factory
             ) != S_OK 
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: CoCreateInstance() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: CoCreateInstance() failure.";
             return;
         }
 
@@ -212,7 +212,7 @@ public:
                 &_factory
             ) != S_OK 
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: D2D1CreateFactory() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: D2D1CreateFactory() failure.";
             return;
         }
 
@@ -227,7 +227,7 @@ public:
                 &_target
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: ID2D1Factory::CreateHwndRenderTarget() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: ID2D1Factory::CreateHwndRenderTarget() failure.";
             return;
         }
 
@@ -711,7 +711,7 @@ public:
     : Sweep2{ w }
     {
         if( renderer.target()->CreateSolidColorBrush( rgba, &_sweep ) != S_OK ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: Renderer2::target()->CreateSolidColorBrush() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: Renderer2::target()->CreateSolidColorBrush() failure.";
             return;
         }
 
@@ -796,7 +796,7 @@ public:
                 &_grads
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: _render_spec->target()->CreateGradientStopCollection() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: _render_spec->target()->CreateGradientStopCollection() failure.";
             return;
         }
 
@@ -813,7 +813,7 @@ public:
                 &_sweep
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: _render_spec->target()->CreateLinearGradientBrush() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: _render_spec->target()->CreateLinearGradientBrush() failure.";
             return;
         }
 
@@ -889,7 +889,7 @@ public:
                 &_grads
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: _render_spec->target()->CreateGradientStopCollection failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: _render_spec->target()->CreateGradientStopCollection failure.";
             return;
         }
 
@@ -909,7 +909,7 @@ public:
                 &_sweep
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<constructor>: _render_spec->target()->CreateRadialGradientBrush failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: _render_spec->target()->CreateRadialGradientBrush failure.";
             return;
         }
 
@@ -983,6 +983,114 @@ public:
     }
 
 };
+
+
+
+
+class Sprite2 : public Descriptor {
+public:
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Sprite2" );
+
+public:
+    Sprite2() = default;
+
+    Sprite2(
+        VPtr< RenderSpec2 >   render_spec,
+        std :: string_view    path,
+        _ENGINE_COMMS_ECHO_ARG
+    ) 
+    : _path{ path }
+    {
+        struct Tools {
+            Tools() = default;
+
+            ~Tools() {
+                if( wic_converter ) wic_converter->Release();
+                if( wic_decoder ) wic_decoder->Release();
+                if( wic_frame ) wic_frame->Release(); 
+            }
+
+            IWICBitmapDecoder*     wic_decoder   = nullptr;
+            IWICBitmapFrameDecode* wic_frame     = nullptr;
+            IWICFormatConverter*   wic_converter = nullptr;
+
+        } tools{};
+
+        if( dwordu_t res = 
+            render_spec->renderer().wic_factory()->CreateDecoderFromFilename(
+                std::wstring{ path.begin(), path.end() }.c_str(),
+                nullptr,
+                GENERIC_READ,
+                WICDecodeOptions::WICDecodeMetadataCacheOnLoad,
+                &tools.wic_decoder
+            ); res != S_OK
+        ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: render_spec->renderer().wic_factory()->CreateDecoderFromFilename failure: #" << res << " on: \"" << _path << "\".";
+            return;
+        }
+
+        if( dwordu_t res = tools.wic_decoder->GetFrame( 0, &tools.wic_frame ); res != S_OK ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: tools.wic_decoder->GetFrame failure: #" << res << ".";
+            return;
+        }
+
+        if( dwordu_t res = render_spec->renderer().wic_factory()->CreateFormatConverter( &tools.wic_converter ); res != S_OK ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: render_spec->renderer().wic_factory()->CreateFormatConverter failure: #" << res << ".";
+            return;
+        }
+
+        if( dwordu_t res =
+            tools.wic_converter->Initialize(
+                tools.wic_frame,
+                GUID_WICPixelFormat32bppPBGRA,
+                WICBitmapDitherTypeNone,
+                nullptr,
+                0.0,
+                WICBitmapPaletteTypeCustom
+            ); res != S_OK
+        ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: tools.wic_converter->Initialize failure: #" << res << ".";
+            return;
+        }
+
+        ID2D1Bitmap* tmp_bmp = nullptr;
+
+        if( dwordu_t res =
+            render_spec->renderer().target()->CreateBitmapFromWicBitmap(
+                tools.wic_converter,
+                NULL,
+                &tmp_bmp
+            )
+        ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: render_spec->renderer().target()->CreateBitmapFromWicBitmap failure: #" << res << ".";
+            return;
+        }
+
+        _bitmap.reset( tmp_bmp, weak_link_t{} );
+
+
+        dwordu_t w = 0;
+        dwordu_t h = 0;
+
+        tools.wic_frame->GetSize( &w, &h );
+
+        if( w == 0 || h == 0 || w >= 10'000 || h >= 10'000 )
+            echo( this, ECHO_LEVEL_WARNING ) << "<Ctor>: Abnormal dimensions: w: " << w << ", h: " << h << ".";
+
+        echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << _path << "\".";
+    }
+
+public:
+    ~Sprite2() {
+        if( _bitmap.unique() ) _bitmap->Release();
+    }
+
+_ENGINE_PROTECTED:
+    VPtr< ID2D1Bitmap >   _bitmap   = nullptr;
+    std::string           _path     = {};
+
+};
+
 
 
 

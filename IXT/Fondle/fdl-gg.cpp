@@ -25,6 +25,8 @@ int main() {
     Viewport2 port2{ port, Vec2{ .1 }, Vec2{ .6 } };
     port2.uplink();
 
+    Sprite2 rammus{ render, ASSET_PNG_RAMMUS_PATH };
+
 
     struct Scenes : std::vector< std::function< void() > > {
         Scenes() {

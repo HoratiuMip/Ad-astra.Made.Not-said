@@ -43,7 +43,7 @@ Quick dictionary: <br>
 
 ### Working on:
 
-> - RenderSpec2 shallow dives. <br>
+> - Sprite2. <br>
 
 ### High:
 
@@ -69,7 +69,7 @@ Quick dictionary: <br>
 ### Perhaps:
 
 > - <span style="color:orange">~~Some smart pointer wrappers, more ops and behavs.~~</span> | Made `VPtr< T >`. <br>
-> - Use transforms instead of direct dives on render2. <br>
+> - <span style="color:orange">~~Use transforms instead of direct dives on render2.~~</span> <br>
 
 
 `|`<br>

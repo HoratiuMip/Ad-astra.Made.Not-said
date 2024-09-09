@@ -93,6 +93,12 @@ public:
     template< typename T >
     requires is_std_ostringstream_pushable< std::decay_t< T > >
     Echo& operator << ( T&& frag ) {
+        if constexpr( std::is_integral_v< std::decay_t< T > > )
+            this->_str() << std::hex;
+
+        if constexpr( std::is_floating_point_v< std::decay_t< T > > )
+            this->_str() << std::scientific;
+
         this->_str() << std::forward< T >( frag );
 
         return *this;

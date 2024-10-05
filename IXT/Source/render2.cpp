@@ -3,6 +3,8 @@
 
 #include <IXT/render2.hpp>
 
+#if defined( _ENGINE_GL_DIRECT_2D1 )
+
 namespace _ENGINE_NAMESPACE {
 
 
@@ -143,3 +145,6 @@ RenderSpec2& Viewport2::line(
 
 
 };
+
+#endif  
+

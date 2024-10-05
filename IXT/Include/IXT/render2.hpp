@@ -3,6 +3,9 @@
 */
 
 #include <IXT/descriptor.hpp>
+
+#if defined( _ENGINE_GL_DIRECT_2D1 )
+
 #include <IXT/comms.hpp>
 #include <IXT/surface.hpp>
 #include <IXT/volatile-ptr.hpp>
@@ -131,6 +134,17 @@ public:
 
 };
 
+class BareRenderSlave2 {
+public:
+    virtual dword_t rend2( RenderSpec2& spec, void* args ) = 0;
+
+public:
+    template< typename T >
+    static T& rend2_args_as( void* args ) {
+        return *reinterpret_cast< T* >( args ); 
+    }
+
+};
 
 
 enum RENDERER2_DFT_SWEEP {
@@ -1016,7 +1030,7 @@ public:
 
         } tools{};
 
-        if( dwordu_t res = 
+        if( udword_t res = 
             render_spec->renderer().wic_factory()->CreateDecoderFromFilename(
                 std::wstring{ path.begin(), path.end() }.c_str(),
                 nullptr,
@@ -1029,17 +1043,17 @@ public:
             return;
         }
 
-        if( dwordu_t res = tools.wic_decoder->GetFrame( 0, &tools.wic_frame ); res != S_OK ) {
+        if( udword_t res = tools.wic_decoder->GetFrame( 0, &tools.wic_frame ); res != S_OK ) {
             echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: tools.wic_decoder->GetFrame failure: #" << res << ".";
             return;
         }
 
-        if( dwordu_t res = render_spec->renderer().wic_factory()->CreateFormatConverter( &tools.wic_converter ); res != S_OK ) {
+        if( udword_t res = render_spec->renderer().wic_factory()->CreateFormatConverter( &tools.wic_converter ); res != S_OK ) {
             echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: render_spec->renderer().wic_factory()->CreateFormatConverter failure: #" << res << ".";
             return;
         }
 
-        if( dwordu_t res =
+        if( udword_t res =
             tools.wic_converter->Initialize(
                 tools.wic_frame,
                 GUID_WICPixelFormat32bppPBGRA,
@@ -1055,7 +1069,7 @@ public:
 
         ID2D1Bitmap* tmp_bmp = nullptr;
 
-        if( dwordu_t res =
+        if( udword_t res =
             render_spec->renderer().target()->CreateBitmapFromWicBitmap(
                 tools.wic_converter,
                 NULL,
@@ -1069,8 +1083,8 @@ public:
         _bitmap.reset( tmp_bmp, weak_link_t{} );
 
 
-        dwordu_t w = 0;
-        dwordu_t h = 0;
+        udword_t w = 0;
+        udword_t h = 0;
 
         tools.wic_frame->GetSize( &w, &h );
 
@@ -1095,3 +1109,7 @@ _ENGINE_PROTECTED:
 
 
 };
+
+#else
+    #error Compiling for DIRECT-2D1 without choosing this GL.
+#endif  

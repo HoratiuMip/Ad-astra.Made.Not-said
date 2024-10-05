@@ -10,6 +10,7 @@ cmake_minimum_required( VERSION 3.30.0 )
 
 # Name of IXT library.
 set( IXT_LIB_NAME "IXTLib" CACHE STRING "IXT lib name." FORCE )
+set( X "_LIB" )
 
 
 # IXT components. Every component has a .hpp and, possibly, a .cpp file.
@@ -104,8 +105,12 @@ set( IXT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/Source" )
 
 
 # IXT include and source directories.
+add_subdirectory( "Ext/glm" )
 add_subdirectory( "Source" )
 add_subdirectory( "Include" )
+
+
+target_link_libraries( ${IXT_LIB_NAME} PUBLIC glm::glm )
 
 
 # IXT fondles to build.
@@ -113,7 +118,7 @@ if( IXT_FONDLES_TO_BUILD STREQUAL "ALL" )
     file( GLOB files_paths "${IXT_FONDLE_DIR}/*" )
     
     foreach( file_path ${files_paths} )
-        string( REGEX MATCH "fdl-[a-z]+.cpp$" file_path ${file_path} )
+        string( REGEX MATCH "fdl-[a-z0-9_-]+.cpp$" file_path ${file_path} )
         
         if( file_path )
             list( APPEND IXT_FONDLES_TO_BUILD ${file_path} )
@@ -128,7 +133,7 @@ endif()
 
 foreach( source ${IXT_FONDLES_TO_BUILD} )
     if( _ftb_are_source_files )
-        string( REGEX MATCH "^fdl-[a-z]+" exe ${source} )
+        string( REGEX MATCH "^fdl-[a-z0-9_-]+" exe ${source} )
     else()
         set( exe "fdl-${source}" )
         set( source "${exe}.cpp" )

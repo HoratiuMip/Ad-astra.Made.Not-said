@@ -1,6 +1,6 @@
 /*
 */
-#include <IXT/volatile_ptr.hpp>
+#include <IXT/volatile-ptr.hpp>
 #include <IXT/comms.hpp>
 
 using namespace IXT;
@@ -12,7 +12,7 @@ int main() {
 
     int n = 9;
     {
-        VPtr< int > ptr{ &n };
+        VPtr< int > ptr{ &n, weak_link_t{} };
         echo( nullptr, ECHO_LEVEL_INTEL ) << "Stack \'n\' from raw ptr VPtr: " << *ptr;
     } {
         VPtr< int > ptr{ n };
@@ -21,7 +21,7 @@ int main() {
 
     int* pn = new int{ 10 };
     {
-        VPtr< int > ptr{ pn };
+        VPtr< int > ptr{ pn, weak_link_t{} };
         echo( nullptr, ECHO_LEVEL_INTEL ) << "Heap \'pn\' from raw ptr VPtr: " << *ptr;
     } {
         VPtr< int > ptr{ *pn };

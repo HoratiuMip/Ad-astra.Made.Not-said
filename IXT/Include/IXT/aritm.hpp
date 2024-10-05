@@ -9,7 +9,6 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-
 #pragma region Spatial
 
 
@@ -90,7 +89,7 @@ public:
         ggfloat_t x1, ggfloat_t y1,
         ggfloat_t x2, ggfloat_t y2
     ) {
-        return x1*y2 + x2*y1;
+        return x1*y2 - x2*y1;
     }
 
     static void project(
@@ -379,6 +378,7 @@ public:
     {}
 
 public:
+#if defined( _ENGINE_GL_DIRECT_2D1 )
     operator const D2D1_POINT_2F& () const {
         return *reinterpret_cast< const D2D1_POINT_2F* >( this );
     }
@@ -386,6 +386,7 @@ public:
     operator D2D1_POINT_2F& () {
         return *reinterpret_cast< D2D1_POINT_2F* >( this );
     }
+#endif
 
 };
 
@@ -413,47 +414,53 @@ template< typename T > concept ggX_result = std::is_same_v< bool, T > || std::is
 class Ray2 {
 public:
     static bool intersection_assert( 
-        ggfloat_t ox1, ggfloat_t oy1, ggfloat_t dx1, ggfloat_t dy1,
-        ggfloat_t ox2, ggfloat_t oy2, ggfloat_t dx2, ggfloat_t dy2
+        ggfloat_t ox1, ggfloat_t oy1, ggfloat_t vx1, ggfloat_t vy1,
+        ggfloat_t ox2, ggfloat_t oy2, ggfloat_t vx2, ggfloat_t vy2
     ) {
-        ggfloat_t first = Vec2::cross_product( ox1, oy1, ox2, oy2 );
-        ggfloat_t second = Vec2::cross_product( ox1, oy1, ox2 + dx2, oy2 + dy2 );
+        ggfloat_t oovx = ox2 - ox1;
+        ggfloat_t oovy = oy2 - oy1;
+        ggfloat_t ovvx = oovx + vx2;
+        ggfloat_t ovvy = oovy + vy2; 
 
-        if( std::signbit( first ) == std::signbit( second ) ) return false;
+        ggfloat_t s1 = Vec2::cross_product( vx1, vy1, oovx, oovy );
+        ggfloat_t s2 = Vec2::cross_product( vx1, vy1, ovvx, ovvy );
 
-        first = Vec2::cross_product( ox2, oy2, ox1, oy1 );
-        second = Vec2::cross_product( ox2, oy2, ox1 + dx1, oy1 + dy1 );
+        if( std::signbit( s1 ) == std::signbit( s2 ) ) return false;
+        
+        oovx = ox1 - ox2;
+        oovy = oy1 - oy2;
+        ovvx = oovx + vx1;
+        ovvy = oovy + vy1;
 
-        if( std::signbit( first ) == std::signbit( second ) ) return false;
+        s1 = Vec2::cross_product( vx2, vy2, oovx, oovy );
+        s2 = Vec2::cross_product( vx2, vy2, ovvx, ovvy );
 
-        return true;
+        return std::signbit( s1 ) != std::signbit( s2 );
     }
 
     static bool intersection_point(
-        ggfloat_t ox1, ggfloat_t oy1, ggfloat_t dx1, ggfloat_t dy1,
-        ggfloat_t ox2, ggfloat_t oy2, ggfloat_t dx2, ggfloat_t dy2,
+        ggfloat_t ox1, ggfloat_t oy1, ggfloat_t vx1, ggfloat_t vy1,
+        ggfloat_t ox2, ggfloat_t oy2, ggfloat_t vx2, ggfloat_t vy2,
         ggfloat_t* ix, ggfloat_t* iy
     ) {
-        ggfloat_t det = dy1*-dx2 + dx1*dy2;
+        ggfloat_t det = vy1*-vx2 + vx1*vy2;
 
-        if( det == 0.0 ) return false;
+        if( det == .0_ggf ) return false;
 
-        ggfloat_t sx = -( -ox1*dy1 + oy1*dx1 );
-        ggfloat_t sy = -( -ox2*dy2 + oy2*dx2 );
+        ggfloat_t sx = -( -ox1*vy1 + oy1*vx1 );
+        ggfloat_t sy = -( -ox2*vy2 + oy2*vx2 );
 
-        ggfloat_t x = ( sx*-dx2 + dx1*sy ) / det;
-        ggfloat_t y = ( dy1*sy - sx*dy2 ) / det;
+        ggfloat_t x = ( sx*-vx2 + vx1*sy ) / det;
+        ggfloat_t y = ( vy1*sy - sx*vy2 ) / det;
         ggfloat_t vx = x - ox1;
         ggfloat_t vy = y - oy1;
 
-        if( vx < 0.0 || vx > dx1 ) return false;
-        if( vy < 0.0 || vy > dy1 ) return false;
+        if( std::signbit( vx ) != std::signbit( vx1 ) || abs( vx ) > abs( vx1 ) ) return false;
  
         vx = x - ox2;
         vy = y - oy2; 
 
-        if( vx < 0.0 || vx > dx2 ) return false;
-        if( vy < 0.0 || vy > dy2 ) return false;
+        if( std::signbit( vx ) != std::signbit( vx2 ) || abs( vx ) > abs( vx2 ) ) return false;
 
         *ix = x;
         *iy = y;
@@ -475,6 +482,10 @@ public:
 public:
     Vec2 drop() const {
         return origin + vec;
+    }
+
+    Vec2& operator [] ( bool idx ) {
+        return idx ? vec : origin;
     }
 
 public:
@@ -882,7 +893,19 @@ _ENGINE_PROTECTED:
 
 public:
     bool contains( Vec2 vec ) const {
-        return false;
+        Ray2    strike    = { vec, Vec2{ std::numeric_limits< ggfloat_t >::max(), .0_ggf } };
+        int32_t int_count = 0;
+
+        for( auto edge = this->coutter_ray_begin(); edge != this->coutter_ray_end(); ++edge ) {
+            if( ( *edge ).origin.y == strike.origin.y ) {
+                ubyte_t& c = *( ( ubyte_t* )&strike.origin.y + sizeof( strike.origin.y ) - 1 );
+                ( c & 0x1 ) ? ( c &= 0xFE ) : ( c |= 0x1 );
+            }
+
+            int_count += strike.X< bool >( *edge );
+        }
+
+        return int_count & 0x1;
     }
 
 _ENGINE_PROTECTED:
@@ -1239,8 +1262,6 @@ public:
 
 
 #pragma endregion Spatial
-
-
 
 
 

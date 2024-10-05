@@ -41,11 +41,24 @@
     #error Define target operating system.
 #endif
 
+#if defined( _ENGINE_GL_SELECTED )
+    #undef _ENGINE_GL_SELECTED
+#endif
+
 #if defined( IXT_GL_DIRECT_2D1 )
     #define _ENGINE_GL_DIRECT_2D1
-#elif defined( IXT_GL_NONE )
+    #define _ENGINE_GL_SELECTED
+#endif
+#if defined( IXT_GL_OPEN_GL )
+    #define _ENGINE_GL_OPEN_GL
+    #define _ENGINE_GL_SELECTED
+#endif
+#if defined( IXT_GL_NONE )
     #define _ENGINE_GL_NONE
-#else
+    #define _ENGINE_GL_SELECTED
+#endif
+
+#if !defined( _ENGINE_GL_SELECTED )
     #error Define target graphics library.
 #endif
 
@@ -119,6 +132,10 @@
     #include <d2d1.h>
 #endif
 
+#if defined( _ENGINE_GL_OPEN_GL )
+    #include <glm/glm.hpp>
+#endif
+
 
 
 #pragma endregion Includes
@@ -131,10 +148,14 @@
 
 namespace _ENGINE_NAMESPACE {
     typedef   _ENGINE_GG_FLOAT_TYPE    ggfloat_t;
+    typedef   int8_t                   byte_t;
+    typedef   uint8_t                  ubyte_t;
+    typedef   int16_t                  word_t;
+    typedef   uint16_t                 uword_t;
     typedef   int32_t                  dword_t;
-    typedef   uint32_t                 dwordu_t;
+    typedef   uint32_t                 udword_t;
     typedef   int64_t                  qword_t;
-    typedef   uint64_t                 qwordu_t;
+    typedef   uint64_t                 uqword_t;
 
     template< typename T > using UPtr = std::unique_ptr< T >;
     template< typename T > using SPtr = std::shared_ptr< T >;

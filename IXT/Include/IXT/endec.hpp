@@ -16,19 +16,19 @@ namespace _ENGINE_NAMESPACE {
 class Endec {
 public:
     enum WAV_FMT {
-        WAV_FMT_CHANNEL_COUNT_OFS = 22,
+        WAV_FMT_CHANNEL_COUNT_OFS = 0x16,
         WAV_FMT_CHANNEL_COUNT_SZ = 2,
 
-        WAV_FMT_SAMPLE_RATE_OFS = 24,
+        WAV_FMT_SAMPLE_RATE_OFS = 0x18,
         WAV_FMT_SAMPLE_RATE_SZ = 4,
 
-        WAV_FMT_BITS_PER_SAMPLE_OFS = 34,
+        WAV_FMT_BITS_PER_SAMPLE_OFS = 0x22,
         WAV_FMT_BITS_PER_SAMPLE_SZ = 2,
 
-        WAV_FMT_SAMPLE_COUNT_OFS = 40,
+        WAV_FMT_SAMPLE_COUNT_OFS = 0x28,
         WAV_FMT_SAMPLE_COUNT_SZ = 4,
 
-        WAV_FMT_DATA_OFS = 44
+        WAV_FMT_DATA_OFS = 0x2C
     };
 
     template< typename T >
@@ -119,11 +119,19 @@ public:
 
 public:
     enum BMP_FMT {
-        BMP_FMT_FILE_SIZE_OFS = 2,
+        BMP_FMT_FILE_SIZE_OFS = 0x2,
         BMP_FMT_FILE_SIZE_SZ = 4,
 
-        BMP_FMT_DATA_OFS_OFS = 10,
-        BMP_FMT_DATA_OFS_SZ = 4
+        BMP_FMT_DATA_OFS_OFS = 0xA,
+        BMP_FMT_DATA_OFS_SZ = 4,
+
+        BMP_FMT_WIDTH_OFS = 0x12,
+        BMP_FMT_WIDTH_SZ = 4,
+        BMP_FMT_HEIGHT_OFS = 0x16,
+        BMP_FMT_HEIGHT_SZ = 4,
+
+        BMP_FMT_BITS_PER_PIXEL_OFS = 0x1C,
+        BMP_FMT_BITS_PER_PIXEL_SZ = 2
     };
 
     class Bmp : public Descriptor {
@@ -153,6 +161,9 @@ public:
 
             data_ofs = Bytes::as< udword_t, BMP_FMT_DATA_OFS_SZ, BIT_END_LITTLE >( &BMP_FMT_DATA_OFS_OFS[ buffer ] );
 
+            width = Bytes::as< uint32_t, BMP_FMT_WIDTH_SZ, BIT_END_LITTLE >( &BMP_FMT_WIDTH_OFS[ buffer ] );
+            height = Bytes::as< uint32_t, BMP_FMT_HEIGHT_SZ, BIT_END_LITTLE >( &BMP_FMT_HEIGHT_OFS[ buffer ] );
+
 
             echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.data() << "\".";
         }
@@ -168,6 +179,9 @@ public:
         size_t     buf_size   = 0;
 
         udword_t   data_ofs   = 0;
+
+        uint32_t   width      = 0;
+        uint32_t   height     = 0;
 
     public:
 

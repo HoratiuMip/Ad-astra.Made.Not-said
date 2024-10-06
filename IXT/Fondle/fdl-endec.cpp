@@ -19,4 +19,6 @@ int main() {
     Endec::Bmp bmp{ ASSET_BMP_AHRI_PATH };
     
     std::cout << COUT_WIDTH << "Whole buferf size: " << bmp.buf_size << '\n';
+    std::cout << COUT_WIDTH << "Width: " << bmp.width << '\n';
+    std::cout << COUT_WIDTH << "Height: " << bmp.height << '\n';
 }

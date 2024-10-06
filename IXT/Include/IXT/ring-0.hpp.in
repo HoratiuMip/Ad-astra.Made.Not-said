@@ -1,0 +1,9 @@
+/*
+*/
+
+#ifndef IXT_RING_0_HPP_INCLUDED
+#define IXT_RING_0_HPP_INCLUDED
+
+@IXT_IN_CXX_RING_0_FULL_INCLUDES@
+
+#endif

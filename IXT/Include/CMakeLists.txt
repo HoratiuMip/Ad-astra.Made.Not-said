@@ -1,14 +1,22 @@
 cmake_minimum_required( VERSION 3.30.0 )
 
 
-foreach( component ${IXT_COMPONENTS} )
-    set( path "${CMAKE_CURRENT_LIST_DIR}/IXT/${component}.hpp.in" )
+set( IXT_IN_CXX_RING_0_FULL_INCLUDES "" )
 
-    if( EXISTS ${path} ) 
-        configure_file( ${path} "Configured/IXT/${component}.hpp" )
+foreach( component ${IXT_COMPONENTS_RING_0} )
+    set( conf_path "${CMAKE_CURRENT_LIST_DIR}/IXT/${component}.hpp.in" )
+
+    string( APPEND IXT_IN_CXX_RING_0_FULL_INCLUDES "#include <${component}.hpp>\n" )
+
+    if( EXISTS ${conf_path} ) 
+        message( STATUS "Configuring IXT file: ${conf_path}." )
+        configure_file( ${conf_path} "Configured/IXT/${component}.hpp" )
     endif()
 
 endforeach()
+
+message( STATUS "IXT file configurations completed." )
+message( STATUS "IXT ring 0 includes generated:\n${IXT_IN_CXX_RING_0_FULL_INCLUDES}" )
 
 target_include_directories( 
     ${IXT_LIB_NAME} 

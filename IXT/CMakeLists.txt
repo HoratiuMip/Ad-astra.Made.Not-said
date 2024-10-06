@@ -5,34 +5,41 @@ set( CMAKE_CXX_STANDARD 23 )
 set( CMAKE_CXX_EXTENSIONS ON )
 
 
-cmake_minimum_required( VERSION 3.30.0 )
+message( STATUS "Calibrating IXT immersion engine for build..." )
 
 
-# Name of IXT library.
+# Quintessentials.
 set( IXT_LIB_NAME "IXTLib" CACHE STRING "IXT lib name." FORCE )
-set( X "_LIB" )
+set( IXT_VERSION "v1.0.0" )
+set( IXT_VERSION_ALIAS "Frost Slumber" )
+set( IXT_VERSION_MAJOR 1 )
+set( IXT_VERSION_MINOR 0 )
+set( IXT_VERSION_PATCH 0 )
 
 
 # IXT components. Every component has a .hpp and, possibly, a .cpp file.
-set(
-    IXT_COMPONENTS
-    "aritm" 
-    "audio" 
-    "bit-manip" 
-    "comms" 
-    "concepts" 
-    "descriptor" 
-    "endec"
-    "env"
-    "file-manip" 
-    "os" 
-    "render2" 
-    "surface" 
-    "tempo"
-    "volatile-ptr"
-    CACHE STRING "IXT engine components." FORCE
-)
+set( _ixt_components_ring_0 "" )
 
+file( GLOB rel_file_paths RELATIVE "${CMAKE_CURRENT_LIST_DIR}/Include/IXT" "${CMAKE_CURRENT_LIST_DIR}/Include/IXT/*" )
+
+foreach( rel_file_path ${rel_file_paths} )
+    string( REGEX MATCH "^[a-z0-9-]+\.hpp$" rel_file_path_no_config "${rel_file_path}" )
+    
+    if( NOT rel_file_path_no_config )
+        string( REGEX MATCH "^[a-z0-9-]+\.hpp.in$" rel_file_path "${rel_file_path}" )
+    else()
+        set( rel_file_path ${rel_file_path_no_config} )
+    endif()
+    
+    if( rel_file_path )
+        string( REGEX MATCH "^[a-z0-9-]+" rel_file_path "${rel_file_path}" )
+        message( STATUS "Detected IXT component: ${rel_file_path}." )
+        list( APPEND _ixt_components_ring_0 ${rel_file_path} )
+    endif()
+endforeach()
+
+message( STATUS "IXT components set." )
+set( IXT_COMPONENTS_RING_0 ${_ixt_components_ring_0} CACHE STRING "IXT engine components." FORCE )
 
 # IXT externals.
 set(
@@ -52,17 +59,8 @@ set(
 )
 
 
-# ------------ # PROJECT IXTFondle
-set( IXT_PROJECT_FONDLE_NAME "IXTFondle" )
-
-set( IXT_VERSION "v1.0.0" )
-set( IXT_VERSION_ALIAS "Frost Slumber" )
-set( IXT_VERSION_MAJOR 1 )
-set( IXT_VERSION_MINOR 0 )
-set( IXT_VERSION_PATCH 0 )
-
-
 # IXT fondling.
+set( IXT_PROJECT_FONDLE_NAME "IXTFondle" )
 set( IXT_FONDLE_DIR "${CMAKE_CURRENT_LIST_DIR}/Fondle" )
 set( IXT_FONDLE_ASSETS_DIR "${IXT_FONDLE_DIR}/Assets" )
 

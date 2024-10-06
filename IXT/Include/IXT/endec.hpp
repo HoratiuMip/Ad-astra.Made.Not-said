@@ -15,11 +15,26 @@ namespace _ENGINE_NAMESPACE {
 
 class Endec {
 public:
+    enum WAV_FMT {
+        WAV_FMT_CHANNEL_COUNT_OFS = 22,
+        WAV_FMT_CHANNEL_COUNT_SZ = 2,
+
+        WAV_FMT_SAMPLE_RATE_OFS = 24,
+        WAV_FMT_SAMPLE_RATE_SZ = 4,
+
+        WAV_FMT_BITS_PER_SAMPLE_OFS = 34,
+        WAV_FMT_BITS_PER_SAMPLE_SZ = 2,
+
+        WAV_FMT_SAMPLE_COUNT_OFS = 40,
+        WAV_FMT_SAMPLE_COUNT_SZ = 4,
+
+        WAV_FMT_DATA_OFS = 44
+    };
+
     template< typename T >
     class Wav : public Descriptor {
     public:
         _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Endec::Wav<T>" );
-
     public:
         Wav() = default;
 
@@ -49,15 +64,15 @@ public:
             file.read( raw_stream.get(), byte_count );
 
 
-            tunnel_count = Bytes::as< uint16_t, 2, BIT_END_LITTLE >( &22[ raw_stream.get() ] );
+            tunnel_count = Bytes::as< uint16_t, WAV_FMT_CHANNEL_COUNT_SZ, BIT_END_LITTLE >( &WAV_FMT_CHANNEL_COUNT_OFS[ raw_stream.get() ] );
 
-            sample_rate = Bytes::as< uint32_t, 4, BIT_END_LITTLE >( &24[ raw_stream.get() ] );
+            sample_rate = Bytes::as< uint32_t, WAV_FMT_SAMPLE_RATE_SZ, BIT_END_LITTLE >( &WAV_FMT_SAMPLE_RATE_OFS[ raw_stream.get() ] );
 
-            bits_per_sample = Bytes::as< uint16_t, 2, BIT_END_LITTLE >( &34[ raw_stream.get() ] );
+            bits_per_sample = Bytes::as< uint16_t, WAV_FMT_BITS_PER_SAMPLE_SZ, BIT_END_LITTLE >( &WAV_FMT_BITS_PER_SAMPLE_OFS[ raw_stream.get() ] );
 
             uint16_t bytes_per_sample = bits_per_sample / 8;
 
-            sample_count = Bytes::as< uint64_t, 4, BIT_END_LITTLE >( &40[ raw_stream.get() ] ) / bytes_per_sample;
+            sample_count = Bytes::as< uint64_t, WAV_FMT_SAMPLE_COUNT_SZ, BIT_END_LITTLE >( &WAV_FMT_SAMPLE_COUNT_OFS[ raw_stream.get() ] ) / bytes_per_sample;
 
 
             stream.reset( new T[ sample_count ] );
@@ -73,12 +88,12 @@ public:
 
                 for( size_t n = 0; n < sample_count; ++n )
                     stream[ n ] = static_cast< T >(
-                                    Bytes::as< int, BIT_END_LITTLE >( &44[ raw_stream.get() ] + n * bytes_per_sample, bytes_per_sample )
+                                    Bytes::as< int, BIT_END_LITTLE >( &WAV_FMT_DATA_OFS[ raw_stream.get() ] + n * bytes_per_sample, bytes_per_sample )
                                 ) / max_sample;
             } else {
                 for( size_t n = 0; n < sample_count; ++n )
                     stream[ n ] = static_cast< T >(
-                                    Bytes::as< int, BIT_END_LITTLE >( &44[ raw_stream.get() ] + n * bytes_per_sample, bytes_per_sample ) );
+                                    Bytes::as< int, BIT_END_LITTLE >( &WAV_FMT_DATA_OFS[ raw_stream.get() ] + n * bytes_per_sample, bytes_per_sample ) );
             }
 
 
@@ -99,6 +114,63 @@ public:
         uint16_t      bits_per_sample   = 0;
         uint64_t      sample_count      = 0;
         uint16_t      tunnel_count      = 0;
+
+    };
+
+public:
+    enum BMP_FMT {
+        BMP_FMT_FILE_SIZE_OFS = 2,
+        BMP_FMT_FILE_SIZE_SZ = 4,
+
+        BMP_FMT_DATA_OFS_OFS = 10,
+        BMP_FMT_DATA_OFS_SZ = 4
+    };
+
+    class Bmp : public Descriptor {
+    public:
+        _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Endec::Bmp" );
+    public:
+        Bmp() = default;
+
+        Bmp( std::string_view path, _ENGINE_COMMS_ECHO_ARG ) {
+            std::ifstream file{ path.data(), std::ios_base::binary };
+
+            if( !file ) {
+                echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.data() << "\".";
+                return;
+            }
+        
+            buf_size = File::byte_count( file );
+
+            buffer = ( char* )malloc( buf_size * sizeof( char ) );
+
+            file.read( buffer, buf_size );
+
+            udword_t in_file_reported_file_size = Bytes::as< udword_t, BMP_FMT_FILE_SIZE_SZ, BIT_END_LITTLE >( &BMP_FMT_FILE_SIZE_OFS[ buffer ] );
+
+            if( in_file_reported_file_size != buf_size )
+                echo( this, ECHO_LEVEL_WARNING ) << "Actual file size ( " << buf_size << " ), is different from in-file reported file size ( " << in_file_reported_file_size << " ). The file may be either an unsupported format, or has been tampered with.";
+
+            data_ofs = Bytes::as< udword_t, BMP_FMT_DATA_OFS_SZ, BIT_END_LITTLE >( &BMP_FMT_DATA_OFS_OFS[ buffer ] );
+
+
+            echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.data() << "\".";
+        }
+
+        ~Bmp() {
+            buf_size = 0;
+            data_ofs = 0;
+            free( ( void* )std::exchange( buffer, nullptr ) );
+        }
+
+    public:
+        char*      buffer     = nullptr;
+        size_t     buf_size   = 0;
+
+        udword_t   data_ofs   = 0;
+
+    public:
+
 
     };
 

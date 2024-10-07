@@ -6,7 +6,7 @@ set( IXT_IN_CXX_RING_0_FULL_INCLUDES "" )
 foreach( component ${IXT_COMPONENTS_RING_0} )
     set( conf_path "${CMAKE_CURRENT_LIST_DIR}/IXT/${component}.hpp.in" )
 
-    string( APPEND IXT_IN_CXX_RING_0_FULL_INCLUDES "#include <${component}.hpp>\n" )
+    string( APPEND IXT_IN_CXX_RING_0_FULL_INCLUDES "#include <IXT/${component}.hpp>\n" )
 
     if( EXISTS ${conf_path} ) 
         message( STATUS "Configuring IXT file: ${conf_path}." )

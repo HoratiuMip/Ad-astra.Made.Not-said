@@ -150,20 +150,23 @@ public:
         
             buf_size = File::byte_count( file );
 
-            buffer = ( char* )malloc( buf_size * sizeof( char ) );
+            buffer = ( ubyte_t* )malloc( buf_size * sizeof( ubyte_t ) );
 
-            file.read( buffer, buf_size );
+            file.read( ( char* )buffer, buf_size );
 
-            udword_t in_file_reported_file_size = Bytes::as< udword_t, BMP_FMT_FILE_SIZE_SZ, BIT_END_LITTLE >( &BMP_FMT_FILE_SIZE_OFS[ buffer ] );
+            udword_t in_file_reported_file_size = Bytes::as< udword_t, BMP_FMT_FILE_SIZE_SZ, BIT_END_LITTLE >( ( char* )&BMP_FMT_FILE_SIZE_OFS[ buffer ] );
 
             if( in_file_reported_file_size != buf_size )
                 echo( this, ECHO_LEVEL_WARNING ) << "Actual file size ( " << buf_size << " ), is different from in-file reported file size ( " << in_file_reported_file_size << " ). The file may be either an unsupported format, or has been tampered with.";
 
-            data_ofs = Bytes::as< udword_t, BMP_FMT_DATA_OFS_SZ, BIT_END_LITTLE >( &BMP_FMT_DATA_OFS_OFS[ buffer ] );
+            data_ofs = Bytes::as< udword_t, BMP_FMT_DATA_OFS_SZ, BIT_END_LITTLE >( ( char* )&BMP_FMT_DATA_OFS_OFS[ buffer ] );
+            width    = Bytes::as< uint32_t, BMP_FMT_WIDTH_SZ, BIT_END_LITTLE >( ( char* )&BMP_FMT_WIDTH_OFS[ buffer ] );
+            height   = Bytes::as< uint32_t, BMP_FMT_HEIGHT_SZ, BIT_END_LITTLE >( ( char* )&BMP_FMT_HEIGHT_OFS[ buffer ] );
+            bits_ps  = Bytes::as< uint16_t, BMP_FMT_BITS_PER_PIXEL_SZ, BIT_END_LITTLE >( ( char* )&BMP_FMT_BITS_PER_PIXEL_OFS[ buffer ] );
+            bytes_ps = bits_ps / 8;
 
-            width = Bytes::as< uint32_t, BMP_FMT_WIDTH_SZ, BIT_END_LITTLE >( &BMP_FMT_WIDTH_OFS[ buffer ] );
-            height = Bytes::as< uint32_t, BMP_FMT_HEIGHT_SZ, BIT_END_LITTLE >( &BMP_FMT_HEIGHT_OFS[ buffer ] );
-
+            char mod = ( width * bytes_ps ) % 4;
+            padding = ( 4 - mod ) * ( mod != 0 );
 
             echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.data() << "\".";
         }
@@ -175,16 +178,36 @@ public:
         }
 
     public:
-        char*      buffer     = nullptr;
+        ubyte_t*   buffer     = nullptr;
         size_t     buf_size   = 0;
 
         udword_t   data_ofs   = 0;
 
+        uint32_t   padding    = 0;
         uint32_t   width      = 0;
         uint32_t   height     = 0;
 
-    public:
+        uint16_t   bits_ps    = 0;
+        uint16_t   bytes_ps   = 0;
 
+    public:
+        ubyte_t* operator [] ( size_t row ) const {
+            return buffer + data_ofs + row * ( width * bytes_ps + padding );
+        }
+
+    public:
+        dword_t write_back( std::string_view path, _ENGINE_COMMS_ECHO_ARG ) const {
+            std::ofstream file{ path.data() };
+
+            if( !file ) {
+                echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file for write: \"" << path.data() << "\".";
+                return 0;
+            }
+
+            file.write( ( char* )buffer, buf_size );
+            file.close();
+            return 0;
+        }
 
     };
 

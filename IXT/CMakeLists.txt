@@ -146,3 +146,7 @@ foreach( source ${IXT_FONDLES_TO_BUILD} )
     endif()
 
 endforeach()
+
+
+# Assembles
+add_subdirectory( "Assembles" )

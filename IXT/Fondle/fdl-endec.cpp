@@ -21,4 +21,6 @@ int main() {
     std::cout << COUT_WIDTH << "Whole buferf size: " << bmp.buf_size << '\n';
     std::cout << COUT_WIDTH << "Width: " << bmp.width << '\n';
     std::cout << COUT_WIDTH << "Height: " << bmp.height << '\n';
+    std::cout << COUT_WIDTH << "Bytes per sample: " << bmp.bytes_ps << '\n';
+    std::cout << COUT_WIDTH << "Padding bytes: " << bmp.padding << '\n';
 }

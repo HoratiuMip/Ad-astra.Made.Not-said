@@ -356,6 +356,22 @@ public:
         echo( this, ECHO_LEVEL_OK ) << "Set.";
     }
 
+    Surface(
+        std::string_view title,
+        Crd2             pos      = { 0, 0 },
+        Vec2             size     = { 512, 512 },
+        SURFACE_THREAD   th_mode  = SURFACE_THREAD_THROUGH,
+        SURFACE_STYLE    style    = SURFACE_STYLE_LIQUID,
+        _ENGINE_COMMS_ECHO_ARG
+    )
+    : Surface{ title, pos, size, style, echo }
+    {
+        if( this->uplink( th_mode, echo ) ) 
+            echo( this, ECHO_LEVEL_OK ) << "Uplinked.";
+        else
+            echo( this, ECHO_LEVEL_ERROR ) << "Failur during uplink procedure.";
+    }
+
 
     Surface( const Surface& ) = delete;
 
@@ -638,7 +654,7 @@ _ENGINE_PROTECTED:
     }
 
 public:
-    Surface& uplink( SURFACE_THREAD launch = SURFACE_THREAD_THROUGH, _ENGINE_COMMS_ECHO_ARG ) {
+    bool uplink( SURFACE_THREAD th_mode = SURFACE_THREAD_THROUGH, _ENGINE_COMMS_ECHO_ARG ) {
 #if defined( _ENGINE_UNIQUE_SURFACE )
          _ptr = this;
 #endif
@@ -649,17 +665,17 @@ public:
         _wnd_class.hbrBackground = HBRUSH( COLOR_INACTIVECAPTIONTEXT );
         _wnd_class.hCursor       = LoadCursor( NULL, IDC_ARROW );
 
-        switch( launch ) {
+        switch( th_mode ) {
             case SURFACE_THREAD_THROUGH: goto l_thread_through;
 
             case SURFACE_THREAD_ACROSS: goto l_thread_across;
 
-            default: echo( this, ECHO_LEVEL_ERROR ) << "Bad thread launch argument."; return *this;
+            default: echo( this, ECHO_LEVEL_ERROR ) << "Bad thread mode argument."; return false;
         }
 
 l_thread_through: 
         std::invoke( _main, this, nullptr, echo );
-        return *this;
+        return true;
 
 l_thread_across: 
 {
@@ -671,10 +687,12 @@ l_thread_across:
             echo( this, ECHO_LEVEL_PENDING ) << "Waiting for across window creation...";
 
             sync.acquire();
-        } else
+        } else {
             echo( this, ECHO_LEVEL_ERROR ) << "Main thread bad invoke.";
+            return false;
+        }
 } 
-        return *this;
+        return true;
     }
 
     void downlink( _ENGINE_COMMS_ECHO_ARG ) {

@@ -84,6 +84,8 @@ foreach( path ${assets_paths} )
     string( APPEND IXT_IN_CXX_ASSETS_PATHS "\tstatic std::string_view ASSET_${asset_ext}_${asset_name}_PATH = \"${path}\";\n" )
 endforeach()
 
+message( STATUS "IXT fondle assets generated:\n${IXT_IN_CXX_ASSETS_PATHS}" )
+
 
 # Project details.
 project(

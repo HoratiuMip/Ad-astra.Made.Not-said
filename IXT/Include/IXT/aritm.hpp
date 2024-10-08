@@ -3,6 +3,8 @@
 */
 
 #include <IXT/descriptor.hpp>
+#include <IXT/bit-manip.hpp>
+#include <IXT/comms.hpp>
 #include <IXT/concepts.hpp>
 
 namespace _ENGINE_NAMESPACE {
@@ -518,7 +520,10 @@ public:
 
 
 
-class Clust2 {
+class Clust2 : public Descriptor {
+public:
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Clust2" );
+
 public:
     typedef   std::pair< Vec2, Vec2 >   Vrtx;
 
@@ -555,6 +560,87 @@ public:
     Clust2( const Vec2& org, Cunt&& cunt )
     : Clust2{ org, std::begin( cunt ), std::end( cunt ) }
     {}
+
+/* Clust2 FILE FORMAT
+0: DWORD: ixt file idx
+4: BYTE: metadata
+    - bit 0-1: mode:
+        -- 0b00: text, pairs of x and y
+        -- 0b01: bin, floats( 4 bytes )
+        -- 0b10: bin, doubles( 8 bytes )
+    - bit 2: org:
+        -- 0b0: no origin, only vertices
+        -- 0b1: treat first vertex as the origin
+    - bit 3-8: unused
+5: DWORD: vertex count, including the origin if the <org> bit is set
+*/
+    Clust2( std::string_view path, _ENGINE_COMMS_ECHO_ARG ) {
+        std::ifstream file{ path.data() };
+
+        if( !file ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.data() << "\".";
+            return;
+        }
+
+        struct _Meta {
+            _Meta( std::ifstream& file ) {
+                dword_t xtfdx = 0;
+                file.read( ( char* )&xtfdx, sizeof( xtfdx ) );
+
+                ubyte_t src = file.get();
+
+                mode = src & 0b11;
+                org = ( src >> 2 ) & 0b1;
+
+                file.read( ( char* )&count, sizeof( count ) );
+            }
+
+            dword_t count = 0;
+            ubyte_t mode:2;
+            ubyte_t org:1; 
+
+        } meta{ file };
+
+        _vrtx.reserve( meta.count );
+
+        switch( meta.mode ) {
+            case 0b00: {
+                dword_t read_count = 0;
+
+                if( meta.org ) {
+                    if( file.eof() ) goto l_end;
+                    file >> _origin.x; ++read_count;
+                    if( file.eof() ) goto l_end;
+                    file >> _origin.y; ++read_count;
+                }
+
+l_read_vrtx:
+                if( ( read_count >> 1 ) == meta.count || file.eof() ) goto l_end;
+                file >> _vrtx.emplace_back().second.x; 
+                _vrtx.back().first.x = _vrtx.back().second.x;
+                ++read_count;
+
+                if( file.eof() ) goto l_end;
+                file >> _vrtx.back().second.y; 
+                _vrtx.back().first.y = _vrtx.back().second.y;
+                ++read_count;
+
+                goto l_read_vrtx;
+l_end:
+                if( ( read_count >> 1 ) != meta.count )
+                    echo( this, ECHO_LEVEL_WARNING ) << "Read vertex count ( " << ( read_count >> 1 ) << " ) is different from in-file reported vertex count ( " << meta.count << " ).";
+
+                if( read_count & 1 )
+                    echo( this, ECHO_LEVEL_WARNING ) << "Read vertex count is odd, meaning there is a missing Y or an extra X.";
+
+                
+            break; }
+        }
+
+        file.close();
+
+        echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.data() << "\".";
+    }
 
 public:
     Clust2( const Clust2& other )
@@ -1191,7 +1277,8 @@ _ENGINE_PROTECTED:
 
     public:
         Ray2 operator * () {
-            return { _ref->_origin + _org->first, _drop->first - _org->first };
+            Vec2 org = _ref->_origin + _org->first;
+            return { org, _ref->_origin + _drop->first - org };
         }
 
     };

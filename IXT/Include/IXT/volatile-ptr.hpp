@@ -9,8 +9,7 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-struct strong_link_t {};
-struct weak_link_t {};
+struct no_free_t{};
 
 template< typename _T, bool _is_array = std::is_array_v< _T > >
 class VolatilePtr : public SPtr< _T > {
@@ -23,37 +22,23 @@ public:
 public:
     VolatilePtr() = default;
 
-    VolatilePtr( const VolatilePtr& other ) = default;
+    VolatilePtr( const VolatilePtr& other ) : Base{ other } {}
 
-    VolatilePtr( VolatilePtr&& other ) = default;
+    VolatilePtr( VolatilePtr&& other ) : Base{ std::move( other ) } {}
 
-    VolatilePtr( std::nullptr_t )
-    : Base{ nullptr }
-    {}
+    VolatilePtr( std::nullptr_t ) : Base{ nullptr } {}
 
-    VolatilePtr( T* raw_ptr, [[maybe_unused]] weak_link_t ) noexcept
-    : Base{ raw_ptr, [] ( [[maybe_unused]] T* ) -> void {} }
-    {}
+    VolatilePtr( T* raw_ptr ) : Base{ raw_ptr } {}
 
-    VolatilePtr( T* raw_ptr, [[maybe_unused]] strong_link_t )
-    : Base{ raw_ptr }
-    {}
+    VolatilePtr( T& raw_ptr, [[maybe_unused]] no_free_t ) : Base{ &raw_ptr, [] ( [[maybe_unused]] T* ) -> void {} } {}
 
-    VolatilePtr( T& raw_ref ) noexcept
-    : VolatilePtr{ &raw_ref, weak_link_t{} }
-    {}
+    VolatilePtr( T& raw_ref ) : Base{ &raw_ref, [] ( [[maybe_unused]] T* ) -> void {} } {}
 
-    VolatilePtr( T&& raw_move_ref ) noexcept
-    : Base{ std::make_shared< T >( std::move( raw_move_ref ) ) }
-    {}
+    VolatilePtr( T&& raw_move_ref ) noexcept : Base{ std::make_shared< T >( std::move( raw_move_ref ) ) } {}
 
-    VolatilePtr( const SPtr< T >& other ) noexcept
-    : Base{ other }
-    {}
+    VolatilePtr( const SPtr< T >& other ) : Base{ other } {}
 
-    VolatilePtr( SPtr< T >&& other ) noexcept
-    : Base{ std::move( other ) }
-    {}
+    VolatilePtr( SPtr< T >&& other ) noexcept : Base{ std::move( other ) } {}
 
 public:
     T* operator + ( ptrdiff_t diff ) const {
@@ -62,14 +47,6 @@ public:
 
     T* operator - ( ptrdiff_t diff ) const {
         return this->get() - diff;
-    }
-
-    T& operator [] ( ptrdiff_t idx ) {
-        return *( this->get() + idx );
-    }
-
-    const T& operator [] ( ptrdiff_t idx ) const {
-        return *( this->get() + idx );
     }
 
 public:
@@ -89,23 +66,48 @@ public:
         return *this->get();
     }
 
+    template< typename V >
+    operator V* () const {
+        return ( V* )this->get();
+    }
+
+    template< typename V >
+    operator const V* () const {
+        return ( const V* )this->get();
+    }
+
 public:
-    auto& reset( T* raw_ptr, [[maybe_unused]] weak_link_t ) {
-        this->Base::reset( raw_ptr, [] ( [[maybe_unused]] T* ) -> void {} );
+    VolatilePtr< _T >& reset( std::nullptr_t ) {
+        this->Base::reset();
         return *this;
     }
 
-    auto& reset( T* raw_ptr, [[maybe_unused]] strong_link_t ) {
+    VolatilePtr< _T >& reset( T* raw_ptr ) {
         this->Base::reset( raw_ptr );
         return *this;
     }
 
-    auto& reset( void* raw_ptr, [[maybe_unused]] weak_link_t ) {
-        return this->reset( reinterpret_cast< T* >( raw_ptr ), weak_link_t{} );
+    VolatilePtr< _T >& reset( T* raw_ptr, [[maybe_unused]] no_free_t ) {
+        this->Base::reset( raw_ptr, [] ( [[maybe_unused]] T* ) -> void {} );
+        return *this;
     }
 
-    auto& reset( void* raw_ptr, [[maybe_unused]] strong_link_t ) {
-        return this->reset( reinterpret_cast< T* >( raw_ptr ), strong_link_t{} );
+    VolatilePtr< _T >& reset( T& raw_ref ) {
+        this->Base::reset( &raw_ref, [] ( [[maybe_unused]] T* ) -> void {} );
+        return *this;
+    }
+
+    VolatilePtr< _T >& reset( T&& raw_move_ref ) {
+        this->Base::reset( std::make_shared< T >( raw_move_ref ) );
+        return *this;
+    }
+
+    template< typename V >
+    auto& operator = ( V&& raw ) {
+        if constexpr( std::is_pointer_v< V > )
+            return this->reset( ( T* ) raw );
+        else
+            return this->reset( std::forward< V >( raw ) );
     }
 
 };

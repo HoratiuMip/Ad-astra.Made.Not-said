@@ -85,7 +85,7 @@ public:
 
 _ENGINE_PROTECTED:
     RenderSpec2( Renderer2& renderer )
-    : _renderer{ &renderer, weak_link_t{} }
+    : _renderer{ renderer }
     {}
 
 public:
@@ -1080,7 +1080,7 @@ public:
             return;
         }
 
-        _bitmap.reset( tmp_bmp, weak_link_t{} );
+        _bitmap.reset( tmp_bmp, no_free_t{} );
 
 
         udword_t w = 0;

@@ -78,11 +78,11 @@ l_end:
         std::unique_lock lock{ sync };
 
         for( auto& file : files ) {
-            if( file.ends_with( ".clst2" ) )
+            if( file.ends_with( ".clst2" ) ) {
                 regz.emplace_back( file );
-            else {
+            } else if( file.ends_with( ".bmp" ) ){
                 bmp.~Bmp();
-                bmp = Endec::Bmp{ file };
+                new ( &bmp ) Endec::Bmp{ file };
             }
         }
 
@@ -91,7 +91,7 @@ l_end:
     } );
 
     while( !surf.down( SurfKey::ESC ) ) {
-        std::this_thread::sleep_for( std::chrono::milliseconds{ 60 } );
+        std::this_thread::sleep_for( std::chrono::milliseconds{ 1000 } );
     }
 
     render_th.join();

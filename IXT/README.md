@@ -21,7 +21,7 @@ Quick dictionary: <br>
 
 <br>
 
-[ II ] After `CMake` ran through the `IXT` directory tree, the requested fondles are prepared for build, `IXT_LIB_NAME` is forced in the `CMake` cache, and `IXTLib` is available with publicly linked include directories.
+[ II ] After `CMake` ran through the `IXT` directory tree, the requested fondles are prepared for build, `IXT_LIB_NAME` is forced in the `CMake` cache, and `IXT` is available with publicly linked include directories.
 
 <br>
 

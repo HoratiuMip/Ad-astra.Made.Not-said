@@ -9,7 +9,7 @@ message( STATUS "Calibrating IXT immersion engine for build..." )
 
 
 # Quintessentials.
-set( IXT_LIB_NAME "IXTLib" CACHE STRING "IXT lib name." FORCE )
+set( IXT_LIB_NAME "IXT" CACHE STRING "IXT lib name." FORCE )
 set( IXT_VERSION "v1.0.0" )
 set( IXT_VERSION_ALIAS "Frost Slumber" )
 set( IXT_VERSION_MAJOR 1 )

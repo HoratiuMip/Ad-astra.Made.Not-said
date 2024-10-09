@@ -122,6 +122,29 @@ _ENGINE_PROTECTED:
 
 }; inline SigInterceptor sig_interceptor;
 
+
+
+inline std::string file_browse_save( std::string_view browser_title ) {
+    static constexpr int PATH_BUF_SZ = MAX_PATH;
+
+    char         path[ PATH_BUF_SZ ];
+    OPENFILENAME hf;
+
+    memset( &path, 0, sizeof( path ) );
+    memset( ( char* )&hf, 0, sizeof( hf ) );
+    
+    hf.lStructSize = sizeof( hf );
+    hf.hwndOwner   = GetFocus();
+    hf.lpstrFile   = path;
+    hf.nMaxFile    = MAX_PATH;
+    hf.lpstrTitle  = browser_title.data();
+    hf.Flags       = OFN_EXPLORER | OFN_NOCHANGEDIR;
+
+    GetSaveFileName( &hf );
+
+    return path;
+}
+
 #endif
 
 

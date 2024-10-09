@@ -135,9 +135,11 @@ public:
         BMP_FMT_BITS_PER_PIXEL_SZ = 2
     };
 
+
     class Bmp : public Descriptor {
     public:
         _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Endec::Bmp" );
+
     public:
         Bmp() = default;
 
@@ -183,9 +185,9 @@ public:
 
         udword_t            data_ofs   = 0;
 
-        uint32_t            padding    = 0;
-        uint32_t            width      = 0;
-        uint32_t            height     = 0;
+        int8_t              padding    = 0;
+        int32_t             width      = 0;
+        int32_t             height     = 0;
 
         uint16_t            bits_ps    = 0;
         uint16_t            bytes_ps   = 0;
@@ -196,8 +198,8 @@ public:
         }
 
     public:
-        dword_t write_back( std::string_view path, _ENGINE_COMMS_ECHO_ARG ) const {
-            std::ofstream file{ path.data() };
+        dword_t write_file( std::string_view path, _ENGINE_COMMS_ECHO_ARG ) const {
+            std::ofstream file{ path.data(), std::ios_base::binary };
 
             if( !file ) {
                 echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file for write: \"" << path.data() << "\".";
@@ -205,7 +207,15 @@ public:
             }
 
             file.write( ( char* )buffer, buf_size );
+
+            if( file.badbit ) {
+                echo( this, ECHO_LEVEL_WARNING ) << "Bad bit set during write to: \"" << path.data() << "\".";
+            }
+
             file.close();
+
+            echo( this, ECHO_LEVEL_OK ) << "Wrote to: \"" << path.data() << "\".";
+
             return 0;
         }
 

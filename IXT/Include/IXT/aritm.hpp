@@ -77,7 +77,7 @@ public:
     static ggfloat_t norm(
         ggfloat_t x, ggfloat_t y
     ) {
-        return sqrt( norm( x, y ) );
+        return sqrt( norm_sq( x, y ) );
     }
 
     static ggfloat_t dot_product(
@@ -542,6 +542,10 @@ public:
     {}
 
     template< typename Cunt >
+    requires requires{
+        std::begin( Cunt{} );
+        std::end( Cunt{} );
+    }
     Clust2( Cunt&& cunt )
     : Clust2{ std::begin( cunt ), std::end( cunt ) }
     {}

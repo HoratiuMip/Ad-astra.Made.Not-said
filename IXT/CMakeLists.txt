@@ -8,6 +8,29 @@ set( CMAKE_CXX_EXTENSIONS ON )
 message( STATUS "Calibrating IXT immersion engine for build..." )
 
 
+list( LENGTH IXT_GLS sz )
+if( NOT ${sz} EQUAL 0 )
+    foreach( gl ${IXT_GLS} )
+        if( gl STREQUAL "None" )
+            option( IXT_GL_NONE ON )
+            
+            if( NOT ${sz} EQUAL 1 )
+                message( ERROR "Declared using both no GLs and GLs: ${IXT_GLS}" )
+            endif()
+
+        elseif( gl STREQUAL "OpenGL" )
+            option( IXT_GL_OPEN_GL ON )
+
+        elseif( gl STREQUAL "Direct2D1" )
+            option( IXT_GL_DIRECT_2D1 ON )
+
+        endif()
+    endforeach()
+else()
+    message( STATUS "Using no GLs." )
+endif()
+
+
 # Quintessentials.
 set( IXT_LIB_NAME "IXT" CACHE STRING "IXT lib name." FORCE )
 set( IXT_VERSION "v1.0.0" )
@@ -105,12 +128,18 @@ set( IXT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/Source" )
 
 
 # IXT include and source directories.
-add_subdirectory( "Ext/glm" )
+add_subdirectory( "Ext/OpenGL/glm" )
+add_subdirectory( "Ext/OpenGL/glfw" )
+add_subdirectory( "Ext/OpenGL/glew/build/cmake" )
 add_subdirectory( "Source" )
 add_subdirectory( "Include" )
 
 
 target_link_libraries( ${IXT_LIB_NAME} PUBLIC glm::glm )
+target_link_libraries( ${IXT_LIB_NAME} PUBLIC glfw )
+target_link_libraries( ${IXT_LIB_NAME} PUBLIC glew_s )
+
+target_include_directories( ${IXT_LIB_NAME} PUBLIC "${CMAKE_CURRENT_LIST_DIR}/Ext/OpenGL/glew/include" )
 
 
 # IXT fondles to build.

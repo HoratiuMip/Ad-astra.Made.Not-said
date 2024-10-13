@@ -96,7 +96,13 @@ int main( int argc, char* argv[] ) {
                 if( bmp.buffer == nullptr ) break;
                 if( regz.empty() ) break;
 
-                switch( blur_bmp_main_proc( bmp, regz ) ) {
+                Ticker tick{};
+                dword_t result = blur_bmp_main_proc( bmp, regz );
+                double elapsed = tick.lap();
+
+                Echo{}( nullptr, ECHO_LEVEL_INTEL ) << "Blurring took: " << elapsed << "s.";
+
+                switch( result ) {
                     case BLUR_BMP_RESULT_OK: {
                         std::string path = OS::file_browse_save( "Save processed bmp:" );
 

@@ -983,19 +983,30 @@ _ENGINE_PROTECTED:
 
 public:
     bool contains( Vec2 vec ) const {
-        Ray2    strike    = { vec, Vec2{ std::numeric_limits< ggfloat_t >::max(), .0_ggf } };
-        int32_t int_count = 0;
+        Ray2    ref     = { vec, Vec2{ std::numeric_limits< ggfloat_t >::max(), .0_ggf } };
+        int32_t x_count = 0;
+        Ray2    phase   = { _vrtx.back().first + _origin, _vrtx.front().first - _vrtx.back().first };
 
-        for( auto edge = this->coutter_ray_begin(); edge != this->coutter_ray_end(); ++edge ) {
-            if( ( *edge ).origin.y == strike.origin.y ) {
-                ubyte_t& c = *( ( ubyte_t* )&strike.origin.y + sizeof( strike.origin.y ) - 1 );
-                ( c & 0x1 ) ? ( c &= 0xFE ) : ( c |= 0x1 );
+        for( auto edge_itr = this->coutter_ray_begin(); edge_itr != this->coutter_ray_end(); ++edge_itr ) {
+            Ray2 edge = *edge_itr;
+
+            if( edge.vec.y == .0_ggf ) continue;
+
+            if( !ref.X< bool >( phase ) ) {
+                phase = edge;
+                continue;
             }
 
-            int_count += strike.X< bool >( *edge );
-        }
+            if( edge.origin.y == ref.origin.y ) {
+                x_count += std::signbit( phase.vec.dot( edge.vec ) );
+                ++edge_itr;
+            }
 
-        return int_count & 0x1;
+            phase = edge;
+            ++x_count;
+        }
+        
+        return x_count & 0x1;
     }
 
 _ENGINE_PROTECTED:

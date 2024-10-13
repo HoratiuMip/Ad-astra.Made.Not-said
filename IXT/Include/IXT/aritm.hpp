@@ -454,15 +454,16 @@ public:
 
         ggfloat_t x = ( sx*-vx2 + vx1*sy ) / det;
         ggfloat_t y = ( vy1*sy - sx*vy2 ) / det;
-        ggfloat_t vx = x - ox1;
-        ggfloat_t vy = y - oy1;
+        
+        ggfloat_t nvx = x - ox1;
+        ggfloat_t nvy = y - oy1;
 
-        if( std::signbit( vx ) != std::signbit( vx1 ) || abs( vx ) > abs( vx1 ) ) return false;
+        if( Vec2::norm_sq( nvx, nvy ) > Vec2::norm_sq( vx1, vy1 ) || Vec2::dot_product( nvx, nvy, vx1, vy1 ) < 0.0 ) return false;
  
-        vx = x - ox2;
-        vy = y - oy2; 
+        nvx = x - ox2;
+        nvy = y - oy2; 
 
-        if( std::signbit( vx ) != std::signbit( vx2 ) || abs( vx ) > abs( vx2 ) ) return false;
+        if( Vec2::norm_sq( nvx, nvy ) > Vec2::norm_sq( vx2, vy2 ) || Vec2::dot_product( nvx, nvy, vx2, vy2 ) < 0.0 ) return false;
 
         *ix = x;
         *iy = y;

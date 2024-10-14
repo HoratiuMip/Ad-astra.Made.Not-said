@@ -8,21 +8,41 @@ set( CMAKE_CXX_EXTENSIONS ON )
 message( STATUS "Calibrating IXT immersion engine for build..." )
 
 
+# OS filter.
+option( IXT_OS_WINDOWS "IXT_OS_WINDOWS" OFF )
+
+list( LENGTH IXT_OSS sz )
+if( NOT ${sz} EQUAL 1 )
+    message( ERROR "None or more than one OS declared." )
+    return()
+endif()
+
+if( IXT_OSS STREQUAL "Windows" )
+    set( IXT_OS_WINDOWS ON )
+endif()
+
+
+# GL filter.
+option( IXT_GL_NONE "IXT_GL_NONE" OFF )
+option( IXT_GL_OPEN_GL "IXT_GL_OPEN_GL" OFF )
+option( IXT_GL_DIRECT_2D1 "IXT_GL_DIRECT_2D1" OFF )
+
 list( LENGTH IXT_GLS sz )
 if( NOT ${sz} EQUAL 0 )
     foreach( gl ${IXT_GLS} )
         if( gl STREQUAL "None" )
-            option( IXT_GL_NONE ON )
+            set( IXT_GL_NONE ON )
             
             if( NOT ${sz} EQUAL 1 )
-                message( ERROR "Declared using both no GLs and GLs: ${IXT_GLS}" )
+                message( ERROR "Declared using both no GLs and GLs: ${IXT_GLS}." )
+                return()
             endif()
 
         elseif( gl STREQUAL "OpenGL" )
-            option( IXT_GL_OPEN_GL ON )
+            set( IXT_GL_OPEN_GL ON )
 
         elseif( gl STREQUAL "Direct2D1" )
-            option( IXT_GL_DIRECT_2D1 ON )
+            set( IXT_GL_DIRECT_2D1 ON )
 
         endif()
     endforeach()
@@ -122,24 +142,50 @@ project(
 #target_compile_definitions( ${IXT_LIB_NAME} ${IXT_PREPROCESSOR_DEFINITIONS} )
 
 
+# OS pre.
+if( IXT_OS_WINDOWS )
+    add_compile_definitions( "IXT_OS_WINDOWS" )
+endif()
+
+# GL pre.
+if( IXT_GL_NONE )
+    add_compile_definitions( "IXT_GL_NONE" )
+endif()
+
+if( IXT_GL_OPEN_GL )
+    option( GLM_BUILD_TESTS OFF )
+ 
+    add_subdirectory( "Ext/OpenGL/glm" )
+    add_subdirectory( "Ext/OpenGL/glfw" )
+    add_subdirectory( "Ext/OpenGL/glew/build/cmake" )
+
+    add_compile_definitions( "IXT_GL_OPEN_GL" )
+endif()
+
+if( IXT_GL_DIRECT_2D1 )
+    add_compile_definitions( "IXT_GL_DIRECT_2D1" )
+endif()
+
+
 # Set those folders' paths into variables.
 set( IXT_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/Include" )
 set( IXT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/Source" )
 
 
 # IXT include and source directories.
-add_subdirectory( "Ext/OpenGL/glm" )
-add_subdirectory( "Ext/OpenGL/glfw" )
-add_subdirectory( "Ext/OpenGL/glew/build/cmake" )
 add_subdirectory( "Source" )
 add_subdirectory( "Include" )
 
-
-target_link_libraries( ${IXT_LIB_NAME} PUBLIC glm::glm )
-target_link_libraries( ${IXT_LIB_NAME} PUBLIC glfw )
-target_link_libraries( ${IXT_LIB_NAME} PUBLIC glew_s )
-
-target_include_directories( ${IXT_LIB_NAME} PUBLIC "${CMAKE_CURRENT_LIST_DIR}/Ext/OpenGL/glew/include" )
+# GL post.
+if( IXT_GL_OPEN_GL )
+    target_link_libraries( ${IXT_LIB_NAME} PUBLIC glm::glm )
+    target_link_libraries( ${IXT_LIB_NAME} PUBLIC glfw )
+    target_link_libraries( ${IXT_LIB_NAME} PUBLIC glew_s )   
+    
+    target_include_directories( ${IXT_LIB_NAME} PUBLIC "${CMAKE_CURRENT_LIST_DIR}/Ext/OpenGL/glm" )
+    target_include_directories( ${IXT_LIB_NAME} PUBLIC "${CMAKE_CURRENT_LIST_DIR}/Ext/OpenGL/glfw/include" )
+    target_include_directories( ${IXT_LIB_NAME} PUBLIC "${CMAKE_CURRENT_LIST_DIR}/Ext/OpenGL/glew/include" )
+endif()
 
 
 # IXT fondles to build.

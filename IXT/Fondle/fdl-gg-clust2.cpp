@@ -11,7 +11,7 @@ int main() {
     Clust2 clust{ ASSET_CLST2_TRIG_ECH_PATH };
     clust.scale_with( .4 );
 
-    Surface surf{ "IXT-Fdl-clust2", Crd2{}, Vec2{ std::min( Env::w<2.>(), Env::h<2.>() ) }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_LIQUID };
+    Surface surf{ "IXT-Fdl-clust2", Crd2{}, Vec2{ std::min( Env::w<1.4>(), Env::h<1.4>() ) }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_LIQUID };
 
     Renderer2 render{ surf };
 

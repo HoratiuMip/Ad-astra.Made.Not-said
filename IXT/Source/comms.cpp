@@ -20,11 +20,26 @@ Echo::~Echo() {
     
     if( _dump == nullptr ) return;
 
-    this->_str().put( 0 );
+    this->_any_str().put( 0 );
     comms.out( *this );
 
     if( _depth == 0 )
         comms.delete_echo_dump( std::exchange( _dump, nullptr ) );
+}
+
+Echo::out_stream_t& Echo::_any_str() {
+    return _dump != nullptr ? this->_acc_str() : *comms._stream;
+}
+
+Echo& Echo::push_desc( Echo::descriptor_t desc ) {
+    if( _dump != nullptr ) {
+        this->_descs().emplace_back( desc );
+        this->_acc_str() << desc_switch;
+    } else {
+        std::invoke( comms._desc_proc, desc );
+    }
+
+    return *this;
 }
 
 

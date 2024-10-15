@@ -60,6 +60,7 @@ Quick dictionary: <br>
 > - <span style="color:orange">~~VolatilePtr array specializations.~~</span> <br>
 > - Option to choose relative path for fondle default assets. <br>
 > - <span style="color:orange">~~LinearSweep2 global dive from render spec.~~</span> | Made `deep_dive` with both tmxs and vecs. <br>
+> - RT comms is currently under no locks. Do we need em chat? <br>
 
 ### Low:
 

@@ -48,6 +48,9 @@ int main() {
 //# Constructor cascading.
     X x{ 5 }; Y y{ 5 };
 
+//# RT logs.
+    comms() << "Hello there, " << "General Kenobi!";
+    comms( ECHO_LEVEL_OK ) << "RT comms online.";
 
 //# Crash flush. Comms will output active echos if a termination signal is raised.
     {

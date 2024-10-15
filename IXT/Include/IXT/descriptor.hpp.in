@@ -110,6 +110,7 @@
 #include <bitset>
 #include <string>
 #include <string_view>
+#include <regex>
 
 #include <memory>
 #include <thread>
@@ -148,6 +149,7 @@
 
 namespace _ENGINE_NAMESPACE {
     typedef   _ENGINE_GG_FLOAT_TYPE    ggfloat_t;
+
     typedef   int8_t                   byte_t;
     typedef   uint8_t                  ubyte_t;
     typedef   int16_t                  word_t;
@@ -156,6 +158,15 @@ namespace _ENGINE_NAMESPACE {
     typedef   uint32_t                 udword_t;
     typedef   int64_t                  qword_t;
     typedef   uint64_t                 uqword_t;
+
+    typedef   byte_t                   BYTE;
+    typedef   ubyte_t                  UBYTE;
+    typedef   word_t                   WORD;
+    typedef   uword_t                  UWORD;
+    typedef   dword_t                  DWORD;
+    typedef   udword_t                 UDWORD;
+    typedef   qword_t                  QWORD;
+    typedef   uqword_t                 UQWORD;
 
     template< typename T > using UPtr = std::unique_ptr< T >;
     template< typename T > using SPtr = std::shared_ptr< T >;
@@ -177,7 +188,7 @@ namespace _ENGINE_NAMESPACE {
     static const int VERSION_PATCH = @IXT_VERSION_PATCH@;
 
 
-    static std::string_view ASSETS_DIR = "@IXT_ASSETS_PATH@";
+    static std::string_view ASSETS_DIR = "@IXT_FONDLE_ASSETS_DIR@";
 @IXT_IN_CXX_ASSETS_PATHS@
 
 };
@@ -192,7 +203,8 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-typedef   void*   XtDx;
+typedef   void*     XtDx;
+typedef   dword_t   XtFdx;
 
 class Descriptor {
 public:
@@ -212,6 +224,10 @@ public:
     }
 
 };
+
+
+
+inline const XtFdx FDX_CLUST2 = 0x00'00'01'00;
 
 
 

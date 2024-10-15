@@ -521,6 +521,21 @@ public:
 
 
 
+/* Clust2 FILE FORMAT
+0: DWORD: ixt file idx
+4: BYTE: metadata
+    - bit 0-1: mode:
+        -- 0b00: text, pairs of x and y
+        -- 0b01: bin, floats( 4 bytes )
+        -- 0b10: bin, doubles( 8 bytes )
+    - bit 2: org:
+        -- 0b0: no origin, only vertices
+        -- 0b1: treat first vertex as the origin
+    - bit 3-8: unused
+5: DWORD: vertex count, including the origin if the <org> bit is set
+*/
+
+
 class Clust2 : public Descriptor {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Clust2" );
@@ -566,19 +581,6 @@ public:
     : Clust2{ org, std::begin( cunt ), std::end( cunt ) }
     {}
 
-/* Clust2 FILE FORMAT
-0: DWORD: ixt file idx
-4: BYTE: metadata
-    - bit 0-1: mode:
-        -- 0b00: text, pairs of x and y
-        -- 0b01: bin, floats( 4 bytes )
-        -- 0b10: bin, doubles( 8 bytes )
-    - bit 2: org:
-        -- 0b0: no origin, only vertices
-        -- 0b1: treat first vertex as the origin
-    - bit 3-8: unused
-5: DWORD: vertex count, including the origin if the <org> bit is set
-*/
     Clust2( std::string_view path, _ENGINE_COMMS_ECHO_ARG ) {
         std::ifstream file{ path.data() };
 
@@ -588,8 +590,7 @@ public:
         }
 
         struct _Meta {
-            _Meta( std::ifstream& file ) {
-                dword_t xtfdx = 0;
+            _Meta( std::ifstream& file, _ENGINE_COMMS_ECHO_ARG ) {
                 file.read( ( char* )&xtfdx, sizeof( xtfdx ) );
 
                 ubyte_t src = file.get();
@@ -600,11 +601,15 @@ public:
                 file.read( ( char* )&count, sizeof( count ) );
             }
 
+            XtFdx   xtfdx = 0;
             dword_t count = 0;
             ubyte_t mode:2;
             ubyte_t org:1; 
 
-        } meta{ file };
+        } meta{ file, echo };
+
+        if( meta.xtfdx != FDX_CLUST2 ) 
+            echo( this, ECHO_LEVEL_WARNING ) << "XtFdx of file: \"" << path.data() << "\" does not match this structure's XtFdx.";
 
         _vrtx.reserve( meta.count );
 

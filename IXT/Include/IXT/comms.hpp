@@ -19,6 +19,10 @@ namespace _ENGINE_NAMESPACE {
 
 
 
+enum ECHO_MODE {
+    ECHO_MODE_RT, ECHO_MODE_ACC
+};
+
 enum ECHO_LEVEL {
     ECHO_LEVEL_OK      = 0,
     ECHO_LEVEL_WARNING = 1,
@@ -27,11 +31,15 @@ enum ECHO_LEVEL {
     ECHO_LEVEL_PENDING = 4
 };
 
+// template< ECHO_MODE MODE >
+// requires ( MODE == ECHO_MODE_RT || MODE == ECHO_MODE_ACC )
 class Echo {
 public:
     friend class Comms;
 
 public:
+    using out_stream_t = std::ostream;
+
     using descriptor_t = char;
 
     using Dump = std::tuple< std::ostringstream, std::vector< descriptor_t > >;
@@ -73,13 +81,15 @@ _ENGINE_PROTECTED:
     int64_t   _depth   = 0;
 
 _ENGINE_PROTECTED:
-    auto& _str() {
+    auto& _acc_str() {
         return std::get< _STR >( *_dump );
     }
 
-    const auto& _str() const {
+    const auto& _acc_str() const {
         return std::get< _STR >( *_dump );
     }
+
+    out_stream_t& _any_str();
 
     auto& _descs() {
         return std::get< _DESCS >( *_dump );
@@ -93,21 +103,16 @@ public:
     template< typename T >
     requires is_std_ostringstream_pushable< std::decay_t< T > >
     Echo& operator << ( T&& frag ) {
-        this->_str() << std::forward< T >( frag );
+        this->_any_str() << std::forward< T >( frag );
 
         return *this;
     }
 
 public:
-    Echo& push_desc( descriptor_t desc ) {
-        this->_descs().emplace_back( desc );
-        this->_str() << desc_switch;
-
-        return *this;
-    }
+    Echo& push_desc( descriptor_t desc );
 
     Echo& push_color( OS::CONSOLE_CLR color ) {
-        return this->push_desc( color & desc_color_mask );
+        return this->push_desc( color & desc_color_mask );    
     }
 
     Echo& gray()   { return this->push_color( OS::CONSOLE_CLR_GRAY ); }
@@ -125,8 +130,7 @@ _ENGINE_PROTECTED:
 
 public:
     Echo& operator () ( const Descriptor& invoker, ECHO_LEVEL status ) {
-        if( !this->_str().view().empty() )
-            this->operator<<( '\n' );
+        this->operator<<( '\n' );
 
         this->white()
         .operator<<( "[ " )
@@ -171,8 +175,7 @@ public:
     }
 
     Echo& operator [] ( const Descriptor& invoker ) {
-        if( !this->_str().view().empty() )
-            this->operator<<( '\n' );
+        this->operator<<( '\n' );
 
         return this->white()
         .operator<<( "[ " )
@@ -202,7 +205,10 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Comms" );
 
 public:
-    using out_stream_t = std::ostream;
+    friend class Echo;
+
+public:
+    using out_stream_t = Echo::out_stream_t;
 
 public:
     using desc_proc_key_t   = std::reference_wrapper< const std::type_info >;
@@ -251,6 +257,8 @@ _ENGINE_PROTECTED:
 
     std::set< Echo::Dump* >   _supervisor   = {};
 
+    Echo                      _rt_echo      = { nullptr, 0 };
+
 public:
     template< typename T >
     requires std::is_base_of_v< out_stream_t, T >
@@ -258,6 +266,10 @@ public:
         _stream = static_cast< out_stream_t* >( &stream );
 
         this->set_desc_proc< T >();
+    }
+
+    out_stream_t& stream() {
+        return *_stream;
     }
 
     template< typename T >
@@ -275,7 +287,7 @@ public:
 
 public:
     void out( const Echo& echo ) {
-        auto        view    = echo._str().view();
+        auto        view    = echo._acc_str().view();
         const char* p       = view.data();
         size_t      at_desc = 0;
         size_t      pos     = 0;
@@ -308,7 +320,12 @@ public:
     void raw( const Echo& echo ) {
         std::unique_lock lock{ _out_mtx }; 
 
-        ( *_stream ) << echo._str().view() << std::endl;
+        ( *_stream ) << echo._acc_str().view() << std::endl;
+    }
+
+public:
+    Echo& operator () ( ECHO_LEVEL level = ECHO_LEVEL_INTEL ) {
+        return _rt_echo( this, level );
     }
 
 public:

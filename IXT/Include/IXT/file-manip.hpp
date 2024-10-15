@@ -10,6 +10,16 @@ namespace _ENGINE_NAMESPACE {
 
 
 
+enum FILE_FEIDM_RESULT : DWORD {
+    FILE_FEIDM_RESULT_DONE,
+    FILE_FEIDM_RESULT_ABORTED,
+
+    FILE_FEIDM_RESULT_ITR_CONTINUE,
+    FILE_FEIDM_RESULT_ITR_ABORT,
+
+    _FILE_FEIDM_OP_RESULTFORCE_DWORD = 0x7F'FF'FF'FF
+};
+
 class File {
 public:
     static std::string dir_of( std::string_view path ) {
@@ -78,6 +88,27 @@ public:
         GetSaveFileName( &hf );
 
         return path;
+    }
+
+public:
+    static DWORD for_each_in_dir_matching( const char* dir, const char* rgx_c_str, std::function< DWORD( std::string_view ) > op ) {
+        std::regex rgx{ rgx_c_str };
+
+        for( auto entry : std::filesystem::directory_iterator{ dir } ) {
+            auto file_name    = entry.path().filename().string();
+            std::smatch match = {};
+
+            if( !std::regex_search( file_name, match, rgx ) ) continue;
+
+            DWORD result = std::invoke( op, file_name );
+
+            switch( result ) {
+                case FILE_FEIDM_RESULT_ITR_CONTINUE: continue;
+                case FILE_FEIDM_RESULT_ITR_ABORT:    return FILE_FEIDM_RESULT_ABORTED;
+            };
+        } 
+
+        return FILE_FEIDM_RESULT_DONE;
     }
 
 public:

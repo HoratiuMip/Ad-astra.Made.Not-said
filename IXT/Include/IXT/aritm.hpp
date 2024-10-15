@@ -534,6 +534,10 @@ public:
     - bit 3-8: unused
 5: DWORD: vertex count, including the origin if the <org> bit is set
 */
+enum CLUST2_FILE_FMT {
+    CLUST2_FILE_FMT_MODE_MSK = 0b00000011,
+    CLUST2_FILE_FMT_ORG_MSK  = 0b00000100
+};
 
 
 class Clust2 : public Descriptor {

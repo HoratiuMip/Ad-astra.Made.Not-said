@@ -314,7 +314,7 @@ public:
             p = q + 1;
         }
 
-        ( *_stream ) << "\n\n";
+        ( *_stream ) << "\n";
     }
 
     void raw( const Echo& echo ) {

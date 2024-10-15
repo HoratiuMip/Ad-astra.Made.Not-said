@@ -65,7 +65,7 @@ struct CmdArgs : Descriptor {
                         char* end_ptr = nullptr;
                         mode = strtol( argv[ arg_idx + 1 ], &end_ptr, 0xA );
 
-                        echo( this, ECHO_LEVEL_OK ) << "Detected conversion mode: " << mode << ".";
+                        echo( this, ECHO_LEVEL_OK ) << "Detected conversion mode: " << ( int )mode << ".";
                     break; }
                 }
 
@@ -80,7 +80,7 @@ struct CmdArgs : Descriptor {
             return;
         }
 
-        if( UBYTE sit = ( src_dir.empty() << 1 ) | out_dir.empty(); sit != 0b00 ) {
+        if( IXT::UBYTE sit = ( src_dir.empty() << 1 ) | out_dir.empty(); sit != 0b00 ) {
             echo( this, ECHO_LEVEL_ERROR ) << "Missing " << ( ( ( sit >> 1 ) & 1 ) ? "source directory." : "output directory." );
             return;
         }
@@ -100,7 +100,7 @@ struct CmdArgs : Descriptor {
 };
 
 
-IXT::DWORD cvt_path( const std::string& src_dir, const std::string& out_dir, BYTE mode, const std::string& rel ) {
+IXT::DWORD cvt_path( const std::string& src_dir, const std::string& out_dir, IXT::BYTE mode, const std::string& rel ) {
     File::for_each_in_dir_matching( src_dir.c_str(), rel.c_str(), [ & ] ( std::string_view mch ) -> IXT::DWORD {
         auto abs_path = src_dir + '/' + mch.data();
         
@@ -130,6 +130,8 @@ IXT::DWORD cvt_path( const std::string& src_dir, const std::string& out_dir, BYT
     l_end:
         return FILE_FEIDM_RESULT_ITR_CONTINUE;
     } );
+
+    return 0;
 }
 
 

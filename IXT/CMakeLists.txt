@@ -225,5 +225,5 @@ foreach( source ${IXT_FONDLES_TO_BUILD} )
 endforeach()
 
 
-# Assembles
-add_subdirectory( "Assembles" )
+# Ruptures
+add_subdirectory( "Ruptures" )

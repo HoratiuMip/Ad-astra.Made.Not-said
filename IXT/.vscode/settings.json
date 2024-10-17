@@ -69,5 +69,6 @@
         "variant": "cpp",
         "*.in": "c",
         "regex": "cpp"
-    }
+    },
+    "C_Cpp.dimInactiveRegions": false
 }

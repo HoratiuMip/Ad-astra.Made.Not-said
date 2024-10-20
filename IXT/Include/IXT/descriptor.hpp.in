@@ -37,6 +37,7 @@
     #define _ENGINE_OS_WINDOWS
 #elif defined( IXT_OS_NONE )
     #define _ENGINE_OS_NONE
+    #error No OS mode is not supported as of now.
 #else
     #error Define target operating system.
 #endif
@@ -76,6 +77,13 @@
 #endif
 
 
+#if defined( _ENGINE_GL_OPEN_GL )
+    #define _ENGINE_SURFACE_GLFW
+#else 
+    #define _ENGINE_SURFACE_NATIVE
+#endif
+
+
 #pragma endregion Defines
 
 
@@ -83,6 +91,7 @@
 #pragma region Includes
 
 
+#include <stdio.h>
 
 #include <iostream>
 #include <fstream>
@@ -135,6 +144,8 @@
 
 #if defined( _ENGINE_GL_OPEN_GL )
     #include <glm/glm.hpp>
+    #include <GL/glew.h>
+    #include <GLFW/glfw3.h>
 #endif
 
 
@@ -258,4 +269,3 @@ inline ggfloat_t operator ""_ggf ( long double flt ) {
 
 
 #pragma endregion Literals
-

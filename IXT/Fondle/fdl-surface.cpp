@@ -1,5 +1,6 @@
 /*
 */
+#include <IXT/init.hpp>
 #include <IXT/surface.hpp>
 #include <IXT/os.hpp>
 
@@ -54,8 +55,11 @@ struct MyKeySeqTrigger : public Descriptor {
 
 
 int main() {
+    IXT::initial_uplink( 0, nullptr, nullptr );
+
     Surface surface{ "IXT Surface", Crd2{ 64 }, Vec2{ 512 }, SURFACE_STYLE_LIQUID};
     surface.uplink( SURFACE_THREAD_ACROSS );
+
     surface.downlink();
 
 
@@ -188,4 +192,8 @@ int main() {
 
         std::this_thread::sleep_for( std::chrono::milliseconds( 20 ) );
     }
+
+    surface.downlink();
+
+    IXT::final_downlink( 0, nullptr, nullptr );
 }

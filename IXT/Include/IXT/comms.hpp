@@ -328,6 +328,10 @@ public:
         return _rt_echo( this, level );
     }
 
+    Echo& operator () ( auto* that, ECHO_LEVEL level = ECHO_LEVEL_INTEL ) {
+        return _rt_echo( that, level );
+    }
+
 public:
     [[ nodiscard ]] Echo::Dump* new_echo_dump() {
         Echo::Dump* dump = new Echo::Dump{};

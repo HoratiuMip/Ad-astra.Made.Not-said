@@ -1,9 +1,8 @@
 /*
 */
+#if defined( _ENGINE_GL_DIRECT_2D1 )
 
 #include <IXT/render2.hpp>
-
-#if defined( _ENGINE_GL_DIRECT_2D1 )
 
 namespace _ENGINE_NAMESPACE {
 
@@ -122,6 +121,8 @@ RenderSpec2& Viewport2::line(
     Crd2 c1, Crd2 c2,
     const Sweep2& brush
 ) { 
+    return _renderer->line( c1, c2, brush );
+
     return this->line(
         pull_normal_axis( c1 ),
         pull_normal_axis( c2 ),
@@ -133,6 +134,8 @@ RenderSpec2& Viewport2::line(
     Vec2 v1, Vec2 v2,
     const Sweep2& brush
 ) {
+    return _renderer->line( v1, v2, brush );
+
     _super_spec->line(
         pull_normal_axis( v1 * _size + _origin ),
         pull_normal_axis( v2 * _size + _origin ),

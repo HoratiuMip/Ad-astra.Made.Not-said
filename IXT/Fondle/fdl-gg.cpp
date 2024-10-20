@@ -76,7 +76,7 @@ int main() {
             { -.4, ( ggfloat_t )sin( ticker.up_time() * 2 ) / 2 },
             { .4, ( ggfloat_t )sin( ticker.up_time() * 3 ) / 2 }
         );
-
+        port.rs2_uplink();
         port2.line( left_new, right_new, sweep );
 
         float  a_at = 1.0;
@@ -102,6 +102,7 @@ int main() {
       
         port.splash_bounds();
         port2.splash_bounds();
+        port.rs2_downlink();
         render.splash();
     } );
 

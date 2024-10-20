@@ -137,6 +137,7 @@ project(
     LANGUAGES C CXX 
 )
 
+add_compile_options( "-O3" )
 
 # Preprocessor defines.
 #target_compile_definitions( ${IXT_LIB_NAME} ${IXT_PREPROCESSOR_DEFINITIONS} )
@@ -154,7 +155,7 @@ endif()
 
 if( IXT_GL_OPEN_GL )
     option( GLM_BUILD_TESTS OFF )
- 
+
     add_subdirectory( "Ext/OpenGL/glm" )
     add_subdirectory( "Ext/OpenGL/glfw" )
     add_subdirectory( "Ext/OpenGL/glew/build/cmake" )
@@ -227,3 +228,6 @@ endforeach()
 
 # Ruptures
 add_subdirectory( "Ruptures" )
+
+# Labs
+add_subdirectory( "Labs" )

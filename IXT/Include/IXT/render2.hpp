@@ -96,6 +96,11 @@ _ENGINE_PROTECTED:
     VPtr< Renderer2 >     _renderer      = nullptr;
 
 public:
+    virtual RenderSpec2& rs2_uplink() = 0;
+
+    virtual RenderSpec2& rs2_downlink() = 0;
+
+public:
     virtual RenderSpec2& fill( const RGBA& ) = 0;
 
     virtual RenderSpec2& fill( const Sweep2& ) = 0;
@@ -246,6 +251,9 @@ public:
         }
 
 
+        _tmxs[ 0 ] = RenderSpec2tmx::Identity();
+
+
         *( Renderer2DefaultSweeps* )( this ) = Renderer2DefaultSweeps{ *this, echo };
 
 
@@ -266,13 +274,19 @@ public:
         if( _target ) _target->Release();
     }
 
+public:
+    inline static constexpr DWORD   TMX_MAX_COUNT   = 6;
+
 _ENGINE_PROTECTED:
-    VPtr< Surface >       _surface       = nullptr;
+    VPtr< Surface >       _surface                 = nullptr;
 
-    ID2D1Factory*         _factory       = nullptr;
-    IWICImagingFactory*   _wic_factory   = nullptr;
+    ID2D1Factory*         _factory                 = nullptr;
+    IWICImagingFactory*   _wic_factory             = nullptr;
 
-    target_t*             _target        = nullptr;
+    target_t*             _target                  = nullptr;
+
+    RenderSpec2tmx        _tmxs[ TMX_MAX_COUNT ]   = {};
+    DWORD                 _tmxsdx                  = 0; 
 
 public:
     Surface& surface() {
@@ -295,6 +309,52 @@ public:
         _target->EndDraw();
 
         return *this;
+    }
+
+    virtual RenderSpec2& rs2_uplink() override {
+        _target->BeginDraw();
+        return *this;
+    }
+
+    virtual RenderSpec2& rs2_downlink() override {
+        _target->EndDraw();
+        return *this;
+    }
+
+public:
+    Renderer2& push_tmx( const RenderSpec2tmx& tmx ) {
+        DWORD sdx = -1;
+
+        if( sdx = _tmxsdx + 1; sdx == TMX_MAX_COUNT ) {
+            comms( this, ECHO_LEVEL_WARNING ) << "Pushing TMX to stack would cause overflow. Aborted.";
+            return *this;
+        }
+        
+        _tmxs[ sdx ] = tmx * _tmxs[ _tmxsdx ];
+        _tmxsdx      = sdx;
+
+        _target->SetTransform( _tmxs[ _tmxsdx ] );
+
+        return *this;
+    }
+
+    Renderer2& pop_tmx() {
+        DWORD sdx = -1;
+
+        if( sdx = _tmxsdx - 1; sdx < 0 ) {
+            comms( this, ECHO_LEVEL_WARNING ) << "Popping TMX would cause underflow. Aborted.";
+            return *this;
+        }
+
+        _tmxsdx = sdx;
+
+        _target->SetTransform( _tmxs[ _tmxsdx ] );
+
+        return *this;
+    }
+
+    RenderSpec2tmx& top_tmx() {
+        return _tmxs[ _tmxsdx ];
     }
 
 public:
@@ -416,6 +476,10 @@ public:
     : RenderSpec2{ render_spec },
       _origin{ org }, _size{ sz }, _size2{ sz / 2 }
     {
+        _tmx = RenderSpec2tmx::Scale( _size.x, _size.y ) 
+               * 
+               RenderSpec2tmx::Translation( _origin.x*this->surface().width(), -_origin.y*this->surface().height() );
+
         echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
 
@@ -433,11 +497,21 @@ public:
     Viewport2( Viewport2&& ) = delete;
 
 _ENGINE_PROTECTED:
-    Vec2   _origin       = {};
-    Vec2   _size         = {};
-    Vec2   _size2        = {};
+    Vec2             _origin   = {};
+    Vec2             _size     = {};
+    Vec2             _size2    = {};
+    RenderSpec2tmx   _tmx      = { RenderSpec2tmx::Identity() };
 
     bool   _restricted   = false;
+
+public:
+    virtual RenderSpec2& rs2_uplink() override {
+        return _renderer->push_tmx( _tmx );
+    }
+
+    virtual RenderSpec2& rs2_downlink() override {
+        return _renderer->pop_tmx();
+    }
 
 public:
     Surface& surface() {

@@ -27,7 +27,7 @@ Quick dictionary: <br>
 
 [ Quick cmds ]
 
-`cmake .. -DIXT_GLS=Direct2D1;OpenGL -DIXT_OSS=Windows -DIXT_FONDLES_TO_BUILD= -DIXT_RUPTURES_TO_BUILD= ` <br>
+`cmake .. -DIXT_GLS=Direct2D1;OpenGL -DIXT_OSS=Windows -DIXT_FONDLES_TO_BUILD= -DIXT_RUPTURES_TO_BUILD= -DIXT_LABS_TO_BUILD=` <br>
 
 
 `|`<br>

@@ -29,18 +29,49 @@ public:
 
         A = 65, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
 
+        SPACE = 32,
+
         F1 = 112, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
 
-        CTRL = 17, SHIFT = 16, ALT = 18, TAB = 9, CAPS = 20, ESC = 27, BACKSPACE = 8, ENTER = 13,
+#if defined( _ENGINE_SURFACE_GLFW )
+        LCTRL     = GLFW_KEY_LEFT_CONTROL, 
+        RCTRL     = GLFW_KEY_RIGHT_CONTROL,
+        LSHIFT    = GLFW_KEY_LEFT_SHIFT, 
+        RSHIFT    = GLFW_KEY_RIGHT_SHIFT,
+        LALT      = GLFW_KEY_LEFT_ALT, 
+        RALT      = GLFW_KEY_RIGHT_ALT,
+        TAB       = GLFW_KEY_TAB,
+        CAPS      = GLFW_KEY_CAPS_LOCK,
+        ESC       = GLFW_KEY_ESCAPE,
+        BACKSPACE = GLFW_KEY_BACKSPACE,
+        ENTER     = GLFW_KEY_ENTER,
+        DOT       = GLFW_KEY_PERIOD,
+        COMMA     = GLFW_KEY_COMMA,
+        COLON     = GLFW_KEY_SEMICOLON,
+        DASH      = GLFW_KEY_MINUS,
+        LEFT      = GLFW_KEY_LEFT,
+        UP        = GLFW_KEY_UP,
+        RIGHT     = GLFW_KEY_RIGHT,
+        DOWN      = GLFW_KEY_DOWN
+#else
+        LCTRL = 17, RCTRL = LCTRL, SHIFT = 16, ALT = 18, TAB = 9, CAPS = 20, ESC = 27, BACKSPACE = 8, ENTER = 13,
 
-        SPACE = 32, DOT = 190, COMMA = 188, COLON = 186, APOSTH = 222, DASH = 189, EQUAL = 187, UNDER_ESC = 192,
+        DOT = 190, COMMA = 188, COLON = 186, APOSTH = 222, DASH = 189, EQUAL = 187, UNDER_ESC = 192,
 
         OPEN_BRACKET = 219, CLOSED_BRACKET = 221, BACKSLASH = 220, SLASH = 191,
 
         LEFT = 37, UP, RIGHT, DOWN
+#endif
+
     };
 
-    static constexpr size_t   COUNT   = 262;
+    static constexpr size_t   COUNT   = 
+#if defined( _ENGINE_SURFACE_GLFW )
+    GLFW_KEY_LAST
+#else
+    262
+#endif
+    ;
 
 public:
     SurfKey() = default;
@@ -330,6 +361,8 @@ enum SURFACE_STYLE {
 
 };
 
+#define _SURFACE_EPEF( name, ... ) inline static DWORD name( Surface* that, ## __VA_ARGS__ )
+
 class Surface : public Descriptor,
                 public SurfaceEventSentry,
                 public SurfacePointerSentry
@@ -389,8 +422,15 @@ _ENGINE_PROTECTED:
 #if defined( _ENGINE_UNIQUE_SURFACE )
     inline static Surface*   _ptr            = nullptr;
 #endif
+
+#if defined( _ENGINE_SURFACE_NATIVE )
     HWND                     _hwnd           = NULL;
     WNDCLASSEX               _wnd_class      = {};
+#endif
+#if defined( _ENGINE_SURFACE_GLFW )
+    GLFWwindow*              _glfwnd         = nullptr;
+#endif
+
     std::thread              _thread         = {};
 
     Crd2                     _position       = {};
@@ -404,10 +444,20 @@ _ENGINE_PROTECTED:
 
 _ENGINE_PROTECTED:
     void _main( std::binary_semaphore* sync, _ENGINE_COMMS_ECHO_ARG ) {
+        struct _SyncAutoRelease {
+            ~_SyncAutoRelease() {
+                std::invoke( proc );
+            }
+
+            std::function< void( void ) >   proc   = nullptr;
+        } sync_auto_release{ proc: [ &sync ] ( void ) -> void {
+            if( sync ) std::exchange( sync, nullptr )->release();
+        } };
+
+    #if defined( _ENGINE_SURFACE_NATIVE )
         if( !RegisterClassEx( &_wnd_class ) ) {
             echo( this, ECHO_LEVEL_ERROR ) << "Bad window class registration.";
-
-            if( sync ) sync->release(); return;
+            return;
         }
 
         
@@ -419,43 +469,76 @@ _ENGINE_PROTECTED:
 
         _hwnd = CreateWindowEx(
             WS_EX_ACCEPTFILES,
-
             _wnd_class.lpszClassName, _wnd_class.lpszClassName,
-
             _style,
-
             _position.x, _position.y, adjusted.x, adjusted.y,
-
             NULL, NULL,
-
             GetModuleHandle( NULL ),
-
             this
         );
 
         if( !_hwnd ) {
             echo( this, ECHO_LEVEL_ERROR ) << "Bad window handle.";
-
-            if( sync ) sync->release(); return;
+            return;
         }
 
         SetWindowText( _hwnd, _wnd_class.lpszClassName );
 
+    #endif
+    #if defined( _ENGINE_SURFACE_GLFW )
+        glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 4 );
+        glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 1 );
+        glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );
+        glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
+        glfwWindowHint( GLFW_SCALE_TO_MONITOR, GLFW_FALSE );
+        glfwWindowHint( GLFW_SAMPLES, 4 );
+
+        _glfwnd = glfwCreateWindow( ( int )_size.x, ( int )_size.y, _title.c_str(), nullptr, nullptr );
+
+        if( _glfwnd == nullptr ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "Bad window handle.";
+            return;
+        }
+
+        glfwSetWindowUserPointer( _glfwnd, ( void* )this );
+        glfwSetCursorPosCallback( _glfwnd, event_proc_ptr );
+        glfwSetMouseButtonCallback( _glfwnd, event_proc_ptr_btn );
+        glfwSetScrollCallback( _glfwnd, event_proc_scroll );
+        glfwSetKeyCallback( _glfwnd, event_proc_key );
+        glfwSetDropCallback( _glfwnd, event_proc_files );
+        glfwSetWindowPosCallback( _glfwnd, event_proc_pos );
+        glfwSetWindowSizeCallback( _glfwnd, event_proc_size );
+
+        glfwMakeContextCurrent( _glfwnd );
+
+        glewExperimental = GL_TRUE;
+        if( glewInit() != GLEW_OK ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "OpenGL GLEW init fault.";
+            return;
+        }
+
+    #endif
 
         echo( this, ECHO_LEVEL_OK ) << ( sync ? "Created across." : "Created through." );
 
-        if( sync ) sync->release();
+        sync_auto_release.proc();
 
-
+    #if defined( _ENGINE_SURFACE_NATIVE )
         MSG event;
 
         while( GetMessage( &event, NULL, 0, 0 ) > 0 ) {
             TranslateMessage( &event );
             DispatchMessage( &event );
         }
-
+    #endif
+    #if defined( _ENGINE_SURFACE_GLFW )
+        while( !glfwWindowShouldClose( _glfwnd ) ) {
+            glfwWaitEvents();
+        }
+    #endif
     }
 
+#if defined( _ENGINE_SURFACE_NATIVE )
     static LRESULT CALLBACK event_proc_router_1( HWND hwnd, UINT event, WPARAM w_param, LPARAM l_param ) {
         if( event == WM_NCCREATE ) {
             Surface* ptr = static_cast< Surface* >(
@@ -484,18 +567,14 @@ _ENGINE_PROTECTED:
 
     LRESULT CALLBACK event_proc( HWND hwnd, UINT event, WPARAM w_param, LPARAM l_param ) {
         auto key_proc = [ this ] ( SURFKEY_STATE state, WPARAM w_param ) -> void {
-            SurfKey key = static_cast< SurfKey >( w_param );
+            SurfKey value = static_cast< SurfKey >( w_param );
 
-            _key_array[ key.value ] = state;
-
-            this->invoke_sequence< SURFACE_EVENT_KEY >( _trace, key, state );
+            _EPEF::key( this, value, state );
         };
-
-        _trace.reset();
 
         switch( event ) {
             case WM_CREATE: {
-
+                _EPEF::create( this );
             break; }
 
             case WM_DESTROY: {
@@ -523,21 +602,14 @@ _ENGINE_PROTECTED:
             case WM_MOUSEMOVE: {
                 Vec2 new_pointer = pull_normal_axis( ( Crd2 )( Crd2{ LOWORD( l_param ), HIWORD( l_param ) } / _size ) );
 
-                this->invoke_sequence< SURFACE_EVENT_POINTER >( _trace, new_pointer, _prev_pointer = std::exchange( _pointer, new_pointer ) );
+                _EPEF::pointer( this, new_pointer );
 
             break; }
 
             case WM_MOUSEWHEEL: {
-                this->invoke_sequence< SURFACE_EVENT_SCROLL >(
-                    _trace,
-                    _pointer,
-                    GET_WHEEL_DELTA_WPARAM( w_param ) < 0
-                    ?
-                    SURFSCROLL_DIRECTION_DOWN : SURFSCROLL_DIRECTION_UP
-                );
+                _EPEF::scroll( this, GET_WHEEL_DELTA_WPARAM( w_param ) < 0 ? SURFSCROLL_DIRECTION_DOWN : SURFSCROLL_DIRECTION_UP );
 
-                break;
-            }
+            break; }
 
 
             case WM_LBUTTONDOWN: {
@@ -594,17 +666,17 @@ _ENGINE_PROTECTED:
             case WM_DROPFILES: {
                 size_t file_count = DragQueryFile( reinterpret_cast< HDROP >( w_param ), -1, 0, 0 );
 
-                std::vector< std::string > files;
+                std::vector< std::string > paths;
 
                 for( size_t n = 0; n < file_count; ++ n ) {
-                    TCHAR file[ MAX_PATH ];
+                    TCHAR path[ MAX_PATH ];
 
-                    DragQueryFile( reinterpret_cast< HDROP >( w_param ), n, file, MAX_PATH );
+                    DragQueryFile( reinterpret_cast< HDROP >( w_param ), n, path, MAX_PATH );
 
-                    files.emplace_back( file );
+                    paths.emplace_back( path );
                 }
 
-                this->invoke_sequence< SURFACE_EVENT_FILEDROP >( _trace, std::move( files ) );
+                _EPEF::files( this, paths );
 
             break; }
 
@@ -615,14 +687,14 @@ _ENGINE_PROTECTED:
                     static_cast< ggfloat_t >( ( int16_t )HIWORD( l_param ) )
                 };
 
-                this->invoke_sequence< SURFACE_EVENT_MOVE >( _trace, new_pos, std::exchange( _position, new_pos ) );
+                _EPEF::move( this, new_pos );
 
             break; }
 
             case WM_SIZE: {
                 Vec2 new_size = { LOWORD( l_param ), HIWORD( l_param ) };
                 
-                this->invoke_sequence< SURFACE_EVENT_RESIZE >( _trace, new_size, std::exchange( _size, new_size ) );
+                _EPEF::size( this, new_size );
 
             break; }
 
@@ -630,9 +702,116 @@ _ENGINE_PROTECTED:
 
         return DefWindowProc( hwnd, event, w_param, l_param );
     }
+#endif
+#if defined( _ENGINE_SURFACE_GLFW )
+    static void event_proc_ptr( GLFWwindow* glfwnd, double x, double y ) {
+        Surface* that = ( Surface* )glfwGetWindowUserPointer( glfwnd );
+
+        Vec2 new_pointer = pull_normal_axis( ( Crd2 )( Crd2{ ( ggfloat_t )x, ( ggfloat_t )y } / that->_size ) );
+
+        _EPEF::pointer( that, new_pointer );
+    }
+
+    static void event_proc_scroll( GLFWwindow* glfwnd, double x, double y ) {
+        _EPEF::scroll( ( Surface* )glfwGetWindowUserPointer( glfwnd ), y < 0 ? SURFSCROLL_DIRECTION_DOWN : SURFSCROLL_DIRECTION_UP );
+    }
+
+    static void event_proc_ptr_btn( GLFWwindow* glfwnd, int btn, int action, [[maybe_unused]]int ) {
+        SURFKEY_STATE state;
+
+        switch( action ) {
+            case GLFW_PRESS: state = SURFKEY_STATE_DOWN; break;
+            case GLFW_RELEASE: state = SURFKEY_STATE_UP; break;
+            default: return;
+        }
+
+        _EPEF::key( ( Surface* )glfwGetWindowUserPointer( glfwnd ), SurfKey::LMB + btn, state );
+    }
+
+    static void event_proc_key( GLFWwindow* glfwnd, int key, [[maybe_unused]]int, int action, [[maybe_unused]]int ) {
+        SURFKEY_STATE state;
+
+        switch( action ) {
+            case GLFW_PRESS: state = SURFKEY_STATE_DOWN; break;
+            case GLFW_RELEASE: state = SURFKEY_STATE_UP; break;
+            default: return;
+        }
+
+        _EPEF::key( ( Surface* )glfwGetWindowUserPointer( glfwnd ), key, state );
+    }
+
+    static void event_proc_files( GLFWwindow* glfwnd, int count, const char* paths_c_str[] ) {
+        std::vector< std::string > paths;
+
+        for( int n = 0; n < count; ++n )
+            paths.emplace_back( paths_c_str[ n ] );
+
+        _EPEF::files( ( Surface* )glfwGetWindowUserPointer( glfwnd ), paths );
+    }
+
+    static void event_proc_pos( GLFWwindow* glfwnd, int x, int y ) {
+        Crd2 new_pos = { ( ggfloat_t )x, ( ggfloat_t )y };	
+
+        _EPEF::move( ( Surface* )glfwGetWindowUserPointer( glfwnd ), new_pos );
+    }
+
+    static void event_proc_size( GLFWwindow* glfwnd, int w, int h ) {
+        Crd2 new_size = { ( ggfloat_t )w, ( ggfloat_t )h };	
+
+        _EPEF::size( ( Surface* )glfwGetWindowUserPointer( glfwnd ), new_size );
+    }
+#endif
+
+    struct _EPEF {
+        _SURFACE_EPEF( create ) {
+            return 0;
+        }
+
+        _SURFACE_EPEF( destroy ) {
+            return 0;
+        }
+        
+        _SURFACE_EPEF( pointer, Vec2 new_pointer ) {
+            that->invoke_sequence< SURFACE_EVENT_POINTER >( 
+                that->_trace, new_pointer, that->_prev_pointer = std::exchange( that->_pointer, new_pointer ) 
+            );
+            return 0;
+        }
+
+        _SURFACE_EPEF( scroll, SURFSCROLL_DIRECTION dir ) {
+            that->invoke_sequence< SURFACE_EVENT_SCROLL >( that->_trace, that->_pointer, dir );
+            return 0;
+        }
+
+        _SURFACE_EPEF( key, SurfKey value, SURFKEY_STATE state ) {
+            that->_key_array[ value ] = state;
+            that->invoke_sequence< SURFACE_EVENT_KEY >( that->_trace, value, state );
+            return 0;
+        }
+
+        _SURFACE_EPEF( files, std::vector< std::string > paths ) {
+            that->invoke_sequence< SURFACE_EVENT_FILEDROP >( that->_trace, std::move( paths ) );
+            return 0;
+        }
+
+        _SURFACE_EPEF( move, Vec2 new_pos ) {
+            that->invoke_sequence< SURFACE_EVENT_MOVE >( 
+                that->_trace, new_pos, std::exchange( that->_position, new_pos ) 
+            );
+            return 0;
+        }
+
+        _SURFACE_EPEF( size, Vec2 new_size ) {
+            that->invoke_sequence< SURFACE_EVENT_RESIZE >( 
+                that->_trace, new_size, std::exchange( that->_size, new_size ) 
+            );
+            return 0;
+        }
+    };
 
 _ENGINE_PROTECTED:
     Vec2 _adjust_size_for( SURFACE_STYLE style ) const {
+    #if defined( _ENGINE_SURFACE_NATIVE )
         RECT rect{ 
             static_cast< decltype( RECT::left ) >( _position.x ), 
             static_cast< decltype( RECT::top ) >( _position.y ),
@@ -647,10 +826,15 @@ _ENGINE_PROTECTED:
             static_cast< ggfloat_t >( rect.right - rect.left ), 
             static_cast< ggfloat_t >( rect.bottom - rect.top )
         };
+    #endif
+
+        return { 0 };
     }
 
     void _swap_style( SURFACE_STYLE style ) {
+    #if defined( _ENGINE_SURFACE_NATIVE )
         SetWindowLongPtr( _hwnd, GWL_STYLE, _style = style );
+    #endif
     }
 
 public:
@@ -658,12 +842,15 @@ public:
 #if defined( _ENGINE_UNIQUE_SURFACE )
          _ptr = this;
 #endif
+
+#if defined( _ENGINE_SURFACE_NATIVE )
         _wnd_class.cbSize        = sizeof( WNDCLASSEX );
         _wnd_class.hInstance     = GetModuleHandle( NULL );
         _wnd_class.lpfnWndProc   = event_proc_router_1;
         _wnd_class.lpszClassName = _title.data();
         _wnd_class.hbrBackground = HBRUSH( COLOR_INACTIVECAPTIONTEXT );
         _wnd_class.hCursor       = LoadCursor( NULL, IDC_ARROW );
+#endif
 
         switch( th_mode ) {
             case SURFACE_THREAD_THROUGH: goto l_thread_through;
@@ -696,14 +883,20 @@ l_thread_across:
     }
 
     void downlink( _ENGINE_COMMS_ECHO_ARG ) {
+    #if defined( _ENGINE_SURFACE_NATIVE )
         SendMessage( _hwnd, _SURFACE_EVENT_DESTROY, WPARAM{}, LPARAM{} );
 
         if( !UnregisterClassA( _wnd_class.lpszClassName, GetModuleHandle( NULL ) ) )
             echo( this, ECHO_LEVEL_ERROR ) << "Bad window class unregistration.";
+    #endif
+    #if defined( _ENGINE_SURFACE_GLFW )
+        glfwSetWindowShouldClose( _glfwnd, GL_TRUE );
+        glfwPostEmptyEvent();
+    #endif
 
         if( _thread.joinable() )
             _thread.join();
-
+        
         #if defined( _ENGINE_UNIQUE_SURFACE )
             _ptr = nullptr;
         #endif
@@ -763,6 +956,7 @@ public:
     Surface& relocate( Vec2 pos ) {
         _position = pos;
 
+    #if defined( _ENGINE_SURFACE_NATIVE )
         SetWindowPos(
             _hwnd,
             0,
@@ -770,6 +964,7 @@ public:
             0, 0,
             SWP_NOSIZE
         );
+    #endif
 
         return *this;
     }
@@ -779,6 +974,7 @@ public:
 
         auto adj = this->_adjust_size_for( _style );
 
+    #if defined( _ENGINE_SURFACE_NATIVE )
         SetWindowPos(
             _hwnd,
             0,
@@ -786,18 +982,23 @@ public:
             adj.x, adj.y,
             SWP_NOMOVE
         );
+    #endif
 
         return *this;
     }
 
 public:
     Surface& hide_def_ptr() {
+    #if defined( _ENGINE_SURFACE_NATIVE )
         SendMessage( _hwnd, _SURFACE_EVENT_CURSOR_HIDE, WPARAM{}, LPARAM{} );
+    #endif
         return *this;
     }
 
     Surface& show_def_ptr() {
+    #if defined( _ENGINE_SURFACE_NATIVE )
         SendMessage( _hwnd, _SURFACE_EVENT_CURSOR_SHOW, WPARAM{}, LPARAM{} );
+    #endif
         return *this;
     }
 
@@ -852,13 +1053,22 @@ public:
     }
 
 public:
+#if defined( _ENGINE_SURFACE_NATIVE )
     HWND handle() {
         return _hwnd;
     }
+#endif
+#if defined( _ENGINE_SURFACE_GLFW )
+    GLFWwindow* handle() {
+        return _glfwnd;
+    }
+#endif
 
 public:
     Surface& force_socket_ptr() {
+    #if defined( _ENGINE_SURFACE_NATIVE )
         SendMessage( _hwnd, _SURFACE_EVENT_FORCE_SOCKET_PTR, WPARAM{}, LPARAM{} );
+    #endif
 
         return *this;
     }

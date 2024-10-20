@@ -55,7 +55,7 @@ struct MyKeySeqTrigger : public Descriptor {
 
 
 int main() {
-    IXT::initial_uplink( 0, nullptr, nullptr );
+    IXT::initial_uplink( 0, nullptr, 0, nullptr, nullptr );
 
     Surface surface{ "IXT Surface", Crd2{ 64 }, Vec2{ 512 }, SURFACE_STYLE_LIQUID};
     surface.uplink( SURFACE_THREAD_ACROSS );
@@ -195,5 +195,5 @@ int main() {
 
     surface.downlink();
 
-    IXT::final_downlink( 0, nullptr, nullptr );
+    IXT::final_downlink( 0, nullptr, 0, nullptr, nullptr );
 }

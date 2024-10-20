@@ -31,7 +31,13 @@ public:
 
         SPACE = 32,
 
-        F1 = 112, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+        F1 = 
+#if defined( _ENGINE_SURFACE_GLFW )
+        GLFW_KEY_F1,
+#else
+        112,
+#endif 
+        F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
 
 #if defined( _ENGINE_SURFACE_GLFW )
         LCTRL     = GLFW_KEY_LEFT_CONTROL, 
@@ -49,18 +55,42 @@ public:
         COMMA     = GLFW_KEY_COMMA,
         COLON     = GLFW_KEY_SEMICOLON,
         DASH      = GLFW_KEY_MINUS,
+        APOSTH    = GLFW_KEY_APOSTROPHE,
+        EQUAL     = GLFW_KEY_EQUAL,
+        GRAVE     = GLFW_KEY_GRAVE_ACCENT,
+        LBRACKET  = GLFW_KEY_LEFT_BRACKET,
+        RBRACKET  = GLFW_KEY_RIGHT_BRACKET,
+        BACKSLASH = GLFW_KEY_BACKSLASH,
+        SLASH     = GLFW_KEY_SLASH,
         LEFT      = GLFW_KEY_LEFT,
         UP        = GLFW_KEY_UP,
         RIGHT     = GLFW_KEY_RIGHT,
         DOWN      = GLFW_KEY_DOWN
 #else
-        LCTRL = 17, RCTRL = LCTRL, SHIFT = 16, ALT = 18, TAB = 9, CAPS = 20, ESC = 27, BACKSPACE = 8, ENTER = 13,
-
-        DOT = 190, COMMA = 188, COLON = 186, APOSTH = 222, DASH = 189, EQUAL = 187, UNDER_ESC = 192,
-
-        OPEN_BRACKET = 219, CLOSED_BRACKET = 221, BACKSLASH = 220, SLASH = 191,
-
-        LEFT = 37, UP, RIGHT, DOWN
+        LCTRL     = 17, 
+        RCTRL     = LCTRL, 
+        SHIFT     = 16, 
+        ALT       = 18, 
+        TAB       = 9, 
+        CAPS      = 20, 
+        ESC       = 27, 
+        BACKSPACE = 8, 
+        ENTER     = 13,
+        DOT       = 190, 
+        COMMA     = 188, 
+        COLON     = 186, 
+        APOSTH    = 222, 
+        DASH      = 189, 
+        EQUAL     = 187, 
+        GRAVE     = 192,
+        LBRACKET  = 219, 
+        RBRACKET  = 221, 
+        BACKSLASH = 220, 
+        SLASH     = 191,
+        LEFT      = 37, 
+        UP        = 38, 
+        RIGHT     = 39, 
+        DOWN      = 40
 #endif
 
     };
@@ -402,7 +432,7 @@ public:
         if( this->uplink( th_mode, echo ) ) 
             echo( this, ECHO_LEVEL_OK ) << "Uplinked.";
         else
-            echo( this, ECHO_LEVEL_ERROR ) << "Failur during uplink procedure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "Failure during uplink procedure.";
     }
 
 
@@ -965,6 +995,9 @@ public:
             SWP_NOSIZE
         );
     #endif
+    #if defined( _ENGINE_SURFACE_GLFW )
+        glfwSetWindowPos( _glfwnd, ( int )pos.x, ( int )pos.y );
+    #endif
 
         return *this;
     }
@@ -983,6 +1016,9 @@ public:
             SWP_NOMOVE
         );
     #endif
+    #if defined( _ENGINE_SURFACE_GLFW )
+        glfwSetWindowSize( _glfwnd, ( int )size.x, ( int )size.y );
+    #endif
 
         return *this;
     }
@@ -992,6 +1028,10 @@ public:
     #if defined( _ENGINE_SURFACE_NATIVE )
         SendMessage( _hwnd, _SURFACE_EVENT_CURSOR_HIDE, WPARAM{}, LPARAM{} );
     #endif
+    #if defined( _ENGINE_SURFACE_GLFW )
+        glfwSetInputMode( _glfwnd, GLFW_CURSOR, GLFW_CURSOR_HIDDEN );
+    #endif
+
         return *this;
     }
 
@@ -999,6 +1039,10 @@ public:
     #if defined( _ENGINE_SURFACE_NATIVE )
         SendMessage( _hwnd, _SURFACE_EVENT_CURSOR_SHOW, WPARAM{}, LPARAM{} );
     #endif
+    #if defined( _ENGINE_SURFACE_GLFW )
+        glfwSetInputMode( _glfwnd, GLFW_CURSOR, GLFW_CURSOR_NORMAL );
+    #endif
+
         return *this;
     }
 

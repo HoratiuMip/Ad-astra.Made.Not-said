@@ -80,7 +80,7 @@
 #if defined( _ENGINE_GL_OPEN_GL )
     #define _ENGINE_SURFACE_GLFW
 #else 
-    #define _ENGINE_SURFACE_NATIVE
+    #define _ENGINE_SURFACE_WIN32
 #endif
 
 

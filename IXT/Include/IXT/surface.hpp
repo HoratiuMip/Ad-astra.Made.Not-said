@@ -453,7 +453,7 @@ _ENGINE_PROTECTED:
     inline static Surface*   _ptr            = nullptr;
 #endif
 
-#if defined( _ENGINE_SURFACE_NATIVE )
+#if defined( _ENGINE_SURFACE_WIN32 )
     HWND                     _hwnd           = NULL;
     WNDCLASSEX               _wnd_class      = {};
 #endif
@@ -462,6 +462,7 @@ _ENGINE_PROTECTED:
 #endif
 
     std::thread              _thread         = {};
+    std::atomic< QWORD >     _thread_uplnk   = { false };
 
     Crd2                     _position       = {};
     Vec2                     _size           = {};
@@ -484,7 +485,7 @@ _ENGINE_PROTECTED:
             if( sync ) std::exchange( sync, nullptr )->release();
         } };
 
-    #if defined( _ENGINE_SURFACE_NATIVE )
+    #if defined( _ENGINE_SURFACE_WIN32 )
         if( !RegisterClassEx( &_wnd_class ) ) {
             echo( this, ECHO_LEVEL_ERROR ) << "Bad window class registration.";
             return;
@@ -539,7 +540,7 @@ _ENGINE_PROTECTED:
         glfwSetWindowPosCallback( _glfwnd, event_proc_pos );
         glfwSetWindowSizeCallback( _glfwnd, event_proc_size );
 
-        glfwMakeContextCurrent( _glfwnd );
+        this->uplink_context_on_this_thread();
 
         glewExperimental = GL_TRUE;
         if( glewInit() != GLEW_OK ) {
@@ -547,13 +548,15 @@ _ENGINE_PROTECTED:
             return;
         }
 
+        this->downlink_context_on_this_thread();
+
     #endif
 
         echo( this, ECHO_LEVEL_OK ) << ( sync ? "Created across." : "Created through." );
 
         sync_auto_release.proc();
 
-    #if defined( _ENGINE_SURFACE_NATIVE )
+    #if defined( _ENGINE_SURFACE_WIN32 )
         MSG event;
 
         while( GetMessage( &event, NULL, 0, 0 ) > 0 ) {
@@ -568,7 +571,7 @@ _ENGINE_PROTECTED:
     #endif
     }
 
-#if defined( _ENGINE_SURFACE_NATIVE )
+#if defined( _ENGINE_SURFACE_WIN32 )
     static LRESULT CALLBACK event_proc_router_1( HWND hwnd, UINT event, WPARAM w_param, LPARAM l_param ) {
         if( event == WM_NCCREATE ) {
             Surface* ptr = static_cast< Surface* >(
@@ -841,7 +844,7 @@ _ENGINE_PROTECTED:
 
 _ENGINE_PROTECTED:
     Vec2 _adjust_size_for( SURFACE_STYLE style ) const {
-    #if defined( _ENGINE_SURFACE_NATIVE )
+    #if defined( _ENGINE_SURFACE_WIN32 )
         RECT rect{ 
             static_cast< decltype( RECT::left ) >( _position.x ), 
             static_cast< decltype( RECT::top ) >( _position.y ),
@@ -862,7 +865,7 @@ _ENGINE_PROTECTED:
     }
 
     void _swap_style( SURFACE_STYLE style ) {
-    #if defined( _ENGINE_SURFACE_NATIVE )
+    #if defined( _ENGINE_SURFACE_WIN32 )
         SetWindowLongPtr( _hwnd, GWL_STYLE, _style = style );
     #endif
     }
@@ -873,7 +876,7 @@ public:
          _ptr = this;
 #endif
 
-#if defined( _ENGINE_SURFACE_NATIVE )
+#if defined( _ENGINE_SURFACE_WIN32 )
         _wnd_class.cbSize        = sizeof( WNDCLASSEX );
         _wnd_class.hInstance     = GetModuleHandle( NULL );
         _wnd_class.lpfnWndProc   = event_proc_router_1;
@@ -913,7 +916,7 @@ l_thread_across:
     }
 
     void downlink( _ENGINE_COMMS_ECHO_ARG ) {
-    #if defined( _ENGINE_SURFACE_NATIVE )
+    #if defined( _ENGINE_SURFACE_WIN32 )
         SendMessage( _hwnd, _SURFACE_EVENT_DESTROY, WPARAM{}, LPARAM{} );
 
         if( !UnregisterClassA( _wnd_class.lpszClassName, GetModuleHandle( NULL ) ) )
@@ -930,6 +933,39 @@ l_thread_across:
         #if defined( _ENGINE_UNIQUE_SURFACE )
             _ptr = nullptr;
         #endif
+    }
+
+public:
+    DWORD uplink_context_on_this_thread() {
+        QWORD cmp = 0;
+        QWORD ths = ( QWORD )std::hash< std::thread::id >{}( std::this_thread::get_id() );
+
+        if( false == _thread_uplnk.compare_exchange_strong( cmp, ths, std::memory_order_relaxed ) ) {
+            comms( ECHO_LEVEL_ERROR ) << "Context uplink from thread " << ths << ", while thread " << cmp << " holds context.";
+            return -1;
+        }
+
+    #if defined( _ENGINE_SURFACE_GLFW )
+        glfwMakeContextCurrent( _glfwnd );
+    #endif
+
+        return 0;
+    }
+
+    DWORD downlink_context_on_this_thread() {
+        QWORD cmp = ( QWORD )std::hash< std::thread::id >{}( std::this_thread::get_id() );
+        QWORD ths = cmp;
+        
+    #if defined( _ENGINE_SURFACE_GLFW )
+        glfwMakeContextCurrent( NULL );
+    #endif
+
+        if( false == _thread_uplnk.compare_exchange_strong( cmp, 0, std::memory_order_relaxed ) ) {
+            comms( ECHO_LEVEL_ERROR ) << "Context downlink from thread " << ths << ", while thread " << cmp << " holds context.";
+            return -1;
+        }
+
+        return 0;
     }
 
 public:
@@ -986,7 +1022,7 @@ public:
     Surface& relocate( Vec2 pos ) {
         _position = pos;
 
-    #if defined( _ENGINE_SURFACE_NATIVE )
+    #if defined( _ENGINE_SURFACE_WIN32 )
         SetWindowPos(
             _hwnd,
             0,
@@ -1007,7 +1043,7 @@ public:
 
         auto adj = this->_adjust_size_for( _style );
 
-    #if defined( _ENGINE_SURFACE_NATIVE )
+    #if defined( _ENGINE_SURFACE_WIN32 )
         SetWindowPos(
             _hwnd,
             0,
@@ -1025,7 +1061,7 @@ public:
 
 public:
     Surface& hide_def_ptr() {
-    #if defined( _ENGINE_SURFACE_NATIVE )
+    #if defined( _ENGINE_SURFACE_WIN32 )
         SendMessage( _hwnd, _SURFACE_EVENT_CURSOR_HIDE, WPARAM{}, LPARAM{} );
     #endif
     #if defined( _ENGINE_SURFACE_GLFW )
@@ -1036,7 +1072,7 @@ public:
     }
 
     Surface& show_def_ptr() {
-    #if defined( _ENGINE_SURFACE_NATIVE )
+    #if defined( _ENGINE_SURFACE_WIN32 )
         SendMessage( _hwnd, _SURFACE_EVENT_CURSOR_SHOW, WPARAM{}, LPARAM{} );
     #endif
     #if defined( _ENGINE_SURFACE_GLFW )
@@ -1097,7 +1133,7 @@ public:
     }
 
 public:
-#if defined( _ENGINE_SURFACE_NATIVE )
+#if defined( _ENGINE_SURFACE_WIN32 )
     HWND handle() {
         return _hwnd;
     }
@@ -1107,10 +1143,13 @@ public:
         return _glfwnd;
     }
 #endif
+    operator decltype( std::declval< Surface >().handle() ) () {
+        return this->handle();
+    }
 
 public:
     Surface& force_socket_ptr() {
-    #if defined( _ENGINE_SURFACE_NATIVE )
+    #if defined( _ENGINE_SURFACE_WIN32 )
         SendMessage( _hwnd, _SURFACE_EVENT_FORCE_SOCKET_PTR, WPARAM{}, LPARAM{} );
     #endif
 

@@ -3,12 +3,11 @@
 */
 
 #include <IXT/descriptor.hpp>
-
-#if defined( _ENGINE_GL_DIRECT_2D1 )
-
 #include <IXT/comms.hpp>
 #include <IXT/surface.hpp>
 #include <IXT/volatile-ptr.hpp>
+
+#if defined( _ENGINE_GL_DIRECT_2D1 )
 
 namespace _ENGINE_NAMESPACE {
 
@@ -1185,5 +1184,5 @@ _ENGINE_PROTECTED:
 };
 
 #else
-    #error Compiling for DIRECT-2D1 without choosing this GL.
+    #warning Compiling for DIRECT-2D1 without choosing this GL.
 #endif  

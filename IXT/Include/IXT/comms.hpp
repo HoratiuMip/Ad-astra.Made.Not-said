@@ -14,8 +14,10 @@ namespace _ENGINE_NAMESPACE {
 
 #define  _ENGINE_COMMS_ECHO_ARG         Echo echo = {}
 #define  _ENGINE_COMMS_ECHO_NO_DFT_ARG  Echo echo
+#define  _ENGINE_COMMS_ECHO_NULL_ARG    Echo echo = NULL
 #define  IXT_COMMS_ECHO_ARG             _ENGINE_COMMS_ECHO_ARG
 #define  IXT_COMMS_ECHO_NO_DFT_ARG      _ENGINE_COMMS_ECHO_NO_DFT_ARG
+#define  IXT_COMMS_ECHO_NULL_ARG        _ENGINE_COMMS_ECHO_NULL_ARG
 
 
 
@@ -62,6 +64,10 @@ public:
 
     Echo( const Echo& other )
     : _dump{ other._dump }, _depth{ other._depth + 1 }
+    {}
+
+    Echo( decltype( NULL ) )
+    : Echo{ nullptr, 0 }
     {}
 
 _ENGINE_PROTECTED:

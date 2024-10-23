@@ -540,7 +540,7 @@ _ENGINE_PROTECTED:
         glfwSetWindowPosCallback( _glfwnd, event_proc_pos );
         glfwSetWindowSizeCallback( _glfwnd, event_proc_size );
 
-        this->uplink_context_on_this_thread();
+        this->uplink_context_on_this_thread( echo );
 
         glewExperimental = GL_TRUE;
         if( glewInit() != GLEW_OK ) {
@@ -548,7 +548,7 @@ _ENGINE_PROTECTED:
             return;
         }
 
-        this->downlink_context_on_this_thread();
+        this->downlink_context_on_this_thread( echo );
 
     #endif
 
@@ -936,12 +936,16 @@ l_thread_across:
     }
 
 public:
-    DWORD uplink_context_on_this_thread() {
-        QWORD cmp = 0;
-        QWORD ths = ( QWORD )std::hash< std::thread::id >{}( std::this_thread::get_id() );
+    DWORD uplink_context_on_this_thread( _ENGINE_COMMS_ECHO_NULL_ARG ) {
+        auto  this_id = std::this_thread::get_id();
+        QWORD cmp_hs  = 0;
+        QWORD this_hs = ( QWORD )std::hash< decltype( this_id ) >{}( this_id );
 
-        if( false == _thread_uplnk.compare_exchange_strong( cmp, ths, std::memory_order_relaxed ) ) {
-            comms( ECHO_LEVEL_ERROR ) << "Context uplink from thread " << ths << ", while thread " << cmp << " holds context.";
+        if( false == _thread_uplnk.compare_exchange_strong( cmp_hs, this_hs, std::memory_order_relaxed ) ) {
+            if( cmp_hs == this_hs )
+                echo( this, ECHO_LEVEL_WARNING ) << "Context uplink multiple times on thread \"" << this_id << "\". Ignored.";
+            else
+                echo( this, ECHO_LEVEL_ERROR ) << "Context uplink on thread \"" << this_id << "\", while another thread holds this surface's context.";
             return -1;
         }
 
@@ -949,21 +953,28 @@ public:
         glfwMakeContextCurrent( _glfwnd );
     #endif
 
+        echo( this, ECHO_LEVEL_OK ) << "Context uplink on thread \"" << this_id << "\".";
+
         return 0;
     }
 
-    DWORD downlink_context_on_this_thread() {
-        QWORD cmp = ( QWORD )std::hash< std::thread::id >{}( std::this_thread::get_id() );
-        QWORD ths = cmp;
+    DWORD downlink_context_on_this_thread( _ENGINE_COMMS_ECHO_NULL_ARG ) {
+        auto  cmp_id  = std::this_thread::get_id();
+        QWORD cmp_hs  = ( QWORD )std::hash< decltype( cmp_id ) >{}( cmp_id );
         
     #if defined( _ENGINE_SURFACE_GLFW )
         glfwMakeContextCurrent( NULL );
     #endif
 
-        if( false == _thread_uplnk.compare_exchange_strong( cmp, 0, std::memory_order_relaxed ) ) {
-            comms( ECHO_LEVEL_ERROR ) << "Context downlink from thread " << ths << ", while thread " << cmp << " holds context.";
+        if( false == _thread_uplnk.compare_exchange_strong( cmp_hs, 0, std::memory_order_relaxed ) ) {
+            if( cmp_hs == 0 )
+                echo( this, ECHO_LEVEL_WARNING ) << "Context donwlink multile times on thread \"" << cmp_id << "\". Ignored.";
+            else
+                echo( this, ECHO_LEVEL_ERROR ) << "Context downlink on thread " << cmp_id << ", while another thread holds this surface's context.";
             return -1;
         }
+
+        echo( this, ECHO_LEVEL_OK ) << "Context downlink on thread \"" << cmp_id << "\".";
 
         return 0;
     }

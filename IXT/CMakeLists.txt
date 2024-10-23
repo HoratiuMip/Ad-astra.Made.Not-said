@@ -137,7 +137,7 @@ project(
     LANGUAGES C CXX 
 )
 
-add_compile_options( "-O3" )
+add_compile_options( "-O3" "$<$<COMPILE_LANGUAGE:CXX>:-Wno-conversion-null>" )
 
 # Preprocessor defines.
 #target_compile_definitions( ${IXT_LIB_NAME} ${IXT_PREPROCESSOR_DEFINITIONS} )

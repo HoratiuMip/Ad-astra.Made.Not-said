@@ -27,7 +27,9 @@ using namespace IXT;
 int glWindowWidth = 640;
 int glWindowHeight = 480;
 int retina_width, retina_height;
-Surface* surf = nullptr;
+
+Surface*   surf = NULL;
+Renderer3* rend = NULL;
 
 GLuint shaderProgram;
 
@@ -67,16 +69,6 @@ void initObjects() {
 }
 
 bool initOpenGLWindow() {
-    surf->uplink( SURFACE_THREAD_ACROSS );
-    
-    surf->uplink_context_on_this_thread();
-
-    // get version info
-    const GLubyte* renderer = glGetString(GL_RENDERER); // get renderer string
-    const GLubyte* version = glGetString(GL_VERSION); // version as a string
-    printf("Renderer: %s\n", renderer);
-    printf("OpenGL version supported %s\n", version);
-
     //for RETINA display
     glfwGetFramebufferSize( surf->handle(), &retina_width, &retina_height );
 
@@ -180,17 +172,16 @@ GLuint initBasicShader(std::string vertexShaderFileName, std::string fragmentSha
     return shaderProgram;
 }
 
-void cleanup() {
-    surf->downlink();
-    IXT::final_downlink( NULL, NULL, 0, NULL, NULL );
-}
 
-int main(int argc, char* argv[]) {
+
+int main(int argc, char* argv[] ) {
     IXT::initial_uplink( argc, argv, 0, NULL, NULL );
 
-    surf = new Surface{ "Lab-IV", Crd2{}, Vec2{ Env::w<2.>() }, SURFACE_STYLE_LIQUID };
+    surf = new Surface{ "Lab-IV", Crd2{}, Vec2{ Env::w<2.>() }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_LIQUID };
+    rend = new Renderer3{ *surf };
 
     if (!initOpenGLWindow()) {
+        surf->downlink();
         IXT::final_downlink( argc, argv, 0, NULL, NULL );
         return 1;
     }
@@ -223,7 +214,8 @@ int main(int argc, char* argv[]) {
         glfwSwapBuffers( surf->handle() );
     }
 
-    cleanup();
+    surf->downlink();
+    IXT::final_downlink( argc, argv, 0, NULL, NULL );
 
     return 0;
 }

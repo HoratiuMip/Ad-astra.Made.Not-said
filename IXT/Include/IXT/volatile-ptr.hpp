@@ -28,6 +28,8 @@ public:
 
     VolatilePtr( std::nullptr_t ) : Base{ nullptr } {}
 
+    VolatilePtr( decltype( NULL ) ) : Base{ nullptr } {}
+
     VolatilePtr( T* raw_ptr ) : Base{ raw_ptr } {}
 
     VolatilePtr( T& raw_ptr, [[maybe_unused]] no_free_t ) : Base{ &raw_ptr, [] ( [[maybe_unused]] T* ) -> void {} } {}
@@ -78,6 +80,11 @@ public:
 
 public:
     VolatilePtr< _T >& reset( std::nullptr_t ) {
+        this->Base::reset();
+        return *this;
+    }
+
+    VolatilePtr< _T >& reset( decltype( NULL ) ) {
         this->Base::reset();
         return *this;
     }

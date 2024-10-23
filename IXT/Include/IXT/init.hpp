@@ -10,7 +10,7 @@ namespace _ENGINE_NAMESPACE {
 
 
 DWORD initial_uplink( int argc, char* argv[], DWORD flags, void* arg, void** ret ) {
-    comms( ECHO_LEVEL_PENDING ) << "Uplinking " _ENGINE_STR " engine...";
+    comms() << "Uplinking " _ENGINE_STR " engine...";
 
 #if defined( _ENGINE_GL_OPEN_GL )
     comms() << "OpenGL GLFW begin init.";
@@ -27,7 +27,7 @@ DWORD initial_uplink( int argc, char* argv[], DWORD flags, void* arg, void** ret
 }
 
 DWORD final_downlink( int argc, char* argv[], DWORD flags, void* arg, void** ret ) {
-    comms( ECHO_LEVEL_PENDING ) << "Downlinking " _ENGINE_STR " engine...";
+    comms() << "Downlinking " _ENGINE_STR " engine...";
 
 #if defined( _ENGINE_GL_OPEN_GL )
     glfwTerminate();

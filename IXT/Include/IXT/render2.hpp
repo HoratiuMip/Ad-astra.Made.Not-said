@@ -160,7 +160,7 @@ enum RENDERER2_DFT_SWEEP {
     RENDERER2_DFT_SWEEP_BLACK    = 0x00'00'00'FF'00'00'00'05,
     RENDERER2_DFT_SWEEP_MAGENTA  = 0xFF'00'FF'FF'00'00'00'06,
 
-    RENDER2_DFT_SWEEP_DFT = RENDERER2_DFT_SWEEP_MAGENTA,
+    RENDERER2_DFT_SWEEP_DFT = RENDERER2_DFT_SWEEP_MAGENTA,
 
     RENDERER2_DFT_SWEEP_RGBA_MASK = 0xFF'FF'FF'FF'00'00'00'00,
     RENDERER2_DFT_SWEEP_IDX_MASK  = ~RENDERER2_DFT_SWEEP_RGBA_MASK,
@@ -207,7 +207,7 @@ public:
     : RenderSpec2{ *this }, _surface{ std::move( surface ) }
     {
         if( CoInitialize( nullptr ) != S_OK ) { 
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: CoInitialize() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "CoInitialize() failure.";
             return;
         }    
 
@@ -220,7 +220,7 @@ public:
                 ( void** )&_wic_factory
             ) != S_OK 
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: CoCreateInstance() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "CoCreateInstance() failure.";
             return;
         }
 
@@ -230,7 +230,7 @@ public:
                 &_factory
             ) != S_OK 
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: D2D1CreateFactory() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "D2D1CreateFactory() failure.";
             return;
         }
 
@@ -245,7 +245,7 @@ public:
                 &_target
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: ID2D1Factory::CreateHwndRenderTarget() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "ID2D1Factory::CreateHwndRenderTarget() failure.";
             return;
         }
 
@@ -474,10 +474,12 @@ public:
     )
     : RenderSpec2{ render_spec },
       _origin{ org }, _size{ sz }, _size2{ sz / 2 }
-    {
-        _tmx = RenderSpec2tmx::Scale( _size.x, _size.y ) 
+    {   
+        Crd2 ref = pull_normal_axis( _origin ) - _size2;
+
+        _tmx = RenderSpec2tmx::Translation( ref.x*this->surface().width(), ref.y*this->surface().height() )
                * 
-               RenderSpec2tmx::Translation( _origin.x*this->surface().width(), -_origin.y*this->surface().height() );
+               RenderSpec2tmx::Scale( _size.x, _size.y );
 
         echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
@@ -647,7 +649,7 @@ public:
     }
 
 public:
-    Viewport2& uplink() {
+    Viewport2& srf_uplink() {
         this->event_sentry()
         .socket_plug< SURFACE_EVENT_POINTER >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
@@ -680,14 +682,14 @@ public:
         return *this;
     }
 
-    Viewport2& downlink() {
+    Viewport2& srf_downlink() {
         _renderer->surface().socket_unplug( this->xtdx() );
 
         return *this;
     }
 
 public:
-    Viewport2& splash_bounds( RENDERER2_DFT_SWEEP sweep_idx = RENDER2_DFT_SWEEP_DFT );
+    Viewport2& splash_bounds( RENDERER2_DFT_SWEEP sweep_idx = RENDERER2_DFT_SWEEP_DFT );
 
 public:
     RenderSpec2& fill(
@@ -798,7 +800,7 @@ public:
     : Sweep2{ w }
     {
         if( renderer.target()->CreateSolidColorBrush( rgba, &_sweep ) != S_OK ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: Renderer2::target()->CreateSolidColorBrush() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "Renderer2::target()->CreateSolidColorBrush() failure.";
             return;
         }
 
@@ -883,7 +885,7 @@ public:
                 &_grads
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: _render_spec->target()->CreateGradientStopCollection() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "_render_spec->target()->CreateGradientStopCollection() failure.";
             return;
         }
 
@@ -900,7 +902,7 @@ public:
                 &_sweep
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: _render_spec->target()->CreateLinearGradientBrush() failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "_render_spec->target()->CreateLinearGradientBrush() failure.";
             return;
         }
 
@@ -976,7 +978,7 @@ public:
                 &_grads
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: _render_spec->target()->CreateGradientStopCollection failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "_render_spec->target()->CreateGradientStopCollection failure.";
             return;
         }
 
@@ -996,7 +998,7 @@ public:
                 &_sweep
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: _render_spec->target()->CreateRadialGradientBrush failure.";
+            echo( this, ECHO_LEVEL_ERROR ) << "_render_spec->target()->CreateRadialGradientBrush failure.";
             return;
         }
 
@@ -1112,17 +1114,17 @@ public:
                 &tools.wic_decoder
             ); res != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: render_spec->renderer().wic_factory()->CreateDecoderFromFilename failure: #" << res << " on: \"" << _path << "\".";
+            echo( this, ECHO_LEVEL_ERROR ) << "render_spec->renderer().wic_factory()->CreateDecoderFromFilename failure: #" << res << " on: \"" << _path << "\".";
             return;
         }
 
         if( udword_t res = tools.wic_decoder->GetFrame( 0, &tools.wic_frame ); res != S_OK ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: tools.wic_decoder->GetFrame failure: #" << res << ".";
+            echo( this, ECHO_LEVEL_ERROR ) << "tools.wic_decoder->GetFrame failure: #" << res << ".";
             return;
         }
 
         if( udword_t res = render_spec->renderer().wic_factory()->CreateFormatConverter( &tools.wic_converter ); res != S_OK ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: render_spec->renderer().wic_factory()->CreateFormatConverter failure: #" << res << ".";
+            echo( this, ECHO_LEVEL_ERROR ) << "render_spec->renderer().wic_factory()->CreateFormatConverter failure: #" << res << ".";
             return;
         }
 
@@ -1136,7 +1138,7 @@ public:
                 WICBitmapPaletteTypeCustom
             ); res != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: tools.wic_converter->Initialize failure: #" << res << ".";
+            echo( this, ECHO_LEVEL_ERROR ) << "tools.wic_converter->Initialize failure: #" << res << ".";
             return;
         }
 
@@ -1149,7 +1151,7 @@ public:
                 &tmp_bmp
             )
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "<Ctor>: render_spec->renderer().target()->CreateBitmapFromWicBitmap failure: #" << res << ".";
+            echo( this, ECHO_LEVEL_ERROR ) << "render_spec->renderer().target()->CreateBitmapFromWicBitmap failure: #" << res << ".";
             return;
         }
 
@@ -1162,7 +1164,7 @@ public:
         tools.wic_frame->GetSize( &w, &h );
 
         if( w == 0 || h == 0 || w >= 10'000 || h >= 10'000 )
-            echo( this, ECHO_LEVEL_WARNING ) << "<Ctor>: Abnormal dimensions: w: " << w << ", h: " << h << ".";
+            echo( this, ECHO_LEVEL_WARNING ) << "Abnormal dimensions: w: " << w << ", h: " << h << ".";
 
         echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << _path << "\".";
     }

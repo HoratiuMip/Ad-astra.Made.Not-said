@@ -936,7 +936,7 @@ l_thread_across:
     }
 
 public:
-    DWORD uplink_context_on_this_thread( _ENGINE_COMMS_ECHO_NULL_ARG ) {
+    DWORD uplink_context_on_this_thread( _ENGINE_COMMS_ECHO_RT_ARG ) {
         auto  this_id = std::this_thread::get_id();
         QWORD cmp_hs  = 0;
         QWORD this_hs = ( QWORD )std::hash< decltype( this_id ) >{}( this_id );
@@ -958,7 +958,7 @@ public:
         return 0;
     }
 
-    DWORD downlink_context_on_this_thread( _ENGINE_COMMS_ECHO_NULL_ARG ) {
+    DWORD downlink_context_on_this_thread( _ENGINE_COMMS_ECHO_RT_ARG ) {
         auto  cmp_id  = std::this_thread::get_id();
         QWORD cmp_hs  = ( QWORD )std::hash< decltype( cmp_id ) >{}( cmp_id );
         

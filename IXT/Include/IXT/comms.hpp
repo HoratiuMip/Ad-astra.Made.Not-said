@@ -14,10 +14,10 @@ namespace _ENGINE_NAMESPACE {
 
 #define  _ENGINE_COMMS_ECHO_ARG         Echo echo = {}
 #define  _ENGINE_COMMS_ECHO_NO_DFT_ARG  Echo echo
-#define  _ENGINE_COMMS_ECHO_NULL_ARG    Echo echo = NULL
+#define  _ENGINE_COMMS_ECHO_RT_ARG    Echo echo = NULL
 #define  IXT_COMMS_ECHO_ARG             _ENGINE_COMMS_ECHO_ARG
 #define  IXT_COMMS_ECHO_NO_DFT_ARG      _ENGINE_COMMS_ECHO_NO_DFT_ARG
-#define  IXT_COMMS_ECHO_NULL_ARG        _ENGINE_COMMS_ECHO_NULL_ARG
+#define  IXT_COMMS_ECHO_RT_ARG        _ENGINE_COMMS_ECHO_RT_ARG
 
 
 

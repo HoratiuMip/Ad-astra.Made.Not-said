@@ -20,10 +20,10 @@ int main() {
     Renderer2 render{ surface };
 
     Viewport2 port{ render, Crd2{ .0 }, Vec2{ .6 } };
-    port.uplink();
+    port.srf_uplink();
 
     Viewport2 port2{ port, Vec2{ .1 }, Vec2{ .6 } };
-    port2.uplink();
+    port2.srf_uplink();
 
     Sprite2 rammus{ render, ASSET_PNG_RAMMUS_PATH };
 
@@ -62,7 +62,7 @@ int main() {
         static size_t                    arr_at          = 0;
         static ggfloat_t                 a_step          = 1.0 / arr_sz;
         static RdlSweep2                 sweep           = { 
-            port2, { .0, .0 }, { .0, .0 }, { .5, .5 }, {
+            render, { .0, .0 }, { .0, .0 }, { .5, .5 }, {
                 Sweep2gcn_t{ { 80, 10, 255 }, .0 },
                 Sweep2gcn_t{ { 255, 10, 80 }, 1.0 }
             }, 3.0 
@@ -77,6 +77,7 @@ int main() {
             { .4, ( ggfloat_t )sin( ticker.up_time() * 3 ) / 2 }
         );
         port.rs2_uplink();
+        port2.rs2_uplink();
         port2.line( left_new, right_new, sweep );
 
         float  a_at = 1.0;
@@ -100,8 +101,9 @@ int main() {
             arr[ arr_at ] = { left_new, right_new };
         }
       
-        port.splash_bounds();
         port2.splash_bounds();
+        port2.rs2_downlink();
+        port.splash_bounds();
         port.rs2_downlink();
         render.splash();
     } );

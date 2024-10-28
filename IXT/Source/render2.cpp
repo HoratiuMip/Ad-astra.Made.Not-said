@@ -1,5 +1,7 @@
 /*
 */
+#include <IXT/descriptor.hpp>
+
 #if defined( _ENGINE_GL_DIRECT_2D1 )
 
 #include <IXT/render2.hpp>
@@ -82,12 +84,19 @@ RenderSpec2& Renderer2::line(
 
 
 Viewport2& Viewport2::splash_bounds( RENDERER2_DFT_SWEEP sweep_idx ) {
+    Sweep2& sweep = _renderer->pull( sweep_idx );
+    
+    _renderer->target()->DrawRectangle( 
+        D2D1::RectF( 0, 0, _renderer->surface().width(), _renderer->surface().height() ), 
+        sweep, sweep.width()
+    );
+
+    return *this;
+
     Crd2 tl = this->topl_c();
     Crd2 br = this->botr_c();
     _super_spec->deep_dive( tl );
     _super_spec->deep_dive( br );
-
-    Sweep2& sweep = _renderer->pull( sweep_idx );
 
     _renderer->target()->DrawRectangle( 
         D2D1::RectF( tl.x, tl.y, br.x, br.y ), 

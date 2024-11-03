@@ -983,13 +983,16 @@ public:
         }
 
         auto tmx = RenderSpec2tmx::Identity();
-        _render_spec->deep_dive( tmx );
+        //_render_spec->deep_dive( tmx );
+
+        Vec2 srf_sz = _render_spec->surface().size();
 
         if(
             _render_spec->target()->CreateRadialGradientBrush(
                 D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES{
-                    pull_normal_axis( org ), Crd2{ off.x, -off.y },
-                    rad.x, rad.y
+                    Crd2{ pull_normal_axis( org ) * srf_sz }, 
+                    Crd2{ srf_sz * Vec2{ off.x, -off.y } },
+                    rad.x * srf_sz.x, rad.y * srf_sz.y
                 },
                 D2D1_BRUSH_PROPERTIES{
                     w, tmx
@@ -1048,7 +1051,7 @@ public:
 
 public:
     RdlSweep2& org_at( Vec2 vec ) {
-        _sweep->SetCenter( pull_normal_axis( vec ) );
+        _sweep->SetCenter( Crd2{ pull_normal_axis( vec ) * _render_spec->surface().size() });
         return *this;
     }
 

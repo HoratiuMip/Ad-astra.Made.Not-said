@@ -14,6 +14,10 @@ RenderSpec2::target_t* RenderSpec2::target() {
     return _renderer->target();
 }
 
+Surface& RenderSpec2::surface() {
+    return _renderer->surface();
+}
+
 
 
 Renderer2DefaultSweeps::Renderer2DefaultSweeps( Renderer2& renderer, _ENGINE_COMMS_ECHO_NO_DFT_ARG ) {

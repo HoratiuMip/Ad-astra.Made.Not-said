@@ -156,6 +156,8 @@ endif()
 if( IXT_GL_OPEN_GL )
     option( GLM_BUILD_TESTS OFF )
 
+    add_compile_definitions( "GLM_ENABLE_EXPERIMENTAL" )
+
     add_subdirectory( "Ext/OpenGL/glm" )
     add_subdirectory( "Ext/OpenGL/glfw" )
     add_subdirectory( "Ext/OpenGL/glew/build/cmake" )

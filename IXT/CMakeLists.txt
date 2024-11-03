@@ -96,6 +96,9 @@ set(
     "-lopengl32"
     "-lglu32"
     "-lgdi32"
+    "-lws2_32"
+    "-lwsock32"
+    "-lcrypt32"
     "libcomctl32.a"
     "libcomdlg32.a"
     CACHE STRING "IXT external dependencies." FORCE
@@ -106,6 +109,7 @@ set(
 set( IXT_PROJECT_FONDLE_NAME "IXTFondle" )
 set( IXT_FONDLE_DIR "${CMAKE_CURRENT_LIST_DIR}/Fondle" )
 set( IXT_FONDLE_ASSETS_DIR "${IXT_FONDLE_DIR}/Assets" )
+set( IXT_EXCOM_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}/Ext" )
 
 set( IXT_IN_CXX_ASSETS_PATHS "" )
 
@@ -170,6 +174,18 @@ if( IXT_GL_DIRECT_2D1 )
 endif()
 
 
+# BOOST
+include_directories( "${IXT_EXCOM_ROOT_DIR}/Boost/" )
+
+# OpenSSL
+include_directories( "${IXT_EXCOM_ROOT_DIR}/OpenSSL/include" )
+set( IXT_OPEN_SSL_LIBS 
+    "${IXT_EXCOM_ROOT_DIR}/OpenSSL/libssl.a"
+    "${IXT_EXCOM_ROOT_DIR}/OpenSSL/libcrypto.a"
+)
+link_libraries( ${IXT_OPEN_SSL_LIBS} )
+
+
 # Set those folders' paths into variables.
 set( IXT_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/Include" )
 set( IXT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/Source" )
@@ -185,9 +201,9 @@ if( IXT_GL_OPEN_GL )
     target_link_libraries( ${IXT_LIB_NAME} PUBLIC glfw )
     target_link_libraries( ${IXT_LIB_NAME} PUBLIC glew_s )   
     
-    target_include_directories( ${IXT_LIB_NAME} PUBLIC "${CMAKE_CURRENT_LIST_DIR}/Ext/OpenGL/glm" )
-    target_include_directories( ${IXT_LIB_NAME} PUBLIC "${CMAKE_CURRENT_LIST_DIR}/Ext/OpenGL/glfw/include" )
-    target_include_directories( ${IXT_LIB_NAME} PUBLIC "${CMAKE_CURRENT_LIST_DIR}/Ext/OpenGL/glew/include" )
+    target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/glm" )
+    target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/glfw/include" )
+    target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/glew/include" )
 endif()
 
 

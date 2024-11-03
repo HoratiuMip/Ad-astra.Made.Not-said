@@ -134,6 +134,7 @@
 #include <typeinfo>
 
 #if defined( _ENGINE_OS_WINDOWS )
+    #include <winsock2.h>
     #include <windows.h>
     #include <wincodec.h>
 #endif

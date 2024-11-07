@@ -1,11 +1,7 @@
 # IXT "Nine-tailed" engine.
 
-Godlike masterwork engine approved by punchcard/asm/C goddess Ahri. <br>
-Make it work again. <br>
-
-Quick dictionary: <br>
-> - "ml4o" - most likely forever only <br>
-
+Godlike masterwork engine approved by punchcard/asm/C goddess Ahri.<br>
+Make it work again.<br>
 
 `|`<br>
 `|`<br>
@@ -14,10 +10,21 @@ Quick dictionary: <br>
 
 ## Build [ ╠═Σ ].
 
-[ I ] Add the `IXT` directory in your project's `CMakeLists.txt` ( `add_subdirectory( <path_to_ixt_directory> )` ), with the following set:
-> - `IXT_FONDLES_TO_BUILD` - Inside `IXT/Fondle` there are several sources to showcase the engine's components capabilities. From a fondle source `fdl-<name>.cpp`, append `name` to `IXT_FONDLES_TO_BUILD` in order to build the executable `fdl-<name>`. <br> <br> Example: `-DIXT_FONDLES_TO_BUILD=comms;audio;surface`. <br>
+[ I ] Add the `IXT` directory in your project's `CMakeLists.txt` ( `add_subdirectory( <path_to_ixt_directory> )` ), with the following options ( `*` means _mandatory_ ):
+> - `IXT_FONDLES_TO_BUILD` - Inside `IXT/Fondle` there are several sources to showcase the engine's components capabilities. From a fondle source `fdl-<name>.cpp`, append `name` to `IXT_FONDLES_TO_BUILD` in order to build the executable `fdl-<name>`.<br><br> Example: `-DIXT_FONDLES_TO_BUILD=comms;audio;surface`.<br>
 
-> - `IXT_PREPROCESSOR_DEFINITIONS` - Preprocessor defines for the engine's build. Some defines are mandatory, i.e. operating system and graphics library. ( see ***Preprocessor definitions*** section for more. ) <br> <br> Example: `-DIXT_PREPROCESSOR_DEFINITIONS=IXT_OS_WINDOWS;IXT_GL_DIRECT_2D1`. <br> 
+> - With the same logic as above - `IXT_LABS_TO_BUILD` and `IXT_RUPTURES_TO_BUILD` are present. The labs are experimenting programs. The ruptures are ready to use programs.
+
+> - *`IXT_OS` - The target OS.<br><br> Example:
+`-DIXT_OS=Windows`.<br>
+
+> - *`IXT_GLS` - The graphics libraries to use.<br><br> Example:
+`-DIXT_GLS=OpenGL`.<br>
+
+> For both `IXT_OS` and `IXT_GLS`, choosing "_None_" is allowed.
+
+> - `IXT_AVX=<level>` - Enables the AVX pipeline on _level_ bits.<br><br> Example:
+`-DIXT_AVX=256`.<br>
 
 <br>
 
@@ -27,7 +34,7 @@ Quick dictionary: <br>
 
 [ Quick cmds ]
 
-`cmake .. -DIXT_GLS=Direct2D1;OpenGL -DIXT_OSS=Windows -DIXT_FONDLES_TO_BUILD= -DIXT_RUPTURES_TO_BUILD= -DIXT_LABS_TO_BUILD=` <br>
+`cmake .. -DIXT_GLS=Direct2D1;OpenGL -DIXT_OS=Windows -DIXT_FONDLES_TO_BUILD= -DIXT_RUPTURES_TO_BUILD= -DIXT_LABS_TO_BUILD=`<br>
 
 
 `|`<br>
@@ -39,38 +46,40 @@ Quick dictionary: <br>
 
 ### Godlike:
 
-> - Acquire <span style="color:magenta">sac</span>. <br>
+> - Acquire <span style="color:magenta">sac</span>.<br>
 
 ### Working on:
 
-> - Sprite2. <br>
+> - Audio AVX.<br>
 
 ### High:
 
-> - OS::SigInterceptor handling for all cases. ( some terminates are not intercepted now ) <br>
-> - <span style="color:orange">~~Do no base fondle executables on component names, iterate Fondle directory instead.~~</span> <br>
-> - Separate Clust2Hookable. <br>
-> - <span style="color:orange">~~STOP VPtr< T > ptr | some = move( ptr ) | ptr-> FOR FUCK'S SAKE.~~</span> <br>
-> - <span style="color:orange">~~Operator new unretarded overload.~~</span> <br>
-> - SurfaceEventSentry from type. <br>
+> - OS::SigInterceptor handling for all cases. ( some terminates are not intercepted now )<br>
+> - <span style="color:orange">~~Do no base fondle executables on component names, iterate Fondle directory instead.~~</span><br>
+> - Separate Clust2Hookable.<br>
+> - <span style="color:orange">~~STOP VPtr< T > ptr | some = move( ptr ) | ptr-> FOR FUCK'S SAKE.~~</span><br>
+> - <span style="color:orange">~~Operator new unretarded overload.~~</span><br>
+> - SurfaceEventSentry from type.<br>
 
 ### Medium:
 
-> - During audio sampling, don't make "non-continous" jump from last_amp to current_amp. <br>
-> - <span style="color:orange">~~VolatilePtr array specializations.~~</span> <br>
-> - Option to choose relative path for fondle default assets. <br>
-> - <span style="color:orange">~~LinearSweep2 global dive from render spec.~~</span> | Made `deep_dive` with both tmxs and vecs. <br>
-> - RT comms is currently under no locks. Do we need em chat? <br>
+> - During audio sampling, don't make "non-continous" jump from last_amp to current_amp.<br>
+> - <span style="color:orange">~~VolatilePtr array specializations.~~</span><br>
+> - <span style="color:orange">~~Option to choose relative path for fondle default assets.~~</span><br>
+> - <span style="color:orange">~~LinearSweep2 global dive from render spec.~~</span> | Made `deep_dive` with both tmxs and vecs.<br>
+> - RT comms is currently under no locks. Do we need em chat?<br>
+> - <span style="color:orange">~~Audio AVX extension.~~</span><br>
+> - Sound/Synth AVX extension.
 
 ### Low:
 
-> - <span style="color:orange">~~Surface VL/VG/CL/CG out of bounds when resizing window. ( see fondle )~~</span> <br>
-> - <span style="color:orange">~~Surface style change invokes resize sequence, kill yourself MS, kindly.~~</span> | Scrapped the idea of surface resizing, all resources would need reconstruction. <br>
+> - <span style="color:orange">~~Surface VL/VG/CL/CG out of bounds when resizing window. ( see fondle )~~</span><br>
+> - <span style="color:orange">~~Surface style change invokes resize sequence, kill yourself MS, kindly.~~</span> | Scrapped the idea of surface resizing, all resources would need reconstruction.<br>
 
 ### Perhaps:
 
-> - <span style="color:orange">~~Some smart pointer wrappers, more ops and behavs.~~</span> | Made `VPtr< T >`. <br>
-> - <span style="color:orange">~~Use transforms instead of direct dives on render2.~~</span> <br>
+> - <span style="color:orange">~~Some smart pointer wrappers, more ops and behavs.~~</span> | Made `VPtr< T >`.<br>
+> - <span style="color:orange">~~Use transforms instead of direct dives on render2.~~</span><br>
 
 
 `|`<br>
@@ -121,6 +130,10 @@ Quick dictionary: <br>
 
 > - Following the same rules as the ***Variables*** wording.
 
+### Exceptions:
+
+> - Functions / Variables meant to wrap some another, follow the another's name.<br>
+
 
 `|`<br>
 `|`<br>
@@ -129,18 +142,21 @@ Quick dictionary: <br>
 
 ## Preprocessor definitions [ ╔╬══█ ].
 
+> These are meant to be set via CMake @ build. See build above.
+
 ### Mandatory:
 
-> - Operating system. Currently(ml4o) supporting: <br>
->   - `IXT_WINDOWS_OS` <br>
-> - Graphics library. Currently(ml4o) supporting: <br>
->   - `IXT_GL_NONE` <br>
->   - `IXT_GL_DIRECT_2D1` <br>
+> - Operating system. Currently supporting:<br>
+>   - `IXT_WINDOWS_OS`<br>
+> - Graphics library. Currently supporting:<br>
+>   - `IXT_GL_NONE`<br>
+>   - `IXT_GL_DIRECT_2D1`<br>
+>   - `IXT_GL_OPEN_GL`<br>
 
 ### Optional:
 
-> - Wether your project shall use only one Surface, thus enabling quicker event routing and some quicker accesses. <br>
->   - `IXT_UNIQUE_SURFACE` <br>
+> - Wether your project shall use only one Surface, thus enabling quicker event routing and some quicker accesses.<br>
+>   - `IXT_UNIQUE_SURFACE`<br>
 
 
 `|`<br>
@@ -150,11 +166,11 @@ Quick dictionary: <br>
 
 ## Components [ ¥ÆÖ-Ü£ ].
 
-For more in-depth examples or an interactive behaviour showcase, read/build the `fdl-<component>.cpp` files. <br>
+For more in-depth examples or an interactive behaviour showcase, read/build the `fdl-<component>.cpp` files.<br>
 
 ### `comms`:
 
-The globally available `comms` structure prints the so called `echo`s on their shallow surface destruction. Let: <br>
+The globally available `comms` structure prints the so called `echo`s on their shallow surface destruction. Let:<br>
 ```cxx
 struct X{
     X( int x, IXT_COMMS_ECHO_ARG ) {
@@ -172,17 +188,17 @@ struct Y{
     X x;
 };
 ```
-The moment `Y`'s constructor is called, the macro `IXT_COMMS_ECHO_ARG` provides a default-constructed `echo`. This `echo` is the head of the dive chain. `x{ y, echo }` is such a "dive". Since the `echo` of `X`'s constructor is build from another `echo`(`Y`'s), it will be considered to be at depth one. Should we have more dives, the following `echo`s shall be deeper and deeper. <br> <br>
+The moment `Y`'s constructor is called, the macro `IXT_COMMS_ECHO_ARG` provides a default-constructed `echo`. This `echo` is the head of the dive chain. `x{ y, echo }` is such a "dive". Since the `echo` of `X`'s constructor is build from another `echo`(`Y`'s), it will be considered to be at depth one. Should we have more dives, the following `echo`s shall be deeper and deeper.<br><br>
 
-The shallow surface destruction is considered the one of the `echo` with depth zero, i.e. the default-constructed one. During this destruction the contents inserted in the `echo`s are printed by the `comms` structure, each line having its insertion depth symbolized by the count of `\>`. <br> <br>
+The shallow surface destruction is considered the one of the `echo` with depth zero, i.e. the default-constructed one. During this destruction the contents inserted in the `echo`s are printed by the `comms` structure, each line having its insertion depth symbolized by the count of `\>`.<br><br>
 
-Finally, after constructing a `Y` structure, the output shall be: <br>
+Finally, after constructing a `Y` structure, the output shall be:<br>
 ```
 [ INTEL ]   \>[ <unknown>* ][ <address>* ] -> X
 [ INTEL ]   [ <unknown>* ][ <address>* ] -> Y
 ```
-*\<unknown\> - the set name of the structure, irrelevant for this example. <br>
-*\<address\> - the address of the structure, effectively, `this`. <br>
+*\<unknown\> - the set name of the structure, irrelevant for this example.<br>
+*\<address\> - the address of the structure, effectively, `this`.<br>
 
 
 ### `render2`:
@@ -190,9 +206,9 @@ Finally, after constructing a `Y` structure, the output shall be: <br>
 The 2D rendering structures.
 
 #### Dictionary:
-> - `RenderSpec2tmx` - transform matrix. <br>
-> - `Sweep2gc` - gradient chain. <br>
-> - `Sweep2gcn_t` - gradient chain node. <br>
+> - `RenderSpec2tmx` - transform matrix.<br>
+> - `Sweep2gc` - gradient chain.<br>
+> - `Sweep2gcn_t` - gradient chain node.<br>
 
 
 `|`<br>

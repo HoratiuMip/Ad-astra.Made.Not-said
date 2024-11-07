@@ -22,8 +22,8 @@
 #define _ENGINE_STR "IXT"
 
 #define _ENGINE_STRUCT_NAME( name ) _ENGINE_STR "::" name
-#define _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( name ) virtual std::string_view struct_name() const override { return _ENGINE_STRUCT_NAME( name ); }
-#define IXT_DESCRIPTOR_STRUCT_NAME_OVERRIDE( name ) virtual std::string_view struct_name() const override { return name; }
+#define _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( name ) virtual const char* struct_name() const override { return _ENGINE_STRUCT_NAME( name ); }
+#define IXT_DESCRIPTOR_STRUCT_NAME_OVERRIDE( name ) virtual const char* struct_name() const override { return name; }
 
 
 
@@ -31,6 +31,10 @@
     #define _ENGINE_PROTECTED public
 #else
     #define _ENGINE_PROTECTED protected
+#endif
+
+#if defined( IXT_AVX )
+    #define _ENGINE_AVX IXT_AVX
 #endif
 
 #if defined( IXT_OS_WINDOWS )
@@ -133,6 +137,10 @@
 #include <typeindex>
 #include <typeinfo>
 
+#if defined( _ENGINE_AVX )
+    #include <immintrin.h>
+#endif
+
 #if defined( _ENGINE_OS_WINDOWS )
     #include <winsock2.h>
     #include <windows.h>
@@ -232,7 +240,7 @@ public:
     /**
      * @brief String name for Descriptor descendants.
      */
-    virtual std::string_view struct_name() const {
+    virtual const char* struct_name() const {
         return _ENGINE_STRUCT_NAME( "Descriptor" );
     }
 

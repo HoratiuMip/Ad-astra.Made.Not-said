@@ -10,13 +10,13 @@ using namespace IXT;
 
 
 
-int main() {
+int main() { 
     Endec::Wav< int > sample_wav{ ASSET_WAV_SAX_PATH };
-
+    
     auto audio = std::make_shared< Audio >( 
         Audio::devices()[ 0 ], 
         sample_wav.sample_rate, sample_wav.tunnel_count, 
-        32, 128 
+        32, 256
     );
 
 

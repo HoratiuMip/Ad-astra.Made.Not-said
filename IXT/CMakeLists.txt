@@ -7,17 +7,19 @@ set( CMAKE_CXX_EXTENSIONS ON )
 
 message( STATUS "Calibrating IXT immersion engine for build..." )
 
+# Intrinsics filter.
+option( IXT_AVX "IXT_AVX" OFF )
 
 # OS filter.
 option( IXT_OS_WINDOWS "IXT_OS_WINDOWS" OFF )
 
-list( LENGTH IXT_OSS sz )
+list( LENGTH IXT_OS sz )
 if( NOT ${sz} EQUAL 1 )
     message( ERROR "None or more than one OS declared." )
     return()
 endif()
 
-if( IXT_OSS STREQUAL "Windows" )
+if( IXT_OS STREQUAL "Windows" )
     set( IXT_OS_WINDOWS ON )
 endif()
 
@@ -141,10 +143,16 @@ project(
     LANGUAGES C CXX 
 )
 
-add_compile_options( "-O3" "$<$<COMPILE_LANGUAGE:CXX>:-Wno-conversion-null>" )
+add_compile_options( "-O3" "-march=native" "$<$<COMPILE_LANGUAGE:CXX>:-Wno-conversion-null>" )
 
 # Preprocessor defines.
 #target_compile_definitions( ${IXT_LIB_NAME} ${IXT_PREPROCESSOR_DEFINITIONS} )
+
+
+# Intrinsics pre.
+if( IXT_AVX )
+    add_compile_definitions( "IXT_AVX=${IXT_AVX}" )
+endif()
 
 
 # OS pre.

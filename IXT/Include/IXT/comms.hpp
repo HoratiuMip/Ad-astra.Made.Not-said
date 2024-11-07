@@ -14,10 +14,10 @@ namespace _ENGINE_NAMESPACE {
 
 #define  _ENGINE_COMMS_ECHO_ARG         Echo echo = {}
 #define  _ENGINE_COMMS_ECHO_NO_DFT_ARG  Echo echo
-#define  _ENGINE_COMMS_ECHO_RT_ARG    Echo echo = NULL
-#define  IXT_COMMS_ECHO_ARG             _ENGINE_COMMS_ECHO_ARG
-#define  IXT_COMMS_ECHO_NO_DFT_ARG      _ENGINE_COMMS_ECHO_NO_DFT_ARG
-#define  IXT_COMMS_ECHO_RT_ARG        _ENGINE_COMMS_ECHO_RT_ARG
+#define  _ENGINE_COMMS_ECHO_RT_ARG      Echo echo = NULL
+#define  IXT_COMMS_ECHO_ARG             _ENGINE_NAMESPACE::_ENGINE_COMMS_ECHO_ARG
+#define  IXT_COMMS_ECHO_NO_DFT_ARG      _ENGINE_NAMESPACE::_ENGINE_COMMS_ECHO_NO_DFT_ARG
+#define  IXT_COMMS_ECHO_RT_ARG          _ENGINE_NAMESPACE::_ENGINE_COMMS_ECHO_RT_ARG
 
 
 
@@ -131,7 +131,7 @@ public:
 
 _ENGINE_PROTECTED:
     inline static struct _UnknownInvoker : public Descriptor {
-        _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Echo::UnknownInvoker" );
+        _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Echo::Unknwn" );
     } _unknown_invoker_placeholder;
 
 public:
@@ -148,11 +148,13 @@ public:
 
         for( int64_t n = 1; n <= _depth; ++n )
             this->operator<<( "\\>" );
+        
+        const char* struct_name = invoker.struct_name();
 
         return this->white()
         .operator<<( "[ " )
         .gray()
-        .operator<<( invoker.struct_name() )
+        .operator<<( struct_name ? struct_name : "NULL" )
         .white()
         .operator<<( " ][ " )
         .gray()
@@ -182,11 +184,13 @@ public:
 
     Echo& operator [] ( const Descriptor& invoker ) {
         this->operator<<( '\n' );
+        
+        const char* struct_name = invoker.struct_name();
 
         return this->white()
         .operator<<( "[ " )
         .red()
-        .operator<<( invoker.struct_name() )
+        .operator<<( struct_name ? struct_name : "NULL" )
         .white()
         .operator<<( " ][ " )
         .red()

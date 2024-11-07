@@ -12,18 +12,42 @@ namespace _ENGINE_NAMESPACE {
 
 
 
+#if defined( _ENGINE_AVX )
+    /* #define _ENGINE_AVX_INTRIN_CONCAT( avx_bits, suffix ) _mm##avx_bits##suffix */
+    #define   _ENGINE_AUDIO_AVX_SELECT_PD( vector, offset )   ( *( ( double* )&vector + offset ) )
+
+    #define   _ENGINE_AUDIO_AVX_ALIGN   ( _ENGINE_AVX / ( sizeof( double ) * 8 ) )
+
+    #if _ENGINE_AVX == 256
+        #define   _engine_audio__mAVXd              __m256d
+        #define   _engine_audio__mAVXi              __m128i
+
+        #define   _engine_audio_mmAVX_set1_pd       _mm256_set1_pd
+        #define   _engine_audio_mmAVX_mul_pd        _mm256_mul_pd
+        #define   _engine_audio_mmAVX_add_pd        _mm256_add_pd
+        #define   _engine_audio_mmAVX_cvtpd_epi32   _mm256_cvtpd_epi32
+    #elif _ENGINE_AVX == 512
+        #define   _engine_audio__mAVXd              __m512d
+        #define   _engine_audio__mAVXi              __m256i
+
+        #define   _engine_audio_mmAVX_set1_pd       _mm512_set1_pd
+        #define   _engine_audio_mmAVX_mul_pd        _mm512_mul_pd
+        #define   _engine_audio_mmAVX_add_pd        _mm512_add_pd
+        #define   _engine_audio_mmAVX_cvtpd_epi32   _mm512_cvtpd_epi32
+    #endif
+#endif
+
+
+
 class  Wave;
-struct WaveMetas;
+struct WaveMeta;
 class  Audio;
 
 
 
-struct WaveMetas {
+struct WaveMeta {
 public:
-    typedef   uint16_t                                      tunnel_t;
-    typedef   double                                        volume_t;
-    typedef   double                                        velocity_t;
-    typedef   std::function< double( double, tunnel_t ) >   Filter;
+    typedef   std::function< double( double, WORD ) >   Filter;
 
 _ENGINE_PROTECTED:
     double   _volume     = 1.0;
@@ -32,20 +56,31 @@ _ENGINE_PROTECTED:
     bool     _looping    = false;
     double   _velocity   = 1.0;
     Filter   _filter     = {};
+#if defined( _ENGINE_AVX )
+    struct {
+        _engine_audio__mAVXd   volume   = { _engine_audio_mmAVX_set1_pd( 1.0 ) };
+    }        _avx        = {};            
+#endif
 
 public:
-    volume_t volume() const {
+    double volume() const {
         return _volume;
     } 
 
 public:
-    WaveMetas& volume_at( volume_t vlm ) {
+    WaveMeta& volume_at( double vlm ) {
         _volume = std::clamp( vlm, -1.0, 1.0 );
+    #if defined( _ENGINE_AVX )
+        _avx.volume = _engine_audio_mmAVX_set1_pd( _volume );
+    #endif
         return *this;
     }
 
-    WaveMetas& volume_tweak( const auto& op, const auto& rhs ) {
+    WaveMeta& volume_tweak( const auto& op, const auto& rhs ) {
         _volume = std::clamp( std::invoke( op, _volume, rhs ), -1.0, 1.0 );
+    #if defined( _ENGINE_AVX )
+        _avx.volume = _engine_audio_mmAVX_set1_pd( _volume );
+    #endif
         return *this;
     }
 
@@ -54,17 +89,17 @@ public:
         return _paused;
     }
 
-    WaveMetas& pause() {
+    WaveMeta& pause() {
         _paused = true;
         return *this;
     }
 
-    WaveMetas& resume() {
+    WaveMeta& resume() {
         _paused = false;
         return *this;
     }
 
-    WaveMetas& pause_tweak() {
+    WaveMeta& pause_tweak() {
         _paused ^= true;
         return *this;
     }
@@ -74,17 +109,17 @@ public:
         return _muted;
     }
 
-    WaveMetas& mute() {
+    WaveMeta& mute() {
         _muted = true;
         return *this;
     }
 
-    WaveMetas& unmute() {
+    WaveMeta& unmute() {
         _muted = false;
         return *this;
     }
 
-    WaveMetas& mute_tweak() {
+    WaveMeta& mute_tweak() {
         _muted ^= true;
         return *this;
     }
@@ -94,32 +129,32 @@ public:
         return _looping;
     }
 
-    WaveMetas& loop() {
+    WaveMeta& loop() {
         _looping = true;
         return *this;
     }
 
-    WaveMetas& unloop() {
+    WaveMeta& unloop() {
         _looping = false;
         return *this;
     }
 
-    WaveMetas& loop_tweak() {
+    WaveMeta& loop_tweak() {
         _looping ^= true;
         return *this;
     }
 
 public:
-    velocity_t velocity() const {
+    double velocity() const {
         return _velocity;
     }
 
-    WaveMetas& velocity_at( velocity_t vlc ) {
+    WaveMeta& velocity_at( double vlc ) {
         _velocity = vlc;
         return *this;
     }
 
-    WaveMetas& velocity_tweak( const auto& op, const auto& rhs ) {
+    WaveMeta& velocity_tweak( const auto& op, const auto& rhs ) {
         _velocity = std::invoke( op, _velocity, rhs );
         return *this;
     }
@@ -129,19 +164,19 @@ public:
         return _filter;
     }
 
-    WaveMetas& filter_with( const Filter& flt ) {
+    WaveMeta& filter_with( const Filter& flt ) {
         _filter = flt;
         return *this;
     }
 
-    WaveMetas& remove_filter() {
+    WaveMeta& remove_filter() {
         _filter = nullptr;
         return *this;
     }
 
 };
 
-class Wave : public Descriptor, public WaveMetas {
+class Wave : public Descriptor, public WaveMeta {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Wave" );
 
@@ -160,7 +195,7 @@ public:
 
 _ENGINE_PROTECTED:
     SPtr< Audio >   _audio   = nullptr;
-
+    
 public:
     bool is_playing() const;
 
@@ -195,15 +230,22 @@ public:
         return *_audio;
     }
 
+_ENGINE_PROTECTED:
+    virtual double _sample( double elapsed, WORD tunnel, bool tunnel_end ) = 0;
+
+#if defined( _ENGINE_AVX )
+public:
+    virtual const DWORD waveid_assert_avx() const = 0;
 
 _ENGINE_PROTECTED:
-    virtual double _sample( double elapsed, tunnel_t tunnel, bool advance ) = 0;
+    virtual _engine_audio__mAVXd _sample_avx( _engine_audio__mAVXd elapsed, _engine_audio__mAVXi tunnel, __mmask8 tunnel_end ) = 0;
+#endif
 
 };
 
 
 
-class Audio : public Descriptor, public WaveMetas {
+class Audio : public Descriptor, public WaveMeta {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Audio" );
 
@@ -228,7 +270,15 @@ public:
       _wave_headers      { nullptr },
       _device            { device.data() },
       _free_block_count  { block_count }
-    {
+    { 
+    #if defined( _ENGINE_AVX )
+        if( block_sample_count % _ENGINE_AUDIO_AVX_ALIGN != 0 ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "Block sample count is not " << _ENGINE_AUDIO_AVX_ALIGN << " sample aligned. Cannot use AVX-" << _ENGINE_AVX << ".";
+            return;
+        }
+        echo( this, ECHO_LEVEL_OK ) << "Block sample count aligned for AVX-" << _ENGINE_AVX << ".";
+    #endif
+
         _blocks_memory.reset( new int[ _block_count * _block_sample_count ] );
 
         if( !_blocks_memory ) {
@@ -333,7 +383,6 @@ _ENGINE_PROTECTED:
 
     uint64_t                    _sample_rate          = 0;
     double                      _time_step            = 0.0;
-    double                      _elapsed              = 0.0;
     uint16_t                    _tunnel_count         = 0;
 
     uint64_t                    _block_count          = 0;
@@ -353,14 +402,63 @@ _ENGINE_PROTECTED:
 
     std::list< VPtr< Wave > >   _waves                = {};
 
+#if defined( _ENGINE_AVX )
+    struct {
+        _engine_audio__mAVXd   elapsed   = { _engine_audio_mmAVX_set1_pd( 0.0 ) };
+    }                           _avx                  = {};
+#else
+    double                      _elapsed              = 0.0;
+#endif
+
 _ENGINE_PROTECTED:
     void _main() {
+    #if defined( _ENGINE_AVX )
+        const _engine_audio__mAVXd max_sample = _engine_audio_mmAVX_set1_pd( std::numeric_limits< int >::max() );
+    #else
         constexpr double max_sample = static_cast< double >(
             std::numeric_limits< int >::max()
         );
+    #endif
 
- 
-        auto sample = [ this ] ( Wave::tunnel_t tunnel ) -> double {
+    #if defined( _ENGINE_AVX )
+        _engine_audio__mAVXd avx_time_step = _engine_audio_mmAVX_set1_pd( _time_step ); 
+
+        for( BYTE idx = 0; idx < _ENGINE_AUDIO_AVX_ALIGN; ++idx )
+            _ENGINE_AUDIO_AVX_SELECT_PD( _avx.elapsed, idx ) = idx;
+        _avx.elapsed = _engine_audio_mmAVX_mul_pd( avx_time_step, _avx.elapsed );  
+
+        WORD avx_tunnel[ 4 + _tunnel_count ];
+        bool avx_tunend[ 4 + _tunnel_count ];
+        BYTE avx_tunoff = 0;
+
+        for( WORD t = 0; t < sizeof( avx_tunnel ) / sizeof( WORD ); ++t ) {
+            avx_tunnel[ t ] = t % _tunnel_count;
+            avx_tunend[ t ] = ( avx_tunnel[ t ] == _tunnel_count - 1 );
+        }
+
+        auto sample = [ this, &avx_tunend, &avx_tunoff ] ( _engine_audio__mAVXi tunnel ) -> _engine_audio__mAVXd {
+            _engine_audio__mAVXd amp = _engine_audio_mmAVX_set1_pd( 0.0 );
+
+            if( _paused ) return amp;
+
+            for( auto& wave : _waves )
+                if( wave->waveid_assert_avx() ) {
+                    return amp;
+                } else {
+                    for( BYTE idx = 0; idx < 4; ++idx )
+                        _ENGINE_AUDIO_AVX_SELECT_PD( amp, idx ) += wave->_sample(
+                            _ENGINE_AUDIO_AVX_SELECT_PD( _avx.elapsed, idx ),
+                            _ENGINE_AUDIO_AVX_SELECT_PD( tunnel, idx ),
+                            *( avx_tunend + avx_tunoff + idx )
+                        );
+                }
+
+            amp = _engine_audio_mmAVX_mul_pd( amp, WaveMeta::_avx.volume );
+
+            return amp;
+        };
+    #else
+        auto sample = [ this ] ( WORD tunnel ) -> double {
             double amp = 0.0;
 
             if( _paused ) return amp;
@@ -371,7 +469,7 @@ _ENGINE_PROTECTED:
             return _filter ? _filter( amp, tunnel ) : amp
                    * _volume * !_muted;
         };
-
+    #endif
         
         while( _powered.load( std::memory_order_relaxed ) ) {
             if( _free_block_count.load( std::memory_order_consume ) == 0 ) {
@@ -386,13 +484,34 @@ _ENGINE_PROTECTED:
            
             if( _wave_headers[ _block_current ].dwFlags & WHDR_PREPARED )
                 waveOutUnprepareHeader( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
+
             _waves.remove_if( [] ( auto& wave ) {
                 return wave->done();
             } );
             
             
-            auto current_block = _blocks_memory.get() + _block_current * _block_sample_count;
+            int* current_block = _blocks_memory.get() + _block_current * _block_sample_count;
+        
+        #if defined( _ENGINE_AVX )
+            for( uint64_t n = 0; n < _block_sample_count; n += 4 ) {
+                _engine_audio__mAVXi tunnel;
+                memcpy( &tunnel, &avx_tunnel + avx_tunoff, sizeof( _engine_audio__mAVXi ) );
 
+                if( ( avx_tunoff += 4 ) >= _tunnel_count )
+                    avx_tunoff %= _tunnel_count;
+           
+                _engine_audio__mAVXd amp = sample( tunnel );
+               
+                for( BYTE idx = 0; idx < 4; ++idx )
+                    _ENGINE_AUDIO_AVX_SELECT_PD( amp, idx ) = std::clamp( _ENGINE_AUDIO_AVX_SELECT_PD( amp, idx ), -1.0, 1.0 );
+           
+                _engine_audio__mAVXi& current_vector = *( _engine_audio__mAVXi* )&current_block[ n ]; 
+
+                current_vector = _engine_audio_mmAVX_cvtpd_epi32( _engine_audio_mmAVX_mul_pd( amp, max_sample ) ); 
+
+                _avx.elapsed = _engine_audio_mmAVX_add_pd( _avx.elapsed, avx_time_step );
+            }
+        #else
             for( uint64_t n = 0; n < _block_sample_count; n += _tunnel_count ) {
                 for( uint16_t tnl = 0; tnl < _tunnel_count; ++tnl )
                     current_block[ n + tnl ] = static_cast< int >( 
@@ -401,7 +520,7 @@ _ENGINE_PROTECTED:
                 
                 _elapsed += _time_step;
             }
-
+        #endif
             
             waveOutPrepareHeader( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
             waveOutWrite( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
@@ -471,7 +590,11 @@ public:
     }
 
     double elapsed() const {
+    #if defined( _ENGINE_AVX )
+        return *( double* )&_avx.elapsed;
+    #else
         return _elapsed;
+    #endif
     }
 
     uint16_t tunnel_count() const {
@@ -580,7 +703,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    virtual double _sample( double elapsed, Wave::tunnel_t tunnel, bool advance ) override {
+    virtual double _sample( double elapsed, WORD tunnel, bool advance ) override {
         double amp = 0.0;
 
         if( _paused ) return amp;
@@ -637,6 +760,18 @@ public:
         return static_cast< double >( _sample_count ) / _sample_rate;
     }
 
+#if defined( _ENGINE_AVX )
+public:
+    virtual const DWORD waveid_assert_avx() const override {
+       return 0;
+    }
+
+_ENGINE_PROTECTED:
+    virtual _engine_audio__mAVXd _sample_avx( _engine_audio__mAVXd elapsed, _engine_audio__mAVXi tunnel, __mmask8 tunnel_end ) override {
+        return _engine_audio_mmAVX_set1_pd( 0.0 );
+    }
+#endif
+
 };
 
 
@@ -646,7 +781,7 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Synth" );
 
 public:
-    typedef   std::function< double( double, Wave::tunnel_t ) >   Generator;
+    typedef   std::function< double( double, WORD ) >   Generator;
 
 public:
     Synth() = default;
@@ -700,7 +835,7 @@ public:
 
 
 _ENGINE_PROTECTED:
-    virtual double _sample( double elapsed, Wave::tunnel_t tunnel, bool advance ) override {
+    virtual double _sample( double elapsed, WORD tunnel, bool advance ) override {
         if( _paused ) return 0.0;
 
         if( advance )
@@ -724,21 +859,33 @@ public:
         return *this;
     }
 
+#if defined( _ENGINE_AVX )
+public:
+    virtual const DWORD waveid_assert_avx() const override {
+        return 0;
+    }
+
+_ENGINE_PROTECTED:
+    virtual _engine_audio__mAVXd _sample_avx( _engine_audio__mAVXd elapsed, _engine_audio__mAVXi tunnel, __mmask8 tunnel_end ) {
+        return _engine_audio_mmAVX_set1_pd( 0 );
+    }
+#endif
+
 public:
     static Generator gen_sine( double amp, double freq ) {
-        return [ amp, freq ] ( double elapsed, [[maybe_unused]] Wave::tunnel_t ) -> double {
+        return [ amp, freq ] ( double elapsed, [[maybe_unused]] WORD ) -> double {
             return sin( freq * 2.0 * PI * elapsed ) * amp; 
         };
     }
 
     static Generator gen_cos( double amp, double freq ) {
-        return [ amp, freq ] ( double elapsed, [[maybe_unused]] Wave::tunnel_t ) -> double {
+        return [ amp, freq ] ( double elapsed, [[maybe_unused]] WORD ) -> double {
             return cos( freq * 2.0 * PI * elapsed ) * amp; 
         };
     }
 
     static Generator gen_flat( double amp ) {
-        return [ amp ] ( double elapsed, [[maybe_unused]] Wave::tunnel_t ) -> double {
+        return [ amp ] ( double elapsed, [[maybe_unused]] WORD ) -> double {
             return amp;
         };
     }

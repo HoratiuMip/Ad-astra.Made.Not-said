@@ -1,6 +1,6 @@
 #pragma once
 
-#include <wnt/common.hpp>
+#include <warc/common.hpp>
 
 #include <IXT/descriptor.hpp>
 
@@ -9,11 +9,11 @@
 
 #include <list>
 
-namespace wnt { namespace inet_tls {
+namespace warc { namespace inet_tls {
 
 
-#define WNT_INET_TLS_STR WNT_STR "::inet-tls"
-_WNT_IXT_COMPONENT_DESCRIPTOR( WNT_INET_TLS_STR );
+#define WARC_INET_TLS_STR WARC_STR "::inet-tls"
+_WARC_IXT_COMPONENT_DESCRIPTOR( WARC_INET_TLS_STR );
 
 
 enum INET_PORT : IXT::UWORD {
@@ -48,20 +48,20 @@ public:
     BRIDGE( const BRIDGE& ) = delete;
     BRIDGE( BRIDGE&& ) = delete;
 
-_WNT_PROTECTED:
+_WARC_PROTECTED:
     BRIDGE( const char* addr, INET_PORT port, IXT_COMMS_ECHO_ARG );
 
 public:
     ~BRIDGE();
 
-_WNT_PROTECTED:
+_WARC_PROTECTED:
     _SOCKET       _socket        = {};
     SSL*          _ssl           = nullptr;
 
     std::string   _addr          = {};
     INET_PORT     _port          = INET_PORT_UNKNWN;
 
-    std::string   _struct_name   = WNT_INET_TLS_STR "::BRIDGE";
+    std::string   _struct_name   = WARC_INET_TLS_STR "::BRIDGE";
 
 public:
     int write( const char* buf, int sz );

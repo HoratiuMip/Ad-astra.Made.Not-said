@@ -69,7 +69,7 @@ Make it work again.<br>
 > - <span style="color:orange">~~LinearSweep2 global dive from render spec.~~</span> | Made `deep_dive` with both tmxs and vecs.<br>
 > - RT comms is currently under no locks. Do we need em chat?<br>
 > - <span style="color:orange">~~Audio AVX extension.~~</span><br>
-> - Sound/Synth AVX extension.
+> - Sound/Synth AVX extension and filtering.
 
 ### Low:
 

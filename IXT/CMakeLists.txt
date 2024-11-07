@@ -111,7 +111,7 @@ set(
 set( IXT_PROJECT_FONDLE_NAME "IXTFondle" )
 set( IXT_FONDLE_DIR "${CMAKE_CURRENT_LIST_DIR}/Fondle" )
 set( IXT_FONDLE_ASSETS_DIR "${IXT_FONDLE_DIR}/Assets" )
-set( IXT_EXCOM_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}/Ext" )
+set( IXT_EXCOM_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}/Excom" )
 
 set( IXT_IN_CXX_ASSETS_PATHS "" )
 
@@ -170,9 +170,10 @@ if( IXT_GL_OPEN_GL )
 
     add_compile_definitions( "GLM_ENABLE_EXPERIMENTAL" )
 
-    add_subdirectory( "Ext/OpenGL/glm" )
-    add_subdirectory( "Ext/OpenGL/glfw" )
-    add_subdirectory( "Ext/OpenGL/glew/build/cmake" )
+    add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/OpenGL/glm" )
+    add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/OpenGL/glfw" )
+    add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/OpenGL/glew/build/cmake" )
+    add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/Ekg" )
 
     add_compile_definitions( "IXT_GL_OPEN_GL" )
 endif()
@@ -180,10 +181,6 @@ endif()
 if( IXT_GL_DIRECT_2D1 )
     add_compile_definitions( "IXT_GL_DIRECT_2D1" )
 endif()
-
-
-# BOOST
-include_directories( "${IXT_EXCOM_ROOT_DIR}/Boost/" )
 
 # OpenSSL
 include_directories( "${IXT_EXCOM_ROOT_DIR}/OpenSSL/include" )
@@ -205,13 +202,15 @@ add_subdirectory( "Include" )
 
 # GL post.
 if( IXT_GL_OPEN_GL )
-    target_link_libraries( ${IXT_LIB_NAME} PUBLIC glm::glm )
+    target_link_libraries( ${IXT_LIB_NAME} PUBLIC glm )
     target_link_libraries( ${IXT_LIB_NAME} PUBLIC glfw )
     target_link_libraries( ${IXT_LIB_NAME} PUBLIC glew_s )   
+    target_link_libraries( ${IXT_LIB_NAME} PUBLIC ekg )
     
     target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/glm" )
     target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/glfw/include" )
     target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/glew/include" )
+    target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/ekg/include" )
 endif()
 
 

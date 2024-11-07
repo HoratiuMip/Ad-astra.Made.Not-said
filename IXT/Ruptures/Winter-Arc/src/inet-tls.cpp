@@ -1,5 +1,5 @@
-#include <wnt/inet-tls.hpp>
-#include <wnt/common.hpp>
+#include <warc/inet-tls.hpp>
+#include <warc/common.hpp>
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -7,7 +7,7 @@
 #include <list>
 #include <mutex>
 
-namespace wnt { namespace inet_tls {
+namespace warc { namespace inet_tls {
 
 
 static struct _INTERNAL {
@@ -28,23 +28,23 @@ static struct _INTERNAL {
         memset( &this->wsa_data, 0, sizeof( WSADATA ) );
         status = WSAStartup( MAKEWORD( 2, 2 ), &this->wsa_data );
 
-        WNT_ASSERT_RT( status == 0, "WSAStartup failed.", status, -1 );
+        WARC_ASSERT_RT( status == 0, "WSAStartup failed.", status, -1 );
 
-        WNT_LOG_RT_OK << "WSAStartup success.";
+        WARC_LOG_RT_OK << "WSAStartup success.";
     #endif
 
         SSL_library_init(); /* Always returns 1. */
-        WNT_LOG_RT_OK << "SSL library init success.";
+        WARC_LOG_RT_OK << "SSL library init success.";
 
         SSL_load_error_strings();
-        WNT_LOG_RT_OK << "SSL load error strings success.";
+        WARC_LOG_RT_OK << "SSL load error strings success.";
 
         this->ssl_method  = TLS_client_method();
         this->ssl_context = SSL_CTX_new( this->ssl_method );
 
         SSL_CTX_set_min_proto_version( this->ssl_context, TLS1_1_VERSION );
 
-        WNT_LOG_RT_OK << "Uplink complete.\n";
+        WARC_LOG_RT_OK << "Uplink complete.\n";
 
         return 0;
     }
@@ -56,7 +56,7 @@ static struct _INTERNAL {
         status = this->purge_zombie_bridges();
 
         if( status != bridge_count )
-            WNT_LOG_RT_WARNING << "( " << ( bridge_count - status ) << " ) bridge(s) outside referenced.";
+            WARC_LOG_RT_WARNING << "( " << ( bridge_count - status ) << " ) bridge(s) outside referenced.";
 
         SSL_CTX_free( this->ssl_context );
 
@@ -64,7 +64,7 @@ static struct _INTERNAL {
         status = WSACleanup();
     #endif
 
-        WNT_LOG_RT_OK << "Downlink complete.\n";
+        WARC_LOG_RT_OK << "Downlink complete.\n";
 
         return 0;
     }
@@ -113,14 +113,14 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port, IXT_COMMS_ECHO_NO_DFT_ARG )
     this->_struct_name += BRIDGE::pretty( addr, port );
 
 
-    WNT_ASSERT_ACC( addr != nullptr, "Address is NULL.", -1, ; );
-    WNT_ASSERT_ACC( this->_port == INET_PORT_HTTPS, "As of now, port must be HTTPS.", -1, ; );
+    WARC_ASSERT_ACC( addr != nullptr, "Address is NULL.", -1, ; );
+    WARC_ASSERT_ACC( this->_port == INET_PORT_HTTPS, "As of now, port must be HTTPS.", -1, ; );
 
 
     this->_addr = addr;
     
     socket_raw = socket( AF_INET, SOCK_STREAM, 0 );
-    WNT_ASSERT_ACC( socket_raw >= 0, "Socket creation fault.", socket_raw, ; );
+    WARC_ASSERT_ACC( socket_raw >= 0, "Socket creation fault.", socket_raw, ; );
 
     memset( &socket_desc, 0, sizeof( sockaddr_in ) );
 
@@ -128,25 +128,25 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port, IXT_COMMS_ECHO_NO_DFT_ARG )
     socket_desc.sin_addr.s_addr = inet_addr( this->_addr.c_str() );
     socket_desc.sin_port        = htons( this->_port ); 
     
-    WNT_LOG_ACC_PENDING << "Connecting...";
+    WARC_LOG_ACC_PENDING << "Connecting...";
     status = connect( socket_raw, ( sockaddr* )&socket_desc, sizeof( sockaddr_in ) );
-    WNT_ASSERT_ACC( status == 0, "Server connection fault.", status, ; );
-    WNT_LOG_ACC_OK << "Connected.";
+    WARC_ASSERT_ACC( status == 0, "Server connection fault.", status, ; );
+    WARC_LOG_ACC_OK << "Connected.";
 
     this->_ssl = SSL_new( _internal.ssl_context );
     err = ERR_error_string( ERR_get_error(), 0 );
-    WNT_ASSERT_ACC( this->_ssl != nullptr, err ? err : "SSL creation fault.", -1, ; );
+    WARC_ASSERT_ACC( this->_ssl != nullptr, err ? err : "SSL creation fault.", -1, ; );
 
     this->_socket = socket_raw;
     SSL_set_fd( this->_ssl, this->_socket );
 
-    WNT_LOG_ACC_PENDING << "Securely connecting...";
+    WARC_LOG_ACC_PENDING << "Securely connecting...";
     status = SSL_connect( this->_ssl );
-    WNT_ASSERT_ACC( status > 0, "Secure handshake fault.", -1, ; );
-    WNT_LOG_ACC_OK << "Securely connected.";
+    WARC_ASSERT_ACC( status > 0, "Secure handshake fault.", -1, ; );
+    WARC_LOG_ACC_OK << "Securely connected.";
 
 
-    WNT_LOG_ACC_OK << "Secure socket created, using " << SSL_get_cipher( this->_ssl ) << ".\n";
+    WARC_LOG_ACC_OK << "Secure socket created, using " << SSL_get_cipher( this->_ssl ) << ".\n";
 }
 
 BRIDGE::~BRIDGE() {
@@ -186,8 +186,8 @@ void BRIDGE::free( HBRIDGE&& handle ) {
 int BRIDGE::write( const char* buf, int sz ) {
     int w = -1;
 
-    WNT_ASSERT_RT( buf != nullptr, "NULL buffer.", -1, -1 );
-    WNT_ASSERT_RT( sz > 0, "Write count < 0.", -1, -1 );
+    WARC_ASSERT_RT( buf != nullptr, "NULL buffer.", -1, -1 );
+    WARC_ASSERT_RT( sz > 0, "Write count < 0.", -1, -1 );
 
     w = SSL_write( this->_ssl, buf, sz );
 
@@ -197,7 +197,7 @@ int BRIDGE::write( const char* buf, int sz ) {
 std::string BRIDGE::read( int sz ) {
     int r = -1;
     
-    WNT_ASSERT_RT( sz > 0, "Read count < 0.", -1, "" );
+    WARC_ASSERT_RT( sz > 0, "Read count < 0.", -1, "" );
 
     char buf[ sz + 1 ];
     r = SSL_read( this->_ssl, buf, sz );
@@ -211,7 +211,7 @@ std::string BRIDGE::xchg( const char* buf, int w_sz, int r_sz ) {
 
     status = this->write( buf, w_sz );
 
-    WNT_ASSERT_RT( status > 0, "Xchg write fault.", status, "" );
+    WARC_ASSERT_RT( status > 0, "Xchg write fault.", status, "" );
 
     return this->read( r_sz );
 }

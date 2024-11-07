@@ -36,6 +36,7 @@ int main() {
     "[ q, w, e, r ] /\n"
     "[ 4, 5 ]       - volume down/up.\n"
     "[ 6, 7 ]       - velocity down/up.\n"
+    "[ m ]          - mute all.\n"
     "[ 8 ]          - loop all.\n"
     "[ 9 ]          - stop all.\n"
     "[ 0 ]          - exit.\n";
@@ -51,6 +52,10 @@ int main() {
                 case '4': [[fallthrough]];
                 case '5':
                     audio->volume_tweak( std::plus{}, cmd == '4' ? -0.1 : 0.1 );
+                    break;
+
+                case 'm':
+                    audio->mute_tweak();
                     break;
 
                 case '6': [[fallthrough]];

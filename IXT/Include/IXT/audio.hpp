@@ -19,21 +19,21 @@ namespace _ENGINE_NAMESPACE {
     #define   _ENGINE_AUDIO_AVX_ALIGN   ( _ENGINE_AVX / ( sizeof( double ) * 8 ) )
 
     #if _ENGINE_AVX == 256
-        #define   _engine_audio__mAVXd              __m256d
-        #define   _engine_audio__mAVXi              __m128i
+        #define   _engine_audio__mAVXd               __m256d
+        #define   _engine_audio__mAVXi               __m128i
 
-        #define   _engine_audio_mmAVX_set1_pd       _mm256_set1_pd
-        #define   _engine_audio_mmAVX_mul_pd        _mm256_mul_pd
-        #define   _engine_audio_mmAVX_add_pd        _mm256_add_pd
-        #define   _engine_audio_mmAVX_cvtpd_epi32   _mm256_cvtpd_epi32
+        #define   _engine_audio_mmAVX_set1_pd        _mm256_set1_pd
+        #define   _engine_audio_mmAVX_mul_pd         _mm256_mul_pd
+        #define   _engine_audio_mmAVX_add_pd         _mm256_add_pd
+        #define   _engine_audio_mmAVX_cvtpd_epi32    _mm256_cvtpd_epi32
     #elif _ENGINE_AVX == 512
-        #define   _engine_audio__mAVXd              __m512d
-        #define   _engine_audio__mAVXi              __m256i
+        #define   _engine_audio__mAVXd               __m512d
+        #define   _engine_audio__mAVXi               __m256i
 
-        #define   _engine_audio_mmAVX_set1_pd       _mm512_set1_pd
-        #define   _engine_audio_mmAVX_mul_pd        _mm512_mul_pd
-        #define   _engine_audio_mmAVX_add_pd        _mm512_add_pd
-        #define   _engine_audio_mmAVX_cvtpd_epi32   _mm512_cvtpd_epi32
+        #define   _engine_audio_mmAVX_set1_pd        _mm512_set1_pd
+        #define   _engine_audio_mmAVX_mul_pd         _mm512_mul_pd
+        #define   _engine_audio_mmAVX_add_pd         _mm512_add_pd
+        #define   _engine_audio_mmAVX_cvtpd_epi32    _mm512_cvtpd_epi32
     #endif
 #endif
 
@@ -58,7 +58,7 @@ _ENGINE_PROTECTED:
     Filter   _filter     = {};
 #if defined( _ENGINE_AVX )
     struct {
-        _engine_audio__mAVXd   volume   = { _engine_audio_mmAVX_set1_pd( 1.0 ) };
+        _engine_audio__mAVXd      volume   = { _engine_audio_mmAVX_set1_pd( 1.0 ) };
     }        _avx        = {};            
 #endif
 
@@ -238,7 +238,9 @@ public:
     virtual const DWORD waveid_assert_avx() const = 0;
 
 _ENGINE_PROTECTED:
-    virtual _engine_audio__mAVXd _sample_avx( _engine_audio__mAVXd elapsed, _engine_audio__mAVXi tunnel, __mmask8 tunnel_end ) = 0;
+    virtual _engine_audio__mAVXd _sample_avx( _engine_audio__mAVXd elapsed, _engine_audio__mAVXi tunnel, __mmask8 tunnel_end ) {
+        return _engine_audio_mmAVX_set1_pd( 0.0 );
+    }
 #endif
 
 };
@@ -254,10 +256,10 @@ public:
 
     Audio(
         std::string_view   device,
-        uint64_t           sample_rate          = 48'000,
-        uint16_t           tunnel_count         = 1,
-        uint64_t           block_count          = 16,
-        uint64_t           block_sample_count   = 256,
+        DWORD              sample_rate          = 48'000,
+        WORD               tunnel_count         = 1,
+        DWORD              block_count          = 16,
+        DWORD              block_sample_count   = 256,
         _ENGINE_COMMS_ECHO_ARG
     )
     : _sample_rate       { sample_rate },
@@ -381,13 +383,13 @@ public:
 _ENGINE_PROTECTED:
     std::atomic< bool >         _powered              = false;
 
-    uint64_t                    _sample_rate          = 0;
+    DWORD                       _sample_rate          = 0;
     double                      _time_step            = 0.0;
-    uint16_t                    _tunnel_count         = 0;
+    WORD                        _tunnel_count         = 0;
 
-    uint64_t                    _block_count          = 0;
-    uint64_t                    _block_sample_count   = 0;
-    uint64_t                    _block_current        = 0;
+    DWORD                       _block_count          = 0;
+    DWORD                       _block_sample_count   = 0;
+    DWORD                       _block_current        = 0;
     UPtr< int[] >               _blocks_memory        = nullptr;
 
     UPtr< WAVEHDR[] >           _wave_headers         = nullptr;
@@ -396,7 +398,7 @@ _ENGINE_PROTECTED:
 
     std::thread                 _thread               = {};
 
-    std::atomic< uint64_t >     _free_block_count     = 0;
+    std::atomic< DWORD >        _free_block_count     = 0;
     std::condition_variable     _cnd_var              = {};
     std::mutex                  _mtx                  = {};
 
@@ -427,8 +429,8 @@ _ENGINE_PROTECTED:
             _ENGINE_AUDIO_AVX_SELECT_PD( _avx.elapsed, idx ) = idx;
         _avx.elapsed = _engine_audio_mmAVX_mul_pd( avx_time_step, _avx.elapsed );  
 
-        WORD avx_tunnel[ 4 + _tunnel_count ];
-        bool avx_tunend[ 4 + _tunnel_count ];
+        WORD avx_tunnel[ _ENGINE_AUDIO_AVX_ALIGN + _tunnel_count ];
+        bool avx_tunend[ _ENGINE_AUDIO_AVX_ALIGN + _tunnel_count ];
         BYTE avx_tunoff = 0;
 
         for( WORD t = 0; t < sizeof( avx_tunnel ) / sizeof( WORD ); ++t ) {
@@ -443,9 +445,9 @@ _ENGINE_PROTECTED:
 
             for( auto& wave : _waves )
                 if( wave->waveid_assert_avx() ) {
-                    return amp;
+                    amp += wave->_sample_avx( _avx.elapsed, tunnel, {} ); /*MARK_NOT_DONE*/
                 } else {
-                    for( BYTE idx = 0; idx < 4; ++idx )
+                    for( BYTE idx = 0; idx < _ENGINE_AUDIO_AVX_ALIGN; ++idx )
                         _ENGINE_AUDIO_AVX_SELECT_PD( amp, idx ) += wave->_sample(
                             _ENGINE_AUDIO_AVX_SELECT_PD( _avx.elapsed, idx ),
                             _ENGINE_AUDIO_AVX_SELECT_PD( tunnel, idx ),
@@ -453,9 +455,9 @@ _ENGINE_PROTECTED:
                         );
                 }
 
-            amp = _engine_audio_mmAVX_mul_pd( amp, WaveMeta::_avx.volume );
-
-            return amp;
+            if( !_muted )
+                return _engine_audio_mmAVX_mul_pd( amp, WaveMeta::_avx.volume );
+            return _engine_audio_mmAVX_set1_pd( 0.0 );
         };
     #else
         auto sample = [ this ] ( WORD tunnel ) -> double {
@@ -493,16 +495,16 @@ _ENGINE_PROTECTED:
             int* current_block = _blocks_memory.get() + _block_current * _block_sample_count;
         
         #if defined( _ENGINE_AVX )
-            for( uint64_t n = 0; n < _block_sample_count; n += 4 ) {
+            for( WORD n = 0; n < _block_sample_count; n += _ENGINE_AUDIO_AVX_ALIGN ) {
                 _engine_audio__mAVXi tunnel;
                 memcpy( &tunnel, &avx_tunnel + avx_tunoff, sizeof( _engine_audio__mAVXi ) );
 
-                if( ( avx_tunoff += 4 ) >= _tunnel_count )
+                if( ( avx_tunoff += _ENGINE_AUDIO_AVX_ALIGN ) >= _tunnel_count )
                     avx_tunoff %= _tunnel_count;
            
                 _engine_audio__mAVXd amp = sample( tunnel );
                
-                for( BYTE idx = 0; idx < 4; ++idx )
+                for( BYTE idx = 0; idx < _ENGINE_AUDIO_AVX_ALIGN; ++idx )
                     _ENGINE_AUDIO_AVX_SELECT_PD( amp, idx ) = std::clamp( _ENGINE_AUDIO_AVX_SELECT_PD( amp, idx ), -1.0, 1.0 );
            
                 _engine_audio__mAVXi& current_vector = *( _engine_audio__mAVXi* )&current_block[ n ]; 
@@ -512,8 +514,8 @@ _ENGINE_PROTECTED:
                 _avx.elapsed = _engine_audio_mmAVX_add_pd( _avx.elapsed, avx_time_step );
             }
         #else
-            for( uint64_t n = 0; n < _block_sample_count; n += _tunnel_count ) {
-                for( uint16_t tnl = 0; tnl < _tunnel_count; ++tnl )
+            for( WORD n = 0; n < _block_sample_count; n += _tunnel_count ) {
+                for( WORD tnl = 0; tnl < _tunnel_count; ++tnl )
                     current_block[ n + tnl ] = static_cast< int >( 
                         std::clamp( sample( tnl ), -1.0, 1.0 ) * max_sample 
                     );
@@ -685,9 +687,9 @@ _ENGINE_PROTECTED:
 
     std::list< double >   _needles        = {};
 
-    uint64_t              _sample_rate    = 0;
-    uint64_t              _sample_count   = 0;
-    uint16_t              _tunnel_count   = 0;
+    DWORD                 _sample_rate    = 0;
+    DWORD                 _sample_count   = 0;
+    WORD                  _tunnel_count   = 0;
 
 public:
     virtual void set() override {

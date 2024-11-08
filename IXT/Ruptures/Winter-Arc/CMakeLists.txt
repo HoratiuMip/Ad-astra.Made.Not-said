@@ -11,6 +11,7 @@ set( WINTER_ARC_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src" )
 
 add_library( "warc" STATIC
     "${WINTER_ARC_SRC_DIR}/inet-tls.cpp"
+    "${WINTER_ARC_SRC_DIR}/warc-main.cpp"
 )
 target_link_libraries( "warc" PUBLIC "IXT" )
 target_include_directories( "warc" PUBLIC ${WINTER_ARC_INC_DIR} )

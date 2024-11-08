@@ -1,11 +1,4 @@
 #include <warc/inet-tls.hpp>
-#include <warc/common.hpp>
-
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-
-#include <list>
-#include <mutex>
 
 namespace warc { namespace inet_tls {
 
@@ -153,6 +146,7 @@ BRIDGE::~BRIDGE() {
     int status = -1;
 
     status = SSL_shutdown( this->_ssl );
+    SSL_free( this->_ssl );
     status = closesocket( this->_socket );
 }
 
@@ -178,8 +172,7 @@ HBRIDGE BRIDGE::alloc( const char* addr, INET_PORT port ) {
 }
 
 void BRIDGE::free( HBRIDGE&& handle ) {
-    handle.~HBRIDGE();
-
+    handle.reset();
     _internal.purge_zombie_bridges();
 }
 

@@ -8,11 +8,13 @@
 #include <openssl/err.h>
 
 #include <list>
+#include <mutex>
+
 
 namespace warc { namespace inet_tls {
 
 
-#define WARC_INET_TLS_STR WARC_STR "::inet-tls"
+#define WARC_INET_TLS_STR WARC_STR"::inet-tls"
 _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_INET_TLS_STR );
 
 
@@ -61,7 +63,7 @@ _WARC_PROTECTED:
     std::string   _addr          = {};
     INET_PORT     _port          = INET_PORT_UNKNWN;
 
-    std::string   _struct_name   = WARC_INET_TLS_STR "::BRIDGE";
+    std::string   _struct_name   = WARC_INET_TLS_STR"::BRIDGE";
 
 public:
     int write( const char* buf, int sz );

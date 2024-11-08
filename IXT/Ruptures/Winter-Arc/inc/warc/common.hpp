@@ -9,12 +9,15 @@ namespace warc {
 #define _WARC_PROTECTED protected
 
 
-#define WARC_STR "Winter-HU"
+#define WARC_STR "Winter-Arc"
 
 #define _WARC_IXT_COMPONENT_DESCRIPTOR( name ) \
 static struct _WARC_IXT_DESCRIPTOR : public IXT::Descriptor { \
     IXT_DESCRIPTOR_STRUCT_NAME_OVERRIDE( name ); \
 } _ixt_descriptor; \
+
+_WARC_IXT_COMPONENT_DESCRIPTOR( WARC_STR )
+
 
 #define   WARC_LOG_RT( level )    ( IXT::comms( &_ixt_descriptor, level ) )
 #define   WARC_LOG_ACC( level )   ( echo( this, level ) )
@@ -40,6 +43,8 @@ struct VOID_DOUBLE_LINK {
     void*    flink   = nullptr;
     void**   blink   = nullptr;
 };
+
+typedef   float   WARC_FTYPE;
 
 
 };

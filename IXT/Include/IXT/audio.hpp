@@ -3,9 +3,10 @@
 */
 
 #include <IXT/descriptor.hpp>
-#include <IXT/endec.hpp>
 #include <IXT/comms.hpp>
 #include <IXT/concepts.hpp>
+#include <IXT/endec.hpp>
+#include <IXT/tempo.hpp>
 #include <IXT/volatile-ptr.hpp>
 
 namespace _ENGINE_NAMESPACE {
@@ -23,16 +24,26 @@ namespace _ENGINE_NAMESPACE {
         #define   _engine_audio__mAVXi               __m128i
 
         #define   _engine_audio_mmAVX_set1_pd        _mm256_set1_pd
+
         #define   _engine_audio_mmAVX_mul_pd         _mm256_mul_pd
         #define   _engine_audio_mmAVX_add_pd         _mm256_add_pd
+
+        #define   _engine_audio_mmAVX_min_pd         _mm256_min_pd
+        #define   _engine_audio_mmAVX_max_pd         _mm256_max_pd
+
         #define   _engine_audio_mmAVX_cvtpd_epi32    _mm256_cvtpd_epi32
     #elif _ENGINE_AVX == 512
         #define   _engine_audio__mAVXd               __m512d
         #define   _engine_audio__mAVXi               __m256i
 
         #define   _engine_audio_mmAVX_set1_pd        _mm512_set1_pd
+
         #define   _engine_audio_mmAVX_mul_pd         _mm512_mul_pd
         #define   _engine_audio_mmAVX_add_pd         _mm512_add_pd
+
+        #define   _engine_audio_mmAVX_min_pd         _mm512_min_pd
+        #define   _engine_audio_mmAVX_max_pd         _mm512_max_pd
+
         #define   _engine_audio_mmAVX_cvtpd_epi32    _mm512_cvtpd_epi32
     #endif
 #endif
@@ -424,14 +435,15 @@ _ENGINE_PROTECTED:
 
     #if defined( _ENGINE_AVX )
         _engine_audio__mAVXd avx_time_step = _engine_audio_mmAVX_set1_pd( _time_step ); 
+        WORD avx_tunnel[ _ENGINE_AUDIO_AVX_ALIGN + _tunnel_count ];
+        bool avx_tunend[ _ENGINE_AUDIO_AVX_ALIGN + _tunnel_count ];
+        BYTE avx_tunoff = 0;
+        _engine_audio__mAVXd avx_amp_low = _engine_audio_mmAVX_set1_pd( -1.0 );
+        _engine_audio__mAVXd avx_amp_high = _engine_audio_mmAVX_set1_pd( 1.0 );
 
         for( BYTE idx = 0; idx < _ENGINE_AUDIO_AVX_ALIGN; ++idx )
             _ENGINE_AUDIO_AVX_SELECT_PD( _avx.elapsed, idx ) = idx;
         _avx.elapsed = _engine_audio_mmAVX_mul_pd( avx_time_step, _avx.elapsed );  
-
-        WORD avx_tunnel[ _ENGINE_AUDIO_AVX_ALIGN + _tunnel_count ];
-        bool avx_tunend[ _ENGINE_AUDIO_AVX_ALIGN + _tunnel_count ];
-        BYTE avx_tunoff = 0;
 
         for( WORD t = 0; t < sizeof( avx_tunnel ) / sizeof( WORD ); ++t ) {
             avx_tunnel[ t ] = t % _tunnel_count;
@@ -493,22 +505,18 @@ _ENGINE_PROTECTED:
             
             
             int* current_block = _blocks_memory.get() + _block_current * _block_sample_count;
-        
+   
         #if defined( _ENGINE_AVX )
             for( WORD n = 0; n < _block_sample_count; n += _ENGINE_AUDIO_AVX_ALIGN ) {
-                _engine_audio__mAVXi tunnel;
-                memcpy( &tunnel, &avx_tunnel + avx_tunoff, sizeof( _engine_audio__mAVXi ) );
-
                 if( ( avx_tunoff += _ENGINE_AUDIO_AVX_ALIGN ) >= _tunnel_count )
                     avx_tunoff %= _tunnel_count;
            
-                _engine_audio__mAVXd amp = sample( tunnel );
+                _engine_audio__mAVXd amp = _engine_audio_mmAVX_min_pd( 
+                    _engine_audio_mmAVX_max_pd( sample( *( _engine_audio__mAVXi* )( avx_tunnel + avx_tunoff ) ), 
+                    avx_amp_low ), avx_amp_high 
+                );
                
-                for( BYTE idx = 0; idx < _ENGINE_AUDIO_AVX_ALIGN; ++idx )
-                    _ENGINE_AUDIO_AVX_SELECT_PD( amp, idx ) = std::clamp( _ENGINE_AUDIO_AVX_SELECT_PD( amp, idx ), -1.0, 1.0 );
-           
                 _engine_audio__mAVXi& current_vector = *( _engine_audio__mAVXi* )&current_block[ n ]; 
-
                 current_vector = _engine_audio_mmAVX_cvtpd_epi32( _engine_audio_mmAVX_mul_pd( amp, max_sample ) ); 
 
                 _avx.elapsed = _engine_audio_mmAVX_add_pd( _avx.elapsed, avx_time_step );
@@ -523,7 +531,7 @@ _ENGINE_PROTECTED:
                 _elapsed += _time_step;
             }
         #endif
-            
+           
             waveOutPrepareHeader( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
             waveOutWrite( _wave_out, &_wave_headers[ _block_current ], sizeof( WAVEHDR ) );
 

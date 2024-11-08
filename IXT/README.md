@@ -80,6 +80,7 @@ Make it work again.<br>
 
 > - <span style="color:orange">~~Some smart pointer wrappers, more ops and behavs.~~</span> | Made `VPtr< T >`.<br>
 > - <span style="color:orange">~~Use transforms instead of direct dives on render2.~~</span><br>
+> - Use more integer arithmetic in audio processing, getting rid of dp computations.<br>
 
 
 `|`<br>

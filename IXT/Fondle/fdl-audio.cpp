@@ -24,6 +24,7 @@ int main() {
         { '1', std::make_shared< Sound >( audio, ASSET_WAV_SAX_PATH ) },
         { '2', std::make_shared< Sound >( audio, ASSET_WAV_GANGNAM_PATH ) },
         { '3', std::make_shared< Sound >( audio, ASSET_WAV_90S_PATH ) },
+        { '4', std::make_shared< Sound >( audio, ASSET_WAV_NOAA_PATH ) },
         { 'q', std::make_shared< Synth >( audio, Synth::gen_sine( 0.5, 220 ), 3.0 ) },
         { 'w', std::make_shared< Synth >( audio, Synth::gen_sine( 0.5, 440 ), 3.0 ) },
         { 'e', std::make_shared< Synth >( audio, Synth::gen_sine( 0.5, 880 ), 3.0 ) },
@@ -32,7 +33,7 @@ int main() {
 
 
     std::string_view menu_str = 
-    "[ 1, 2, 3 ]    - play waves.\n"
+    "[ 1, 2, 3, 4 ] - play waves.\n"
     "[ q, w, e, r ] /\n"
     "[ 4, 5 ]       - volume down/up.\n"
     "[ 6, 7 ]       - velocity down/up.\n"

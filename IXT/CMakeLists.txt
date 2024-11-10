@@ -190,6 +190,9 @@ set( IXT_OPEN_SSL_LIBS
 )
 link_libraries( ${IXT_OPEN_SSL_LIBS} )
 
+# Boost
+include_directories( "${IXT_EXCOM_ROOT_DIR}/Boost" )
+
 
 # Set those folders' paths into variables.
 set( IXT_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/Include" )

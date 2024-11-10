@@ -76,6 +76,9 @@ int MAIN::main( int argc, char* argv[], VOID_DOUBLE_LINK vdl ) {
     std::cout << json;
 
 
+    boost::json::parse_options opt;
+
+
     status = inet_tls::downlink( {} );
     return status;
 }

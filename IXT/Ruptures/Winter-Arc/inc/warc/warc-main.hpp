@@ -4,6 +4,8 @@
 
 #include <IXT/descriptor.hpp>
 
+#include <boost/json.hpp>
+
 namespace warc {
 
 

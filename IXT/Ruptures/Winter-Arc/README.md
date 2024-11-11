@@ -2,7 +2,9 @@
 Cool description here.
 
 > I.  [Description](#Description)
-> II. [Stages](#Stages)
+> II. [Journal](#Journal)
+> III. [Manuals](#Manuals)
+
 
 ## Description
 > Satellites of interest:
@@ -12,7 +14,8 @@ Cool description here.
 
 > Following notations as `NOAA-x` refer to the above satellites.
 
-## Stages
+
+## Journal
 
 > I. [Stage-I](#Stage-I)
 
@@ -51,3 +54,15 @@ Cool description here.
 > Pass of `NOAA-18` | Baseband recording. Better antenna positioning, got a stronger signal. <br>
 > ![avhrr_3_rgb_MSA_(Uncalibrated)](https://github.com/user-attachments/assets/586c27b8-2e04-4950-ad44-fc6904407af7)
 
+
+## Manuals
+> [Winter-Arc-Software](#Winter-Arc-Software)
+
+### Winter-Arc-Software
+
+#### Command line arguments
+> `--n2yo-api-key <arg1> <arg2>` - specifies how to treat the situation regarding n2yo's server api key. Accepted combinations of `arg1` and `arg2`:
+> - `use <XXX>` - where `XXX` is the api key. Sets the current session's api key to `XXX`.
+> - `burn <XXX>` - makes a copy of the executable file and burns the api key `XXX` inside it.
+> - `use ash` - extract the api key from its burnt location inside the executable.
+> - `show ash` - extracts and shows the executable's currently burnt api key.

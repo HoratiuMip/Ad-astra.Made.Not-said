@@ -3,6 +3,44 @@
 namespace warc {
 
 
+const char*  MAIN::_N2YO::API_KEY_ASH      = "WARC-API-KEY-ASH-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+const int    MAIN::_N2YO::API_KEY_ASH_LEN  = strlen( MAIN::_N2YO::API_KEY_ASH ); 
+const int    MAIN::_N2YO::API_KEY_SIG_LEN  = 17; /* strlen( WARC-API-KEY-ASH- ) */
+
+int MAIN::_N2YO::burn_api_key( const char* key, const char* path ) {
+    WARC_ASSERT_RT( key != nullptr, "Key is NULL.", -1, -1 );
+
+    int key_len = strlen( key );
+
+    WARC_ASSERT_RT( key_len <= API_KEY_ASH_LEN - API_KEY_SIG_LEN, "Key too long to burn.", key_len, -1 );
+
+    std::ifstream file_read{ path, std::ios_base::binary };
+
+    if( !file_read ) {
+        WARC_LOG_RT_ERROR << "Could not open file \"" << path << "\" for n2yo api key burn.";
+        return -1;
+    } 
+
+    auto sz = IXT::File::byte_count( file_read );
+
+    if( sz == 0 ) {
+        WARC_LOG_RT_ERROR << "File has a size of 0 bytes.";
+        return -1;
+    }
+
+    IXT::UPtr< char[] > buffer{ ( char* )malloc( sz + 1 ) };
+    file_read.read( buffer.get(), sz );
+    buffer[ sz ] = 0;
+    file_read.close();
+
+    std::string_view  buf_view{ buffer.get(), sz };
+    std::string       cmp{ API_KEY_ASH, API_KEY_SIG_LEN }; 
+
+    std::cout << buf_view.find( cmp.c_str() ) << '\n';
+
+    return 0;
+}
+
 std::string MAIN::_N2YO::tufilin_request( 
     sat::NORAD_ID   norad_id, 
     WARC_FTYPE      obs_lat, 
@@ -51,8 +89,68 @@ std::string MAIN::_N2YO::tufilin_request(
 }
 
 
+int MAIN::_parsing_proc_n2yo_api_key( char* argv[], const char* process ) {
+    WARC_ASSERT_RT( argv != nullptr, "Argument array is NULL.", -1, -1 );
+    WARC_ASSERT_RT( process != nullptr, "Process is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Api key is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 1 ] != nullptr, "Api key usage mode is NULL.", -1, -1 );
+
+    return this->_n2yo.burn_api_key( argv[ 0 ], process );
+}
+
+int MAIN::_parse_opts( int argc, char* argv[] ) {
+    struct _OPT {
+        const char*   str;
+        int           argc;
+        int           ( MAIN::*proc )( char**, const char* );
+    } opts[] = {
+        { "--n2yo-api-key", 2, &_parsing_proc_n2yo_api_key }
+    };
+    const int optc = sizeof( opts ) / sizeof( _OPT );
+
+    for( int idx = 1; idx < argc; ++idx ) {
+        char*   opt      = argv[ idx ];
+        char**  opt_ptr  = argv + idx;
+
+        if( !std::string_view{ opt }.starts_with( "--" ) ) continue;
+
+        _OPT* record = std::find_if( opts, opts + optc, [ &opt ] ( _OPT& rec ) -> bool {
+            return strcmp( opt, rec.str ) == 0;
+        } );
+
+        if( record == opts + optc ) {
+            WARC_LOG_RT_WARNING << "Ignoring invalid option \"" << opt << "\".";
+            continue;
+        }
+
+        if( 
+            ( idx + 1 + record->argc > argc ) 
+            ||
+            ( [ &idx, &argv, &argc, &record ] () mutable -> bool { 
+                int step = 1;
+                for( ; step <= record->argc && idx + 1 < argc; ++step, ++idx )
+                    if( std::string_view{ argv[ idx ] }.starts_with( "--" ) )
+                        break;
+
+                return step == record->argc;
+            } )()
+        ) {
+            WARC_LOG_RT_WARNING << "Not enough arguments for option \"" << opt << "\", (" << record->argc << ") required.";
+            continue;
+        }
+
+        WARC_LOG_RT_INTEL << "Executing procedure for option \"" << opt << "\".";
+
+        ( this->*( record->proc ) )( opt_ptr + 1, argv[ 0 ] );
+    }  
+
+    return 0; 
+}
+
+
+
 int MAIN::main( int argc, char* argv[], VOID_DOUBLE_LINK vdl ) {
-    int status = -1;
+    int status = this->_parse_opts( argc, argv );
 
     status = inet_tls::uplink( {} );
 
@@ -74,9 +172,6 @@ int MAIN::main( int argc, char* argv[], VOID_DOUBLE_LINK vdl ) {
     std::string json{ response.c_str() + idx };
 
     std::cout << json;
-
-
-    boost::json::parse_options opt;
 
 
     status = inet_tls::downlink( {} );

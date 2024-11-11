@@ -180,7 +180,7 @@ int BRIDGE::write( const char* buf, int sz ) {
     int w = -1;
 
     WARC_ASSERT_RT( buf != nullptr, "NULL buffer.", -1, -1 );
-    WARC_ASSERT_RT( sz > 0, "Write count < 0.", -1, -1 );
+    WARC_ASSERT_RT( sz > 0, "Write count <= 0.", -1, -1 );
 
     w = SSL_write( this->_ssl, buf, sz );
 
@@ -190,7 +190,7 @@ int BRIDGE::write( const char* buf, int sz ) {
 std::string BRIDGE::read( int sz ) {
     int r = -1;
     
-    WARC_ASSERT_RT( sz > 0, "Read count < 0.", -1, "" );
+    WARC_ASSERT_RT( sz > 0, "Read count <= 0.", -1, "" );
 
     char buf[ sz + 1 ];
     r = SSL_read( this->_ssl, buf, sz );

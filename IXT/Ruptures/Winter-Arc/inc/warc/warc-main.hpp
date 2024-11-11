@@ -28,7 +28,7 @@ _WARC_PROTECTED:
         const char*          api_key           = nullptr;
         static const char*   API_KEY_ASH;
         static const int     API_KEY_ASH_LEN;
-        static const int     API_KEY_SIG_LEN;
+        static const int     API_KEY_ASH_SIG_LEN;
 
         std::string tufilin_request( 
             sat::NORAD_ID   norad_id, 

@@ -3,40 +3,79 @@
 namespace warc {
 
 
-const char*  MAIN::_N2YO::API_KEY_ASH      = "WARC-API-KEY-ASH-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
-const int    MAIN::_N2YO::API_KEY_ASH_LEN  = strlen( MAIN::_N2YO::API_KEY_ASH ); 
-const int    MAIN::_N2YO::API_KEY_SIG_LEN  = 17; /* strlen( WARC-API-KEY-ASH- ) */
+const char*  MAIN::_N2YO::API_KEY_ASH          = "WARC-API-KEY-ASH-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+const int    MAIN::_N2YO::API_KEY_ASH_LEN      = strlen( MAIN::_N2YO::API_KEY_ASH ); 
+const int    MAIN::_N2YO::API_KEY_ASH_SIG_LEN  = 17; /* strlen( WARC-API-KEY-ASH- ) */
 
 int MAIN::_N2YO::burn_api_key( const char* key, const char* path ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_STR"::MAIN::N2YO::burn_api_key()" );
+
+    WARC_LOG_RT_INTEL << "Burning key into the mirror of \"" << path << "\".";
+
     WARC_ASSERT_RT( key != nullptr, "Key is NULL.", -1, -1 );
 
     int key_len = strlen( key );
 
-    WARC_ASSERT_RT( key_len <= API_KEY_ASH_LEN - API_KEY_SIG_LEN, "Key too long to burn.", key_len, -1 );
+    WARC_ASSERT_RT( key_len <= API_KEY_ASH_LEN - API_KEY_ASH_SIG_LEN, "Key too long to burn.", key_len, -1 );
 
     std::ifstream file_read{ path, std::ios_base::binary };
 
     if( !file_read ) {
-        WARC_LOG_RT_ERROR << "Could not open file \"" << path << "\" for n2yo api key burn.";
-        return -1;
-    } 
-
-    auto sz = IXT::File::byte_count( file_read );
-
-    if( sz == 0 ) {
-        WARC_LOG_RT_ERROR << "File has a size of 0 bytes.";
+        WARC_LOG_RT_ERROR << "Could not open file \"" << path << "\" for read.";
         return -1;
     }
 
-    IXT::UPtr< char[] > buffer{ ( char* )malloc( sz + 1 ) };
+    auto sz = IXT::File::byte_count( file_read );
+
+    WARC_ASSERT_RT( sz != 0, "The process' file where to burn the key has a size of 0 bytes.", -1, -1 );
+
+    IXT::UPtr< char[] > buffer{ ( char* )malloc( sz ) };
+
+    WARC_ASSERT_RT( buffer, "Could not allocate for the process file read.", -1, -1 );
+
     file_read.read( buffer.get(), sz );
-    buffer[ sz ] = 0;
     file_read.close();
 
-    std::string_view  buf_view{ buffer.get(), sz };
-    std::string       cmp{ API_KEY_ASH, API_KEY_SIG_LEN }; 
+    WARC_LOG_RT_INTEL << "Process file mirrored.";
 
-    std::cout << buf_view.find( cmp.c_str() ) << '\n';
+    std::string_view  buf_view{ buffer.get(), sz };
+    std::string       cmp{ API_KEY_ASH, API_KEY_ASH_SIG_LEN }; 
+
+    auto pos = buf_view.find( cmp.c_str() );
+
+    WARC_ASSERT_RT( 
+        ( buf_view.find( cmp.c_str(), pos + API_KEY_ASH_SIG_LEN ) == std::string_view::npos ),
+        "More than one key ash signatures detected. Cannot decide where to burn.",
+        -1, -1
+    );
+
+    WARC_LOG_RT_INTEL << "Burning into process file mirror.";
+
+    char* ash_begin = buffer.get() + pos + API_KEY_ASH_SIG_LEN;
+    char* ash_end   = buffer.get() + pos + API_KEY_ASH_LEN;
+    {
+    int idx = 0;
+    for( ; ( ash_begin + idx < ash_end ) && ( idx < strlen( key ) ); ++idx )
+        ash_begin[ idx ] = key[ idx ];
+    ash_begin[ idx ] = '\0';
+    }
+    
+    WARC_LOG_RT_INTEL << "Writing process file mirror.";
+
+    std::string mirror_path{ path };
+    mirror_path += "(N2YO-API-KEY-BURNT)";
+
+    std::ofstream file_write{ mirror_path.c_str(), std::ios_base::binary };
+
+    if( !file_write ) {
+        WARC_LOG_RT_ERROR << "Could not open file \"" << path << "\" for key burn.";
+        return -1;
+    }
+
+    file_write.write( buffer.get(), sz );
+    file_write.close();
+
+    WARC_LOG_RT_OK << "Burnt key into \"" << mirror_path << "\".";
 
     return 0;
 }
@@ -99,6 +138,10 @@ int MAIN::_parsing_proc_n2yo_api_key( char* argv[], const char* process ) {
 }
 
 int MAIN::_parse_opts( int argc, char* argv[] ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_STR"::MAIN::_parse_opts()" );
+
+    WARC_LOG_RT_INTEL << "Starting option parsing.\n"; 
+
     struct _OPT {
         const char*   str;
         int           argc;
@@ -135,14 +178,20 @@ int MAIN::_parse_opts( int argc, char* argv[] ) {
                 return step == record->argc;
             } )()
         ) {
-            WARC_LOG_RT_WARNING << "Not enough arguments for option \"" << opt << "\", (" << record->argc << ") required.";
-            continue;
+            WARC_LOG_RT_ERROR << "Not enough arguments for option \"" << opt << "\", (" << record->argc << ") required.";
+            return -1;
         }
 
         WARC_LOG_RT_INTEL << "Executing procedure for option \"" << opt << "\".";
 
-        ( this->*( record->proc ) )( opt_ptr + 1, argv[ 0 ] );
+        int status = ( this->*( record->proc ) )( opt_ptr + 1, argv[ 0 ] );
+
+        WARC_ASSERT_RT( status == 0, "Option procedure exited abnormally.\n", status, status );
+
+        WARC_LOG_RT_OK << "Procedure for option \"" << opt << "\" completed successfully.";
     }  
+
+    WARC_LOG_RT_OK << "Option parsing completed successfully.\n";
 
     return 0; 
 }

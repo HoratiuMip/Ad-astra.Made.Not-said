@@ -39,6 +39,7 @@ _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_STR )
 #define WARC_ASSERT_RT( c, m, s, r ) _WARC_ASSERT( c, m, s, r, WARC_LOG_RT_ERROR )
 #define WARC_ASSERT_ACC( c, m, s, r ) _WARC_ASSERT( c, m, s, r, WARC_LOG_ACC_ERROR )
 
+
 struct VOID_DOUBLE_LINK {
     void*    flink   = nullptr;
     void**   blink   = nullptr;

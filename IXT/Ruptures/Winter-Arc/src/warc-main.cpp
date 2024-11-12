@@ -148,7 +148,7 @@ int MAIN::main( int argc, char* argv[], VOID_DOUBLE_LINK vdl ) {
 
     if( _internal.opts.earth_imm ) {
         this->_earth = std::make_shared< imm::EARTH >();
-        this->_earth->main( argc, argv );
+        return this->_earth->main( argc, argv );
     }
 
 

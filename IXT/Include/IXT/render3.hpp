@@ -201,15 +201,21 @@ public:
 };
 
 
-template<> inline void Uniform3< glm::i32 >::_set_uplink_proc() {
-    this->Uniform3Unknwn::_uplink_proc = [ this ] () -> DWORD {
-        glUniform1i( this->_loc, this->_under  ); 
+template<> inline void Uniform3< glm::u32 >::_set_uplink_proc() {
+    Uniform3Unknwn::_uplink_proc = [ this ] () -> DWORD {
+        glUniform1i( _loc, _under  ); 
+        return 0;
+    };
+}
+template<> inline void Uniform3< glm::vec3 >::_set_uplink_proc() {
+    Uniform3Unknwn::_uplink_proc = [ this ] () -> DWORD {
+        glUniform3f( _loc, _under.x, _under.y, _under.z  ); 
         return 0;
     };
 }
 template<> inline void Uniform3< glm::mat4 >::_set_uplink_proc() {
-    this->Uniform3Unknwn::_uplink_proc = [ this ] () -> DWORD {
-        glUniformMatrix4fv( this->_loc, 1, GL_FALSE, glm::value_ptr( _under ) ); 
+    Uniform3Unknwn::_uplink_proc = [ this ] () -> DWORD {
+        glUniformMatrix4fv( _loc, 1, GL_FALSE, glm::value_ptr( _under ) ); 
         return 0;
     };
 }
@@ -237,40 +243,46 @@ public:
         return glm::lookAt( pos, tar, up );
     }
 
-    glm::vec3 fwd() const {
+    glm::vec3 forward() const {
         return tar - pos;
     }
 
-    glm::vec3 fwd_n() const {
-        return glm::normalize( this->fwd() );
+    glm::vec3 forward_n() const {
+        return glm::normalize( this->forward() );
     }
 
-    glm::vec3 rgh() const {
-        return glm::cross( this->fwd(), up );
+    glm::vec3 right() const {
+        return glm::cross( this->forward(), up );
     }
 
-    glm::vec3 rgh_n() const {
-        return glm::normalize( this->rgh() );
+    glm::vec3 right_n() const {
+        return glm::normalize( this->right() );
     }
 
 public:
     Lens3& zoom( ggfloat_t p ) {
-        pos += this->fwd() * p;
+        pos += this->forward() * p;
         return *this;
     }
 
-    Lens3& yaw( ggfloat_t a ) {
-        tar.x = pos.x + cos( a )*tar.x;
-        tar.y = pos.y - sin( a )*tar.y;
+    Lens3& roll( ggfloat_t angel ) {
+        up = glm::rotate( up, angel, this->forward() );
         return *this;
     }
 
-    Lens3& yaw_d( ggfloat_t a ) {
-        return this->yaw( Deg::pull( a ) );
-    }
+    Lens3& spin( glm::vec2 delta ) {
+        glm::vec3 old_pos = pos;
+        glm::vec3 fwd     = this->forward();
 
-    Lens3& spin( glm::vec2 w ) {
-        glm::vec3 v = tar - pos;
+        ggfloat_t mag = glm::length( fwd );
+
+        pos += this->right_n()*delta.x + up*delta.y;
+
+        fwd = this->forward();
+        pos += glm::normalize( fwd ) * ( glm::length( fwd ) - mag );
+
+        up = glm::normalize( glm::cross( this->right(), fwd ) );
+        return *this;
     }
 
 };

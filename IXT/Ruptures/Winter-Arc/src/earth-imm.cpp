@@ -18,7 +18,7 @@ using namespace IXT;
 
 
 int EARTH::main( int argc, char* argv[] ) {
-    Surface surf{ "Warc Earth Immersion", Crd2{}, Vec2{ Env::width(), Env::height() }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_SOLID };
+    Surface surf{ "Warc Earth Immersion", Crd2{}, Vec2{ Env::w<1.>(), Env::h<1.>() }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_SOLID };
     Renderer3 rend{ surf };
 
     Lens3 lens{ glm::vec3(0.0f, 5.0f, 15.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f) };
@@ -29,10 +29,11 @@ int EARTH::main( int argc, char* argv[] ) {
     ShaderPipe3 shader_pipe{ shader_vert, shader_frag };
     shader_pipe.uplink();
 
-    Uniform3< glm::mat4 > model{ shader_pipe, "model", glm::mat4( 1.0f ) };
-    Uniform3< glm::mat4 > view{ shader_pipe, "view", lens.view() };
-    Uniform3< glm::mat4 > proj{ shader_pipe, "projection", glm::perspective(glm::radians(55.0f), surf.aspect(), 0.1f, 1000.0f) };
-    model.uplink(); view.uplink(); proj.uplink();
+    Uniform3< glm::vec3 > sun_pos{ shader_pipe, "u_sun_pos", glm::vec3( 100.0 ) };
+    Uniform3< glm::mat4 > model{ shader_pipe, "u_model", glm::mat4( 1.0f ) };
+    Uniform3< glm::mat4 > view{ shader_pipe, "u_view", lens.view() };
+    Uniform3< glm::mat4 > proj{ shader_pipe, "u_projection", glm::perspective(glm::radians(55.0f), surf.aspect(), 0.1f, 1000.0f) };
+    model.uplink(); view.uplink(); proj.uplink(); sun_pos.uplink();
 
     ekg::Model3D mod3D;
     mod3D.LoadModel( WARC_RUPTURE_IMM_EARTH_DIR"/earth.obj", WARC_RUPTURE_IMM_EARTH_DIR"/" );
@@ -41,22 +42,20 @@ int EARTH::main( int argc, char* argv[] ) {
         static Ticker ticker;
         auto elapsed = ticker.lap() * 60.0;
 
-        if( surf.down( SurfKey::DOWN ) )
-            lens.pos.y -= elapsed;
-        if( surf.down( SurfKey::UP ) )
-            lens.pos.y += elapsed;
-        if( surf.down( SurfKey::RIGHT ) )
-            lens.yaw( .03 * elapsed );
-        if( surf.down( SurfKey::LEFT ) )
-            lens.yaw( -.03 * elapsed );
 
-        if( surf.down( SurfKey::X ) )
-            lens.zoom( .03 * elapsed );
-        if( surf.down( SurfKey::Z ) )
-            lens.zoom( -.03 * elapsed );
+        if( surf.down_any( SurfKey::RIGHT, SurfKey::LEFT, SurfKey::UP, SurfKey::DOWN ) ) {
+            if( surf.down( SurfKey::LSHIFT ) ) {
+                lens.zoom( ( surf.down( SurfKey::UP ) - surf.down( SurfKey::DOWN ) ) * .02 * elapsed );
+                lens.roll( ( surf.down( SurfKey::RIGHT ) - surf.down( SurfKey::LEFT ) ) * .03 * elapsed );
+            } else 
+                lens.spin( {
+                    ( surf.down( SurfKey::RIGHT ) - surf.down( SurfKey::LEFT ) ) * .03 * elapsed,
+                    ( surf.down( SurfKey::UP ) - surf.down( SurfKey::DOWN ) ) * .03 * elapsed
+                } );
+        }
 
         rend.clear();
-
+        sun_pos.uplink( glm::rotate( sun_pos.get(), ( float )( .01 * elapsed ), glm::vec3{ 0, 1, 0 } ) );
         view.uplink( lens.view() );
 
         //glBindTexture(GL_TEXTURE_2D, text_2);

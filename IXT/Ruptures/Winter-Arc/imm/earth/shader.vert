@@ -1,18 +1,23 @@
 #version 410 core
 
-layout(location = 0) in vec3 vertexPosition;
-layout(location = 1) in vec3 vertexNormal;
-layout(location = 2) in vec2 textcoord;
+layout( location = 0 ) in vec3 vrtx;
+layout( location = 1 ) in vec3 vrtx_n;
+layout( location = 2 ) in vec2 txt_crd;
 
-out vec3 colour;
-out vec2 pass_texture;
+out vec2 f_txt_crd;
+out vec3 f_vrtx_n;
+out vec3 f_sun_ray;
 
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
+uniform vec3 u_sun_pos;
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_projection;
 
 void main() {
-    colour = vertexNormal;
-    pass_texture = textcoord;
-    gl_Position = projection * view * model * vec4(vertexPosition, 1.0);
+    f_txt_crd = txt_crd;
+
+    f_sun_ray = u_sun_pos - vrtx;
+    f_vrtx_n = vrtx_n;
+
+    gl_Position = u_projection * u_view * u_model * vec4( vrtx, 1.0 );
 }

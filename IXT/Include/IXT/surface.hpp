@@ -154,13 +154,13 @@ public:
 
 public:
 #if defined( _ENGINE_UNIQUE_SURFACE )
-    template< typename ...Keys > static size_t down_any( Keys... keys );
+    template< typename ...Keys > static DWORD down_any( Keys... keys );
 
-    template< typename ...Keys > static size_t down_tgl( Keys... keys );
+    template< typename ...Keys > static DWORD down_tgl( Keys... keys );
 
-    template< typename ...Keys > static bool down_all( Keys... keys );
+    template< typename ...Keys > static DWORD down_all( Keys... keys );
 
-    static bool down( SurfKey key );
+    static DWORD down( SurfKey key );
 #endif
 
 };
@@ -1142,11 +1142,11 @@ public:
     }
 
     template< typename ...Keys >
-    bool down_all( Keys... keys ) const {
+    DWORD down_all( Keys... keys ) const {
         return this->down_any( keys... ) == sizeof...( Keys );
     }
 
-    bool down( SurfKey key ) const {
+    DWORD down( SurfKey key ) const {
         return _key_array[ key.value ] == SURFKEY_STATE_DOWN;
     }
 

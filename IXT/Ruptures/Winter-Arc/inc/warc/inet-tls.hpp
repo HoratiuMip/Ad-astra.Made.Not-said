@@ -51,7 +51,7 @@ public:
     BRIDGE( BRIDGE&& ) = delete;
 
 _WARC_PROTECTED:
-    BRIDGE( const char* addr, INET_PORT port, IXT_COMMS_ECHO_ARG );
+    BRIDGE( const char* addr, INET_PORT port );
 
 public:
     ~BRIDGE();
@@ -75,6 +75,9 @@ public:
 public:
     [[nodiscard]] static HANDLE alloc( const char* addr, INET_PORT port );
     static void free( HANDLE&& handle );
+
+public:
+    bool usable();
 
 };
 typedef   BRIDGE::HANDLE   HBRIDGE;

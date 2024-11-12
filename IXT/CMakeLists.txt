@@ -173,7 +173,6 @@ if( IXT_GL_OPEN_GL )
     add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/OpenGL/glm" )
     add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/OpenGL/glfw" )
     add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/OpenGL/glew/build/cmake" )
-    add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/Ekg" )
 
     add_compile_definitions( "IXT_GL_OPEN_GL" )
 endif()
@@ -192,7 +191,7 @@ link_libraries( ${IXT_OPEN_SSL_LIBS} )
 
 # Boost
 include_directories( "${IXT_EXCOM_ROOT_DIR}/Boost" )
-
+link_libraries( "${IXT_EXCOM_ROOT_DIR}/Boost/stage/lib/libboost_json-mgw11-mt-x64-1_86.a" )
 
 # Set those folders' paths into variables.
 set( IXT_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/Include" )
@@ -202,6 +201,8 @@ set( IXT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/Source" )
 # IXT include and source directories.
 add_subdirectory( "Source" )
 add_subdirectory( "Include" )
+
+add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/Ekg" )
 
 # GL post.
 if( IXT_GL_OPEN_GL )

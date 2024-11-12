@@ -1,3 +1,5 @@
+#pragma once
+
 #include <warc/common.hpp>
 
 namespace warc { namespace sat {

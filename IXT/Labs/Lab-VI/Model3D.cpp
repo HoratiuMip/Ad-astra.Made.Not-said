@@ -130,7 +130,7 @@ namespace gps {
 					if (!diffuseTexturePath.empty()) {
 
 						gps::Texture currentTexture;
-						currentTexture = LoadTexture(basePath + diffuseTexturePath, "diffuseTexture");
+						currentTexture = LoadTexture(basePath + diffuseTexturePath, "diffuse_texture");
 						textures.push_back(currentTexture);
 					}
 

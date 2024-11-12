@@ -134,7 +134,7 @@ public:
 
 class Uniform3Unknwn : public Descriptor {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Uniform3Unknwn" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Uniform3" );
 
 public:
     Uniform3Unknwn() = default;
@@ -155,13 +155,13 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    GLint   _loc   = -1;
+    GLint                      _loc           = -1;
+    std::function< DWORD() >   _uplink_proc   = nullptr;
 
 public:
-
-
-public:
-    virtual Uniform3Unknwn& uplink() = 0;
+    DWORD uplink() {
+        return std::invoke( _uplink_proc );
+    }
 
 };
 
@@ -176,7 +176,9 @@ public:
         const T&         under = {}, 
         _ENGINE_COMMS_ECHO_ARG 
     ) : Uniform3Unknwn{ pipe, name, echo }, _under{ under }
-    {}
+    {
+        this->_set_uplink_proc();
+    }
 
 _ENGINE_PROTECTED:
     T       _under   = {};
@@ -186,9 +188,89 @@ public:
     const T& get() const { return _under; }
 
 public:
-    Uniform3Unknwn& uplink() override {
+    using Uniform3Unknwn::uplink;
+
+    DWORD uplink( const T& new_under ) {
+        _under = new_under;
+        return this->uplink();
+    } 
+
+public:
+    void _set_uplink_proc(); 
+
+};
+
+
+template<> inline void Uniform3< glm::i32 >::_set_uplink_proc() {
+    this->Uniform3Unknwn::_uplink_proc = [ this ] () -> DWORD {
+        glUniform1i( this->_loc, this->_under  ); 
+        return 0;
+    };
+}
+template<> inline void Uniform3< glm::mat4 >::_set_uplink_proc() {
+    this->Uniform3Unknwn::_uplink_proc = [ this ] () -> DWORD {
         glUniformMatrix4fv( this->_loc, 1, GL_FALSE, glm::value_ptr( _under ) ); 
+        return 0;
+    };
+}
+
+
+
+class Lens3 : public Descriptor {
+public:
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Lens3" );
+
+public:
+    Lens3() = default;
+
+    Lens3( glm::vec3 p, glm::vec3 t, glm::vec3 u )
+    : pos{ p }, tar{ t }, up{ u }
+    {}
+
+public:
+    glm::vec3   pos;
+    glm::vec3   tar;
+    glm::vec3   up;
+
+public:
+    glm::mat4 view() const {
+        return glm::lookAt( pos, tar, up );
+    }
+
+    glm::vec3 fwd() const {
+        return tar - pos;
+    }
+
+    glm::vec3 fwd_n() const {
+        return glm::normalize( this->fwd() );
+    }
+
+    glm::vec3 rgh() const {
+        return glm::cross( this->fwd(), up );
+    }
+
+    glm::vec3 rgh_n() const {
+        return glm::normalize( this->rgh() );
+    }
+
+public:
+    Lens3& zoom( ggfloat_t p ) {
+        pos += this->fwd() * p;
         return *this;
+    }
+
+    Lens3& yaw( ggfloat_t a ) {
+        tar.x = pos.x + cos( a )*tar.x;
+        tar.y = pos.y - sin( a )*tar.y;
+        return *this;
+    }
+
+    Lens3& yaw_d( ggfloat_t a ) {
+        return this->yaw( Deg::pull( a ) );
+    }
+
+    Lens3& spin( glm::vec2 w ) {
+        glm::vec3 v = tar - pos;
     }
 
 };
@@ -214,6 +296,11 @@ public:
         echo( this, ECHO_LEVEL_INTEL ) << "OpenGL on \"" << _gl_str << "\".";
 
         glEnable( GL_DEPTH_TEST );
+        glDepthFunc( GL_LESS );
+        glEnable( GL_CULL_FACE ); 
+        glCullFace( GL_BACK );
+        glFrontFace( GL_CCW );
+        glViewport( 0, 0, ( int )_surface->width(), ( int )_surface->height() );
 
         echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
@@ -226,6 +313,18 @@ _ENGINE_PROTECTED:
 
     const char*       _rend_str   = NULL;     
     const char*       _gl_str     = NULL;    
+
+public:
+    Renderer3& clear( glm::vec4 c = { .0, .0, .0, 1.0 } ) {
+        glClearColor( c.r, c.g, c.b, c.a );
+        glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+        return *this;
+    }
+
+    Renderer3& swap() {
+        glfwSwapBuffers( _surface->handle() );
+        return *this;
+    }
 
 };
 

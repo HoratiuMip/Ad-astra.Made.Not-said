@@ -20,9 +20,7 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 #include <IXT/ring-0.hpp>
 using namespace IXT;
 
-#include "Camera.hpp"
-#include "Shader.hpp"
-#include "Model3D.hpp"
+#include <ekg/ekg.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -97,15 +95,7 @@ int main(int argc, char* argv[] ) {
         return 1;
     }
 
-    glEnable( GL_DEPTH_TEST );
-	glDepthFunc( GL_LESS );
-	glEnable( GL_CULL_FACE ); 
-	glCullFace( GL_BACK );
-	glFrontFace( GL_CCW );
-
-    gps::Camera cam(glm::vec3(0.0f, 5.0f, 15.0f), glm::vec3(0.0f, 5.0f, -10.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-    initObjects();
+    Lens3 lens{ glm::vec3(0.0f, 5.0f, 15.0f), glm::vec3(0.0f, 5.0f, -10.0f), glm::vec3(0.0f, 1.0f, 0.0f) };
 
     Shader3 shader_vert{ SOURCE_DIR"/shaders/shader.vert", SHADER3_PHASE_VERTEX };
     Shader3 shader_frag{ SOURCE_DIR"/shaders/shader.frag", SHADER3_PHASE_FRAGMENT };
@@ -114,32 +104,42 @@ int main(int argc, char* argv[] ) {
     shader_pipe.uplink();
 
     Uniform3< glm::mat4 > model{ shader_pipe, "model", glm::mat4( 1.0f ) };
-    Uniform3< glm::mat4 > view{ shader_pipe, "view", cam.getViewMatrix() };
+    Uniform3< glm::mat4 > view{ shader_pipe, "view", lens.view() };
     Uniform3< glm::mat4 > proj{ shader_pipe, "projection", glm::perspective(glm::radians(55.0f), (float)retina_width / (float)retina_height, 0.1f, 1000.0f) };
     model.uplink(); view.uplink(); proj.uplink();
 
-    gps::Model3D mod3D;
+    ekg::Model3D mod3D;
+    mod3D.LoadModel( SOURCE_DIR"/objects/earth.obj", SOURCE_DIR"/textures/" );
 
     auto text = mod3D.ReadTextureFromFile( SOURCE_DIR"/textures/hazard2.png" );
+
+    auto text_2 = mod3D.ReadTextureFromFile( SOURCE_DIR"/textures/stall_texture.png" );
 
     while( !surf->down( SurfKey::ESC ) ) {
         static Ticker ticker;
         auto elapsed = ticker.lap() * 60.0;
 
-        //glPolygonMode( GL_FRONT_AND_BACK, surf->down( SurfKey::SPACE ) ? GL_LINE : GL_FILL );
+        if( surf->down( SurfKey::DOWN ) )
+            lens.pos.y -= elapsed;
+        if( surf->down( SurfKey::UP ) )
+            lens.pos.y += elapsed;
+        if( surf->down( SurfKey::RIGHT ) )
+            lens.pos.x += elapsed;
+        if( surf->down( SurfKey::LEFT ) )
+            lens.pos.x -= elapsed;
+        if( surf->down( SurfKey::X ) )
+            lens.pos.z += elapsed;
+        if( surf->down( SurfKey::Z ) )
+            lens.pos.z -= elapsed;
 
-        glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-        glClearColor( .1, .1, .16, 1.0 );
-        glViewport( 0, 0, retina_width, retina_height );
+        rend->clear();
 
-        glActiveTexture(GL_TEXTURE0);
-        glUniform1i(glGetUniformLocation(shader_pipe, "diffuse_texture"), 0);
-        glBindTexture(GL_TEXTURE_2D, text);
+        view.uplink( lens.view() );
 
-        glBindVertexArray( VAO );
-        glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
+        //glBindTexture(GL_TEXTURE_2D, text_2);
+        mod3D.Draw( shader_pipe );
 
-        glfwSwapBuffers( surf->handle() );
+        rend->swap();
     }
 
     surf->downlink();

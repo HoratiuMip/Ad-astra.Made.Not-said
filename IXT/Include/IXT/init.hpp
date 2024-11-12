@@ -9,7 +9,7 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-DWORD initial_uplink( int argc, char* argv[], DWORD flags, void* arg, void** ret ) {
+inline DWORD initial_uplink( int argc, char* argv[], DWORD flags, void* arg, void** ret ) {
     comms() << "Uplinking " _ENGINE_STR " engine...";
 
 #if defined( _ENGINE_GL_OPEN_GL )
@@ -26,7 +26,7 @@ DWORD initial_uplink( int argc, char* argv[], DWORD flags, void* arg, void** ret
     return 0;
 }
 
-DWORD final_downlink( int argc, char* argv[], DWORD flags, void* arg, void** ret ) {
+inline DWORD final_downlink( int argc, char* argv[], DWORD flags, void* arg, void** ret ) {
     comms() << "Downlinking " _ENGINE_STR " engine...";
 
 #if defined( _ENGINE_GL_OPEN_GL )

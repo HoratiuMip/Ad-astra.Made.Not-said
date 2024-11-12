@@ -94,7 +94,7 @@ const char* BRIDGE::struct_name() const {
     return this->_struct_name.c_str();
 }
 
-BRIDGE::BRIDGE( const char* addr, INET_PORT port, IXT_COMMS_ECHO_NO_DFT_ARG ) 
+BRIDGE::BRIDGE( const char* addr, INET_PORT port ) 
 : _port{ port }
 {
     int          status;
@@ -102,18 +102,24 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port, IXT_COMMS_ECHO_NO_DFT_ARG )
     sockaddr_in  socket_desc;
     char*        err;
 
+    struct _BAD_EXIT {
+        std::function< void() >   proc;
+        ~_BAD_EXIT() { if( proc ) proc(); } 
+    } bad_exit{ proc: [ this ] () -> void {
+        this->~BRIDGE();
+    } };
 
     this->_struct_name += BRIDGE::pretty( addr, port );
 
 
-    WARC_ASSERT_ACC( addr != nullptr, "Address is NULL.", -1, ; );
-    WARC_ASSERT_ACC( this->_port == INET_PORT_HTTPS, "As of now, port must be HTTPS.", -1, ; );
+    WARC_ASSERT_RT_THIS( addr != nullptr, "Address is NULL.", -1, ; );
+    WARC_ASSERT_RT_THIS( this->_port == INET_PORT_HTTPS, "As of now, port must be HTTPS.", -1, ; );
 
 
     this->_addr = addr;
     
     socket_raw = socket( AF_INET, SOCK_STREAM, 0 );
-    WARC_ASSERT_ACC( socket_raw >= 0, "Socket creation fault.", socket_raw, ; );
+    WARC_ASSERT_RT_THIS( socket_raw >= 0, "Socket creation fault.", socket_raw, ; );
 
     memset( &socket_desc, 0, sizeof( sockaddr_in ) );
 
@@ -121,33 +127,36 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port, IXT_COMMS_ECHO_NO_DFT_ARG )
     socket_desc.sin_addr.s_addr = inet_addr( this->_addr.c_str() );
     socket_desc.sin_port        = htons( this->_port ); 
     
-    WARC_LOG_ACC_PENDING << "Connecting...";
+    WARC_LOG_RT_THIS_PENDING << "Connecting...";
     status = connect( socket_raw, ( sockaddr* )&socket_desc, sizeof( sockaddr_in ) );
-    WARC_ASSERT_ACC( status == 0, "Server connection fault.", status, ; );
-    WARC_LOG_ACC_OK << "Connected.";
+    WARC_ASSERT_RT_THIS( status == 0, "Server connection fault.", status, ; );
 
     this->_ssl = SSL_new( _internal.ssl_context );
     err = ERR_error_string( ERR_get_error(), 0 );
-    WARC_ASSERT_ACC( this->_ssl != nullptr, err ? err : "SSL creation fault.", -1, ; );
+    WARC_ASSERT_RT_THIS( this->_ssl != nullptr, err ? err : "SSL creation fault.", -1, ; );
 
     this->_socket = socket_raw;
     SSL_set_fd( this->_ssl, this->_socket );
 
-    WARC_LOG_ACC_PENDING << "Securely connecting...";
+    WARC_LOG_RT_THIS_PENDING << "TLS probing...";
     status = SSL_connect( this->_ssl );
-    WARC_ASSERT_ACC( status > 0, "Secure handshake fault.", -1, ; );
-    WARC_LOG_ACC_OK << "Securely connected.";
+    WARC_ASSERT_RT_THIS( status > 0, "Secure handshake fault.", -1, ; );
 
-
-    WARC_LOG_ACC_OK << "Secure socket created, using " << SSL_get_cipher( this->_ssl ) << ".\n";
+    bad_exit.proc = nullptr;
+    WARC_LOG_RT_THIS_OK << "Secure socket created, using " << SSL_get_cipher( this->_ssl ) << ".\n";
 }
 
 BRIDGE::~BRIDGE() {
     int status = -1;
 
-    status = SSL_shutdown( this->_ssl );
-    SSL_free( this->_ssl );
-    status = closesocket( this->_socket );
+    if( this->_ssl != nullptr ) {
+        status = SSL_shutdown( this->_ssl );
+        SSL_free( std::exchange( this->_ssl, nullptr ) );
+    }
+    
+    if( this->_socket != _SOCKET{} ) {
+        status = closesocket( std::exchange( this->_socket, _SOCKET{} ) );
+    }
 }
 
 std::string BRIDGE::pretty( const char* addr, INET_PORT port ) {
@@ -157,7 +166,6 @@ std::string BRIDGE::pretty( const char* addr, INET_PORT port ) {
     memset( buf, 0, sizeof( buf ) );
 
     itoa( port, buf, 10 );
-
     buf[ sizeof( buf ) - 1 ] = '\0';
 
     return std::string{ '[' } + addr + ':' + buf + ']'; 
@@ -165,7 +173,6 @@ std::string BRIDGE::pretty( const char* addr, INET_PORT port ) {
 
 HBRIDGE BRIDGE::alloc( const char* addr, INET_PORT port ) {
     HBRIDGE bridge = _internal.bridge_supervisor.emplace_back( std::make_shared< BRIDGE >() );
-
     new ( bridge.get() ) BRIDGE{ addr, port };
 
     return bridge;
@@ -177,36 +184,50 @@ void BRIDGE::free( HBRIDGE&& handle ) {
 }
 
 int BRIDGE::write( const char* buf, int sz ) {
-    int w = -1;
+    WARC_ASSERT_RT_THIS( buf != nullptr, "NULL buffer.", -1, -1 );
+    WARC_ASSERT_RT_THIS( sz > 0, "Write count <= 0.", -1, -1 );
 
-    WARC_ASSERT_RT( buf != nullptr, "NULL buffer.", -1, -1 );
-    WARC_ASSERT_RT( sz > 0, "Write count <= 0.", -1, -1 );
+    int w = 0;
 
-    w = SSL_write( this->_ssl, buf, sz );
+    WARC_LOG_RT_THIS_PENDING << "Writing (" << sz << ") bytes.";
 
+    do {
+        int res = SSL_write( this->_ssl, buf, sz - w );
+        WARC_ASSERT_RT_THIS( res > 0, "SSL write fault.", res, res );
+        w += res;
+    } while( w < sz );
+
+    WARC_LOG_RT_THIS_OK << "Wrote (" << w << ") bytes.";
     return w;
 }
 
 std::string BRIDGE::read( int sz ) {
-    int r = -1;
-    
-    WARC_ASSERT_RT( sz > 0, "Read count <= 0.", -1, "" );
+    WARC_ASSERT_RT_THIS( sz > 0, "Read count <= 0.", -1, "" );
 
     char buf[ sz + 1 ];
-    r = SSL_read( this->_ssl, buf, sz );
+
+    WARC_LOG_RT_THIS_PENDING << "Reading (" << sz << ") bytes.";
+    int r = SSL_read( this->_ssl, buf, sz );
+    WARC_ASSERT_RT_THIS( r > 0, "SSL read fault.", r, "" );
+
     buf[ r ] = '\0';
 
+    WARC_LOG_RT_THIS_OK << "Read (" << r << ") bytes.";
     return buf;
 }
 
 std::string BRIDGE::xchg( const char* buf, int w_sz, int r_sz ) {
-    int status = -1;
+    int status = this->write( buf, w_sz );
+    WARC_ASSERT_RT_THIS( status > 0, "Xchg write fault.", status, "" );
 
-    status = this->write( buf, w_sz );
+    std::string result = this->read( r_sz );
+    WARC_ASSERT_RT_THIS( !result.empty(), "Xchg read fault.", -1, "" );
+    
+    return result;
+}
 
-    WARC_ASSERT_RT( status > 0, "Xchg write fault.", status, "" );
-
-    return this->read( r_sz );
+bool BRIDGE::usable() {
+    return ( this->_socket != _SOCKET{} ) && ( this->_ssl != nullptr ); 
 }
 
 

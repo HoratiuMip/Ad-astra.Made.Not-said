@@ -524,6 +524,9 @@ _ENGINE_PROTECTED:
         glfwWindowHint( GLFW_SCALE_TO_MONITOR, GLFW_FALSE );
         glfwWindowHint( GLFW_SAMPLES, 4 );
 
+        if( _style == SURFACE_STYLE_SOLID )
+            glfwWindowHint( GLFW_DECORATED, GLFW_FALSE );
+
         _glfwnd = glfwCreateWindow( ( int )_size.x, ( int )_size.y, _title.c_str(), nullptr, nullptr );
 
         if( _glfwnd == nullptr ) {
@@ -1017,6 +1020,10 @@ public:
 
     ggfloat_t height() const {
         return _size.y;
+    }
+
+    ggfloat_t aspect() const {
+        return _size.x / _size.y;
     }
 
 public:

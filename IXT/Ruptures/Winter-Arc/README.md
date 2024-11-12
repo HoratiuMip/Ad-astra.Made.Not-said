@@ -64,5 +64,5 @@ Cool description here.
 > `--n2yo-api-key <arg1> <arg2>` - specifies how to treat the situation regarding n2yo's server api key. Accepted combinations of `arg1` and `arg2`:
 > - `use <XXX>` - where `XXX` is the api key. Sets the current session's api key to `XXX`.
 > - `burn <XXX>` - makes a copy of the executable file and burns the api key `XXX` inside it.
-> - `use ash` - extract the api key from its burnt location inside the executable.
+> - `use ash` - extract the api key from its burnt location inside the executable and set it for the current session.
 > - `show ash` - extracts and shows the executable's currently burnt api key.

@@ -9,6 +9,7 @@ out vec3 f_vrtx_n;
 out vec3 f_sun_ray;
 
 uniform vec3 u_sun_pos;
+
 uniform mat4 u_model;
 uniform mat4 u_view;
 uniform mat4 u_projection;

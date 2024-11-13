@@ -5,8 +5,6 @@
 #include <IXT/render3.hpp>
 #include <IXT/tempo.hpp>
 
-#include <ekg/ekg.hpp>
-
 namespace warc { namespace imm {
 
 

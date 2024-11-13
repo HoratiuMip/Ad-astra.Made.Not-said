@@ -26,17 +26,23 @@ int EARTH::main( int argc, char* argv[] ) {
     Shader3 shader_vert{ WARC_RUPTURE_IMM_EARTH_DIR"/shader.vert", SHADER3_PHASE_VERTEX };
     Shader3 shader_frag{ WARC_RUPTURE_IMM_EARTH_DIR"/shader.frag", SHADER3_PHASE_FRAGMENT };
 
-    ShaderPipe3 shader_pipe{ shader_vert, shader_frag };
-    shader_pipe.uplink();
+    ShaderPipe3 pipe{ shader_vert, shader_frag };
+    pipe.uplink();
 
-    Uniform3< glm::vec3 > sun_pos{ shader_pipe, "u_sun_pos", glm::vec3( 100.0 ) };
-    Uniform3< glm::mat4 > model{ shader_pipe, "u_model", glm::mat4( 1.0f ) };
-    Uniform3< glm::mat4 > view{ shader_pipe, "u_view", lens.view() };
-    Uniform3< glm::mat4 > proj{ shader_pipe, "u_projection", glm::perspective(glm::radians(55.0f), surf.aspect(), 0.1f, 1000.0f) };
+    Uniform3< glm::vec3 > sun_pos{ pipe, "u_sun_pos", glm::vec3( 100.0 ) };
+    Uniform3< glm::mat4 > model{ pipe, "u_model", glm::mat4( 1.0f ) };
+    Uniform3< glm::mat4 > view{ pipe, "u_view", lens.view() };
+    Uniform3< glm::mat4 > proj{ pipe, "u_projection", glm::perspective(glm::radians(55.0f), surf.aspect(), 0.1f, 1000.0f) };
     model.uplink(); view.uplink(); proj.uplink(); sun_pos.uplink();
 
-    ekg::Model3D mod3D;
-    mod3D.LoadModel( WARC_RUPTURE_IMM_EARTH_DIR"/earth.obj", WARC_RUPTURE_IMM_EARTH_DIR"/" );
+    struct _EARTH {
+        _EARTH() 
+        : obj{ WARC_RUPTURE_IMM_EARTH_DIR"/earth.obj", WARC_RUPTURE_IMM_EARTH_DIR"/" }
+        {}
+
+        IXT::Object3   obj;
+    } earth;
+    earth.obj[ 0 ].dock_in( pipe );
 
     while( !surf.down( SurfKey::ESC ) ) {
         static Ticker ticker;
@@ -58,8 +64,7 @@ int EARTH::main( int argc, char* argv[] ) {
         sun_pos.uplink( glm::rotate( sun_pos.get(), ( float )( .01 * elapsed ), glm::vec3{ 0, 1, 0 } ) );
         view.uplink( lens.view() );
 
-        //glBindTexture(GL_TEXTURE_2D, text_2);
-        mod3D.Draw( shader_pipe );
+        earth.obj.splash( pipe );
 
         rend.swap();
     }

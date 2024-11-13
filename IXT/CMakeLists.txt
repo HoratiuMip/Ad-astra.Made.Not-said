@@ -173,6 +173,7 @@ if( IXT_GL_OPEN_GL )
     add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/OpenGL/glm" )
     add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/OpenGL/glfw" )
     add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/OpenGL/glew/build/cmake" )
+    add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/OpenGL/globj" )
 
     add_compile_definitions( "IXT_GL_OPEN_GL" )
 endif()
@@ -202,19 +203,17 @@ set( IXT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/Source" )
 add_subdirectory( "Source" )
 add_subdirectory( "Include" )
 
-add_subdirectory( "${IXT_EXCOM_ROOT_DIR}/Ekg" )
 
 # GL post.
 if( IXT_GL_OPEN_GL )
     target_link_libraries( ${IXT_LIB_NAME} PUBLIC glm )
     target_link_libraries( ${IXT_LIB_NAME} PUBLIC glfw )
     target_link_libraries( ${IXT_LIB_NAME} PUBLIC glew_s )   
-    target_link_libraries( ${IXT_LIB_NAME} PUBLIC ekg )
+    target_link_libraries( ${IXT_LIB_NAME} PUBLIC globj )
     
     target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/glm" )
     target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/glfw/include" )
     target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/glew/include" )
-    target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/ekg/include" )
 endif()
 
 

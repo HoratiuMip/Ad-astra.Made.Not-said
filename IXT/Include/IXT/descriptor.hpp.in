@@ -156,6 +156,8 @@
     #include <glm/ext.hpp>
     #include <GL/glew.h>
     #include <GLFW/glfw3.h>
+    #include <stb_image.h>
+    #include <tiny_obj_loader.h>
 #endif
 
 

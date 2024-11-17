@@ -1,7 +1,7 @@
-# Blender 4.2.3 LTS MTL File: 'sat_noaa.mtl'
+# Blender 4.2.3 LTS MTL File: 'sat_noaa'
 # www.blender.org
 
-newmtl MAT_Grey
+newmtl MAT_Aluminium
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
@@ -9,34 +9,35 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd MAT_Gray.png
+map_Kd sat_noaa_aluminium.jpg
+
+newmtl MAT_Black
+Ns 883.066772
+Ka 1.000000 1.000000 1.000000
+Kd 0.007194 0.007194 0.007194
+Ks 0.535461 0.535461 0.535461
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 3
+map_Kd sat_noaa_black.png
+
+newmtl MAT_Panel
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd sat_noaa_panel.jpg
 
 newmtl MAT_Yellow
-Ns 250.000000
+Ns 416.528290
 Ka 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
+Ks 0.894101 0.894101 0.894101
 Ke 0.000000 0.000000 0.000000
-Ni 1.500000
+Ni 1.450000
 d 1.000000
-illum 2
-map_Kd MAT_Yellow.png
-
-newmtl Material.001
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
-Ni 1.500000
-d 1.000000
-illum 2
-map_Kd MAT_Blue.png
-
-newmtl Material.002
-Ns 250.000000
-Ka 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
-Ni 1.500000
-d 1.000000
-illum 2
-map_Kd MAT_Black.png
+illum 3
+map_Kd sat_noaa_bronze.png

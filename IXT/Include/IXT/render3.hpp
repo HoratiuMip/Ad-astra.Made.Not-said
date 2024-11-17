@@ -181,7 +181,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    T       _under   = {};
+    T   _under   = {};
 
 public:
     T& get() { return _under; }
@@ -203,7 +203,7 @@ public:
 
 template<> inline void Uniform3< glm::u32 >::_set_uplink_proc() {
     Uniform3Unknwn::_uplink_proc = [ this ] () -> DWORD {
-        glUniform1i( _loc, _under  ); 
+        glUniform1i( _loc, _under ); 
         return 0;
     };
 }
@@ -326,15 +326,19 @@ public:
     
             mtl.data = std::move( mtl_base ); 
             
-            if( !mtl.data.diffuse_texname.empty() ) {
-                if( this->_push_tex( root_dir + mtl.data.diffuse_texname, "diffuse_texture", echo ) != 0 )
+            std::string* tex_name = &mtl.data.diffuse_texname;
+
+            if( !tex_name->empty() ) {
+                 if( this->_push_tex( root_dir + *tex_name, "diffuse_texture", 0, echo ) != 0 )
                     continue;
 
                 mtl.tex_d_idx = _texs.size() - 1;
             }
 
-            if( !mtl.data.ambient_texname.empty() ) {
-                if( this->_push_tex( root_dir + mtl.data.ambient_texname, "ambient_texture", echo ) != 0 )
+            tex_name = &mtl.data.ambient_texname;
+
+            if( !tex_name->empty() ) {
+                if( this->_push_tex( root_dir + *tex_name, "ambient_texture", 1, echo ) != 0 )
                     continue;
 
                 mtl.tex_a_idx = _texs.size() - 1;
@@ -434,12 +438,13 @@ _ENGINE_PROTECTED:
     struct _Tex {
         GLuint                 glidx;
         std::string            name;
+        GLuint                 unit;
         Uniform3< glm::u32 >   ufrm;
     };
     std::vector< _Tex >       _texs;
 
 _ENGINE_PROTECTED:
-    DWORD _push_tex( std::string_view path, std::string_view name, _ENGINE_COMMS_ECHO_ARG ) {
+    DWORD _push_tex( std::string_view path, std::string_view name, GLuint unit,  _ENGINE_COMMS_ECHO_ARG ) {
         GLuint tex_glidx;
 
         int x, y, n;
@@ -448,25 +453,6 @@ _ENGINE_PROTECTED:
         if( img_buf == nullptr ) {
             echo( this, ECHO_LEVEL_ERROR ) << "Failed to load texture data from: \"" << path.data() << "\".";
             return -1;
-        }
-    
-        int    width_in_bytes = x * 4;
-        UBYTE* top            = nullptr;
-        UBYTE* bottom         = nullptr;
-        UBYTE  temp           = 0;
-        int    half_height    = y / 2;
-
-        for( int row = 0; row < half_height; ++row ) {
-            top = img_buf + row * width_in_bytes;
-            bottom = img_buf + ( y - row - 1 ) * width_in_bytes;
-
-            for ( int col = 0; col < width_in_bytes; ++col ) {
-                temp    = *top;
-                *top    = *bottom;
-                *bottom = temp;
-                
-                ++top; ++bottom;
-            }
         }
 
         glGenTextures( 1, &tex_glidx );
@@ -489,10 +475,12 @@ _ENGINE_PROTECTED:
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 
         glBindTexture( GL_TEXTURE_2D, 0 );
+        stbi_image_free( img_buf );
 
         _texs.emplace_back( _Tex{
             glidx: tex_glidx,
             name: name.data(),
+            unit: unit,
             ufrm: {}
         } );
 
@@ -503,7 +491,7 @@ _ENGINE_PROTECTED:
 public:
     Mesh3& dock_in( ShaderPipe3& pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
         for( size_t idx = 0; idx < _texs.size(); ++idx )
-            _texs[ idx ].ufrm = Uniform3< glm::u32 >{ pipe, _texs[ idx ].name, idx, echo };
+            _texs[ idx ].ufrm = Uniform3< glm::u32 >{ pipe, _texs[ idx ].name, _texs[ idx ].unit, echo };
 
         return *this;
     }
@@ -521,21 +509,15 @@ public:
 
                     _Tex& tex = _texs[ tex_idx ];
 
-                    glActiveTexture( GL_TEXTURE0 + tex_idx );
-                    tex.ufrm.uplink();
+                    glActiveTexture( GL_TEXTURE0 + tex.unit );
                     glBindTexture( GL_TEXTURE_2D, tex.glidx );
+                    tex.ufrm.uplink();
                 }
                 
                 glDrawElements( GL_TRIANGLES, ( GLsizei )burst.count, GL_UNSIGNED_INT, 0 );
             }
         }
 
-        for( size_t idx = 0; idx < _texs.size(); ++idx ) {
-            glActiveTexture( GL_TEXTURE0 + idx );
-            glBindTexture( GL_TEXTURE_2D, 0 );
-        }
-
-        glBindVertexArray( 0 );
         return *this;
     }
 
@@ -567,6 +549,8 @@ public:
         glCullFace( GL_BACK );
         glFrontFace( GL_CCW );
         glViewport( 0, 0, ( int )_surface->width(), ( int )_surface->height() );
+
+        stbi_set_flip_vertically_on_load( true );
 
         echo( this, ECHO_LEVEL_OK ) << "Created.";
     }

@@ -1,7 +1,7 @@
 # Blender 4.2.3 LTS MTL File: 'sat_noaa.mtl'
 # www.blender.org
 
-newmtl Material
+newmtl MAT_Aluminium
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
 Ks 0.500000 0.500000 0.500000
@@ -9,87 +9,36 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd sat_noaa_bronze.png
+map_Kd sat_noaa_aluminium.jpg
 
-newmtl Material.001
-Ns 416.528290
-Ka 0.429658 0.429658 0.429658
-Ks 0.894101 0.894101 0.894101
-Ke 0.000000 0.000000 0.000000
-Ni 1.450000
-d 1.000000
-illum 3
-map_Kd sat_noaa_bronze.png
-map_Bump -bm 1.000000 sat_noaa_normal.png
-
-newmtl Material.002
-Ns 416.528290
-Ka 1.000000 1.000000 1.000000
-Ks 0.894101 0.894101 0.894101
-Ke 0.000000 0.000000 0.000000
-Ni 1.450000
-d 1.000000
-illum 3
-map_Kd sat_noaa_bronze.png
-map_Bump -bm 1.000000 sat_noaa_normal.png
-
-newmtl Material.003
+newmtl MAT_Black
 Ns 883.066772
 Ka 1.000000 1.000000 1.000000
-Kd 0.006995 0.006995 0.006995
+Kd 0.007194 0.007194 0.007194
 Ks 0.535461 0.535461 0.535461
 Ke 0.000000 0.000000 0.000000
 Ni 1.450000
 d 1.000000
 illum 3
+map_Kd sat_noaa_black.png
 
-newmtl Material.004
-Ns 538.889526
+newmtl MAT_Panel
+Ns 250.000000
 Ka 1.000000 1.000000 1.000000
-Kd 0.665383 0.665388 0.665388
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
-Ni 1.450000
-d 1.000000
-illum 3
-
-newmtl Material.006
-Ns 360.000000
-Ka 1.000000 1.000000 1.000000
-Kd 0.800000 0.800000 0.800000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
-Ni 1.000000
+Ni 1.500000
 d 1.000000
 illum 2
+map_Kd sat_noaa_panel.jpg
 
-newmtl Material.007
+newmtl MAT_Yellow
 Ns 416.528290
-Ka 0.429658 0.429658 0.429658
+Ka 1.000000 1.000000 1.000000
 Ks 0.894101 0.894101 0.894101
 Ke 0.000000 0.000000 0.000000
 Ni 1.450000
 d 1.000000
 illum 3
 map_Kd sat_noaa_bronze.png
-map_Bump -bm 1.000000 sat_noaa_normal.png
-
-newmtl Material.008
-Ns 538.889526
-Ka 1.000000 1.000000 1.000000
-Kd 0.665637 0.665637 0.665637
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
-Ni 1.450000
-d 1.000000
-illum 3
-
-newmtl Material.009
-Ns 538.889526
-Ka 1.000000 1.000000 1.000000
-Kd 0.665637 0.665637 0.665637
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
-Ni 1.450000
-d 1.000000
-illum 3
+# map_Bump -bm 1.000000 uploads_files_2534719_NOAA-15+Weather+Satellite (2)/NOAA-15 Weather Satellite/Meterials/Normal.png

@@ -23,10 +23,10 @@ int EARTH::main( int argc, char* argv[] ) {
 
     Lens3 lens{ glm::vec3(0.0f, 5.0f, 15.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f) };
 
-    Shader3 shader_vert{ WARC_RUPTURE_IMM_EARTH_DIR"/shader.vert", SHADER3_PHASE_VERTEX };
-    Shader3 shader_frag{ WARC_RUPTURE_IMM_EARTH_DIR"/shader.frag", SHADER3_PHASE_FRAGMENT };
-
-    ShaderPipe3 pipe{ shader_vert, shader_frag };
+    ShaderPipe3 pipe{ 
+        Shader3{ WARC_RUPTURE_IMM_EARTH_DIR"/earth_shader.vert", SHADER3_PHASE_VERTEX }, 
+        Shader3{ WARC_RUPTURE_IMM_EARTH_DIR"/earth_shader.frag", SHADER3_PHASE_FRAGMENT }
+    };
     pipe.uplink();
 
     Uniform3< glm::vec3 > sun_pos{ pipe, "u_sun_pos", glm::vec3( 100.0 ) };
@@ -35,23 +35,28 @@ int EARTH::main( int argc, char* argv[] ) {
     Uniform3< glm::mat4 > proj{ pipe, "u_projection", glm::perspective(glm::radians(55.0f), surf.aspect(), 0.1f, 1000.0f) };
     model.uplink(); view.uplink(); proj.uplink(); sun_pos.uplink();
 
-    // struct _EARTH {
-    //     _EARTH() 
-    //     : mesh{ WARC_RUPTURE_IMM_EARTH_DIR"/earth.obj", WARC_RUPTURE_IMM_EARTH_DIR"/" }
-    //     {}
 
-    //     IXT::Mesh3   mesh;
-    // } earth;
-    // earth.mesh.dock_in( pipe );
+    struct _IMM {
+        struct _EARTH {
+            _EARTH() 
+            : mesh{ WARC_RUPTURE_IMM_EARTH_DIR"/earth.obj", WARC_RUPTURE_IMM_EARTH_DIR"/" }
+            {}
 
-    struct _SAT_NOAA {
-        _SAT_NOAA()
-        : mesh{ WARC_RUPTURE_IMM_SAT_NOAA_DIR"/sat_noaa.obj", WARC_RUPTURE_IMM_SAT_NOAA_DIR"/" }
-        {}
+            IXT::Mesh3   mesh;
+        } earth;
 
-        IXT::Mesh3   mesh;
-    } sat_noaa;
-    sat_noaa.mesh.dock_in( pipe );
+        struct _SAT_NOAA {
+            _SAT_NOAA()
+            : mesh{ WARC_RUPTURE_IMM_SAT_NOAA_DIR"/sat_noaa.obj", WARC_RUPTURE_IMM_SAT_NOAA_DIR"/" }
+            {}
+
+            IXT::Mesh3   mesh;
+        } sat_noaa;
+        
+    } imm;
+
+    imm.earth.mesh.dock_in( pipe );
+    imm.sat_noaa.mesh.dock_in( pipe );
 
     while( !surf.down( SurfKey::ESC ) ) {
         static Ticker ticker;
@@ -74,9 +79,10 @@ int EARTH::main( int argc, char* argv[] ) {
         view.uplink( lens.view() );
 
         pipe.uplink();
-        //earth.mesh.splash();
+        imm.sat_noaa.mesh.splash();
+        imm.earth.mesh.splash();
 
-        sat_noaa.mesh.splash();
+        //sat_noaa.mesh.splash();
 
         rend.swap();
     }

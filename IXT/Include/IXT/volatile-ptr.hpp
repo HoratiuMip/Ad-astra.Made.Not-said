@@ -32,7 +32,7 @@ public:
 
     VolatilePtr( T* raw_ptr ) : Base{ raw_ptr } {}
 
-    VolatilePtr( T& raw_ptr, [[maybe_unused]] no_free_t ) : Base{ &raw_ptr, [] ( [[maybe_unused]] T* ) -> void {} } {}
+    VolatilePtr( T* raw_ptr, [[maybe_unused]] no_free_t ) : Base{ raw_ptr, [] ( [[maybe_unused]] T* ) -> void {} } {}
 
     VolatilePtr( T& raw_ref ) : Base{ &raw_ref, [] ( [[maybe_unused]] T* ) -> void {} } {}
 
@@ -106,6 +106,11 @@ public:
 
     VolatilePtr< _T >& reset( T&& raw_move_ref ) {
         this->Base::reset( std::make_shared< T >( raw_move_ref ) );
+        return *this;
+    }
+
+    VolatilePtr< _T >& reset( VolatilePtr< _T >&& vptr_move_ref ) {
+        static_cast< Base& >( *this ) = std::move( vptr_move_ref );
         return *this;
     }
 

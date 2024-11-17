@@ -20,6 +20,7 @@ target_include_directories( "warc" PUBLIC ${WINTER_ARC_INC_DIR} )
 target_compile_definitions( "warc" PUBLIC 
     "WARC_RUPTURE_ROOT_DIR=\"${CMAKE_CURRENT_LIST_DIR}\""
     "WARC_RUPTURE_IMM_EARTH_DIR=\"${CMAKE_CURRENT_LIST_DIR}/imm/earth\""
+    "WARC_RUPTURE_IMM_SAT_NOAA_DIR=\"${CMAKE_CURRENT_LIST_DIR}/imm/sat_noaa\""
 )
 
 

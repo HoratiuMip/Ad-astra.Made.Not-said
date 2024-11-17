@@ -294,328 +294,249 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Mesh3" );
 
 public:
-    struct Vrtx {
-        glm::vec3   pos;
-        glm::vec3   nrm;
-        glm::vec2   txt;
-    };
+    Mesh3( std::string_view obj_path, std::string root_dir, _ENGINE_COMMS_ECHO_ARG ) {
+        DWORD                              status;
+		tinyobj::attrib_t                  attrib;
+		std::vector< tinyobj::shape_t >    meshes;
+        std::vector< tinyobj::material_t > materials;
+        size_t                             total_vrtx_count = 0;
+		std::string                        error_str;
 
-    struct Txt {
-        GLuint        glidx;
-        std::string   kind;
+        echo( this, ECHO_LEVEL_INTEL ) << "Compiling the object: \"" << obj_path.data() << "\".";
 
-        static Txt from_file( std::string_view path, std::string_view kind, _ENGINE_COMMS_ECHO_RT_ARG ) {
-            static struct _FuncDescriptor : public Descriptor {
-                _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Mesh3::Txt" );
-            } _func_descriptor;
+		status = tinyobj::LoadObj( 
+            &attrib, &meshes, &materials, &error_str, 
+            obj_path.data(), root_dir.data(), 
+            GL_TRUE
+        );
 
-            Txt txt{ glidx: 0, kind: kind.data() };
+		if( !error_str.empty() )
+            echo( this, ECHO_LEVEL_WARNING ) << "TinyObj says: \"" << error_str << "\".";
 
-            int x, y, n;
-            UBYTE* img_buf = stbi_load( path.data(), &x, &y, &n, 4 );
+		if( status == 0 ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "Failed to compile the object.";
+            return;
+		}
 
-            if( img_buf == nullptr ) {
-                echo( &_func_descriptor, ECHO_LEVEL_ERROR ) << "Could not load image data from \"" << path.data() << "\".";
-                return { 0, "" };
-            }
-           
-            if( ( x & ( x - 1 ) ) != 0 || ( y & ( y - 1 ) ) != 0 )
-                echo( &_func_descriptor, ECHO_LEVEL_WARNING ) << "One or both image data sizes are not powers of 2: " << x << "x" << y << ".";
+		echo( this, ECHO_LEVEL_OK ) << "Compiled " << materials.size() << " materials over " << meshes.size() << " meshes."; 
 
-            int    width_in_bytes = x * 4;
-            UBYTE* top            = nullptr;
-            UBYTE* bottom         = nullptr;
-            UBYTE  temp           = 0;
-            int    half_height    = y / 2;
+        _mtls.reserve( materials.size() );
+        for( tinyobj::material_t& mtl_base : materials ) {
+            _Mtl& mtl = _mtls.emplace_back();
+    
+            mtl.data = std::move( mtl_base ); 
+            
+            if( !mtl.data.diffuse_texname.empty() ) {
+                if( this->_push_tex( root_dir + mtl.data.diffuse_texname, "diffuse_texture", echo ) != 0 )
+                    continue;
 
-            for( int row = 0; row < half_height; ++row ) {
-                top = img_buf + row * width_in_bytes;
-                bottom = img_buf + ( y - row - 1 ) * width_in_bytes;
-
-                for ( int col = 0; col < width_in_bytes; ++col ) {
-                    temp    = *top;
-                    *top    = *bottom;
-                    *bottom = temp;
-                    
-                    ++top; ++bottom;
-                }
+                mtl.tex_d_idx = _texs.size() - 1;
             }
 
-            glGenTextures( 1, &txt.glidx );
-            glBindTexture( GL_TEXTURE_2D, txt.glidx );
-            glTexImage2D(
-                GL_TEXTURE_2D,
-                0,
-                GL_SRGB,
-                x, y,
-                0,
-                GL_RGBA,
-                GL_UNSIGNED_BYTE,
-                img_buf
-            );
-            glGenerateMipmap( GL_TEXTURE_2D );
+            if( !mtl.data.ambient_texname.empty() ) {
+                if( this->_push_tex( root_dir + mtl.data.ambient_texname, "ambient_texture", echo ) != 0 )
+                    continue;
 
-            glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
-            glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
-            glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
-            glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+                mtl.tex_a_idx = _texs.size() - 1;
+            }
 
-            glBindTexture( GL_TEXTURE_2D, 0 );
-
-            echo( &_func_descriptor, ECHO_LEVEL_OK ) << "Created.";
-            return txt;
+            
         }
-    };
 
-    struct Mtl {
-        glm::vec3   ambient;
-        glm::vec3   diffuse;
-        glm::vec3   specular;
-    };
+        for( tinyobj::shape_t& mesh_ex : meshes ) {
+            tinyobj::mesh_t& mesh = mesh_ex.mesh;
+            _SubMesh&        sub  = _sub_meshes.emplace_back();
 
-    struct Buffs {
-        GLuint   VAO;
-        GLuint   VBO;
-        GLuint   EBO;
-    };
+            sub.count = mesh.indices.size();
 
-public:
-    Mesh3() = default;
+            struct VrtxData{
+                glm::vec3   pos;
+                glm::vec3   nrm;
+                glm::vec2   txt;
+            };
+            std::vector< VrtxData > vrtx_data; vrtx_data.reserve( sub.count );
+            size_t base_idx = 0;
+            size_t v_acc    = 0;
+            size_t l_mtl    = mesh.material_ids[ 0 ];
+            for( size_t f_idx = 0; f_idx < mesh.num_face_vertices.size(); ++f_idx ) {
+                UBYTE f_c = mesh.num_face_vertices[ f_idx ];
 
-    Mesh3( 
-        std::vector< Vrtx >    vrtxs, 
-        std::vector< GLuint >  glidxs, 
-        std::vector< Txt >     txts,
-        _ENGINE_COMMS_ECHO_ARG
-    )
-    : _vrtxs{ std::move( vrtxs ) }, _glidxs{ std::move( glidxs ) }, _txts{ info: std::move( txts ), ufrms: {} }
-    {
-		glGenVertexArrays( 1, &_buffs.VAO );
-		glGenBuffers( 1, &_buffs.VBO);
-		glGenBuffers( 1, &_buffs.EBO);
+                for( UBYTE v_idx = 0; v_idx < f_c; ++v_idx ) {
+                    tinyobj::index_t& idx = mesh.indices[ base_idx + v_idx ];
 
-		glBindVertexArray( _buffs.VAO );
-	
-		glBindBuffer( GL_ARRAY_BUFFER, _buffs.VBO );
-		glBufferData( GL_ARRAY_BUFFER, _vrtxs.size() * sizeof( Vrtx ), _vrtxs.data(), GL_STATIC_DRAW );
+                    vrtx_data.emplace_back( VrtxData{
+                        pos: { *( glm::vec3* )&attrib.vertices[ 3 *idx.vertex_index ] },
+                        nrm: { *( glm::vec3* )&attrib.normals[ 3 *idx.normal_index ] },
+                        txt: { ( idx.texcoord_index != -1 ) ? *( glm::vec2* )&attrib.texcoords[ 2 *idx.texcoord_index ] : glm::vec2{ 1.0 } }
+                    } );
+                }
 
-		glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, _buffs.EBO );
-		glBufferData( GL_ELEMENT_ARRAY_BUFFER, _glidxs.size() * sizeof( GLuint ), _glidxs.data(), GL_STATIC_DRAW );
+                if( mesh.material_ids[ f_idx ] != l_mtl ) {
+                    sub.bursts.emplace_back( _SubMesh::Burst{ count: v_acc, mtl_idx: l_mtl } );
+                    v_acc = 0;
+                    l_mtl = mesh.material_ids[ f_idx ];
+                }
 
-		glEnableVertexAttribArray( 0 );
-		glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, sizeof( Vrtx ), ( GLvoid* )0 );
-		
-		glEnableVertexAttribArray( 1 );
-		glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, sizeof( Vrtx ), ( GLvoid* )offsetof( Vrtx, nrm ) );
-	
-		glEnableVertexAttribArray( 2) ;
-		glVertexAttribPointer( 2, 2, GL_FLOAT, GL_FALSE, sizeof( Vrtx ), ( GLvoid* )offsetof( Vrtx, txt ) );
+                v_acc    += f_c;
+                base_idx += f_c;
+            }
 
-		glBindVertexArray( 0 );
+            sub.bursts.emplace_back( _SubMesh::Burst{ count: v_acc, mtl_idx: l_mtl } );
 
-        echo( this, ECHO_LEVEL_OK ) << "Created, " << _vrtxs.size() << " vertices.";
-    }
+            glGenVertexArrays( 1, &sub.VAO );
+            glGenBuffers( 1, &sub.VBO );
 
-    Mesh3( 
-        ShaderPipe3&           pipe,
-        std::vector< Vrtx >    vrtxs, 
-        std::vector< GLuint >  glidxs, 
-        std::vector< Txt >     txts,
-        _ENGINE_COMMS_ECHO_ARG
-    ) : Mesh3{ std::move( vrtxs ), std::move( glidxs ), std::move( txts ) }
-    {
-        this->dock_in( pipe );
-    }
+            glBindVertexArray( sub.VAO );
+        
+            glBindBuffer( GL_ARRAY_BUFFER, sub.VBO );
+            glBufferData( GL_ARRAY_BUFFER, vrtx_data.size() * sizeof( VrtxData ), vrtx_data.data(), GL_STATIC_DRAW );
 
-    ~Mesh3() {
-        glDeleteBuffers( 1, &_buffs.VBO );
-        glDeleteBuffers( 1, &_buffs.EBO );
-        glDeleteVertexArrays( 1, &_buffs.VAO );
-    }
+            glEnableVertexAttribArray( 0 );
+            glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, sizeof( VrtxData ), ( GLvoid* )0 );
+            
+            glEnableVertexAttribArray( 1 );
+            glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, sizeof( VrtxData ), ( GLvoid* )offsetof( VrtxData, nrm ) );
+        
+            glEnableVertexAttribArray( 2 );
+            glVertexAttribPointer( 2, 2, GL_FLOAT, GL_FALSE, sizeof( VrtxData ), ( GLvoid* )offsetof( VrtxData, txt ) );
+
+            std::vector< GLuint > indices; indices.assign( sub.count, 0 );
+            for( size_t idx = 1; idx < indices.size(); ++idx ) indices[ idx ] = idx;
+
+            glGenBuffers( 1, &sub.EBO );
+            glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, sub.EBO );
+		    glBufferData( GL_ELEMENT_ARRAY_BUFFER, sub.count * sizeof( GLuint ), indices.data(), GL_STATIC_DRAW );
+        }
+
+        glBindVertexArray( 0 );
+	}
 
 _ENGINE_PROTECTED:
-    std::vector< Vrtx >     _vrtxs;
-    std::vector< GLuint >   _glidxs;
-    struct {
-        std::vector< Txt >                    info;
-        std::vector< Uniform3< glm::u32 > >   ufrms;
-    }                       _txts;
-    Buffs                   _buffs;
+    struct _SubMesh {
+        GLuint                 VAO;
+        GLuint                 VBO;
+        GLuint                 EBO;
+        size_t                 count;
+        struct Burst {
+            size_t   count;
+            size_t   mtl_idx;
+        };
+        std::vector< Burst >   bursts;
+    };
+    std::vector< _SubMesh >   _sub_meshes;
+    struct _Mtl {
+        tinyobj::material_t   data;
+        size_t                tex_a_idx   = -1;
+        size_t                tex_d_idx   = -1;
+        size_t                tex_s_idx   = -1;
+    };
+    std::vector< _Mtl >       _mtls;
+    struct _Tex {
+        GLuint                 glidx;
+        std::string            name;
+        Uniform3< glm::u32 >   ufrm;
+    };
+    std::vector< _Tex >       _texs;
+
+_ENGINE_PROTECTED:
+    DWORD _push_tex( std::string_view path, std::string_view name, _ENGINE_COMMS_ECHO_ARG ) {
+        GLuint tex_glidx;
+
+        int x, y, n;
+        UBYTE* img_buf = stbi_load( path.data(), &x, &y, &n, 4 );
+
+        if( img_buf == nullptr ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "Failed to load texture data from: \"" << path.data() << "\".";
+            return -1;
+        }
+    
+        int    width_in_bytes = x * 4;
+        UBYTE* top            = nullptr;
+        UBYTE* bottom         = nullptr;
+        UBYTE  temp           = 0;
+        int    half_height    = y / 2;
+
+        for( int row = 0; row < half_height; ++row ) {
+            top = img_buf + row * width_in_bytes;
+            bottom = img_buf + ( y - row - 1 ) * width_in_bytes;
+
+            for ( int col = 0; col < width_in_bytes; ++col ) {
+                temp    = *top;
+                *top    = *bottom;
+                *bottom = temp;
+                
+                ++top; ++bottom;
+            }
+        }
+
+        glGenTextures( 1, &tex_glidx );
+        glBindTexture( GL_TEXTURE_2D, tex_glidx );
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_SRGB,
+            x, y,
+            0,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            img_buf
+        );
+        glGenerateMipmap( GL_TEXTURE_2D );
+
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+
+        glBindTexture( GL_TEXTURE_2D, 0 );
+
+        _texs.emplace_back( _Tex{
+            glidx: tex_glidx,
+            name: name.data(),
+            ufrm: {}
+        } );
+
+        echo( this, ECHO_LEVEL_OK ) << "Pushed texture from: \"" << path.data() << "\".";
+        return 0;
+    }
 
 public:
-    Buffs buffs() const {
-        return _buffs;
+    Mesh3& dock_in( ShaderPipe3& pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        for( size_t idx = 0; idx < _texs.size(); ++idx )
+            _texs[ idx ].ufrm = Uniform3< glm::u32 >{ pipe, _texs[ idx ].name, idx, echo };
+
+        return *this;
     }
 
 public:
     Mesh3& splash() {
-        for( GLuint idx = 0; idx < _txts.info.size(); ++idx ) {
-			glActiveTexture( GL_TEXTURE0 + idx );
-			_txts.ufrms[ idx ].uplink( idx );
-			glBindTexture( GL_TEXTURE_2D, _txts.info[ idx ].glidx );
-		}
+        for( _SubMesh& sub : _sub_meshes ) {
+            glBindVertexArray( sub.VAO );
 
-		glBindVertexArray( _buffs.VAO );
-		glDrawElements( GL_TRIANGLES, ( GLsizei )_glidxs.size(), GL_UNSIGNED_INT, 0 );
-		glBindVertexArray( 0 );
+            for( auto& burst : sub.bursts ) {
+                for( size_t tex_idx : {
+                    _mtls[ burst.mtl_idx ].tex_a_idx, _mtls[ burst.mtl_idx ].tex_d_idx, _mtls[ burst.mtl_idx ].tex_s_idx
+                } ) {
+                    if( tex_idx == -1 ) continue;
 
-        for( GLuint idx = 0; idx < _txts.info.size(); ++idx ) {
+                    _Tex& tex = _texs[ tex_idx ];
+
+                    glActiveTexture( GL_TEXTURE0 + tex_idx );
+                    tex.ufrm.uplink();
+                    glBindTexture( GL_TEXTURE_2D, tex.glidx );
+                }
+                
+                glDrawElements( GL_TRIANGLES, ( GLsizei )burst.count, GL_UNSIGNED_INT, 0 );
+            }
+        }
+
+        for( size_t idx = 0; idx < _texs.size(); ++idx ) {
             glActiveTexture( GL_TEXTURE0 + idx );
             glBindTexture( GL_TEXTURE_2D, 0 );
         }
 
+        glBindVertexArray( 0 );
         return *this;
-    }
-
-    Mesh3& splash( ShaderPipe3& pipe ) {
-        pipe.uplink();
-        return this->splash();
-    }
-
-    Mesh3& dock_in( ShaderPipe3& pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        _txts.ufrms.clear();
-        _txts.ufrms.reserve( _txts.info.size() );
-        for( size_t idx = 0; idx < _txts.info.size(); ++idx )
-            _txts.ufrms.emplace_back( pipe, _txts.info[ idx ].kind.c_str(), 0, echo );
-
-        return *this;
-    }
-
-};
-
-class Object3 : public Descriptor {
-public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Object3" );
-
-public:
-    Object3() = default;
-    
-	Object3( std::string_view obj_path, std::string root_path, _ENGINE_COMMS_ECHO_ARG ) {
-        DWORD                              status;
-		tinyobj::attrib_t                  attrib;
-		std::vector< tinyobj::shape_t >    shapes;
-		std::vector< tinyobj::material_t > materials;
-        size_t                             total_vrtx_count = 0;
-		std::string                        error;
-
-        echo( this, ECHO_LEVEL_INTEL ) << "Loading obj: \"" << obj_path.data() << "\".";
-
-		status = tinyobj::LoadObj( 
-            &attrib, &shapes, &materials, &error, 
-            obj_path.data(), root_path.data(), 
-            GL_TRUE
-        );
-
-		if( !error.empty() )
-            echo( this, ECHO_LEVEL_WARNING ) << "Obj load generated the message: \"" << error << "\".";
-
-		if( status == 0 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Could not load obj.";
-            return;
-		}
-
-		echo( this, ECHO_LEVEL_OK ) << "Loaded " << shapes.size() << " shapes, and " << materials.size() << " materials."; 
-
-		for( auto& shape : shapes ) {
-			std::vector< Mesh3::Vrtx > vrtxs;
-			std::vector< GLuint >      glidxs;
-			std::vector< Mesh3::Txt >  txts;
-
-			size_t idx_off = 0;
-			for( auto& face_vrtx_count : shape.mesh.num_face_vertices ) {
-				for( std::remove_reference_t< decltype( face_vrtx_count ) > v_idx = 0; v_idx < face_vrtx_count; ++v_idx ) {
-					tinyobj::index_t idx = shape.mesh.indices[ idx_off + v_idx ];
-
-					vrtxs.emplace_back( Mesh3::Vrtx{
-                        pos: *( glm::vec3* )( attrib.vertices.data() + 3*idx.vertex_index ),
-                        nrm: *( glm::vec3* )( attrib.normals.data() + 3*idx.normal_index ),
-                        txt: ( idx.texcoord_index != -1 ) ? ( *( glm::vec2* )( attrib.texcoords.data() + 2*idx.texcoord_index ) ) : glm::vec2{ 1.0 }
-                    } );
-
-					glidxs.push_back( ( GLuint )( idx_off + v_idx ) );
-				}
-
-				idx_off += face_vrtx_count;
-			}
-
-            echo( this, ECHO_LEVEL_OK ) << "Parsed the vertex data.";
-
-			if( shape.mesh.material_ids.size() > 0 && materials.size() > 0 ) {
-				DWORD mtl_idx = shape.mesh.material_ids[ 0 ];
-				if (mtl_idx != -1) {
-
-					Mesh3::Mtl currentMaterial;
-					currentMaterial.ambient = glm::vec3(materials[mtl_idx].ambient[0], materials[mtl_idx].ambient[1], materials[mtl_idx].ambient[2]);
-					currentMaterial.diffuse = glm::vec3(materials[mtl_idx].diffuse[0], materials[mtl_idx].diffuse[1], materials[mtl_idx].diffuse[2]);
-					currentMaterial.specular = glm::vec3(materials[mtl_idx].specular[0], materials[mtl_idx].specular[1], materials[mtl_idx].specular[2]);
-
-					//ambient texture
-					std::string ambientTexturePath = materials[mtl_idx].ambient_texname;
-
-					if (!ambientTexturePath.empty()) {
-
-						IXT::Mesh3::Txt currentTexture;
-						currentTexture = Mesh3::Txt::from_file( root_path + ambientTexturePath, "ambient_texture", echo );
-						txts.push_back(currentTexture);
-					}
-
-					//diffuse texture
-					std::string diffuseTexturePath = materials[mtl_idx].diffuse_texname;
-
-					if (!diffuseTexturePath.empty()) {
-
-						IXT::Mesh3::Txt currentTexture;
-						currentTexture = Mesh3::Txt::from_file( root_path + diffuseTexturePath, "diffuse_texture", echo );
-						txts.push_back(currentTexture);
-					}
-
-					//specular texture
-					std::string specularTexturePath = materials[mtl_idx].specular_texname;
-
-					if (!specularTexturePath.empty()) {
-
-						IXT::Mesh3::Txt currentTexture;
-						currentTexture = Mesh3::Txt::from_file( root_path + specularTexturePath, "specularTexture", echo );
-						txts.push_back(currentTexture);
-					}
-				}
-			}
-
-            total_vrtx_count += vrtxs.size();
-
-			_meshes.emplace_back( vrtxs, glidxs, txts, echo );
-            echo( this, ECHO_LEVEL_OK ) << "Pushed mesh.";
-		}
-
-        echo( this, ECHO_LEVEL_OK ) << "Created, a total of " << total_vrtx_count << " vertices.";
-	}
-
-    
-	~Object3() {
-        for( auto& text : _texts )
-            glDeleteTextures( 1, &text.glidx );
-	}
-
-_ENGINE_PROTECTED:
-    std::vector< Mesh3 >        _meshes;
-    std::vector< Mesh3::Txt >   _texts;
-
-public:
-    Mesh3& operator [] ( size_t idx ) {
-        return _meshes[ idx ];
-    }
-
-public:
-	Object3& splash() {
-        for( auto& mesh : _meshes )
-            mesh.splash();
-
-        return *this;
-	}
-
-    Object3& splash( ShaderPipe3& pipe ) {
-        pipe.uplink();
-        return this->splash();
     }
 
 };

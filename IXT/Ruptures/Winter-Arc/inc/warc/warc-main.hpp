@@ -38,6 +38,10 @@ _WARC_PROTECTED:
     */
     int _parse_proc_n2yo_api_key( char* argv[], const char* process );
 
+    /*
+    | Usage:
+    | --earth-imm
+    */
     int _parse_proc_earth_imm( char* argv[], const char* process );
 
 public:

@@ -18,7 +18,7 @@ using namespace IXT;
 
 
 int EARTH::main( int argc, char* argv[] ) {
-    Surface surf{ "Warc Earth Immersion", Crd2{}, Vec2{ Env::w<1.>(), Env::h<1.>() }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_SOLID };
+    Surface surf{ "Warc Earth Imm", Crd2{}, Vec2{ Env::w<1.>(), Env::h<1.>() }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_SOLID };
     Renderer3 rend{ surf };
 
     Lens3 lens{ glm::vec3(0.0f, 5.0f, 15.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f) };
@@ -35,14 +35,23 @@ int EARTH::main( int argc, char* argv[] ) {
     Uniform3< glm::mat4 > proj{ pipe, "u_projection", glm::perspective(glm::radians(55.0f), surf.aspect(), 0.1f, 1000.0f) };
     model.uplink(); view.uplink(); proj.uplink(); sun_pos.uplink();
 
-    struct _EARTH {
-        _EARTH() 
-        : obj{ WARC_RUPTURE_IMM_EARTH_DIR"/earth.obj", WARC_RUPTURE_IMM_EARTH_DIR"/" }
+    // struct _EARTH {
+    //     _EARTH() 
+    //     : mesh{ WARC_RUPTURE_IMM_EARTH_DIR"/earth.obj", WARC_RUPTURE_IMM_EARTH_DIR"/" }
+    //     {}
+
+    //     IXT::Mesh3   mesh;
+    // } earth;
+    // earth.mesh.dock_in( pipe );
+
+    struct _SAT_NOAA {
+        _SAT_NOAA()
+        : mesh{ WARC_RUPTURE_IMM_SAT_NOAA_DIR"/sat_noaa.obj", WARC_RUPTURE_IMM_SAT_NOAA_DIR"/" }
         {}
 
-        IXT::Object3   obj;
-    } earth;
-    earth.obj[ 0 ].dock_in( pipe );
+        IXT::Mesh3   mesh;
+    } sat_noaa;
+    sat_noaa.mesh.dock_in( pipe );
 
     while( !surf.down( SurfKey::ESC ) ) {
         static Ticker ticker;
@@ -55,16 +64,19 @@ int EARTH::main( int argc, char* argv[] ) {
                 lens.roll( ( surf.down( SurfKey::RIGHT ) - surf.down( SurfKey::LEFT ) ) * .03 * elapsed );
             } else 
                 lens.spin( {
-                    ( surf.down( SurfKey::RIGHT ) - surf.down( SurfKey::LEFT ) ) * .03 * elapsed,
-                    ( surf.down( SurfKey::UP ) - surf.down( SurfKey::DOWN ) ) * .03 * elapsed
+                    ( surf.down( SurfKey::RIGHT ) - surf.down( SurfKey::LEFT ) ) * .09 * elapsed,
+                    ( surf.down( SurfKey::UP ) - surf.down( SurfKey::DOWN ) ) * .09 * elapsed
                 } );
         }
 
-        rend.clear();
+        rend.clear( glm::vec4{ .1, .1, .1, 1.0 } );
         sun_pos.uplink( glm::rotate( sun_pos.get(), ( float )( .01 * elapsed ), glm::vec3{ 0, 1, 0 } ) );
         view.uplink( lens.view() );
 
-        earth.obj.splash( pipe );
+        pipe.uplink();
+        //earth.mesh.splash();
+
+        sat_noaa.mesh.splash();
 
         rend.swap();
     }

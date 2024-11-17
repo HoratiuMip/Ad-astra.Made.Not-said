@@ -9,6 +9,8 @@
 
 #include <boost/json.hpp>
 
+#include <vector>
+
 namespace warc { namespace n2yo {
 
 
@@ -17,6 +19,27 @@ _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_N2YO_STR );
 
 
 struct POSITIONS {
+    static inline const char* const JSON_SAMPLE = "{\"info\":{\"satname\":\"NOAA 15\",\"satid\":25338,\"transactionscount\":0},\"positions\":[{\"satlatitude\":80.16280485,\"satlongitude\":32.88210375,\"sataltitude\":821.95,\"azimuth\":5.41,\"elevation\":-36.94,\"ra\":63.20914143,\"dec\":52.64921221,\"timestamp\":1731589629,\"eclipsed\":false},{\"satlatitude\":80.19217995,\"satlongitude\":32.57743619,\"sataltitude\":821.95,\"azimuth\":5.35,\"elevation\":-36.94,\"ra\":63.29149817,\"dec\":52.6591026,\"timestamp\":1731589630,\"eclipsed\":false},{\"satlatitude\":80.2212889,\"satlongitude\":32.27098941,\"sataltitude\":821.95,\"azimuth\":5.29,\"elevation\":-36.94,\"ra\":63.37390758,\"dec\":52.66890195,\"timestamp\":1731589631,\"eclipsed\":false},{\"satlatitude\":80.25013047,\"satlongitude\":31.96275143,\"sataltitude\":821.95,\"azimuth\":5.23,\"elevation\":-36.94,\"ra\":63.45637255,\"dec\":52.67861055,\"timestamp\":1731589632,\"eclipsed\":false},{\"satlatitude\":80.27869995,\"satlongitude\":31.65274793,\"sataltitude\":821.95,\"azimuth\":5.17,\"elevation\":-36.93,\"ra\":63.53888602,\"dec\":52.68822755,\"timestamp\":1731589633,\"eclipsed\":false}]}";
+
+    struct INFO {
+        std::string     satname;
+        sat::NORAD_ID   satid; 
+        int64_t         transactionscount;      
+    };
+
+    struct DATA {
+        double    satlatitude;
+        double    satlongitude;
+        double    sataltitude;
+        double    azimuth;
+        double    elevation;
+        double    ra;
+        double    dec;
+        int64_t   timestamp;
+    };
+
+    INFO                  info;
+    std::vector< DATA >   data;
 
 };
 

@@ -151,6 +151,9 @@ int MAIN::main( int argc, char* argv[], VOID_DOUBLE_LINK vdl ) {
         return this->_earth->main( argc, argv );
     }
 
+    this->_n2yo.json_2_positions( n2yo::POSITIONS::JSON_SAMPLE );
+
+    return 0;
 
 
     _n2yo.socket = inet_tls::BRIDGE::alloc( "158.69.117.9", inet_tls::INET_PORT_HTTPS );

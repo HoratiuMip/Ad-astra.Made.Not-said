@@ -197,9 +197,37 @@ POSITIONS _N2YO::json_2_positions( std::string_view json ) {
 
     WARC_ASSERT_RT( json.data() != nullptr, "Json is NULL.", -1, {} );
 
-    std::error_code ec;
-    boost::json::value value = boost::json::parse( json, ec );
+    WARC_LOG_RT_INTEL << "Parsing json.";
 
+    std::error_code ec;
+    boost::json::value jv = boost::json::parse( json, ec );
+    WARC_ASSERT_RT( ec.value() == 0, "Fault when parsing json.", ec.value(), {} );
+
+    POSITIONS rez;
+
+    auto& info                 = jv.as_object()[ "info" ].as_object();
+    rez.info.satname           = info[ "satname" ].as_string();
+    rez.info.satid             = ( sat::NORAD_ID )info[ "satid" ].as_int64();
+    rez.info.transactionscount = info[ "transactionscount" ].as_int64();
+
+    for( auto& data_obj : jv.as_object()[ "positions" ].as_array() ) {
+        auto& data = data_obj.as_object();
+        rez.data.emplace_back( POSITIONS::DATA{
+            satlatitude:  data[ "satlatitude" ].as_double(),
+            satlongitude: data[ "satlongitude" ].as_double(),
+            sataltitude:  data[ "sataltitude" ].as_double(),
+            azimuth:      data[ "azimuth" ].as_double(),
+            elevation:    data[ "elevation" ].as_double(),
+            ra:           data[ "ra" ].as_double(),
+            dec:          data[ "dec" ].as_double(),
+            timestamp:    data[ "timestamp" ].as_int64()
+
+        } );
+    }
+
+    WARC_LOG_RT_OK << "Json parsed.";
+
+    return rez;
 }
 
 

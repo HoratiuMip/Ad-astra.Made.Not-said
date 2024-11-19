@@ -18,6 +18,7 @@ Cool description here.
 ## Journal
 
 > I. [Stage-I](#Stage-I)
+> II. [Stage-II](#Stage-II)
 
 ### Stage-`I` - Anyone up there?
 > Let us receive even the faintest signal, in order to have a strong starting anchor, using the following pipeline:
@@ -54,6 +55,14 @@ Cool description here.
 > Pass of `NOAA-18` | Baseband recording. Better antenna positioning, got a stronger signal. <br>
 > ![avhrr_3_rgb_MSA_(Uncalibrated)](https://github.com/user-attachments/assets/586c27b8-2e04-4950-ad44-fc6904407af7)
 
+### Stage-`II` - Immersive control.
+> Let us use the `IXT` engine to create an interactive software to work with `NOAA-x`.
+
+> [Iteration-1](#Iteration-1)
+
+#### Iteration-`1`
+> Compiling the visuals.
+> ![warc-imm-1](https://github.com/user-attachments/assets/c9b79bca-4384-42b2-ba8a-d28e959fa457)
 
 ## Manuals
 > [Winter-Arc-Software](#Winter-Arc-Software)
@@ -66,3 +75,5 @@ Cool description here.
 > - `burn <XXX>` - makes a copy of the executable file and burns the api key `XXX` inside it.
 > - `use ash` - extract the api key from its burnt location inside the executable and set it for the current session.
 > - `show ash` - extracts and shows the executable's currently burnt api key.
+
+> `--earth-imm` - launch the immersive earth control module.

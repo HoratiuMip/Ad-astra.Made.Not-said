@@ -85,14 +85,14 @@ public:
 
 };
 
-class ShaderPipe3 : public Descriptor {
+class ShadingPipe3 : public Descriptor {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "ShaderPipe3" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "ShadingPipe3" );
 
 public:
-    ShaderPipe3() = default;
+    ShadingPipe3() = default;
 
-    ShaderPipe3( const Shader3& vert, const Shader3& frag, _ENGINE_COMMS_ECHO_ARG ) {
+    ShadingPipe3( const Shader3& vert, const Shader3& frag, _ENGINE_COMMS_ECHO_ARG ) {
         GLuint glidx = glCreateProgram();
 
         glAttachShader( glidx, vert );
@@ -111,19 +111,23 @@ public:
         }
 
         _glidx = glidx;
-        echo( this, ECHO_LEVEL_OK ) << "Created.";
+        echo( this, ECHO_LEVEL_OK ) << "Created with glidx: " << _glidx << ".";
     }
 
 _ENGINE_PROTECTED:
     GLuint   _glidx   = NULL;
 
 public:
-    operator decltype( _glidx ) () const {
+    operator GLuint () const {
+        return _glidx;
+    }
+
+    GLuint glidx() const {
         return _glidx;
     }
 
 public:
-    ShaderPipe3& uplink() {
+    ShadingPipe3& uplink() {
         glUseProgram( _glidx );
         return *this;
     }
@@ -140,27 +144,53 @@ public:
     Uniform3Unknwn() = default;
 
     Uniform3Unknwn( 
-        ShaderPipe3&     pipe,
-        std::string_view name, 
+        const char* anchor, 
         _ENGINE_COMMS_ECHO_ARG 
-    ) {
-        _loc = glGetUniformLocation( pipe, name.data() );
-
-        if( _loc == -1 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Given shader pipe has no uniform \"" << name.data() << "\".";
-            return;
-        }
-
-        echo( this, ECHO_LEVEL_OK ) << "Created. Docking \"" << name.data() << "\".";
+    ) 
+    : _anchor{ anchor }
+    {
+        echo( this, ECHO_LEVEL_OK ) << "Created. Ready to dock \"" << anchor << "\".";
     }
 
+    Uniform3Unknwn( 
+        ShadingPipe3& pipe,
+        const char*   anchor, 
+        _ENGINE_COMMS_ECHO_ARG 
+    ) 
+    : Uniform3Unknwn{ anchor, echo }
+    {
+        this->push( pipe, echo );
+    }
+
+    Uniform3Unknwn( const Uniform3Unknwn& other )
+    : _anchor{ other._anchor },
+      _locs{ other._locs.begin(), other._locs.end() }
+    {}
+
 _ENGINE_PROTECTED:
-    GLint                      _loc           = -1;
-    std::function< DWORD() >   _uplink_proc   = nullptr;
+    std::string                  _anchor;
+    std::map< GLuint, GLuint >   _locs;
 
 public:
-    DWORD uplink() {
-        return std::invoke( _uplink_proc );
+    Uniform3Unknwn& operator = ( const Uniform3Unknwn& other ) {
+        _anchor = other._anchor;
+        _locs.clear();
+        _locs.insert( other._locs.begin(), other._locs.end() );
+        return *this;
+    }
+
+public:
+    DWORD push( ShadingPipe3& pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        pipe.uplink();
+        GLuint loc = glGetUniformLocation( pipe, _anchor.c_str() );
+
+        if( loc == -1 ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "Shading pipe( " << pipe.glidx() << " ) has no uniform \"" << _anchor << "\".";
+            return -1;
+        }
+
+        _locs.insert( { pipe.glidx(), loc } );
+        return 0;
     }
 
 };
@@ -171,14 +201,24 @@ public:
     Uniform3() = default;
 
     Uniform3( 
-        ShaderPipe3&     pipe,
-        std::string_view name, 
-        const T&         under = {}, 
+        const char* name, 
+        const T&    under = {}, 
+        _ENGINE_COMMS_ECHO_ARG 
+    ) : Uniform3Unknwn{ name, echo }, _under{ under }
+    {}
+
+    Uniform3( 
+        ShadingPipe3& pipe,
+        const char*   name, 
+        const T&      under = {}, 
         _ENGINE_COMMS_ECHO_ARG 
     ) : Uniform3Unknwn{ pipe, name, echo }, _under{ under }
-    {
-        this->_set_uplink_proc();
-    }
+    {}
+
+    Uniform3( const Uniform3< T >& other )
+    : Uniform3Unknwn{ other },
+      _under{ other._under }
+    {} 
 
 _ENGINE_PROTECTED:
     T   _under   = {};
@@ -188,36 +228,63 @@ public:
     const T& get() const { return _under; }
 
 public:
-    using Uniform3Unknwn::uplink;
-
-    DWORD uplink( const T& new_under ) {
-        _under = new_under;
-        return this->uplink();
-    } 
+    Uniform3& operator = ( const Uniform3< T >& other ) {
+        this->Uniform3Unknwn::operator=( other );
+        _under = other._under;
+        return *this;
+    }
 
 public:
-    void _set_uplink_proc(); 
+    DWORD uplink_pv( GLuint pipe_glidx, const T& under ) {
+        _under = under;
+        return this->uplink_p( pipe_glidx );
+    }
+
+    DWORD uplink_p( GLuint pipe_glidx ) {
+        glUseProgram( pipe_glidx );
+        return this->_uplink( _locs[ pipe_glidx ] );
+    }
+
+    DWORD uplink_v( const T& under ) {
+        _under = under;
+        return this->uplink();
+    }
+
+    DWORD uplink() {
+        glUseProgram( _locs.begin()->first );
+        return this->_uplink( _locs.begin()->second );
+    }
+
+    DWORD uplink_b() {
+        for( auto& [ pipe_glidx, ufrm_loc ] : _locs ) {
+            glUseProgram( pipe_glidx );
+            this->_uplink( ufrm_loc );
+        }
+        return 0;
+    }
+
+    DWORD uplink_bv( const T& under ) {
+        _under = under;
+        return this->uplink_b();
+    }
+
+_ENGINE_PROTECTED:
+    DWORD _uplink( GLuint pipe_glidx );
 
 };
 
 
-template<> inline void Uniform3< glm::u32 >::_set_uplink_proc() {
-    Uniform3Unknwn::_uplink_proc = [ this ] () -> DWORD {
-        glUniform1i( _loc, _under ); 
-        return 0;
-    };
+template<> inline DWORD Uniform3< glm::u32 >::_uplink( GLuint loc ) {
+    glUniform1i( loc, _under ); 
+    return 0;
 }
-template<> inline void Uniform3< glm::vec3 >::_set_uplink_proc() {
-    Uniform3Unknwn::_uplink_proc = [ this ] () -> DWORD {
-        glUniform3f( _loc, _under.x, _under.y, _under.z  ); 
-        return 0;
-    };
+template<> inline DWORD Uniform3< glm::vec3 >::_uplink( GLuint loc ) {
+    glUniform3f( loc, _under.x, _under.y, _under.z  ); 
+    return 0;
 }
-template<> inline void Uniform3< glm::mat4 >::_set_uplink_proc() {
-    Uniform3Unknwn::_uplink_proc = [ this ] () -> DWORD {
-        glUniformMatrix4fv( _loc, 1, GL_FALSE, glm::value_ptr( _under ) ); 
-        return 0;
-    };
+template<> inline DWORD Uniform3< glm::mat4 >::_uplink( GLuint loc ) {
+    glUniformMatrix4fv( loc, 1, GL_FALSE, glm::value_ptr( _under ) ); 
+    return 0;
 }
 
 
@@ -289,12 +356,20 @@ public:
 
 
 
+enum MESH3_FLAG : DWORD {
+    MESH3_FLAG_MAKE_SHADING_PIPE = 1,
+
+    _MESH3_FLAG = 0x7F'FF'FF'FF
+};
+
 class Mesh3 : public Descriptor {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Mesh3" );
 
 public:
-    Mesh3( std::string_view obj_path, std::string root_dir, _ENGINE_COMMS_ECHO_ARG ) {
+    Mesh3( std::string root_dir, std::string_view prefix, DWORD flags, _ENGINE_COMMS_ECHO_ARG ) 
+    : model{ "model", glm::mat4{ 1.0 }, echo }
+    {
         DWORD                              status;
 		tinyobj::attrib_t                  attrib;
 		std::vector< tinyobj::shape_t >    meshes;
@@ -302,11 +377,14 @@ public:
         size_t                             total_vrtx_count = 0;
 		std::string                        error_str;
 
-        echo( this, ECHO_LEVEL_INTEL ) << "Compiling the object: \"" << obj_path.data() << "\".";
+        std::string root_dir_p = root_dir + prefix.data();
+        std::string obj_path   = root_dir_p + ".obj";
+
+        echo( this, ECHO_LEVEL_INTEL ) << "Compiling the object: \"" << obj_path.c_str() << "\".";
 
 		status = tinyobj::LoadObj( 
             &attrib, &meshes, &materials, &error_str, 
-            obj_path.data(), root_dir.data(), 
+            obj_path.c_str(), root_dir.c_str(), 
             GL_TRUE
         );
 
@@ -321,30 +399,37 @@ public:
 		echo( this, ECHO_LEVEL_OK ) << "Compiled " << materials.size() << " materials over " << meshes.size() << " meshes."; 
 
         _mtls.reserve( materials.size() );
-        for( tinyobj::material_t& mtl_base : materials ) {
-            _Mtl& mtl = _mtls.emplace_back();
+        for( tinyobj::material_t& mtl_base : materials ) { 
+            _Mtl& mtl = _mtls.emplace_back(); 
     
             mtl.data = std::move( mtl_base ); 
             
-            std::string* tex_name = &mtl.data.diffuse_texname;
+            std::string* tex_name = &mtl.data.ambient_texname;
 
             if( !tex_name->empty() ) {
-                 if( this->_push_tex( root_dir + *tex_name, "diffuse_texture", 0, echo ) != 0 )
-                    continue;
-
-                mtl.tex_d_idx = _texs.size() - 1;
-            }
-
-            tex_name = &mtl.data.ambient_texname;
-
-            if( !tex_name->empty() ) {
-                if( this->_push_tex( root_dir + *tex_name, "ambient_texture", 1, echo ) != 0 )
+                if( this->_push_tex( root_dir + *tex_name, "ambient_texture", 0, echo ) != 0 )
                     continue;
 
                 mtl.tex_a_idx = _texs.size() - 1;
             }
 
-            
+            tex_name = &mtl.data.diffuse_texname;
+
+            if( !tex_name->empty() ) {
+                 if( this->_push_tex( root_dir + *tex_name, "diffuse_texture", 1, echo ) != 0 )
+                    continue;
+
+                mtl.tex_d_idx = _texs.size() - 1;
+            }
+
+            tex_name = &mtl.data.specular_texname;
+
+            if( !tex_name->empty() ) {
+                if( this->_push_tex( root_dir + *tex_name, "specular_texture", 2, echo ) != 0 )
+                    continue;
+
+                mtl.tex_a_idx = _texs.size() - 1;
+            }
         }
 
         for( tinyobj::shape_t& mesh_ex : meshes ) {
@@ -413,6 +498,18 @@ public:
         }
 
         glBindVertexArray( 0 );
+
+        for( auto& tex : _texs )
+            tex.ufrm = Uniform3< glm::u32 >{ tex.name.c_str(), tex.unit, echo };
+
+        if( flags & MESH3_FLAG_MAKE_SHADING_PIPE ) {
+            this->pipe = std::make_shared< ShadingPipe3 >(
+                Shader3{ root_dir_p + ".vert", SHADER3_PHASE_VERTEX },
+                Shader3{ root_dir_p + ".frag", SHADER3_PHASE_FRAGMENT }
+            );
+
+            this->dock_in( nullptr, echo );
+        }
 	}
 
 _ENGINE_PROTECTED:
@@ -443,8 +540,13 @@ _ENGINE_PROTECTED:
     };
     std::vector< _Tex >       _texs;
 
+public:
+    Uniform3< glm::mat4 >     model;
+
+    VPtr< ShadingPipe3 >      pipe;
+
 _ENGINE_PROTECTED:
-    DWORD _push_tex( std::string_view path, std::string_view name, GLuint unit,  _ENGINE_COMMS_ECHO_ARG ) {
+    DWORD _push_tex( std::string_view path, std::string_view name, GLuint pipe_unit,  _ENGINE_COMMS_ECHO_ARG ) {
         GLuint tex_glidx;
 
         int x, y, n;
@@ -480,24 +582,38 @@ _ENGINE_PROTECTED:
         _texs.emplace_back( _Tex{
             glidx: tex_glidx,
             name: name.data(),
-            unit: unit,
+            unit: pipe_unit,
             ufrm: {}
         } );
 
-        echo( this, ECHO_LEVEL_OK ) << "Pushed texture from: \"" << path.data() << "\".";
+        echo( this, ECHO_LEVEL_OK ) << "Pushed texture from: \"" << path.data() << "\", on pipe unit: " << pipe_unit << ".";
         return 0;
     }
 
 public:
-    Mesh3& dock_in( ShaderPipe3& pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        for( size_t idx = 0; idx < _texs.size(); ++idx )
-            _texs[ idx ].ufrm = Uniform3< glm::u32 >{ pipe, _texs[ idx ].name, _texs[ idx ].unit, echo };
+    Mesh3& dock_in( VPtr< ShadingPipe3 > other_pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        if( other_pipe.get() == this->pipe.get() ) {
+            echo( this, ECHO_LEVEL_WARNING ) << "Multiple docks on same pipe( " << this->pipe->glidx() << " ) detected.";
+        }
+
+        if( other_pipe != nullptr ) this->pipe = std::move( other_pipe );
+
+        this->model.push( *this->pipe );
+
+        for( auto& tex : _texs )
+            tex.ufrm.push( *this->pipe );
 
         return *this;
     }
 
 public:
     Mesh3& splash() {
+        return this->splash( *this->pipe );
+    }
+
+    Mesh3& splash( ShadingPipe3& pipe ) {
+        pipe.uplink();
+
         for( _SubMesh& sub : _sub_meshes ) {
             glBindVertexArray( sub.VAO );
 

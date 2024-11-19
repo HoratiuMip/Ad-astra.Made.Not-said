@@ -18,28 +18,46 @@ using namespace IXT;
 
 
 int EARTH::main( int argc, char* argv[] ) {
-    Surface surf{ "Warc Earth Imm", Crd2{}, Vec2{ Env::w<1.>(), Env::h<1.>() }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_SOLID };
-    Renderer3 rend{ surf };
-
-    Lens3 lens{ glm::vec3(0.0f, 5.0f, 15.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f) };
-
-    ShaderPipe3 pipe{ 
-        Shader3{ WARC_RUPTURE_IMM_EARTH_DIR"/earth_shader.vert", SHADER3_PHASE_VERTEX }, 
-        Shader3{ WARC_RUPTURE_IMM_EARTH_DIR"/earth_shader.frag", SHADER3_PHASE_FRAGMENT }
-    };
-    pipe.uplink();
-
-    Uniform3< glm::vec3 > sun_pos{ pipe, "u_sun_pos", glm::vec3( 100.0 ) };
-    Uniform3< glm::mat4 > model{ pipe, "u_model", glm::mat4( 1.0f ) };
-    Uniform3< glm::mat4 > view{ pipe, "u_view", lens.view() };
-    Uniform3< glm::mat4 > proj{ pipe, "u_projection", glm::perspective(glm::radians(55.0f), surf.aspect(), 0.1f, 1000.0f) };
-    model.uplink(); view.uplink(); proj.uplink(); sun_pos.uplink();
-
-
     struct _IMM {
+        _IMM() 
+        : surf{ "Warc Earth Imm", Crd2{}, Vec2{ Env::w<1.>(), Env::h<1.>() }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_SOLID },
+          rend{ surf },
+          lens{ glm::vec3( .0f, 5.0, 15.0 ), glm::vec3( .0, .0, .0 ), glm::vec3( .0, 1.0, .0 ) },
+
+          view{ "view", lens.view() },
+          proj{ "proj", glm::perspective( glm::radians( 55.0f ), surf.aspect(), 0.1f, 1000.0f ) },
+
+          sun{ "sun_pos", glm::vec3{ 110.0 } }
+        {
+            view.push( earth.mesh.pipe );
+            proj.push( earth.mesh.pipe );
+            sun.push( earth.mesh.pipe );
+            earth.mesh.model.uplink();
+
+            view.push( sat_noaa.mesh.pipe );
+            proj.push( sat_noaa.mesh.pipe );
+            sun.push( sat_noaa.mesh.pipe );
+            sat_noaa.mesh.model.uplink_v( 
+                glm::translate( glm::mat4{ 1.0 }, glm::vec3{ .0, .0, 1.2 } )
+                *
+                glm::scale( glm::mat4{ 1.0 }, glm::vec3{ 0.01 } ) 
+            );
+
+            view.uplink_b();
+            proj.uplink_b();
+            sun.uplink_b();
+        }
+
+        Surface     surf;
+        Renderer3   rend;
+        Lens3       lens;
+
+        Uniform3< glm::mat4 > view;
+        Uniform3< glm::mat4 > proj;
+
         struct _EARTH {
             _EARTH() 
-            : mesh{ WARC_RUPTURE_IMM_EARTH_DIR"/earth.obj", WARC_RUPTURE_IMM_EARTH_DIR"/" }
+            : mesh{ WARC_RUPTURE_IMM_EARTH_DIR, "earth", MESH3_FLAG_MAKE_SHADING_PIPE }
             {}
 
             IXT::Mesh3   mesh;
@@ -47,47 +65,44 @@ int EARTH::main( int argc, char* argv[] ) {
 
         struct _SAT_NOAA {
             _SAT_NOAA()
-            : mesh{ WARC_RUPTURE_IMM_SAT_NOAA_DIR"/sat_noaa.obj", WARC_RUPTURE_IMM_SAT_NOAA_DIR"/" }
+            : mesh{ WARC_RUPTURE_IMM_SAT_NOAA_DIR, "sat_noaa", MESH3_FLAG_MAKE_SHADING_PIPE }
             {}
 
             IXT::Mesh3   mesh;
         } sat_noaa;
+
+        Uniform3< glm::vec3 >   sun;
         
     } imm;
 
-    imm.earth.mesh.dock_in( pipe );
-    imm.sat_noaa.mesh.dock_in( pipe );
 
-    while( !surf.down( SurfKey::ESC ) ) {
+    while( !imm.surf.down( SurfKey::ESC ) ) {
         static Ticker ticker;
         auto elapsed = ticker.lap() * 60.0;
 
-
-        if( surf.down_any( SurfKey::RIGHT, SurfKey::LEFT, SurfKey::UP, SurfKey::DOWN ) ) {
-            if( surf.down( SurfKey::LSHIFT ) ) {
-                lens.zoom( ( surf.down( SurfKey::UP ) - surf.down( SurfKey::DOWN ) ) * .02 * elapsed );
-                lens.roll( ( surf.down( SurfKey::RIGHT ) - surf.down( SurfKey::LEFT ) ) * .03 * elapsed );
+        if( imm.surf.down_any( SurfKey::RIGHT, SurfKey::LEFT, SurfKey::UP, SurfKey::DOWN ) ) {
+            if( imm.surf.down( SurfKey::LSHIFT ) ) {
+                imm.lens.zoom( ( imm.surf.down( SurfKey::UP ) - imm.surf.down( SurfKey::DOWN ) ) * .02 * elapsed );
+                imm.lens.roll( ( imm.surf.down( SurfKey::RIGHT ) - imm.surf.down( SurfKey::LEFT ) ) * .03 * elapsed );
             } else 
-                lens.spin( {
-                    ( surf.down( SurfKey::RIGHT ) - surf.down( SurfKey::LEFT ) ) * .09 * elapsed,
-                    ( surf.down( SurfKey::UP ) - surf.down( SurfKey::DOWN ) ) * .09 * elapsed
+                imm.lens.spin( {
+                    ( imm.surf.down( SurfKey::RIGHT ) - imm.surf.down( SurfKey::LEFT ) ) * .09 * elapsed,
+                    ( imm.surf.down( SurfKey::UP ) - imm.surf.down( SurfKey::DOWN ) ) * .09 * elapsed
                 } );
         }
+        
+        imm.rend.clear( glm::vec4{ .0, .0, .0, 1.0 } );
 
-        rend.clear( glm::vec4{ .1, .1, .1, 1.0 } );
-        sun_pos.uplink( glm::rotate( sun_pos.get(), ( float )( .01 * elapsed ), glm::vec3{ 0, 1, 0 } ) );
-        view.uplink( lens.view() );
-
-        pipe.uplink();
-        imm.sat_noaa.mesh.splash();
+        imm.sun.uplink_bv( glm::rotate( imm.sun.get(), ( float )( .01 * elapsed ), glm::vec3{ 0, 1, 0 } ) );
+        imm.view.uplink_bv( imm.lens.view() );
+        
         imm.earth.mesh.splash();
+        imm.sat_noaa.mesh.splash();
 
-        //sat_noaa.mesh.splash();
-
-        rend.swap();
+        imm.rend.swap();
     }
 
-    surf.downlink();
+    imm.surf.downlink();
 
     return 0;
 }

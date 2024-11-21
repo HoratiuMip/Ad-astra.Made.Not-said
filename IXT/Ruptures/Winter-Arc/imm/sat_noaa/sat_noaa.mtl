@@ -1,4 +1,4 @@
-# Blender 4.2.3 LTS MTL File: 'sat_noaa.mtl'
+# Blender 4.3.0 MTL File: 'sat_noaa.mtl'
 # www.blender.org
 
 newmtl MAT_Aluminium
@@ -41,4 +41,4 @@ Ni 1.450000
 d 1.000000
 illum 3
 map_Kd sat_noaa_bronze.png
-# map_Bump -bm 1.000000 uploads_files_2534719_NOAA-15+Weather+Satellite (2)/NOAA-15 Weather Satellite/Meterials/Normal.png
+# map_Bump -bm 1.000000 sat_noaa_ormal.png

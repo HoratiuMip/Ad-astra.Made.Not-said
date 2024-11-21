@@ -24,11 +24,11 @@ public:
 public:
     Shader3() = default;
 
-    Shader3( std::string_view path, SHADER3_PHASE phase, _ENGINE_COMMS_ECHO_ARG ) {
-        std::ifstream file{ path.data(), std::ios_base::binary };
+    Shader3( const std::filesystem::path& path, SHADER3_PHASE phase, _ENGINE_COMMS_ECHO_ARG ) {
+        std::ifstream file{ path, std::ios_base::binary };
 
         if( !file ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.data() << "\".";
+            echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.string().c_str() << "\".";
             return;
         }
 
@@ -63,12 +63,12 @@ public:
             GLchar log_buf[ 512 ];
             glGetShaderInfoLog( glidx, sizeof( log_buf ), NULL, log_buf );
             
-            echo( this, ECHO_LEVEL_ERROR ) << "Fault compiling: \"" << log_buf << "\", from: \"" << path.data() << "\".";
+            echo( this, ECHO_LEVEL_ERROR ) << "Fault compiling: \"" << log_buf << "\", from: \"" << path.string().c_str() << "\".";
             return;
         }
 
         _glidx = glidx;
-        echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.data() << "\".";
+        echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.string().c_str() << "\".";
     }
 
     ~Shader3() {
@@ -132,6 +132,10 @@ public:
         return *this;
     }
 
+public:
+    template< typename ...Args >
+    ShadingPipe3& pull( Args&&... args );
+
 };
 
 
@@ -194,6 +198,12 @@ public:
     }
 
 };
+
+template< typename ...Args >
+ShadingPipe3& ShadingPipe3::pull( Args&&... args ) {
+    ( args.push( *this ), ... );
+    return *this;
+}
 
 template< typename T >
 class Uniform3 : public Uniform3Unknwn {
@@ -356,6 +366,8 @@ public:
 
 
 
+#define _ENGINE_MESH3__PUSH_TEX( mtl_attr, name, unit )
+
 enum MESH3_FLAG : DWORD {
     MESH3_FLAG_MAKE_SHADING_PIPE = 1,
 
@@ -367,7 +379,7 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Mesh3" );
 
 public:
-    Mesh3( std::string root_dir, std::string_view prefix, DWORD flags, _ENGINE_COMMS_ECHO_ARG ) 
+    Mesh3( const std::filesystem::path& root_dir, std::string_view prefix, DWORD flags, _ENGINE_COMMS_ECHO_ARG ) 
     : model{ "model", glm::mat4{ 1.0 }, echo }
     {
         DWORD                              status;
@@ -377,14 +389,14 @@ public:
         size_t                             total_vrtx_count = 0;
 		std::string                        error_str;
 
-        std::string root_dir_p = root_dir + prefix.data();
-        std::string obj_path   = root_dir_p + ".obj";
+        std::filesystem::path root_dir_p = root_dir / prefix.data();
+        std::filesystem::path obj_path   = root_dir_p; obj_path += ".obj";
 
-        echo( this, ECHO_LEVEL_INTEL ) << "Compiling the object: \"" << obj_path.c_str() << "\".";
+        echo( this, ECHO_LEVEL_INTEL ) << "Compiling the object: \"" << obj_path.string().c_str() << "\".";
 
 		status = tinyobj::LoadObj( 
             &attrib, &meshes, &materials, &error_str, 
-            obj_path.c_str(), root_dir.c_str(), 
+            obj_path.string().c_str(), root_dir.string().c_str(), 
             GL_TRUE
         );
 
@@ -407,7 +419,7 @@ public:
             std::string* tex_name = &mtl.data.ambient_texname;
 
             if( !tex_name->empty() ) {
-                if( this->_push_tex( root_dir + *tex_name, "ambient_texture", 0, echo ) != 0 )
+                if( this->_push_tex( root_dir / *tex_name, "ambient_texture", 0, echo ) != 0 )
                     continue;
 
                 mtl.tex_a_idx = _texs.size() - 1;
@@ -416,7 +428,7 @@ public:
             tex_name = &mtl.data.diffuse_texname;
 
             if( !tex_name->empty() ) {
-                 if( this->_push_tex( root_dir + *tex_name, "diffuse_texture", 1, echo ) != 0 )
+                 if( this->_push_tex( root_dir / *tex_name, "diffuse_texture", 1, echo ) != 0 )
                     continue;
 
                 mtl.tex_d_idx = _texs.size() - 1;
@@ -425,7 +437,7 @@ public:
             tex_name = &mtl.data.specular_texname;
 
             if( !tex_name->empty() ) {
-                if( this->_push_tex( root_dir + *tex_name, "specular_texture", 2, echo ) != 0 )
+                if( this->_push_tex( root_dir / *tex_name, "specular_texture", 2, echo ) != 0 )
                     continue;
 
                 mtl.tex_a_idx = _texs.size() - 1;
@@ -504,8 +516,8 @@ public:
 
         if( flags & MESH3_FLAG_MAKE_SHADING_PIPE ) {
             this->pipe = std::make_shared< ShadingPipe3 >(
-                Shader3{ root_dir_p + ".vert", SHADER3_PHASE_VERTEX },
-                Shader3{ root_dir_p + ".frag", SHADER3_PHASE_FRAGMENT }
+                Shader3{ std::filesystem::path{ root_dir_p } += ".vert", SHADER3_PHASE_VERTEX },
+                Shader3{ std::filesystem::path{ root_dir_p } += ".frag", SHADER3_PHASE_FRAGMENT }
             );
 
             this->dock_in( nullptr, echo );
@@ -546,14 +558,19 @@ public:
     VPtr< ShadingPipe3 >      pipe;
 
 _ENGINE_PROTECTED:
-    DWORD _push_tex( std::string_view path, std::string_view name, GLuint pipe_unit,  _ENGINE_COMMS_ECHO_ARG ) {
+    DWORD _push_tex( 
+        const std::filesystem::path& path, 
+        std::string_view             name, 
+        GLuint                       pipe_unit,  
+        _ENGINE_COMMS_ECHO_ARG 
+    ) {
         GLuint tex_glidx;
 
         int x, y, n;
-        UBYTE* img_buf = stbi_load( path.data(), &x, &y, &n, 4 );
+        UBYTE* img_buf = stbi_load( path.string().c_str(), &x, &y, &n, 4 );
 
         if( img_buf == nullptr ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Failed to load texture data from: \"" << path.data() << "\".";
+            echo( this, ECHO_LEVEL_ERROR ) << "Failed to load texture data from: \"" << path.string().c_str() << "\".";
             return -1;
         }
 
@@ -586,7 +603,7 @@ _ENGINE_PROTECTED:
             ufrm: {}
         } );
 
-        echo( this, ECHO_LEVEL_OK ) << "Pushed texture from: \"" << path.data() << "\", on pipe unit: " << pipe_unit << ".";
+        echo( this, ECHO_LEVEL_OK ) << "Pushed texture from: \"" << path.string().c_str() << "\", on pipe unit: " << pipe_unit << ".";
         return 0;
     }
 

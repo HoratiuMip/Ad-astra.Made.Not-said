@@ -12,9 +12,12 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-enum SHADER3_PHASE {
+enum SHADER3_PHASE : DWORD {
     SHADER3_PHASE_VERTEX   = GL_VERTEX_SHADER,
-    SHADER3_PHASE_FRAGMENT = GL_FRAGMENT_SHADER
+    SHADER3_PHASE_GEOMETRY = GL_GEOMETRY_SHADER,
+    SHADER3_PHASE_FRAGMENT = GL_FRAGMENT_SHADER,
+
+    _SHADER3_PHASE_FORCE_DWORD = 0x7F'FF'FF'FF
 };
 
 class Shader3 : public Descriptor {
@@ -83,6 +86,10 @@ public:
         return _glidx;
     }
 
+    GLuint glidx() const {
+        return _glidx;
+    }
+
 };
 
 class ShadingPipe3 : public Descriptor {
@@ -92,11 +99,17 @@ public:
 public:
     ShadingPipe3() = default;
 
-    ShadingPipe3( const Shader3& vert, const Shader3& frag, _ENGINE_COMMS_ECHO_ARG ) {
+    ShadingPipe3( 
+        const Shader3* vert,
+        const Shader3* geom, 
+        const Shader3* frag, 
+        _ENGINE_COMMS_ECHO_ARG 
+    ) {
         GLuint glidx = glCreateProgram();
 
-        glAttachShader( glidx, vert );
-        glAttachShader( glidx, frag );
+        if( vert ) glAttachShader( glidx, vert->glidx() );
+        if( geom ) glAttachShader( glidx, geom->glidx() );
+        if( frag ) glAttachShader( glidx, frag->glidx() );
 
         glLinkProgram( glidx );
 
@@ -113,6 +126,23 @@ public:
         _glidx = glidx;
         echo( this, ECHO_LEVEL_OK ) << "Created with glidx: " << _glidx << ".";
     }
+
+    ShadingPipe3(
+        const Shader3& vert,
+        const Shader3& geom,
+        const Shader3& frag,
+        _ENGINE_COMMS_ECHO_ARG 
+    )
+    : ShadingPipe3{ &vert, &geom, &frag }
+    {}
+
+    ShadingPipe3(
+        const Shader3& vert,
+        const Shader3& frag,
+        _ENGINE_COMMS_ECHO_ARG 
+    )
+    : ShadingPipe3{ &vert, nullptr, &frag }
+    {}
 
 _ENGINE_PROTECTED:
     GLuint   _glidx   = NULL;
@@ -420,7 +450,7 @@ public:
             std::string* tex_name = &mtl.data.ambient_texname;
 
             if( !tex_name->empty() ) {
-                if( this->_push_tex( root_dir / *tex_name, "ambient_texture", 0, echo ) != 0 )
+                if( this->_push_tex( root_dir / *tex_name, "ambient_tex", 0, echo ) != 0 )
                     continue;
 
                 mtl.tex_a_idx = _texs.size() - 1;
@@ -429,7 +459,7 @@ public:
             tex_name = &mtl.data.diffuse_texname;
 
             if( !tex_name->empty() ) {
-                 if( this->_push_tex( root_dir / *tex_name, "diffuse_texture", 1, echo ) != 0 )
+                 if( this->_push_tex( root_dir / *tex_name, "diffuse_tex", 1, echo ) != 0 )
                     continue;
 
                 mtl.tex_d_idx = _texs.size() - 1;
@@ -438,7 +468,7 @@ public:
             tex_name = &mtl.data.specular_texname;
 
             if( !tex_name->empty() ) {
-                if( this->_push_tex( root_dir / *tex_name, "specular_texture", 2, echo ) != 0 )
+                if( this->_push_tex( root_dir / *tex_name, "specular_tex", 2, echo ) != 0 )
                     continue;
 
                 mtl.tex_s_idx = _texs.size() - 1;
@@ -516,11 +546,27 @@ public:
             tex.ufrm = Uniform3< glm::u32 >{ tex.name.c_str(), tex.unit, echo };
 
         if( flags & MESH3_FLAG_MAKE_SHADING_PIPE ) {
+            Shader3 shaders[ 3 ];
+            
+            // for( auto phase : std::initializer_list< std::pair< SHADER3_PHASE, const char* > >{ 
+            //     { SHADER3_PHASE_VERTEX, ".vert" }, 
+            //     { SHADER3_PHASE_GEOMETRY, ".geom" }, 
+            //     { SHADER3_PHASE_FRAGMENT, ".frag" } } 
+            // ) {
+            //     std::filesystem::path phase_path{ root_dir_p };
+            //     phase_path += phase.second;
+
+            //     if( !std::filesystem::exists( phase_path ) ) continue;
+
+            //     new ( &shaders[ ( int )phase.first - ( int )SHADER3_PHASE_VERTEX ] ) Shader3{ phase_path, phase.first, echo };
+            // }
+
+            // this->pipe = std::make_shared< ShadingPipe3 >( shaders[ 0 ], shaders[ 1 ], shaders[ 2 ], echo );
+
             this->pipe = std::make_shared< ShadingPipe3 >(
                 Shader3{ std::filesystem::path{ root_dir_p } += ".vert", SHADER3_PHASE_VERTEX },
                 Shader3{ std::filesystem::path{ root_dir_p } += ".frag", SHADER3_PHASE_FRAGMENT }
             );
-
             this->dock_in( nullptr, echo );
         }
 	}

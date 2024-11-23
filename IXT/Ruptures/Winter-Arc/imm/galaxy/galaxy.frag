@@ -5,8 +5,8 @@ in vec3 f_nrm;
 
 out vec4 final;
 
-uniform sampler2D diffuse_texture;
+uniform sampler2D diffuse_tex;
 
 void main() {
-    final = texture( diffuse_texture, f_txt );
+    final = texture( diffuse_tex, f_txt );
 }

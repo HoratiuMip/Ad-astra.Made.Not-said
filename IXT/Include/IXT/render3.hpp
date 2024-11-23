@@ -166,11 +166,6 @@ public:
         this->push( pipe, echo );
     }
 
-    Uniform3Unknwn( const Uniform3Unknwn& other )
-    : _anchor{ other._anchor },
-      _locs{ other._locs.begin(), other._locs.end() }
-    {}
-
 _ENGINE_PROTECTED:
     std::string                  _anchor;
     std::map< GLuint, GLuint >   _locs;
@@ -237,10 +232,12 @@ public:
     T& get() { return _under; }
     const T& get() const { return _under; }
 
+    operator T& () { return this->get(); }
+    operator const T& () const { return this->get(); }
+
 public:
-    Uniform3& operator = ( const Uniform3< T >& other ) {
-        this->Uniform3Unknwn::operator=( other );
-        _under = other._under;
+    Uniform3& operator = ( const T& under ) {
+        _under = under;
         return *this;
     }
 
@@ -286,6 +283,10 @@ _ENGINE_PROTECTED:
 
 template<> inline DWORD Uniform3< glm::u32 >::_uplink( GLuint loc ) {
     glUniform1i( loc, _under ); 
+    return 0;
+}
+template<> inline DWORD Uniform3< glm::f32 >::_uplink( GLuint loc ) {
+    glUniform1f( loc, _under ); 
     return 0;
 }
 template<> inline DWORD Uniform3< glm::vec3 >::_uplink( GLuint loc ) {
@@ -440,7 +441,7 @@ public:
                 if( this->_push_tex( root_dir / *tex_name, "specular_texture", 2, echo ) != 0 )
                     continue;
 
-                mtl.tex_a_idx = _texs.size() - 1;
+                mtl.tex_s_idx = _texs.size() - 1;
             }
         }
 
@@ -676,11 +677,16 @@ public:
         echo( this, ECHO_LEVEL_INTEL ) << "Docked on \"" << _rend_str << "\".";
         echo( this, ECHO_LEVEL_INTEL ) << "OpenGL on \"" << _gl_str << "\".";
 
-        glEnable( GL_DEPTH_TEST );
         glDepthFunc( GL_LESS );
-        glEnable( GL_CULL_FACE ); 
+        glEnable( GL_DEPTH_TEST );
+
         glCullFace( GL_BACK );
+        glEnable( GL_CULL_FACE ); 
         glFrontFace( GL_CCW );
+
+        glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+        glEnable( GL_BLEND );
+
         glViewport( 0, 0, ( int )_surface->width(), ( int )_surface->height() );
 
         stbi_set_flip_vertically_on_load( true );
@@ -706,6 +712,17 @@ public:
 
     Renderer3& swap() {
         glfwSwapBuffers( _surface->handle() );
+        return *this;
+    }
+
+public:
+    Renderer3& uplink_face_culling() {
+        glEnable( GL_CULL_FACE );
+        return *this;
+    }
+
+    Renderer3& downlink_face_culling() {
+        glDisable( GL_CULL_FACE );
         return *this;
     }
 

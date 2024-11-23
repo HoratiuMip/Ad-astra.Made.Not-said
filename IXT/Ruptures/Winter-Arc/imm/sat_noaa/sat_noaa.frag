@@ -15,4 +15,5 @@ void main() {
     light = max( light, .0 );
 
     final = texture( diffuse_texture, f_txt ) * ( .5 + light );
+    final.w = 1.0;
 }

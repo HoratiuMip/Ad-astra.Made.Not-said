@@ -10,10 +10,12 @@
 
 #if !defined( PI )
     #define PI 3.141592653
+    #define PIf ((float)PI)
 #endif
 
 #if !defined( EUL )
     #define EUL 2.7182818284
+    #define EULf ((float)EUL)
 #endif
 
 

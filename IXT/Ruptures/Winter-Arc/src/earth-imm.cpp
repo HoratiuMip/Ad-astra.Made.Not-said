@@ -26,12 +26,13 @@ int EARTH::main( int argc, char* argv[] ) {
 
           view{ "view", lens.view() },
           proj{ "proj", glm::perspective( glm::radians( 55.0f ), surf.aspect(), 0.1f, 1000.0f ) },
+          perlin_fac{ "perlin_fac", 0.0 },
 
           sun{ "sun_pos", glm::vec3{ 110.0 } },
           lens_pos{ "lens_pos", glm::vec3{ 0 } }
         {
-            earth.mesh.pipe->pull( view, proj, sun );
-
+            earth.mesh.pipe->pull( view, proj, sun, perlin_fac );
+            galaxy.mesh.pipe->pull( view, proj );
             sat_noaa.mesh.pipe->pull( view, proj, sun, lens_pos );
 
             view.uplink_b();
@@ -43,12 +44,16 @@ int EARTH::main( int argc, char* argv[] ) {
         Renderer3   rend;
         Lens3       lens;
 
-        Uniform3< glm::mat4 > view;
-        Uniform3< glm::mat4 > proj;
+        Uniform3< glm::mat4 >   view;
+        Uniform3< glm::mat4 >   proj;
+        Uniform3< glm::f32 >    perlin_fac;
+
+        Uniform3< glm::vec3 >   sun;
+        Uniform3< glm::vec3 >   lens_pos;
 
         struct _EARTH {
             _EARTH() 
-            : mesh{ WARC_RUPTURE_IMM_EARTH_DIR, "earth", MESH3_FLAG_MAKE_SHADING_PIPE }
+            : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"earth/", "earth", MESH3_FLAG_MAKE_SHADING_PIPE }
             {
                 mesh.model.uplink();
             }
@@ -56,11 +61,22 @@ int EARTH::main( int argc, char* argv[] ) {
             IXT::Mesh3   mesh;
         } earth;
 
+        struct _GALAXY {
+            _GALAXY()
+            : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"galaxy/", "galaxy", MESH3_FLAG_MAKE_SHADING_PIPE }
+            {
+                mesh.model = glm::scale( glm::mat4{ 1.0 }, glm::vec3{ 64.0 } ) * mesh.model.get();
+                mesh.model.uplink();
+            }
+
+            IXT::Mesh3   mesh;
+        } galaxy;
+
         struct _SAT_NOAA {
             _SAT_NOAA()
-            : mesh{ WARC_RUPTURE_IMM_SAT_NOAA_DIR, "sat_noaa", MESH3_FLAG_MAKE_SHADING_PIPE }
+            : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"sat_noaa/", "sat_noaa", MESH3_FLAG_MAKE_SHADING_PIPE }
             {
-                pos = base_pos   = glm::vec4{ .0, .0, 1.086, 1.0 };
+                pos = base_pos = glm::vec4{ .0, .0, 1.086, 1.0 };
                 base_model = glm::scale( glm::mat4{ 1.0 }, glm::vec3{ 1.0 / 21.8 / 13.224987 } );
                 mesh.model.uplink_v( 
                     glm::translate( glm::mat4{ 1.0 }, pos ) 
@@ -77,40 +93,21 @@ int EARTH::main( int argc, char* argv[] ) {
             glm::vec3    pos;
 
             _SAT_NOAA& pos_to( glm::vec3 n_pos ) {
-                pos           = n_pos;
-
-                float y_r = acosf( glm::dot( glm::vec2{ pos.z, pos.x }, glm::vec2{ }) / glm::length( glm::vec2{ rhs.z, rhs.x } ) );
-                float z_r = acosf( rhs.x / glm::length( glm::vec2{ rhs.x, rhs.y } ) );
-
                 mesh.model.uplink_v( 
-                    glm::translate( glm::mat4{ 1.0 }, n_pos ) 
-                    // *
-                    // glm::rotate( 
-                    //     glm::mat4{ 1.0 }, 
-                    //     acosf( glm::dot( base_pos, n_pos ) / ( glm::length( base_pos ) * glm::length( n_pos ) ) ), 
-                    //     glm::cross( base_pos, n_pos ) 
-                    // )
-                    // *
-                    // glm::rotate(
-                    //     glm::mat4{ 1.0 },
-                    //     3 * acosf( r_fac.x / glm::length( glm::vec2{ r_fac } ) ),
-                    //     glm::vec3{ 0, 0, 1 }
-                    // )
-                    * 
-                    glm::rotate( glm::mat4{ 1.0 }, y_r, glm::vec3{ 0, 1, 0 } )
+                    glm::inverse( glm::lookAt( n_pos, glm::vec3{ 0.0 }, n_pos - pos ) )
                     *
-                    glm::rotate( glm::mat4{ 1.0 }, z_r, glm::vec3{ 0, 0, 1 } )
+                    glm::rotate( glm::mat4{ 1.0 }, PIf, glm::vec3{ 0, 0, 1 } )
                     *
                     base_model 
                 );
+
+                pos = n_pos;
 
                 return *this;            
             }
 
         } sat_noaa;
 
-        Uniform3< glm::vec3 >   sun;
-        Uniform3< glm::vec3 >   lens_pos;
 
         void splash( double elapsed ) {
             rend.clear( glm::vec4{ .0, .0, .0, 1.0 } );
@@ -118,6 +115,10 @@ int EARTH::main( int argc, char* argv[] ) {
             lens_pos.uplink_v( lens.pos );
             view.uplink_bv( lens.view() );
             
+            rend.downlink_face_culling();
+            galaxy.mesh.splash();
+            rend.uplink_face_culling();
+
             earth.mesh.splash();
             sat_noaa.mesh.splash();
 
@@ -131,7 +132,8 @@ int EARTH::main( int argc, char* argv[] ) {
 
     while( !imm.surf.down( SurfKey::ESC ) ) {
         static Ticker ticker;
-        double elapsed = ticker.lap() * 60.0;
+        double elapsed_raw = ticker.lap();
+        double elapsed = elapsed_raw * 60.0;
 
         if( imm.surf.down_any( SurfKey::RIGHT, SurfKey::LEFT, SurfKey::UP, SurfKey::DOWN ) ) {
             if( imm.surf.down( SurfKey::LSHIFT ) ) {
@@ -149,8 +151,9 @@ int EARTH::main( int argc, char* argv[] ) {
             ry = ( ( float )rand() / RAND_MAX ) * 2.0f - 1.0f;
         }
         
-        imm.sun.uplink_bv( glm::rotate( imm.sun.get(), ( float )( .01 * elapsed ), glm::vec3{ 0, 1, 0 } ) );
-        imm.sat_noaa.pos_to( glm::rotate( imm.sat_noaa.pos, ( float )( -.01 * elapsed ), glm::vec3{ rx, ry, 0 } ) );
+        imm.perlin_fac.uplink_v( 22.2 * sin( ticker.up_time() / 14.6 ) );
+        imm.sun.uplink_bv( glm::rotate( imm.sun.get(), ( float )( .001 * elapsed ), glm::vec3{ 0, 1, 0 } ) );
+        imm.sat_noaa.pos_to( glm::rotate( imm.sat_noaa.pos, ( float )( .001 * elapsed ), glm::vec3{ rx, ry, 0 } ) );
 
 
         imm.splash( elapsed );

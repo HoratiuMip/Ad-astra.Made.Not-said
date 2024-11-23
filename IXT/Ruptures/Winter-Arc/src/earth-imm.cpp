@@ -28,7 +28,7 @@ int EARTH::main( int argc, char* argv[] ) {
           proj{ "proj", glm::perspective( glm::radians( 55.0f ), surf.aspect(), 0.1f, 1000.0f ) },
           perlin_fac{ "perlin_fac", 0.0 },
 
-          sun{ "sun_pos", glm::vec3{ 110.0 } },
+          sun{ "sun_pos", glm::vec3{ 180.0 } },
           lens_pos{ "lens_pos", glm::vec3{ 0 } }
         {
             earth.mesh.pipe->pull( view, proj, sun, perlin_fac );
@@ -65,7 +65,7 @@ int EARTH::main( int argc, char* argv[] ) {
             _GALAXY()
             : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"galaxy/", "galaxy", MESH3_FLAG_MAKE_SHADING_PIPE }
             {
-                mesh.model = glm::scale( glm::mat4{ 1.0 }, glm::vec3{ 64.0 } ) * mesh.model.get();
+                mesh.model = glm::scale( glm::mat4{ 1.0 }, glm::vec3{ 200.0 } ) * mesh.model.get();
                 mesh.model.uplink();
             }
 
@@ -111,7 +111,7 @@ int EARTH::main( int argc, char* argv[] ) {
 
         void splash( double elapsed ) {
             rend.clear( glm::vec4{ .0, .0, .0, 1.0 } );
-
+           
             lens_pos.uplink_v( lens.pos );
             view.uplink_bv( lens.view() );
             

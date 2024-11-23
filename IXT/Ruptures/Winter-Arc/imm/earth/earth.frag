@@ -38,9 +38,11 @@ float perlin( vec2 P ){
 }
 
 
-in vec2 f_txt;
-in vec3 f_nrm;
-in vec3 f_sun_ray;
+in GS_OUT {
+    vec2     tex_crd;
+    vec3     nrm;
+    vec3     sun_ray;
+} gs_in;
 
 out vec4 final;
 
@@ -50,19 +52,19 @@ uniform sampler2D diffuse_tex;
 uniform sampler2D specular_tex;
 
 void main() {
-    float light = dot( f_sun_ray, f_nrm ) / ( length( f_sun_ray ) * length( f_nrm ) );
+    float light = dot( gs_in.sun_ray, gs_in.nrm ) / ( length( gs_in.sun_ray ) * length( gs_in.nrm ) );
     float dark = ( -light + .16 ) / 1.16;
 
     light = 2.0 * max( light, .06 );
 
-    vec4 city_lights = texture( ambient_tex, f_txt ) * 3.0;
+    vec4 city_lights = texture( ambient_tex, gs_in.tex_crd ) * 3.0;
 
     final = 
-        texture( diffuse_tex, f_txt ) * light 
+        texture( diffuse_tex, gs_in.tex_crd ) * light 
         + 
         max( city_lights * dark, vec4( 0.0 ) ) * vec4( 1.0, 1.0, 0.8, 1.0 ) 
         + 
-        vec4( 0.0, 0.4, 0.7, 1.0 ) * ( 1.0 - texture( specular_tex, f_txt ).x ) * max( perlin( abs( vec2( 0.5 ) - f_txt ) * perlin_fac ), 0.0 ) * light;
+        vec4( 0.0, 0.4, 0.7, 1.0 ) * ( 1.0 - texture( specular_tex, gs_in.tex_crd ).x ) * max( perlin( abs( vec2( 0.5 ) - gs_in.tex_crd ) * perlin_fac ), 0.0 ) * light;
 
     final.w = 1.0;
 }

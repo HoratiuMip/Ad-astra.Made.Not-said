@@ -545,28 +545,27 @@ public:
         for( auto& tex : _texs )
             tex.ufrm = Uniform3< glm::u32 >{ tex.name.c_str(), tex.unit, echo };
 
-        if( flags & MESH3_FLAG_MAKE_SHADING_PIPE ) {
-            Shader3 shaders[ 3 ];
-            
-            // for( auto phase : std::initializer_list< std::pair< SHADER3_PHASE, const char* > >{ 
-            //     { SHADER3_PHASE_VERTEX, ".vert" }, 
-            //     { SHADER3_PHASE_GEOMETRY, ".geom" }, 
-            //     { SHADER3_PHASE_FRAGMENT, ".frag" } } 
-            // ) {
-            //     std::filesystem::path phase_path{ root_dir_p };
-            //     phase_path += phase.second;
+        if( flags & MESH3_FLAG_MAKE_SHADING_PIPE ) {  
+            struct PHASE_DATA {
+                int             idx;
+                SHADER3_PHASE   phase;
+                const char*     str;
+            };
+            for( auto phase : std::initializer_list< PHASE_DATA >{ 
+                { 0, SHADER3_PHASE_VERTEX, ".vert" }, 
+                { 1, SHADER3_PHASE_GEOMETRY, ".geom" }, 
+                { 2, SHADER3_PHASE_FRAGMENT, ".frag" } } 
+            ) {
+                std::filesystem::path phase_path{ root_dir_p };
+                phase_path += phase.str;
 
-            //     if( !std::filesystem::exists( phase_path ) ) continue;
+                if( !std::filesystem::exists( phase_path ) ) continue;
 
-            //     new ( &shaders[ ( int )phase.first - ( int )SHADER3_PHASE_VERTEX ] ) Shader3{ phase_path, phase.first, echo };
-            // }
+                this->shaders[ phase.idx ].reset( std::make_shared< Shader3 >( phase_path, phase.phase, echo ) );
+            }
 
-            // this->pipe = std::make_shared< ShadingPipe3 >( shaders[ 0 ], shaders[ 1 ], shaders[ 2 ], echo );
+            this->pipe.reset( std::make_shared< ShadingPipe3 >( &*this->shaders[ 0 ], &*this->shaders[ 1 ], &*this->shaders[ 2 ], echo ) );
 
-            this->pipe = std::make_shared< ShadingPipe3 >(
-                Shader3{ std::filesystem::path{ root_dir_p } += ".vert", SHADER3_PHASE_VERTEX },
-                Shader3{ std::filesystem::path{ root_dir_p } += ".frag", SHADER3_PHASE_FRAGMENT }
-            );
             this->dock_in( nullptr, echo );
         }
 	}
@@ -603,6 +602,7 @@ public:
     Uniform3< glm::mat4 >     model;
 
     VPtr< ShadingPipe3 >      pipe;
+    VPtr< Shader3 >           shaders[ 3 ];
 
 _ENGINE_PROTECTED:
     DWORD _push_tex( 
@@ -769,6 +769,16 @@ public:
 
     Renderer3& downlink_face_culling() {
         glDisable( GL_CULL_FACE );
+        return *this;
+    }
+
+    Renderer3& uplink_fill() {
+        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+        return *this;
+    }
+
+    Renderer3& uplink_wireframe() {
+        glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
         return *this;
     }
 

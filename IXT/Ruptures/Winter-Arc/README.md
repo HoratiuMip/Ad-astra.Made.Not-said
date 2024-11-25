@@ -16,8 +16,8 @@ Cool description here.
 
 ## Journal
 
-> I. [Stage-I](#Stage-I)
-> II. [Stage-II](#Stage-II)
+> I. [Stage-I](#Stage-`I`)
+> II. [Stage-II](#Stage-`II`)
 
 ### Stage-`I` - Anyone up there?
 > Let us receive even the faintest signal, in order to have a strong starting anchor, using the following pipeline:

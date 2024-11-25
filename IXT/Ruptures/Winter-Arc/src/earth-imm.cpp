@@ -55,7 +55,7 @@ int EARTH::main( int argc, char* argv[] ) {
             _EARTH() 
             : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"earth/", "earth", MESH3_FLAG_MAKE_SHADING_PIPE }
             {
-                mesh.model.uplink();
+                mesh.model.uplink_v( glm::rotate( glm::mat4{ 1.0 }, -PIf / 2.0f, glm::vec3{ 0, 1, 0 } ) * mesh.model.get() );
             }
 
             IXT::Mesh3   mesh;
@@ -92,6 +92,8 @@ int EARTH::main( int argc, char* argv[] ) {
             glm::vec3    base_pos;
             glm::vec3    pos;
 
+            std::deque< sat::POSITION >   global_positions;
+
             _SAT_NOAA& pos_to( glm::vec3 n_pos ) {
                 mesh.model.uplink_v( 
                     glm::inverse( glm::lookAt( n_pos, glm::vec3{ 0.0 }, n_pos - pos ) )
@@ -102,8 +104,25 @@ int EARTH::main( int argc, char* argv[] ) {
                 );
 
                 pos = n_pos;
-
                 return *this;            
+            }
+
+            _SAT_NOAA& advance_pos() {
+                sat::POSITION& sat_pos = global_positions.front();
+                if( global_positions.size() > 1 )
+                    global_positions.pop_front();
+                return this->pos_to( this->translate_latlong_2_glpos( sat_pos ) );
+            }
+
+            glm::vec3 translate_latlong_2_glpos( const sat::POSITION& sat_pos ) {
+                float rx = glm::radians( sat_pos.satlatitude );
+                float ry = glm::radians( sat_pos.satlongitude );
+
+                return glm::rotate( glm::mat4{ 1.0 }, -rx, glm::vec3{ 1, 0, 0 } )
+                       *
+                       glm::rotate( glm::mat4{ 1.0 }, ry, glm::vec3{ 0, 1, 0 } )
+                       *
+                       glm::vec4{ base_pos, 1.0 };
             }
 
         } sat_noaa;
@@ -127,13 +146,16 @@ int EARTH::main( int argc, char* argv[] ) {
         
     } imm;
 
-    float rx = 1;
-    float ry = 1; srand( time( nullptr ) );
+    Ticker tick_rt;
+    Ticker tick_sat_pos;
 
+    this->_sat_update_func( sat::NORAD_ID_NOAA_15, imm.sat_noaa.global_positions, 0 );
+   
     while( !imm.surf.down( SurfKey::ESC ) ) {
-        static Ticker ticker;
-        double elapsed_raw = ticker.lap();
+        double elapsed_raw = tick_rt.lap();
         double elapsed = elapsed_raw * 60.0;
+
+        if( tick_sat_pos.cmpxchg_lap( 1.0 ) ) imm.sat_noaa.advance_pos();
 
         if( imm.surf.down_any( SurfKey::RIGHT, SurfKey::LEFT, SurfKey::UP, SurfKey::DOWN ) ) {
             if( imm.surf.down( SurfKey::LSHIFT ) ) {
@@ -145,17 +167,10 @@ int EARTH::main( int argc, char* argv[] ) {
                     ( imm.surf.down( SurfKey::UP ) - imm.surf.down( SurfKey::DOWN ) ) * .03 * elapsed
                 } );
         }
-
-        if( imm.surf.down( SurfKey::SPACE ) ) {
-            rx = ( ( float )rand() / RAND_MAX ) * 2.0f - 1.0f;
-            ry = ( ( float )rand() / RAND_MAX ) * 2.0f - 1.0f;
-        }
         
-        imm.perlin_fac.uplink_v( 22.2 * sin( ticker.up_time() / 14.6 ) );
+        imm.perlin_fac.uplink_v( 22.2 * sin( tick_rt.up_time() / 14.6 ) );
         imm.sun.uplink_bv( glm::rotate( imm.sun.get(), ( float )( .001 * elapsed ), glm::vec3{ 0, 1, 0 } ) );
-        imm.sat_noaa.pos_to( glm::rotate( imm.sat_noaa.pos, ( float )( .001 * elapsed ), glm::vec3{ rx, ry, 0 } ) );
-
-
+        
         imm.splash( elapsed );
     }
 

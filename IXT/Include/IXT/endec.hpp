@@ -155,7 +155,7 @@ public:
 
             buffer = malloc( buf_size * sizeof( ubyte_t ) );
 
-            file.read( buffer, buf_size );
+            file.read( ( char* )buffer.get(), buf_size );
 
             udword_t in_file_reported_file_size = Bytes::as< udword_t, BMP_FMT_FILE_SIZE_SZ, BIT_END_LITTLE >( ( char* )&buffer[ BMP_FMT_FILE_SIZE_OFS ] );
 
@@ -206,7 +206,7 @@ public:
                 return 0;
             }
 
-            file.write( ( char* )buffer, buf_size );
+            file.write( ( char* )buffer.get(), buf_size );
 
             if( file.badbit ) {
                 echo( this, ECHO_LEVEL_WARNING ) << "Bad bit set during write to: \"" << path.data() << "\".";

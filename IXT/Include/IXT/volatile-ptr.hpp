@@ -52,31 +52,31 @@ public:
     }
 
 public:
-    operator T* () const {
-        return this->get();
-    }
+    // operator T* () const {
+    //     return this->get();
+    // }
 
-    operator const T* () const {
-        return this->get();
-    }
+    // operator const T* () const {
+    //     return this->get();
+    // }
 
-    operator T& () {
-        return *this->get();
-    }
+    // operator T& () {
+    //     return *this->get();
+    // }
 
-    operator const T& () const {
-        return *this->get();
-    }
+    // operator const T& () const {
+    //     return *this->get();
+    // }
 
-    template< typename V >
-    operator V* () const {
-        return ( V* )this->get();
-    }
+    // template< typename V >
+    // operator V* () const {
+    //     return ( V* )this->get();
+    // }
 
-    template< typename V >
-    operator const V* () const {
-        return ( const V* )this->get();
-    }
+    // template< typename V >
+    // operator const V* () const {
+    //     return ( const V* )this->get();
+    // }
 
 public:
     VolatilePtr< _T >& reset( std::nullptr_t ) {

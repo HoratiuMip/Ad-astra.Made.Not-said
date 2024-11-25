@@ -31,6 +31,12 @@ _WARC_PROTECTED:
 
     /*
     | Usage:
+    | --from-config ../some_config_file.json
+    */
+    int _parse_proc_from_config( char* argv[], const char* process );
+
+    /*
+    | Usage:
     | --n2yo-api-key use XXX
     | --n2yo-api-key burn XXX
     | --n2yo-api-key use ash

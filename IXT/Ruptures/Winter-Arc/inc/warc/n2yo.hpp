@@ -27,19 +27,8 @@ struct POSITIONS {
         int64_t         transactionscount;      
     };
 
-    struct DATA {
-        double    satlatitude;
-        double    satlongitude;
-        double    sataltitude;
-        double    azimuth;
-        double    elevation;
-        double    ra;
-        double    dec;
-        int64_t   timestamp;
-    };
-
-    INFO                  info;
-    std::vector< DATA >   data;
+    INFO                           info;
+    std::vector< sat::POSITION >   data;
 
 };
 

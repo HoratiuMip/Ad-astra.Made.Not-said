@@ -9,8 +9,77 @@ static struct _INTERNAL {
 
     }   opts;
 
+    struct CONFIG {
+        std::string   n2yo_ip;
+
+    }   config;
+
 } _internal;
 
+int MAIN::_parse_proc_from_config( char* argv[], const char* process ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_from_config()" );
+
+    WARC_ASSERT_RT( argv != nullptr, "Argument array is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Configuration file path is NULL.", -1, -1 );
+
+    WARC_LOG_RT_INTEL << "Parsing json.";
+
+    std::ifstream file{ argv[ 0 ] };
+    WARC_ASSERT_RT( file, "Configuration file does not exist.", -1, -1 );
+
+    size_t sz = IXT::File::byte_count( file );
+    IXT::UPtr< char[] > buffer{ ( char* )malloc( sz ) };
+    file.read( buffer.get(), sz );
+    file.close();
+
+    std::error_code ec;
+    boost::json::value jv = boost::json::parse( buffer.get(), ec );
+    WARC_ASSERT_RT( ec.value() == 0, "Fault when parsing json.", ec.value(), -1 );
+
+    auto& config = jv.as_object();
+
+    struct _PROC {
+        const char*                                     str;
+        std::function< int( boost::json::value& v ) >   func;
+
+    } procs[] = {
+        "n2yo_ip", [] ( boost::json::value& v ) -> int { 
+            if( auto* str = v.if_string(); str ) {
+                _internal.config.n2yo_ip = *str;
+            } else {
+                WARC_LOG_RT_ERROR << "Ill-formed.";
+                return -1;
+            }
+            return 0;
+        },
+        "n2yo_api_key", [ this ] ( boost::json::value& v ) -> int {
+            if( auto* str = v.if_string(); str ) {
+                this->_n2yo.api_key = *str;
+            } else {
+                WARC_LOG_RT_ERROR << "Ill-formed.";
+                return -1;
+            }
+            return 0;
+        }
+    };
+
+    for( auto& proc : procs ) {
+        boost::json::value& v = config[ proc.str ];
+
+        if( v.is_null() ) {
+            WARC_LOG_RT_WARNING << "Configuration \"" << proc.str << "\" is null. Continuing...";
+            continue; 
+        }
+
+        WARC_LOG_RT_INTEL << "Setting configuration \"" << proc.str << "\".";
+        int status = proc.func( v );
+        WARC_ASSERT_RT( status == 0, "Configuration fault.", status, -1 );
+        WARC_LOG_RT_OK << "Configuration \"" << proc.str << "\" set.";
+    }
+
+    WARC_LOG_RT_OK << "Json parsed.";
+    return 0;
+}
 
 int MAIN::_parse_proc_n2yo_api_key( char* argv[], const char* process ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_n2yo_api_key()" );
@@ -71,7 +140,6 @@ int MAIN::_parse_proc_earth_imm( char* argv[], const char* process ) {
 
     _internal.opts.earth_imm = true;
     WARC_LOG_RT_OK << "Enabled earth immersion module.";
-
     return 0;
 }
 
@@ -85,8 +153,9 @@ int MAIN::_parse_opts( int argc, char* argv[] ) {
         int           argc;
         int           ( MAIN::*proc )( char**, const char* );
     } opts[] = {
+        { "--from-config", 1, &_parse_proc_from_config },
         { "--n2yo-api-key", 2, &_parse_proc_n2yo_api_key },
-        { "--earth-imm", 0, &_parse_proc_earth_imm }
+        { "--earth-imm", 0, &_parse_proc_earth_imm },
     };
     const int optc = sizeof( opts ) / sizeof( _OPT );
 
@@ -146,30 +215,35 @@ int MAIN::main( int argc, char* argv[], VOID_DOUBLE_LINK vdl ) {
     WARC_ASSERT_RT( status == 0, "Fault at starting the <inet_tls> module.", status, status );
 
 
-    if( _internal.opts.earth_imm ) {
-        this->_earth = std::make_shared< imm::EARTH >();
-        return this->_earth->main( argc, argv );
-    }
-
-    this->_n2yo.json_2_positions( n2yo::POSITIONS::JSON_SAMPLE );
-
-    return 0;
-
-
-    _n2yo.socket = inet_tls::BRIDGE::alloc( "158.69.117.9", inet_tls::INET_PORT_HTTPS );
-    auto response = _n2yo.send_get_positions( sat::NORAD_ID_NOAA_15, 0, 0, 0, 5 );
+    _n2yo.socket = inet_tls::BRIDGE::alloc( _internal.config.n2yo_ip.c_str(), inet_tls::INET_PORT_HTTPS );
+    auto response = _n2yo.send_get_positions( sat::NORAD_ID_NOAA_15, 0, 0, 0, 30 );
     inet_tls::BRIDGE::free( std::move( _n2yo.socket ) );
 
-    auto idx = response.find( "\r\n\r\n" ) + 2;
-    auto sz = atoi( response.c_str() + idx );
+    if( _internal.opts.earth_imm ) {
+        this->_earth = std::make_shared< imm::EARTH >();
 
-    std::string json{ response.c_str() + idx };
-    std::cout << json;
+        this->_earth->set_sat_pos_update_func( [ &, this ] ( sat::NORAD_ID norad_id, std::deque< sat::POSITION >& positions, int s ) -> int {
+            auto idx = response.find( "\r\n\r\n" ) + 2;
+            std::string json{ response.c_str() + idx };
+            
+            idx = json.find_first_of( '{' );
+            json = std::string{ json.c_str() + idx - 1 };
+            
+            idx = json.find_last_of( '}' );
+            json = std::string{ json.c_str(), idx + 1 };
 
-    //std::error_code ec;
-    //boost::json::value json_acc = boost::json::parse( json.c_str(), ec );
+            auto res = this->_n2yo.json_2_positions( json );
+            
+            positions.assign( res.data.begin(), res.data.end() );
+
+            return 0;
+        } );
+
+        this->_earth->main( argc, argv );
+    }
 
     status = inet_tls::downlink( {} );
+    status = IXT::final_downlink( argc, argv, 0, nullptr, nullptr );
     return status;
 }
 

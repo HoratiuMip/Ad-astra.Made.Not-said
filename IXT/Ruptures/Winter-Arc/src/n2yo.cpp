@@ -185,10 +185,10 @@ std::string _N2YO::send_get_positions(
     );
     WARC_ASSERT_RT( !tufilind_request.empty(), "Request fill in failure.", -1, "" );
 
-    std::string response = socket->xchg( tufilind_request.c_str(), tufilind_request.size(), 4096 );
+    std::string response = socket->xchg( tufilind_request.c_str(), tufilind_request.size(), 10'000 );
     WARC_ASSERT_RT( !response.empty(), "Empty response.", -1, "" );
 
-    WARC_LOG_RT_OK << "Got response.\n" << response;
+    WARC_LOG_RT_OK << "Got response.\n";
     return response;
 }
 
@@ -212,15 +212,15 @@ POSITIONS _N2YO::json_2_positions( std::string_view json ) {
 
     for( auto& data_obj : jv.as_object()[ "positions" ].as_array() ) {
         auto& data = data_obj.as_object();
-        rez.data.emplace_back( POSITIONS::DATA{
+        rez.data.emplace_back( sat::POSITION{
             satlatitude:  data[ "satlatitude" ].as_double(),
             satlongitude: data[ "satlongitude" ].as_double(),
-            sataltitude:  data[ "sataltitude" ].as_double(),
-            azimuth:      data[ "azimuth" ].as_double(),
-            elevation:    data[ "elevation" ].as_double(),
-            ra:           data[ "ra" ].as_double(),
-            dec:          data[ "dec" ].as_double(),
-            timestamp:    data[ "timestamp" ].as_int64()
+            sataltitude:  0,//data[ "sataltitude" ].as_double(),
+            azimuth:      0,//data[ "azimuth" ].as_double(),
+            elevation:    0,//data[ "elevation" ].as_double(),
+            ra:           0,//data[ "ra" ].as_double(),
+            dec:          0,//data[ "dec" ].as_double(),
+            timestamp:    0//data[ "timestamp" ].as_int64()
 
         } );
     }

@@ -17,6 +17,11 @@ enum SHADER3_PHASE : DWORD {
     SHADER3_PHASE_GEOMETRY = GL_GEOMETRY_SHADER,
     SHADER3_PHASE_FRAGMENT = GL_FRAGMENT_SHADER,
 
+    SHADER3_PHASE_VERTEX_IDX   = 0,
+    SHADER3_PHASE_GEOMETRY_IDX = 1,
+    SHADER3_PHASE_FRAGMENT_IDX = 2,
+    SHADER3_PHASE_IDX_RESERVED = SHADER3_PHASE_FRAGMENT_IDX,
+
     _SHADER3_PHASE_FORCE_DWORD = 0x7F'FF'FF'FF
 };
 
@@ -97,19 +102,22 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "ShadingPipe3" );
 
 public:
+    using SP_t = VPtr< Shader3 >;
+
+public:
     ShadingPipe3() = default;
 
     ShadingPipe3( 
-        const Shader3* vert,
-        const Shader3* geom, 
-        const Shader3* frag, 
+        SP_t vert,
+        SP_t geom, 
+        SP_t frag, 
         _ENGINE_COMMS_ECHO_ARG 
     ) {
         GLuint glidx = glCreateProgram();
 
-        if( vert ) glAttachShader( glidx, vert->glidx() );
-        if( geom ) glAttachShader( glidx, geom->glidx() );
-        if( frag ) glAttachShader( glidx, frag->glidx() );
+        if( vert != nullptr ) { glAttachShader( glidx, vert->glidx() ); _shaders[ 0 ] = std::move( vert ); }
+        if( geom != nullptr ) { glAttachShader( glidx, geom->glidx() ); _shaders[ 1 ] = std::move( geom ); }
+        if( frag != nullptr ) { glAttachShader( glidx, frag->glidx() ); _shaders[ 2 ] = std::move( frag ); }
 
         glLinkProgram( glidx );
 
@@ -133,7 +141,7 @@ public:
         const Shader3& frag,
         _ENGINE_COMMS_ECHO_ARG 
     )
-    : ShadingPipe3{ &vert, &geom, &frag }
+    : ShadingPipe3{ SP_t{ vert }, SP_t{ geom }, SP_t{ frag } }
     {}
 
     ShadingPipe3(
@@ -141,11 +149,12 @@ public:
         const Shader3& frag,
         _ENGINE_COMMS_ECHO_ARG 
     )
-    : ShadingPipe3{ &vert, nullptr, &frag }
+    : ShadingPipe3{ SP_t{ vert } , SP_t{ nullptr }, SP_t{ frag } }
     {}
 
 _ENGINE_PROTECTED:
-    GLuint   _glidx   = NULL;
+    GLuint            _glidx          = NULL;
+    VPtr< Shader3 >   _shaders[ 3 ]   = {};
 
 public:
     operator GLuint () const {
@@ -551,20 +560,28 @@ public:
                 SHADER3_PHASE   phase;
                 const char*     str;
             };
+
+            ShadingPipe3::SP_t shaders[ SHADER3_PHASE_IDX_RESERVED + 1 ];
+
             for( auto phase : std::initializer_list< PHASE_DATA >{ 
-                { 0, SHADER3_PHASE_VERTEX, ".vert" }, 
-                { 1, SHADER3_PHASE_GEOMETRY, ".geom" }, 
-                { 2, SHADER3_PHASE_FRAGMENT, ".frag" } } 
+                { SHADER3_PHASE_VERTEX_IDX, SHADER3_PHASE_VERTEX, ".vert" }, 
+                { SHADER3_PHASE_GEOMETRY_IDX, SHADER3_PHASE_GEOMETRY, ".geom" }, 
+                { SHADER3_PHASE_FRAGMENT_IDX, SHADER3_PHASE_FRAGMENT, ".frag" } } 
             ) {
                 std::filesystem::path phase_path{ root_dir_p };
                 phase_path += phase.str;
 
                 if( !std::filesystem::exists( phase_path ) ) continue;
 
-                this->shaders[ phase.idx ].reset( std::make_shared< Shader3 >( phase_path, phase.phase, echo ) );
+                shaders[ phase.idx ].reset( std::make_shared< Shader3 >( phase_path, phase.phase, echo ) );
             }
 
-            this->pipe.reset( std::make_shared< ShadingPipe3 >( &*this->shaders[ 0 ], &*this->shaders[ 1 ], &*this->shaders[ 2 ], echo ) );
+            this->pipe.reset( std::make_shared< ShadingPipe3 >( 
+                std::move( shaders[ SHADER3_PHASE_VERTEX_IDX ] ), 
+                std::move( shaders[ SHADER3_PHASE_GEOMETRY_IDX ] ), 
+                std::move( shaders[ SHADER3_PHASE_FRAGMENT_IDX ] ), 
+                echo 
+            ) );
 
             this->dock_in( nullptr, echo );
         }
@@ -602,7 +619,6 @@ public:
     Uniform3< glm::mat4 >     model;
 
     VPtr< ShadingPipe3 >      pipe;
-    VPtr< Shader3 >           shaders[ 3 ];
 
 _ENGINE_PROTECTED:
     DWORD _push_tex( 
@@ -726,9 +742,10 @@ public:
         glDepthFunc( GL_LESS );
         glEnable( GL_DEPTH_TEST );
 
+        glFrontFace( GL_CCW );
+
         glCullFace( GL_BACK );
         glEnable( GL_CULL_FACE ); 
-        glFrontFace( GL_CCW );
 
         glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
         glEnable( GL_BLEND );

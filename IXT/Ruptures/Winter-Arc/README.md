@@ -16,10 +16,10 @@ Cool description here.
 
 ## Journal
 
-> I. [Stage-I](#Stage-`I`)
-> II. [Stage-II](#Stage-`II`)
+> I. [Stage-I](#Stage-I)
+> II. [Stage-II](#Stage-II)
 
-### Stage-`I` - Anyone up there?
+### Stage-I - Anyone up there?
 > Let us receive even the faintest signal, in order to have a strong starting anchor, using the following pipeline:
 > ![warc-stage-i-pipe](https://github.com/user-attachments/assets/e3677ac9-e98d-4575-b429-7d97479286e7)
 
@@ -47,7 +47,7 @@ Cool description here.
 > |-|-|
 > |![avhrr_3_rgb_MSA_(Uncalibrated)](https://github.com/user-attachments/assets/3cb87800-2a46-44d0-82a2-5042a538dfe2)|![avhrr_3_rgb_MSA_(Uncalibrated)](https://github.com/user-attachments/assets/586c27b8-2e04-4950-ad44-fc6904407af7)|
 
-### Stage-`II` - Immersive control.
+### Stage-II - Immersive control.
 > Let us use the `IXT` engine to create an interactive software to work with `NOAA-x` and the created hardware equipment.
 
 > - This program targets real-time tracking of `NOAA-x` | computing `NOAA-x` future orbits | on-demand, over-the-internet satellite image capturing.

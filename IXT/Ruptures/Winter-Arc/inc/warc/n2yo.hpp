@@ -34,6 +34,8 @@ struct POSITIONS {
 
 
 struct _N2YO {
+    inline static constexpr int   BYTES_PER_SOCKET_READ   = 8'192;
+
     inet_tls::HBRIDGE    socket    = {};
     const char* const    request   = 
     /* Example: nid=25338 (NOAA-15) | lat=46.7, lng=23.56, alt=0 (Cluj-Napoca) | stp=1 */
@@ -48,21 +50,30 @@ struct _N2YO {
 
     std::string tufilin_positions_request( 
         sat::NORAD_ID   norad_id, 
+        int             steps,
         WARC_FTYPE      obs_lat, 
         WARC_FTYPE      obs_lng, 
-        WARC_FTYPE      obs_alt,
-        int             steps
+        WARC_FTYPE      obs_alt
     );
 
     std::string send_get_positions(
         sat::NORAD_ID   norad_id, 
+        int             steps,
         WARC_FTYPE      obs_lat, 
         WARC_FTYPE      obs_lng, 
-        WARC_FTYPE      obs_alt,
-        int             steps
+        WARC_FTYPE      obs_alt
     );
 
     POSITIONS json_2_positions( std::string_view json );
+
+    POSITIONS quick_position_xchg(
+        const char*     addr,
+        sat::NORAD_ID   norad_id, 
+        int             steps,
+        WARC_FTYPE      obs_lat    = 0.0, 
+        WARC_FTYPE      obs_lng    = 0.0, 
+        WARC_FTYPE      obs_alt    = 0.0
+    );
 
     int burn_api_key( const char* key, const char* process );
     std::string extract_api_key( const char* process );

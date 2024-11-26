@@ -29,11 +29,14 @@ int EARTH::main( int argc, char* argv[] ) {
           perlin_fac{ "perlin_fac", 0.0 },
 
           sun{ "sun_pos", glm::vec3{ 180.0 } },
-          lens_pos{ "lens_pos", glm::vec3{ 0 } }
+          ufrm_lens_pos{ "lens_pos", glm::vec3{ 0 } },
+          ufrm_rtc{ "rtc", 0.0f }
         {
             earth.mesh.pipe->pull( view, proj, sun, perlin_fac );
-            galaxy.mesh.pipe->pull( view, proj );
-            sat_noaa.mesh.pipe->pull( view, proj, sun, lens_pos );
+            galaxy.mesh.pipe->pull( view, proj, ufrm_rtc );
+            sat_noaa[ 0 ].mesh.pipe->pull( view, proj, sun, ufrm_lens_pos );
+            sat_noaa[ 1 ].mesh.pipe->pull( view, proj, sun, ufrm_lens_pos );
+            sat_noaa[ 2 ].mesh.pipe->pull( view, proj, sun, ufrm_lens_pos );
 
             view.uplink_b();
             proj.uplink_b();
@@ -49,7 +52,8 @@ int EARTH::main( int argc, char* argv[] ) {
         Uniform3< glm::f32 >    perlin_fac;
 
         Uniform3< glm::vec3 >   sun;
-        Uniform3< glm::vec3 >   lens_pos;
+        Uniform3< glm::vec3 >   ufrm_lens_pos;
+        Uniform3< glm::f32 >    ufrm_rtc;
 
         struct _EARTH {
             _EARTH() 
@@ -108,9 +112,11 @@ int EARTH::main( int argc, char* argv[] ) {
             }
 
             _SAT_NOAA& advance_pos() {
+                if( global_positions.empty() ) return *this;
+
                 sat::POSITION& sat_pos = global_positions.front();
-                if( global_positions.size() > 1 )
-                    global_positions.pop_front();
+                global_positions.pop_front();
+                
                 return this->pos_to( this->translate_latlong_2_glpos( sat_pos ) );
             }
 
@@ -118,20 +124,20 @@ int EARTH::main( int argc, char* argv[] ) {
                 float rx = glm::radians( sat_pos.satlatitude );
                 float ry = glm::radians( sat_pos.satlongitude );
 
-                return glm::rotate( glm::mat4{ 1.0 }, -rx, glm::vec3{ 1, 0, 0 } )
+                return glm::rotate( glm::mat4{ 1.0 }, ry, glm::vec3{ 0, 1, 0 } )
                        *
-                       glm::rotate( glm::mat4{ 1.0 }, ry, glm::vec3{ 0, 1, 0 } )
+                       glm::rotate( glm::mat4{ 1.0 }, -rx, glm::vec3{ 1, 0, 0 } )
                        *
                        glm::vec4{ base_pos, 1.0 };
             }
 
-        } sat_noaa;
+        } sat_noaa[ 3 ];
 
 
         void splash( double elapsed ) {
             rend.clear( glm::vec4{ .0, .0, .0, 1.0 } );
            
-            lens_pos.uplink_v( lens.pos );
+            ufrm_lens_pos.uplink_v( lens.pos );
             view.uplink_bv( lens.view() );
             
             rend.downlink_face_culling();
@@ -139,7 +145,9 @@ int EARTH::main( int argc, char* argv[] ) {
             rend.uplink_face_culling();
 
             earth.mesh.splash();
-            sat_noaa.mesh.splash();
+            sat_noaa[ 0 ].mesh.splash();
+            sat_noaa[ 1 ].mesh.splash();
+            sat_noaa[ 2 ].mesh.splash();
 
             rend.swap();
         }
@@ -148,14 +156,23 @@ int EARTH::main( int argc, char* argv[] ) {
 
     Ticker tick_rt;
     Ticker tick_sat_pos;
-
-    this->_sat_update_func( sat::NORAD_ID_NOAA_15, imm.sat_noaa.global_positions, 0 );
    
     while( !imm.surf.down( SurfKey::ESC ) ) {
         double elapsed_raw = tick_rt.lap();
         double elapsed = elapsed_raw * 60.0;
 
-        if( tick_sat_pos.cmpxchg_lap( 1.0 ) ) imm.sat_noaa.advance_pos();
+        imm.ufrm_rtc.uplink_v( imm.ufrm_rtc.get() + elapsed_raw );
+
+        if( tick_sat_pos.cmpxchg_lap( 1.0 ) ) { 
+            if( imm.sat_noaa[ 0 ].global_positions.empty() ) {
+                this->_sat_update_func( sat::NORAD_ID_NOAA_15, imm.sat_noaa[ 0 ].global_positions, 180 );
+                this->_sat_update_func( sat::NORAD_ID_NOAA_18, imm.sat_noaa[ 1 ].global_positions, 180 );
+                this->_sat_update_func( sat::NORAD_ID_NOAA_19, imm.sat_noaa[ 2 ].global_positions, 180 );
+            }
+            imm.sat_noaa[ 0 ].advance_pos();
+            imm.sat_noaa[ 1 ].advance_pos();
+            imm.sat_noaa[ 2 ].advance_pos();
+        }
 
         if( imm.surf.down_any( SurfKey::RIGHT, SurfKey::LEFT, SurfKey::UP, SurfKey::DOWN ) ) {
             if( imm.surf.down( SurfKey::LSHIFT ) ) {

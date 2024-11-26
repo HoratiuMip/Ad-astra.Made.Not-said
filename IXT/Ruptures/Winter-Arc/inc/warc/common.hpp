@@ -9,7 +9,7 @@ namespace warc {
 #define _WARC_PROTECTED protected
 
 
-#define WARC_STR "Winter-Arc"
+#define WARC_STR "warc"
 
 #define _WARC_IXT_COMPONENT_DESCRIPTOR( name ) \
 static struct _WARC_IXT_DESCRIPTOR : public IXT::Descriptor { \

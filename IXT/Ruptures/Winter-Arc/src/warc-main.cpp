@@ -28,13 +28,14 @@ int MAIN::_parse_proc_from_config( char* argv[], const char* process ) {
     WARC_ASSERT_RT( file, "Configuration file does not exist.", -1, -1 );
 
     size_t sz = IXT::File::byte_count( file );
-    IXT::UPtr< char[] > buffer{ ( char* )malloc( sz ) };
+    IXT::UPtr< char[] > buffer{ ( char* )malloc( sz + 1 ) };
     file.read( buffer.get(), sz );
     file.close();
+    buffer[ sz ] = 0;
 
     std::error_code ec;
     boost::json::value jv = boost::json::parse( buffer.get(), ec );
-    WARC_ASSERT_RT( ec.value() == 0, "Fault when parsing json.", ec.value(), -1 );
+    WARC_ASSERT_RT( ec.value() == 0, "Fault when parsing json.", ec.message(), -1 );
 
     auto& config = jv.as_object();
 
@@ -214,28 +215,13 @@ int MAIN::main( int argc, char* argv[], VOID_DOUBLE_LINK vdl ) {
     status = inet_tls::uplink( {} );
     WARC_ASSERT_RT( status == 0, "Fault at starting the <inet_tls> module.", status, status );
 
-
-    _n2yo.socket = inet_tls::BRIDGE::alloc( _internal.config.n2yo_ip.c_str(), inet_tls::INET_PORT_HTTPS );
-    auto response = _n2yo.send_get_positions( sat::NORAD_ID_NOAA_15, 0, 0, 0, 30 );
-    inet_tls::BRIDGE::free( std::move( _n2yo.socket ) );
-
     if( _internal.opts.earth_imm ) {
         this->_earth = std::make_shared< imm::EARTH >();
 
         this->_earth->set_sat_pos_update_func( [ &, this ] ( sat::NORAD_ID norad_id, std::deque< sat::POSITION >& positions, int s ) -> int {
-            auto idx = response.find( "\r\n\r\n" ) + 2;
-            std::string json{ response.c_str() + idx };
-            
-            idx = json.find_first_of( '{' );
-            json = std::string{ json.c_str() + idx - 1 };
-            
-            idx = json.find_last_of( '}' );
-            json = std::string{ json.c_str(), idx + 1 };
-
-            auto res = this->_n2yo.json_2_positions( json );
+            auto res = this->_n2yo.quick_position_xchg( _internal.config.n2yo_ip.c_str(), norad_id, s );
             
             positions.assign( res.data.begin(), res.data.end() );
-
             return 0;
         } );
 

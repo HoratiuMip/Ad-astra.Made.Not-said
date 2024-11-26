@@ -120,10 +120,10 @@ std::string _N2YO::extract_api_key( const char* process ) {
 
 std::string _N2YO::tufilin_positions_request( 
     sat::NORAD_ID   norad_id, 
+    int             steps,
     WARC_FTYPE      obs_lat, 
     WARC_FTYPE      obs_lng, 
-    WARC_FTYPE      obs_alt,
-    int             steps
+    WARC_FTYPE      obs_alt
 ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_N2YO_STR"::tufilin_positions_request()" );
 
@@ -169,10 +169,10 @@ std::string _N2YO::tufilin_positions_request(
 
 std::string _N2YO::send_get_positions(
     sat::NORAD_ID   norad_id, 
+    int             steps,
     WARC_FTYPE      obs_lat, 
     WARC_FTYPE      obs_lng, 
-    WARC_FTYPE      obs_alt,
-    int             steps
+    WARC_FTYPE      obs_alt
 ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_N2YO_STR"::send_get_positions()" );
 
@@ -181,15 +181,21 @@ std::string _N2YO::send_get_positions(
     WARC_LOG_RT_INTEL << "Sending get request.";
 
     std::string tufilind_request = this->tufilin_positions_request(
-        norad_id, obs_lat, obs_lng, obs_alt, steps
+        norad_id, steps, obs_lat, obs_lng, obs_alt
     );
     WARC_ASSERT_RT( !tufilind_request.empty(), "Request fill in failure.", -1, "" );
 
-    std::string response = socket->xchg( tufilind_request.c_str(), tufilind_request.size(), 10'000 );
-    WARC_ASSERT_RT( !response.empty(), "Empty response.", -1, "" );
+    std::string resp = socket->xchg( tufilind_request.c_str(), tufilind_request.size(), BYTES_PER_SOCKET_READ );
+    WARC_ASSERT_RT( !resp.empty(), "Response is empty.", -1, "" );
 
-    WARC_LOG_RT_OK << "Got response.\n";
-    return response;
+    while( !resp.ends_with( "0\r\n\r\n" ) ) {
+        std::string chunk = socket->read( BYTES_PER_SOCKET_READ );
+        WARC_ASSERT_RT( !chunk.empty(), "Chunk is empty.", -1, "" );
+        resp += chunk;
+    }
+
+    WARC_LOG_RT_OK << "Got response, (" << resp.size() << ") bytes.";
+    return resp;
 }
 
 POSITIONS _N2YO::json_2_positions( std::string_view json ) {
@@ -199,9 +205,17 @@ POSITIONS _N2YO::json_2_positions( std::string_view json ) {
 
     WARC_LOG_RT_INTEL << "Parsing json.";
 
+    IXT::UPtr< char[] > buffer{ ( char* )malloc( json.size() + 1 ) };
+    memcpy( buffer.get(), json.data(), json.size() );
+    buffer[ json.size() ] = 0;
+
     std::error_code ec;
-    boost::json::value jv = boost::json::parse( json, ec );
-    WARC_ASSERT_RT( ec.value() == 0, "Fault when parsing json.", ec.value(), {} );
+    boost::json::value jv = boost::json::parse( buffer.get(), ec );
+    
+    if( ec.value() != 0 ) {
+        WARC_LOG_RT_ERROR << "Fault parsing json: \"" << ec.message() << "\":\n" << json.data();
+        return {};
+    }
 
     POSITIONS rez;
 
@@ -226,7 +240,43 @@ POSITIONS _N2YO::json_2_positions( std::string_view json ) {
     }
 
     WARC_LOG_RT_OK << "Json parsed.";
+    return rez;
+}
 
+POSITIONS _N2YO::quick_position_xchg(
+    const char*     addr,
+    sat::NORAD_ID   norad_id, 
+    int             steps,
+    WARC_FTYPE      obs_lat, 
+    WARC_FTYPE      obs_lng, 
+    WARC_FTYPE      obs_alt
+) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_N2YO_STR"::quick_position_xchg()" );
+
+    WARC_ASSERT_RT( addr != nullptr, "Address is NULL.", -1, {} );
+
+    this->socket = inet_tls::BRIDGE::alloc( addr, inet_tls::INET_PORT_HTTPS );
+    std::string resp = this->send_get_positions( norad_id, steps, obs_lat, obs_lng, obs_alt );
+    inet_tls::BRIDGE::free( std::move( this->socket ) );
+
+    int status_major = ( int )resp[ 9 ];
+    WARC_ASSERT_RT( status_major == '2', "HTTP/1.1 status major is not 2(OK).", status_major, {} );
+
+    size_t idx1 = resp.find( "{\"info" );
+    size_t idx2 = resp.find( "\r\n", idx1 );    
+    
+    std::string json{ resp.c_str() + idx1, idx2 - idx1 }; 
+
+    while( resp[ idx2 + 2 ] != '0' ) {
+        idx1 = resp.find( "\r\n", idx2 + 2 );
+        idx1 += 2;
+        idx2 = resp.find( "\r\n", idx1 );
+
+        json += std::string{ resp.c_str() + idx1, idx2 - idx1 };
+    }
+    
+    auto rez = this->json_2_positions( json );
+    WARC_LOG_RT_WARNING << "Transactioncount is: " << rez.info.transactionscount << ".";
     return rez;
 }
 

@@ -26,13 +26,12 @@ int EARTH::main( int argc, char* argv[] ) {
 
           view{ "view", lens.view() },
           proj{ "proj", glm::perspective( glm::radians( 55.0f ), surf.aspect(), 0.1f, 1000.0f ) },
-          perlin_fac{ "perlin_fac", 0.0 },
 
           sun{ "sun_pos", glm::vec3{ 180.0 } },
           ufrm_lens_pos{ "lens_pos", glm::vec3{ 0 } },
           ufrm_rtc{ "rtc", 0.0f }
         {
-            earth.mesh.pipe->pull( view, proj, sun, perlin_fac );
+            earth.mesh.pipe->pull( view, proj, sun, ufrm_rtc );
             galaxy.mesh.pipe->pull( view, proj, ufrm_rtc );
             sat_noaa[ 0 ].mesh.pipe->pull( view, proj, sun, ufrm_lens_pos );
             sat_noaa[ 1 ].mesh.pipe->pull( view, proj, sun, ufrm_lens_pos );
@@ -49,7 +48,6 @@ int EARTH::main( int argc, char* argv[] ) {
 
         Uniform3< glm::mat4 >   view;
         Uniform3< glm::mat4 >   proj;
-        Uniform3< glm::f32 >    perlin_fac;
 
         Uniform3< glm::vec3 >   sun;
         Uniform3< glm::vec3 >   ufrm_lens_pos;
@@ -156,22 +154,36 @@ int EARTH::main( int argc, char* argv[] ) {
 
     Ticker tick_rt;
     Ticker tick_sat_pos;
+
+    std::atomic< int > sat_update_count{ 0 };
+
+    std::thread sat_update_th{ [ & ] () -> void {
+        while( !imm.surf.down( SurfKey::ESC ) ) {
+            sat_update_count.wait( 0 );
+            
+            this->_sat_update_func( sat::NORAD_ID_NOAA_15, imm.sat_noaa[ 0 ].global_positions, 180 );
+            this->_sat_update_func( sat::NORAD_ID_NOAA_18, imm.sat_noaa[ 1 ].global_positions, 180 );
+            this->_sat_update_func( sat::NORAD_ID_NOAA_19, imm.sat_noaa[ 2 ].global_positions, 180 );
+           
+            --sat_update_count;
+        }
+    } };
    
     while( !imm.surf.down( SurfKey::ESC ) ) {
         double elapsed_raw = tick_rt.lap();
         double elapsed = elapsed_raw * 60.0;
 
-        imm.ufrm_rtc.uplink_v( imm.ufrm_rtc.get() + elapsed_raw );
+        imm.ufrm_rtc.uplink_bv( imm.ufrm_rtc.get() + elapsed_raw );
 
-        if( tick_sat_pos.cmpxchg_lap( 1.0 ) ) { 
+        if( tick_sat_pos.cmpxchg_lap( 1.0 ) ) {
             if( imm.sat_noaa[ 0 ].global_positions.empty() ) {
-                this->_sat_update_func( sat::NORAD_ID_NOAA_15, imm.sat_noaa[ 0 ].global_positions, 180 );
-                this->_sat_update_func( sat::NORAD_ID_NOAA_18, imm.sat_noaa[ 1 ].global_positions, 180 );
-                this->_sat_update_func( sat::NORAD_ID_NOAA_19, imm.sat_noaa[ 2 ].global_positions, 180 );
+                ++sat_update_count;
+                sat_update_count.notify_one();
+            } else {
+                imm.sat_noaa[ 0 ].advance_pos();
+                imm.sat_noaa[ 1 ].advance_pos();
+                imm.sat_noaa[ 2 ].advance_pos();
             }
-            imm.sat_noaa[ 0 ].advance_pos();
-            imm.sat_noaa[ 1 ].advance_pos();
-            imm.sat_noaa[ 2 ].advance_pos();
         }
 
         if( imm.surf.down_any( SurfKey::RIGHT, SurfKey::LEFT, SurfKey::UP, SurfKey::DOWN ) ) {
@@ -185,11 +197,15 @@ int EARTH::main( int argc, char* argv[] ) {
                 } );
         }
         
-        imm.perlin_fac.uplink_v( 22.2 * sin( tick_rt.up_time() / 14.6 ) );
+        
         imm.sun.uplink_bv( glm::rotate( imm.sun.get(), ( float )( .001 * elapsed ), glm::vec3{ 0, 1, 0 } ) );
         
         imm.splash( elapsed );
     }
+
+    sat_update_count = -1;
+    sat_update_count.notify_one();
+    sat_update_th.join();
 
     imm.surf.downlink();
 

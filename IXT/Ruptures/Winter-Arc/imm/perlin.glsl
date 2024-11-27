@@ -1,6 +1,3 @@
-#version 410 core
-
-
 // Perlin noise generator taken from here: https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
 vec4 perlin_permute( vec4 x ) { return mod( ( ( x * 34.0 ) + 1.0 ) * x, 289.0 ); }
 vec2 perlin_fade( vec2 t ) { return t * t * t * ( t * ( t * 6.0 - 15.0 ) + 10.0 ); }
@@ -35,38 +32,4 @@ float perlin( vec2 P ){
   float n_xy = mix( n_x.x, n_x.y, fade_xy.y );
 
   return 2.3 * n_xy;
-}
-
-
-in GS_OUT {
-    vec2     tex_crd;
-    vec3     nrm;
-    vec3     sun_ray;
-} gs_in;
-
-out vec4 final;
-
-uniform float     rtc;
-uniform sampler2D ambient_tex;
-uniform sampler2D diffuse_tex;
-uniform sampler2D specular_tex;
-
-void main() {
-    float light = dot( gs_in.sun_ray, gs_in.nrm ) / ( length( gs_in.sun_ray ) * length( gs_in.nrm ) );
-    float dark = ( -light + .16 ) / 1.16;
-
-    light = 2.0 * max( light, .06 );
-
-    vec4 city_lights = texture( ambient_tex, gs_in.tex_crd ) * 3.0;
-
-    float perlin_fac = 22.2 * sin( rtc / 14.6 );
-
-    final = 
-        texture( diffuse_tex, gs_in.tex_crd ) * light 
-        + 
-        max( city_lights * dark, vec4( 0.0 ) ) * vec4( 1.0, 1.0, 0.8, 1.0 ) 
-        + 
-        vec4( 0.0, 0.4, 0.7, 1.0 ) * ( 1.0 - texture( specular_tex, gs_in.tex_crd ).x ) * max( perlin( abs( vec2( 0.5 ) - gs_in.tex_crd ) * perlin_fac ), 0.0 ) * light;
-
-    final.w = 1.0;
 }

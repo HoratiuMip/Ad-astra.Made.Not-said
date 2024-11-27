@@ -176,7 +176,8 @@ std::string _N2YO::send_get_positions(
 ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_N2YO_STR"::send_get_positions()" );
 
-    WARC_ASSERT_RT( this->socket->usable(), "Socket is NULL.", -1, "" );
+    WARC_ASSERT_RT( this->socket != nullptr, "Socket is NULL.", -1, "" );
+    WARC_ASSERT_RT( this->socket->usable(), "Socket is unusable.", -1, "" );
 
     WARC_LOG_RT_INTEL << "Sending get request.";
 
@@ -258,6 +259,8 @@ POSITIONS _N2YO::quick_position_xchg(
     this->socket = inet_tls::BRIDGE::alloc( addr, inet_tls::INET_PORT_HTTPS );
     std::string resp = this->send_get_positions( norad_id, steps, obs_lat, obs_lng, obs_alt );
     inet_tls::BRIDGE::free( std::move( this->socket ) );
+
+    WARC_ASSERT_RT( !resp.empty(), "Response is empty.", -1, {} );
 
     int status_major = ( int )resp[ 9 ];
     WARC_ASSERT_RT( status_major == '2', "HTTP/1.1 status major is not 2(OK).", status_major, {} );

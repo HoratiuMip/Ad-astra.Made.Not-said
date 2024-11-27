@@ -65,12 +65,12 @@ static struct _INTERNAL {
 
     int purge_zombie_bridges() {
         int zombie_count = 0;
-
+        
         std::unique_lock lock{ bsup_lock };
 
         for( auto bridge = this->bridge_supervisor.begin(); bridge != this->bridge_supervisor.end(); ) {
             if( bridge->use_count() > 1 ) { ++bridge; continue; }
-
+            
             ++zombie_count;
             bridge = this->bridge_supervisor.erase( bridge );
         }
@@ -97,15 +97,17 @@ const char* BRIDGE::struct_name() const {
 BRIDGE::BRIDGE( const char* addr, INET_PORT port ) 
 : _port{ port }
 {
-    int          status;
-    _SOCKET      socket_raw;
-    sockaddr_in  socket_desc;
-    char*        err;
+    int          status        = -1;
+    _SOCKET      socket_raw    = _SOCKET{};
+    sockaddr_in  socket_desc   = {};
+    char*        err           = nullptr; 
 
     struct _BAD_EXIT {
         std::function< void() >   proc;
         ~_BAD_EXIT() { if( proc ) proc(); } 
-    } bad_exit{ proc: [ this ] () -> void {
+    } bad_exit{ proc: [ &, this ] () -> void {
+        if( socket_raw != _SOCKET{} )
+            closesocket( socket_raw );
         this->~BRIDGE();
     } };
 
@@ -148,12 +150,12 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port )
 
 BRIDGE::~BRIDGE() {
     int status = -1;
-
+   
     if( this->_ssl != nullptr ) {
         status = SSL_shutdown( this->_ssl );
         SSL_free( std::exchange( this->_ssl, nullptr ) );
     }
-    
+   
     if( this->_socket != _SOCKET{} ) {
         status = closesocket( std::exchange( this->_socket, _SOCKET{} ) );
     }
@@ -172,9 +174,13 @@ std::string BRIDGE::pretty( const char* addr, INET_PORT port ) {
 }
 
 HBRIDGE BRIDGE::alloc( const char* addr, INET_PORT port ) {
+    std::unique_lock lock{ _internal.bsup_lock };
+
     HBRIDGE bridge = _internal.bridge_supervisor.emplace_back( std::make_shared< BRIDGE >() );
     new ( bridge.get() ) BRIDGE{ addr, port };
-
+    
+    lock.unlock();
+    
     return bridge;
 }
 

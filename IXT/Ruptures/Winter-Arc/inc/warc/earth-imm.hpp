@@ -13,22 +13,29 @@ namespace warc { namespace imm {
 _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_IMM_STR );
 
 
+enum EARTH_SAT_UPDATE_RESULT : int {
+    EARTH_SAT_UPDATE_RESULT_OK,
+    EARTH_SAT_UPDATE_RESULT_REJECT,
+    EARTH_SAT_UPDATE_RESULT_FAULT_RETRY,
+    EARTH_SAT_UPDATE_RESULT_FAULT_DO_NOT_RETRY,
+
+    _EARTH_SAT_UPDATE_RESULT_FORCE_DWORD = 0x7f'ff'ff'ff
+};
+
 class EARTH : public IXT::Descriptor {
 public:
     IXT_DESCRIPTOR_STRUCT_NAME_OVERRIDE( WARC_IMM_STR"::EARTH" );
 
 public:
-    using SatPosUpdateFunc = std::function< int( sat::NORAD_ID, std::deque< sat::POSITION >&, int ) >;
+    using SatUpdateFunc = std::function< EARTH_SAT_UPDATE_RESULT( sat::NORAD_ID, std::deque< sat::POSITION >& ) >;
 
 _WARC_PROTECTED:
-    SatPosUpdateFunc   _sat_update_func   = nullptr;
+    SatUpdateFunc   _sat_update_func   = nullptr;
 
 public:
     int main( int argc, char* argv[] );
 
-    void set_sat_pos_update_func( SatPosUpdateFunc func ) {
-        _sat_update_func = func;
-    }
+    void set_sat_pos_update_func( SatUpdateFunc func );
 
 };
 

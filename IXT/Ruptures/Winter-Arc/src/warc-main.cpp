@@ -4,12 +4,9 @@ namespace warc {
 
 
 static struct _INTERNAL {
-    struct OPTIONS {
-        bool   earth_imm   = false;
-
-    }   opts;
-
     struct CONFIG {
+        bool          n2yo_mimic   = false;
+        bool          earth_imm    = false;
         std::string   n2yo_ip;
 
     }   config;
@@ -136,10 +133,18 @@ l_show_ash: {
 
 }
 
+int MAIN::_parse_proc_n2yo_mimic( char* argv[], const char* process ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_n2yo_mimic()" );
+
+    _internal.config.n2yo_mimic = true;
+    WARC_LOG_RT_OK << "N2YO requests will be mimicd.";
+    return 0;
+}
+
 int MAIN::_parse_proc_earth_imm( char* argv[], const char* process ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm()" );
 
-    _internal.opts.earth_imm = true;
+    _internal.config.earth_imm = true;
     WARC_LOG_RT_OK << "Enabled earth immersion module.";
     return 0;
 }
@@ -156,6 +161,7 @@ int MAIN::_parse_opts( int argc, char* argv[] ) {
     } opts[] = {
         { "--from-config", 1, &_parse_proc_from_config },
         { "--n2yo-api-key", 2, &_parse_proc_n2yo_api_key },
+        { "--n2yo-mimic", 0, &_parse_proc_n2yo_mimic },
         { "--earth-imm", 0, &_parse_proc_earth_imm },
     };
     const int optc = sizeof( opts ) / sizeof( _OPT );
@@ -215,14 +221,36 @@ int MAIN::main( int argc, char* argv[], VOID_DOUBLE_LINK vdl ) {
     status = inet_tls::uplink( {} );
     WARC_ASSERT_RT( status == 0, "Fault at starting the <inet_tls> module.", status, status );
 
-    if( _internal.opts.earth_imm ) {
+    if( _internal.config.earth_imm ) {
         this->_earth = std::make_shared< imm::EARTH >();
 
-        this->_earth->set_sat_pos_update_func( [ &, this ] ( sat::NORAD_ID norad_id, std::deque< sat::POSITION >& positions, int s ) -> int {
-            auto res = this->_n2yo.quick_position_xchg( _internal.config.n2yo_ip.c_str(), norad_id, s );
+        this->_earth->set_sat_pos_update_func( [ &, this ] ( sat::NORAD_ID norad_id, std::deque< sat::POSITION >& positions ) -> imm::EARTH_SAT_UPDATE_RESULT {
+            if( _internal.config.n2yo_mimic ) {
+                positions.emplace_back( sat::POSITION{ 
+                    satlatitude:  ( double )( rand() % 180 - 90 ),
+                    satlongitude: ( double )( rand() % 360 ),
+                    sataltitude:  0,
+                    azimuth:      0,
+                    elevation:    0,
+                    ra:           0,
+                    dec:          0,
+                    timestamp:    time( nullptr ),
+                    eclipsed:     false
+                } );
+                
+                goto l_ok;
+            }
+
+            {
+            auto res = this->_n2yo.quick_position_xchg( _internal.config.n2yo_ip.c_str(), norad_id, 180 );
+
+            if( res.data.empty() ) return imm::EARTH_SAT_UPDATE_RESULT_FAULT_DO_NOT_RETRY;
             
             positions.assign( res.data.begin(), res.data.end() );
-            return 0;
+            }
+        
+        l_ok:
+            return imm::EARTH_SAT_UPDATE_RESULT_OK;
         } );
 
         this->_earth->main( argc, argv );

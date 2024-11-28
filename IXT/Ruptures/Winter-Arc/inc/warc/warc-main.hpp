@@ -46,6 +46,12 @@ _WARC_PROTECTED:
 
     /*
     | Usage:
+    | --n2yo-mimic
+    */
+    int _parse_proc_n2yo_mimic( char* argv[], const char* process );
+
+    /*
+    | Usage:
     | --earth-imm
     */
     int _parse_proc_earth_imm( char* argv[], const char* process );

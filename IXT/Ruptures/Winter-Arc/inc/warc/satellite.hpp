@@ -14,6 +14,7 @@ struct POSITION {
     double    ra;
     double    dec;
     int64_t   timestamp;
+    bool      eclipsed;
 };
 
 

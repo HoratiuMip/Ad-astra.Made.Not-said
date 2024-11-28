@@ -199,6 +199,8 @@ std::string _N2YO::send_get_positions(
     return resp;
 }
 
+#define JSON_PULL_DOUBLE( obj, field ) field = ( obj[ #field ].if_double() ? obj[ #field ].as_double() : ( double ) obj[ #field ].as_int64() )
+
 POSITIONS _N2YO::json_2_positions( std::string_view json ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_N2YO_STR"::json_2_positions()" );
 
@@ -227,17 +229,25 @@ POSITIONS _N2YO::json_2_positions( std::string_view json ) {
 
     for( auto& data_obj : jv.as_object()[ "positions" ].as_array() ) {
         auto& data = data_obj.as_object();
-        rez.data.emplace_back( sat::POSITION{
-            satlatitude:  data[ "satlatitude" ].as_double(),
-            satlongitude: data[ "satlongitude" ].as_double(),
-            sataltitude:  0,//data[ "sataltitude" ].as_double(),
-            azimuth:      0,//data[ "azimuth" ].as_double(),
-            elevation:    0,//data[ "elevation" ].as_double(),
-            ra:           0,//data[ "ra" ].as_double(),
-            dec:          0,//data[ "dec" ].as_double(),
-            timestamp:    0//data[ "timestamp" ].as_int64()
-
+        auto& pos_data = rez.data.emplace_back( sat::POSITION{
+            satlatitude:  0,
+            satlongitude: 0,
+            sataltitude:  0,
+            azimuth:      0,
+            elevation:    0,
+            ra:           0,
+            dec:          0,
+            timestamp:    data[ "timestamp" ].as_int64(),
+            eclipsed:     data[ "eclipsed" ].as_bool()
         } );
+
+        pos_data.JSON_PULL_DOUBLE( data, satlatitude );
+        pos_data.JSON_PULL_DOUBLE( data, satlongitude );
+        pos_data.JSON_PULL_DOUBLE( data, sataltitude );
+        pos_data.JSON_PULL_DOUBLE( data, azimuth );
+        pos_data.JSON_PULL_DOUBLE( data, elevation );
+        pos_data.JSON_PULL_DOUBLE( data, ra );
+        pos_data.JSON_PULL_DOUBLE( data, dec );
     }
 
     WARC_LOG_RT_OK << "Json parsed.";

@@ -5,11 +5,11 @@ layout( location = 1 ) in vec3 nrm;
 layout( location = 2 ) in vec2 tex_crd;
 
 out VS_OUT {
-    vec2 tex_crd;
-    vec3 nrm;
-    vec3 sun_ray;
-    vec3 lens;
-    mat4 proj;
+    vec2      tex_crd;
+    vec3      nrm;
+    vec3      sun_ray;
+    flat vec3 lens;
+    flat mat4 proj;
 } vs_out;
 
 uniform vec3 sun_pos;

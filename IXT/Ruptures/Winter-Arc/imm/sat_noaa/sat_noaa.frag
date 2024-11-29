@@ -9,10 +9,10 @@ in VS_OUT {
 
 out vec4 final;
 
-uniform sampler2D diffuse_tex;
+uniform sampler2D map_Kd;
 
 void main() {
-    final = texture( diffuse_tex, vs_out.tex_crd );
+    final = texture( map_Kd, vs_out.tex_crd );
     final.r *= 0.86;
     final.w = 1.0;
 }

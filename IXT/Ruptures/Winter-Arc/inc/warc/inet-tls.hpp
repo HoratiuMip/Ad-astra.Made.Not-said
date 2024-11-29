@@ -66,7 +66,7 @@ _WARC_PROTECTED:
     std::string   _struct_name   = WARC_INET_TLS_STR"::BRIDGE";
 
 _WARC_PROTECTED:
-    int kill_conn();
+    int _kill_conn();
 
 public:
     int write( const char* buf, int sz );

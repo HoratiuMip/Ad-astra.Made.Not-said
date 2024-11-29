@@ -109,7 +109,7 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port )
     } bad_exit{ proc: [ &, this ] () -> void {
         if( socket_raw != _SOCKET{} )
             closesocket( socket_raw );
-        this->kill_conn();
+        this->_kill_conn();
     } };
 
     this->_struct_name += BRIDGE::pretty( addr, port );
@@ -149,7 +149,7 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port )
     WARC_LOG_RT_THIS_OK << "Secure socket created, using " << SSL_get_cipher( this->_ssl ) << ".\n";
 }
 
-int BRIDGE::kill_conn(){
+int BRIDGE::_kill_conn(){
     int status = -1;
    
     if( this->_ssl != nullptr ) {
@@ -165,7 +165,7 @@ int BRIDGE::kill_conn(){
 }
 
 BRIDGE::~BRIDGE() {
-    this->kill_conn();
+    this->_kill_conn();
 }
 
 std::string BRIDGE::pretty( const char* addr, INET_PORT port ) {

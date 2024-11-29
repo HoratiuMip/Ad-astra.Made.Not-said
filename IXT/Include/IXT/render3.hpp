@@ -13,14 +13,18 @@ namespace _ENGINE_NAMESPACE {
 
 
 enum SHADER3_PHASE : DWORD {
-    SHADER3_PHASE_VERTEX   = GL_VERTEX_SHADER,
-    SHADER3_PHASE_GEOMETRY = GL_GEOMETRY_SHADER,
-    SHADER3_PHASE_FRAGMENT = GL_FRAGMENT_SHADER,
+    SHADER3_PHASE_VERTEX    = GL_VERTEX_SHADER,
+    SHADER3_PHASE_TESS_CTRL = GL_TESS_CONTROL_SHADER,
+    SHADER3_PHASE_TESS_EVAL = GL_TESS_EVALUATION_SHADER,
+    SHADER3_PHASE_GEOMETRY  = GL_GEOMETRY_SHADER,
+    SHADER3_PHASE_FRAGMENT  = GL_FRAGMENT_SHADER,
 
-    SHADER3_PHASE_VERTEX_IDX   = 0,
-    SHADER3_PHASE_GEOMETRY_IDX = 1,
-    SHADER3_PHASE_FRAGMENT_IDX = 2,
-    SHADER3_PHASE_IDX_RESERVED = SHADER3_PHASE_FRAGMENT_IDX,
+    SHADER3_PHASE_VERTEX_IDX    = 0,
+    SHADER3_PHASE_TESS_CTRL_IDX = 1,
+    SHADER3_PHASE_TESS_EVAL_IDX = 2,
+    SHADER3_PHASE_GEOMETRY_IDX  = 3,
+    SHADER3_PHASE_FRAGMENT_IDX  = 4,
+    SHADER3_PHASE_IDX_RESERVED  = 5,
 
     _SHADER3_PHASE_FORCE_DWORD = 0x7F'FF'FF'FF
 };
@@ -33,36 +37,52 @@ public:
     Shader3() = default;
 
     Shader3( const std::filesystem::path& path, SHADER3_PHASE phase, _ENGINE_COMMS_ECHO_ARG ) {
-        std::ifstream file{ path, std::ios_base::binary };
+        std::string source;
+        std::string line;
+        DWORD       status;
 
-        if( !file ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.string().c_str() << "\".";
+        std::function< void( const std::filesystem::path& ) > accumulate_glsl = [ & ] ( const std::filesystem::path& path ) -> void {
+            std::ifstream file{ path, std::ios_base::binary };
+
+            if( !file ) {
+                echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.string().c_str() << "\".";
+                status = -1;
+            }
+
+            while( std::getline( file, line ) ) {
+                static const char* DIRECTIVE_INCLUDE_STR = "//IXT#include";
+
+                if( !line.starts_with( DIRECTIVE_INCLUDE_STR ) ) {
+                    source += line; source += '\n';
+                    continue;
+                }
+
+                size_t q1 = line.find_first_of( '<' );
+                size_t q2 = line.find_last_of( '>' );
+
+                if( q1 == std::string::npos ) {
+                    echo( this, ECHO_LEVEL_ERROR ) << "Include directive path must be quoted between \"<>\".";
+                    status = -1;
+                    return;
+                }
+                line.pop_back();
+
+                accumulate_glsl( path.parent_path() / std::string{ line.c_str() + q1 + 1, q2 - q1 - 1 } );
+            }
+        };
+
+        accumulate_glsl( path );
+        
+        if( status != 0 ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "General failure during reading and generating source.";
             return;
         }
-
-        auto file_bc = File::byte_count( file );
-
-        GLchar* buffer = ( GLchar* ) malloc( file_bc * sizeof( GLchar ) + 1 );
-
-        if( buffer == NULL ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Could NOT allocate for file buffer.";
-            return;
-        }
-
-        struct _EXIT_PROC {
-            ~_EXIT_PROC() { std::invoke( proc ); } std::function< void() > proc;
-        } _exit_proc{ proc: [ &buffer ] () -> void {
-            free( ( void* )std::exchange( buffer, nullptr ) );
-        } };
-
-        file.read( ( char* )buffer, file_bc );
-        file.close();
-
-        buffer[ file_bc * sizeof( GLchar ) ] = '\0';
 
         GLuint glidx = glCreateShader( phase );
 
-        glShaderSource( glidx, 1, &buffer, NULL );
+        const GLchar* const_const_const_const_const_const = source.c_str();
+
+        glShaderSource( glidx, 1, &const_const_const_const_const_const, NULL );
         glCompileShader( glidx );
 
         GLint success;
@@ -109,15 +129,26 @@ public:
 
     ShadingPipe3( 
         SP_t vert,
+        SP_t tesc,
+        SP_t tese,
         SP_t geom, 
         SP_t frag, 
         _ENGINE_COMMS_ECHO_ARG 
     ) {
         GLuint glidx = glCreateProgram();
 
-        if( vert != nullptr ) { glAttachShader( glidx, vert->glidx() ); _shaders[ 0 ] = std::move( vert ); }
-        if( geom != nullptr ) { glAttachShader( glidx, geom->glidx() ); _shaders[ 1 ] = std::move( geom ); }
-        if( frag != nullptr ) { glAttachShader( glidx, frag->glidx() ); _shaders[ 2 ] = std::move( frag ); }
+        std::string pretty;
+
+        if( vert != nullptr ) { pretty += "VRTX->"; glAttachShader( glidx, vert->glidx() ); _shaders[ 0 ] = std::move( vert ); }
+        if( tesc != nullptr ) { pretty += "TESC->"; glAttachShader( glidx, tesc->glidx() ); _shaders[ 1 ] = std::move( tesc ); }
+        if( tese != nullptr ) { pretty += "TESE->"; glAttachShader( glidx, tese->glidx() ); _shaders[ 2 ] = std::move( tese ); }
+        if( geom != nullptr ) { pretty += "GEOM->"; glAttachShader( glidx, geom->glidx() ); _shaders[ 3 ] = std::move( geom ); }
+        if( frag != nullptr ) { pretty += "FRAG"; glAttachShader( glidx, frag->glidx() ); _shaders[ 4 ] = std::move( frag ); }
+
+        if( tesc == nullptr && tese == nullptr )
+            this->draw_mode = GL_TRIANGLES;
+        else
+            this->draw_mode = GL_PATCHES;
 
         glLinkProgram( glidx );
 
@@ -132,7 +163,7 @@ public:
         }
 
         _glidx = glidx;
-        echo( this, ECHO_LEVEL_OK ) << "Created with glidx: " << _glidx << ".";
+        echo( this, ECHO_LEVEL_OK ) << "Created with glidx( " << _glidx << ") --- | " << pretty << " |.";
     }
 
     ShadingPipe3(
@@ -141,7 +172,7 @@ public:
         const Shader3& frag,
         _ENGINE_COMMS_ECHO_ARG 
     )
-    : ShadingPipe3{ SP_t{ vert }, SP_t{ geom }, SP_t{ frag } }
+    : ShadingPipe3{ SP_t{ vert }, SP_t{ nullptr }, SP_t{ nullptr }, SP_t{ geom }, SP_t{ frag } }
     {}
 
     ShadingPipe3(
@@ -149,12 +180,15 @@ public:
         const Shader3& frag,
         _ENGINE_COMMS_ECHO_ARG 
     )
-    : ShadingPipe3{ SP_t{ vert } , SP_t{ nullptr }, SP_t{ frag } }
+    : ShadingPipe3{ SP_t{ vert } , SP_t{ nullptr }, SP_t{ nullptr }, SP_t{ nullptr }, SP_t{ frag } }
     {}
 
 _ENGINE_PROTECTED:
-    GLuint            _glidx          = NULL;
-    VPtr< Shader3 >   _shaders[ 3 ]   = {};
+    GLuint            _glidx                                   = NULL;
+    VPtr< Shader3 >   _shaders[ SHADER3_PHASE_IDX_RESERVED ]   = {};
+
+public: 
+    GLuint            draw_mode                                = NULL;
 
 public:
     operator GLuint () const {
@@ -223,7 +257,7 @@ public:
         GLuint loc = glGetUniformLocation( pipe, _anchor.c_str() );
 
         if( loc == -1 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Shading pipe( " << pipe.glidx() << " ) has no uniform \"" << _anchor << "\".";
+            echo( this, ECHO_LEVEL_WARNING ) << "Shading pipe( " << pipe.glidx() << " ) has no uniform \"" << _anchor << "\".";
             return -1;
         }
 
@@ -483,7 +517,7 @@ public:
             std::string* tex_name = &mtl.data.ambient_texname;
 
             if( !tex_name->empty() ) {
-                if( this->_push_tex( root_dir / *tex_name, "ambient_tex", 0, echo ) != 0 )
+                if( this->_push_tex( root_dir / *tex_name, "map_Ka", 0, echo ) != 0 )
                     continue;
 
                 mtl.tex_a_idx = _texs.size() - 1;
@@ -492,7 +526,7 @@ public:
             tex_name = &mtl.data.diffuse_texname;
 
             if( !tex_name->empty() ) {
-                 if( this->_push_tex( root_dir / *tex_name, "diffuse_tex", 1, echo ) != 0 )
+                 if( this->_push_tex( root_dir / *tex_name, "map_Kd", 1, echo ) != 0 )
                     continue;
 
                 mtl.tex_d_idx = _texs.size() - 1;
@@ -501,7 +535,7 @@ public:
             tex_name = &mtl.data.specular_texname;
 
             if( !tex_name->empty() ) {
-                if( this->_push_tex( root_dir / *tex_name, "specular_tex", 2, echo ) != 0 )
+                if( this->_push_tex( root_dir / *tex_name, "map_Ks", 2, echo ) != 0 )
                     continue;
 
                 mtl.tex_s_idx = _texs.size() - 1;
@@ -589,6 +623,8 @@ public:
 
             for( auto phase : std::initializer_list< PHASE_DATA >{ 
                 { SHADER3_PHASE_VERTEX_IDX, SHADER3_PHASE_VERTEX, ".vert" }, 
+                { SHADER3_PHASE_TESS_CTRL_IDX, SHADER3_PHASE_TESS_CTRL, ".tesc" }, 
+                { SHADER3_PHASE_TESS_EVAL_IDX, SHADER3_PHASE_TESS_EVAL, ".tese" }, 
                 { SHADER3_PHASE_GEOMETRY_IDX, SHADER3_PHASE_GEOMETRY, ".geom" }, 
                 { SHADER3_PHASE_FRAGMENT_IDX, SHADER3_PHASE_FRAGMENT, ".frag" } } 
             ) {
@@ -602,6 +638,8 @@ public:
 
             this->pipe.reset( std::make_shared< ShadingPipe3 >( 
                 std::move( shaders[ SHADER3_PHASE_VERTEX_IDX ] ), 
+                std::move( shaders[ SHADER3_PHASE_TESS_CTRL_IDX ] ),
+                std::move( shaders[ SHADER3_PHASE_TESS_EVAL_IDX ] ),
                 std::move( shaders[ SHADER3_PHASE_GEOMETRY_IDX ] ), 
                 std::move( shaders[ SHADER3_PHASE_FRAGMENT_IDX ] ), 
                 echo 
@@ -734,7 +772,7 @@ public:
                     tex.ufrm.uplink();
                 }
                 
-                glDrawElements( GL_TRIANGLES, ( GLsizei )burst.count, GL_UNSIGNED_INT, 0 );
+                glDrawElements( pipe.draw_mode, ( GLsizei )burst.count, GL_UNSIGNED_INT, 0 );
             }
         }
 
@@ -773,6 +811,8 @@ public:
 
         glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
         glEnable( GL_BLEND );
+
+        glPatchParameteri( GL_PATCH_VERTICES, 3 );
 
         glViewport( 0, 0, ( int )_surface->width(), ( int )_surface->height() );
 
@@ -813,7 +853,7 @@ public:
         return *this;
     }
 
-    Renderer3& uplink_fill() {
+    Renderer3& downlink_wireframe() {
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         return *this;
     }

@@ -1,0 +1,37 @@
+#version 410 core
+
+layout ( vertices = 3 ) out;
+
+in VS_OUT {
+    vec2 tex_crd;
+    vec3 nrm;
+    vec3 sun_ray;
+    vec3 lens;
+    mat4 proj;
+} vs_in[];
+
+out TCS_OUT {
+    vec2 tex_crd;
+    vec3 nrm;
+    vec3 sun_ray;
+    vec3 lens;
+    mat4 proj;
+} tcs_out[];
+
+void main() {
+    gl_out[ gl_InvocationID ].gl_Position = gl_in[ gl_InvocationID ].gl_Position;
+
+    tcs_out[ gl_InvocationID ].tex_crd = vs_in[ gl_InvocationID ].tex_crd;
+    tcs_out[ gl_InvocationID ].nrm = vs_in[ gl_InvocationID ].nrm;
+    tcs_out[ gl_InvocationID ].sun_ray = vs_in[ gl_InvocationID ].sun_ray;
+    tcs_out[ gl_InvocationID ].lens = vs_in[ gl_InvocationID ].lens;
+    tcs_out[ gl_InvocationID ].proj = vs_in[ gl_InvocationID ].proj;
+
+    if( gl_InvocationID == 0 ) {
+        gl_TessLevelOuter[ 0 ] = 1.0;
+        gl_TessLevelOuter[ 1 ] = 1.0;
+        gl_TessLevelOuter[ 2 ] = 1.0;
+
+        gl_TessLevelInner[ 0 ] = 1.0;
+    }
+}

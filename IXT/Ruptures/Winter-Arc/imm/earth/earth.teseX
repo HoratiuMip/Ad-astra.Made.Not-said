@@ -1,0 +1,26 @@
+#version 410 core
+
+layout ( triangles, equal_spacing, ccw ) in;
+
+in TCS_OUT {
+    vec2 tex_crd;
+    vec3 nrm;
+    vec3 sun_ray;
+    vec3 lens;
+    mat4 proj;
+} tcs_in[];
+
+out GS_OUT {
+    vec2 tex_crd;
+    vec3 nrm;
+    vec3 sun_ray;
+} gs_out;
+
+void main()
+{
+    gs_out.tex_crd = tcs_in[ gl_PrimitiveID ].tex_crd;
+    gs_out.nrm = tcs_in[ gl_PrimitiveID ].nrm;
+    gs_out.sun_ray = tcs_in[ gl_PrimitiveID ].sun_ray;
+
+    gl_Position = tcs_in[ gl_PrimitiveID ].proj * gl_in[ gl_PrimitiveID ].gl_Position;
+}

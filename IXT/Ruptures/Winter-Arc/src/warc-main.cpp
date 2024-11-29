@@ -5,9 +5,11 @@ namespace warc {
 
 static struct _INTERNAL {
     struct CONFIG {
-        bool          n2yo_mimic   = false;
-        bool          earth_imm    = false;
+        bool          n2yo_mimic     = false;
         std::string   n2yo_ip;
+
+        bool          earth_imm      = false;
+        float         earth_imm_ls   = 1.0;
 
     }   config;
 
@@ -53,6 +55,15 @@ int MAIN::_parse_proc_from_config( char* argv[], const char* process ) {
         "n2yo_api_key", [ this ] ( boost::json::value& v ) -> int {
             if( auto* str = v.if_string(); str ) {
                 this->_n2yo.api_key = *str;
+            } else {
+                WARC_LOG_RT_ERROR << "Ill-formed.";
+                return -1;
+            }
+            return 0;
+        },
+        "earth_imm_lens_sens", [ this ] ( boost::json::value& v ) -> int {
+            if( auto* flt = v.if_double(); flt ) {
+                _internal.config.earth_imm_ls = *flt;
             } else {
                 WARC_LOG_RT_ERROR << "Ill-formed.";
                 return -1;
@@ -223,6 +234,8 @@ int MAIN::main( int argc, char* argv[] ) {
 
     if( _internal.config.earth_imm ) {
         this->_earth = std::make_shared< imm::EARTH >();
+
+        this->_earth->lens_sens = _internal.config.earth_imm_ls;
 
         this->_earth->set_sat_pos_update_func( [ &, this ] ( sat::NORAD_ID norad_id, std::deque< sat::POSITION >& positions ) -> imm::EARTH_SAT_UPDATE_RESULT {
             if( _internal.config.n2yo_mimic ) {

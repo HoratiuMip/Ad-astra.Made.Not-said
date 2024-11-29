@@ -33,6 +33,9 @@ _WARC_PROTECTED:
     SatUpdateFunc   _sat_update_func   = nullptr;
 
 public:
+    float           lens_sens          = 1.0;
+
+public:
     int main( int argc, char* argv[] );
 
     void set_sat_pos_update_func( SatUpdateFunc func );

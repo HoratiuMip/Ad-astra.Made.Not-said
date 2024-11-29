@@ -36,7 +36,7 @@ int EARTH::main( int argc, char* argv[] ) {
     _impl_earth = this;
 
 
-    struct _IMM {
+    struct _IMM : Descriptor {
         _IMM() 
         : _impl_set{ this },
         
@@ -94,7 +94,7 @@ int EARTH::main( int argc, char* argv[] ) {
                 );
             }
 
-            IXT::Mesh3   mesh;
+            Mesh3   mesh;
         } earth;
 
         struct _GALAXY {
@@ -110,7 +110,7 @@ int EARTH::main( int argc, char* argv[] ) {
                 );
             }
 
-            IXT::Mesh3   mesh;
+            Mesh3   mesh;
         } galaxy;
 
         struct _SATS {
@@ -120,7 +120,7 @@ int EARTH::main( int argc, char* argv[] ) {
                 hth_update = std::thread{ th_update, this };
             }
  
-            IXT::Ticker          tick;
+            Ticker               tick;
             std::thread          hth_update;
             std::atomic< int >   required_update_count   { 0 };
             bool                 attempt_update          = true;
@@ -151,7 +151,7 @@ int EARTH::main( int argc, char* argv[] ) {
                 sat::NORAD_ID                 norad_id;     
                 glm::mat4                     base_model;
                 glm::vec3                     base_pos;
-                IXT::Mesh3                    mesh;
+                Mesh3                         mesh;
                 glm::vec3                     pos;
                 std::deque< sat::POSITION >   pos_cnt;
 
@@ -267,6 +267,28 @@ int EARTH::main( int argc, char* argv[] ) {
                     } );
             }
 
+            if( surf.down( SurfKey::COMMA ) )
+                rend.uplink_wireframe();
+            if( surf.down( SurfKey::DOT ) )
+                rend.downlink_wireframe();
+
+            
+            if( surf.down( SurfKey::RMB ) ) {
+                static Vec2 vel     = {};
+                static Vec2 lcv_cmp = {};
+
+                Vec2 lcv = surf.ptr_pv();
+                if( lcv == lcv_cmp ) goto l_end;
+
+                Vec2 cd = surf.ptr_v() - lcv;
+                cd *= -PEARTH->lens_sens;
+
+                lens.spin_ul( { cd.x, cd.y } );
+
+                lcv_cmp = lcv;
+            }
+
+        l_end:
             return *this;
         }
 
@@ -282,9 +304,7 @@ int EARTH::main( int argc, char* argv[] ) {
             return *this;
         }
 
-        _IMM& splash( ELAPSED_ARGS_DECL ) {
-            rend.clear( glm::vec4{ 1.0, .0, 1.0, 1.0 } );
-            
+        _IMM& splash( ELAPSED_ARGS_DECL ) {            
             rend.downlink_face_culling();
             galaxy.mesh.splash();
             rend.uplink_face_culling();
@@ -292,7 +312,6 @@ int EARTH::main( int argc, char* argv[] ) {
             earth.mesh.splash();
             sats.splash( ELAPSED_ARGS_CALL );
 
-            rend.swap();
             return *this;
         }
         
@@ -309,7 +328,9 @@ int EARTH::main( int argc, char* argv[] ) {
         double elapsed_raw = tick.lap();
         double elapsed = elapsed_raw * 60.0;
         
+        imm.rend.clear( glm::vec4{ 0.1, 0.1, 0.1, 1.0 } );
         imm.run_pipe( elapsed, elapsed_raw );
+        imm.rend.swap();
     }
 
     imm.sats.join_th_update();

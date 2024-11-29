@@ -387,18 +387,42 @@ public:
         return *this;
     }
 
-    Lens3& spin( glm::vec2 delta ) {
-        glm::vec3 old_pos = pos;
-        glm::vec3 fwd     = this->forward();
+    Lens3& spin( glm::vec2 angels ) {
+        glm::vec3 rel = pos - tar;
+        glm::vec3 sec = glm::cross( tar - pos, up );
 
-        ggfloat_t mag = glm::length( fwd );
+        rel = glm::rotate( rel, angels.x, up );
+        rel = glm::rotate( rel, -angels.y, sec );
 
-        pos += this->right_n()*delta.x + up*delta.y;
+        pos = rel + tar;
+        up  = glm::rotate( up, -angels.y, sec );
 
-        fwd = this->forward();
-        pos += glm::normalize( fwd ) * ( glm::length( fwd ) - mag );
+        return *this;
+    }
 
-        up = glm::normalize( glm::cross( this->right(), fwd ) );
+    Lens3& spin_ul( glm::vec2 angels, glm::vec2 lim = glm::vec2{ -90.0, 90.0 } ) {
+        static constexpr const float FPU_OFFSET = 0.001f;
+
+        lim = glm::radians( lim );
+
+        glm::vec3 rel     = pos - tar;
+        glm::vec3 wing    = glm::cross( tar - pos, up );
+        ggfloat_t angwu   = -( glm::acos( glm::dot( rel, up ) / ( glm::length( rel ) * glm::length( up ) ) ) - PI / 2.0 );
+        glm::vec3 lim_rel = glm::rotate( rel, angwu - ( angels.t >= 0.0 ? lim.t : lim.s ), wing );
+
+        glm::vec3 n_rel = glm::rotate( rel, -angels.t, wing );
+        glm::vec3 c1    = glm::cross( lim_rel, rel );
+        glm::vec3 c2    = glm::cross( lim_rel, n_rel );
+
+        if( glm::dot( c1, c2 ) < 0.0 ) 
+            rel = glm::rotate( lim_rel, angels.t >= 0.0 ? FPU_OFFSET : -FPU_OFFSET, wing );
+        else
+            rel = glm::rotate( rel, -angels.t, wing );  
+
+        rel = glm::rotate( rel, angels.s, up );
+
+        pos = rel + tar;
+
         return *this;
     }
 

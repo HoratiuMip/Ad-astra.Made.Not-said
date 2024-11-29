@@ -65,6 +65,9 @@ _WARC_PROTECTED:
 
     std::string   _struct_name   = WARC_INET_TLS_STR"::BRIDGE";
 
+_WARC_PROTECTED:
+    int kill_conn();
+
 public:
     int write( const char* buf, int sz );
     std::string read( int sz );
@@ -74,7 +77,7 @@ public:
 
 public:
     [[nodiscard]] static HANDLE alloc( const char* addr, INET_PORT port );
-    static void free( HANDLE&& handle );
+    static void free( HANDLE& handle );
 
 public:
     bool usable();
@@ -86,12 +89,12 @@ typedef   BRIDGE::HANDLE   HBRIDGE;
 /*
 | Initializes the networking and secure socket layer element.
 */
-int uplink( VOID_DOUBLE_LINK vdl );
+int uplink();
 
 /*
 | Cleans up the networking and secure socket layer element.
 */
-int downlink( VOID_DOUBLE_LINK vdl );
+int downlink();
 
 
 }; };

@@ -268,7 +268,7 @@ POSITIONS _N2YO::quick_position_xchg(
 
     this->socket = inet_tls::BRIDGE::alloc( addr, inet_tls::INET_PORT_HTTPS );
     std::string resp = this->send_get_positions( norad_id, steps, obs_lat, obs_lng, obs_alt );
-    inet_tls::BRIDGE::free( std::move( this->socket ) );
+    inet_tls::BRIDGE::free( this->socket );
 
     WARC_ASSERT_RT( !resp.empty(), "Response is empty.", -1, {} );
 

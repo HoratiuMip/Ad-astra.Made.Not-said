@@ -211,14 +211,14 @@ int MAIN::_parse_opts( int argc, char* argv[] ) {
 
 
 
-int MAIN::main( int argc, char* argv[], VOID_DOUBLE_LINK vdl ) {
+int MAIN::main( int argc, char* argv[] ) {
     int status = this->_parse_opts( argc, argv );
     WARC_ASSERT_RT( status == 0, "Option parsing fault.", status, status );
 
     status = IXT::initial_uplink( argc, argv, 0, nullptr, nullptr );
     WARC_ASSERT_RT( status == 0, "Fault at starting the IXT engine.", status, status );
 
-    status = inet_tls::uplink( {} );
+    status = inet_tls::uplink();
     WARC_ASSERT_RT( status == 0, "Fault at starting the <inet_tls> module.", status, status );
 
     if( _internal.config.earth_imm ) {
@@ -244,7 +244,7 @@ int MAIN::main( int argc, char* argv[], VOID_DOUBLE_LINK vdl ) {
             {
             auto res = this->_n2yo.quick_position_xchg( _internal.config.n2yo_ip.c_str(), norad_id, 180 );
 
-            if( res.data.empty() ) return imm::EARTH_SAT_UPDATE_RESULT_FAULT_DO_NOT_RETRY;
+            if( res.data.empty() ) return imm::EARTH_SAT_UPDATE_RESULT_WAIT;
             
             positions.assign( res.data.begin(), res.data.end() );
             }
@@ -256,7 +256,7 @@ int MAIN::main( int argc, char* argv[], VOID_DOUBLE_LINK vdl ) {
         this->_earth->main( argc, argv );
     }
 
-    status = inet_tls::downlink( {} );
+    status = inet_tls::downlink();
     status = IXT::final_downlink( argc, argv, 0, nullptr, nullptr );
     return status;
 }

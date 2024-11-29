@@ -123,7 +123,7 @@ int EARTH::main( int argc, char* argv[] ) {
             IXT::Ticker          tick;
             std::thread          hth_update;
             std::atomic< int >   required_update_count   { 0 };
-            bool                 try_update_request      = true;
+            bool                 attempt_update          = true;
 
             struct _SAT_NOAA {
                 _SAT_NOAA( sat::NORAD_ID nid )
@@ -148,14 +148,12 @@ int EARTH::main( int argc, char* argv[] ) {
                     );
                 }
 
-                sat::NORAD_ID   norad_id;     
-
-                glm::mat4    base_model;
-                IXT::Mesh3   mesh;
-                glm::vec3    base_pos;
-                glm::vec3    pos;
-
-                std::deque< sat::POSITION >   global_positions;
+                sat::NORAD_ID                 norad_id;     
+                glm::mat4                     base_model;
+                glm::vec3                     base_pos;
+                IXT::Mesh3                    mesh;
+                glm::vec3                     pos;
+                std::deque< sat::POSITION >   pos_cnt;
 
                 _SAT_NOAA& pos_to( glm::vec3 n_pos ) {
                     mesh.model.uplink_v( 
@@ -171,10 +169,10 @@ int EARTH::main( int argc, char* argv[] ) {
                 }
 
                 _SAT_NOAA& advance_pos() {
-                    if( global_positions.empty() ) return *this;
+                    if( pos_cnt.empty() ) return *this;
 
-                    sat::POSITION& sat_pos = global_positions.front();
-                    global_positions.pop_front();
+                    sat::POSITION& sat_pos = pos_cnt.front();
+                    pos_cnt.pop_front();
                     
                     return this->pos_to( this->translate_latlong_2_glpos( sat_pos ) );
                 }
@@ -201,20 +199,20 @@ int EARTH::main( int argc, char* argv[] ) {
                 while( !PIMM->surf.down( SurfKey::ESC ) ) {
                     required_update_count.wait( 0 );
 
-                    if( !try_update_request ) goto l_end;
-
                     if( required_update_count.load( std::memory_order_relaxed ) < 0 )
                         return;
 
                     for( auto& s : noaa ) {
-                        switch( PEARTH->_sat_update_func( s.norad_id, s.global_positions ) ) {
+                        if( !attempt_update ) goto l_end;
+
+                        switch( PEARTH->_sat_update_func( s.norad_id, s.pos_cnt ) ) {
                             case EARTH_SAT_UPDATE_RESULT_OK: break;
                             case EARTH_SAT_UPDATE_RESULT_REJECT: break;
-                            case EARTH_SAT_UPDATE_RESULT_FAULT_RETRY: break;
+                            case EARTH_SAT_UPDATE_RESULT_RETRY: break;
 
-                            case EARTH_SAT_UPDATE_RESULT_FAULT_DO_NOT_RETRY: {
-                                try_update_request = false;
-                                WARC_LOG_RT_THAT_WARNING( PEARTH ) << "Satellite position update request responded with \"DO NOT RETRY\".";
+                            case EARTH_SAT_UPDATE_RESULT_WAIT: {
+                                attempt_update = false;
+                                WARC_LOG_RT_THAT_WARNING( PEARTH ) << "Satellite position update request responded with \"WAIT\".";
                             break; }
                         }
                     }
@@ -235,7 +233,7 @@ int EARTH::main( int argc, char* argv[] ) {
             
             _SATS& refresh( ELAPSED_ARGS_DECL ) {
                 if( tick.cmpxchg_lap( 1.0 ) ) {
-                    if( noaa[ 0 ].global_positions.empty() ) {
+                    if( noaa[ 0 ].pos_cnt.empty() ) {
                         ++required_update_count;
                         required_update_count.notify_one();
                     } else {
@@ -263,7 +261,7 @@ int EARTH::main( int argc, char* argv[] ) {
                     lens.zoom( ( surf.down( SurfKey::UP ) - surf.down( SurfKey::DOWN ) ) * .02 * ela );
                     lens.roll( ( surf.down( SurfKey::RIGHT ) - surf.down( SurfKey::LEFT ) ) * .03 * ela );
                 } else 
-                    lens.spin( {
+                    lens.spin_ul( {
                         ( surf.down( SurfKey::RIGHT ) - surf.down( SurfKey::LEFT ) ) * .03 * ela,
                         ( surf.down( SurfKey::UP ) - surf.down( SurfKey::DOWN ) ) * .03 * ela
                     } );

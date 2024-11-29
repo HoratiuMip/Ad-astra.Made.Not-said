@@ -14,7 +14,7 @@ static struct _INTERNAL {
     std::list< HBRIDGE >   bridge_supervisor;
 
 
-    int uplink( VOID_DOUBLE_LINK vdl ) {
+    int uplink() {
         int status = -1;
 
     #if defined( WIN32 )
@@ -42,7 +42,7 @@ static struct _INTERNAL {
         return 0;
     }
 
-    int downlink( VOID_DOUBLE_LINK vdl ) {
+    int downlink() {
         int status = -1;
 
         int bridge_count = this->bridge_supervisor.size();
@@ -72,6 +72,7 @@ static struct _INTERNAL {
             if( bridge->use_count() > 1 ) { ++bridge; continue; }
             
             ++zombie_count;
+            WARC_LOG_RT_INTEL << "Purging: \"" << bridge->get()->struct_name() << "\".";
             bridge = this->bridge_supervisor.erase( bridge );
         }
 
@@ -81,12 +82,12 @@ static struct _INTERNAL {
 } _internal;
 
 
-int uplink( VOID_DOUBLE_LINK vdl ) {
-    return _internal.uplink( vdl );
+int uplink() {
+    return _internal.uplink();
 }
 
-int downlink( VOID_DOUBLE_LINK vdl ) {
-    return _internal.downlink( vdl );
+int downlink() {
+    return _internal.downlink();
 }
 
 
@@ -104,11 +105,11 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port )
 
     struct _BAD_EXIT {
         std::function< void() >   proc;
-        ~_BAD_EXIT() { if( proc ) proc(); } 
+        ~_BAD_EXIT() { if( proc != nullptr ) proc(); } 
     } bad_exit{ proc: [ &, this ] () -> void {
         if( socket_raw != _SOCKET{} )
             closesocket( socket_raw );
-        this->~BRIDGE();
+        this->kill_conn();
     } };
 
     this->_struct_name += BRIDGE::pretty( addr, port );
@@ -131,7 +132,7 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port )
     
     WARC_LOG_RT_THIS_PENDING << "Connecting...";
     status = connect( socket_raw, ( sockaddr* )&socket_desc, sizeof( sockaddr_in ) );
-    WARC_ASSERT_RT_THIS( status == 0, "Server connection fault.", status, ; );
+    WARC_ASSERT_RT_THIS( status == 0, "Server connection general fault.", status, ; );
 
     this->_ssl = SSL_new( _internal.ssl_context );
     err = ERR_error_string( ERR_get_error(), 0 );
@@ -148,7 +149,7 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port )
     WARC_LOG_RT_THIS_OK << "Secure socket created, using " << SSL_get_cipher( this->_ssl ) << ".\n";
 }
 
-BRIDGE::~BRIDGE() {
+int BRIDGE::kill_conn(){
     int status = -1;
    
     if( this->_ssl != nullptr ) {
@@ -159,6 +160,12 @@ BRIDGE::~BRIDGE() {
     if( this->_socket != _SOCKET{} ) {
         status = closesocket( std::exchange( this->_socket, _SOCKET{} ) );
     }
+
+    return status;
+}
+
+BRIDGE::~BRIDGE() {
+    this->kill_conn();
 }
 
 std::string BRIDGE::pretty( const char* addr, INET_PORT port ) {
@@ -184,7 +191,7 @@ HBRIDGE BRIDGE::alloc( const char* addr, INET_PORT port ) {
     return bridge;
 }
 
-void BRIDGE::free( HBRIDGE&& handle ) {
+void BRIDGE::free( HBRIDGE& handle ) {
     handle.reset();
     _internal.purge_zombie_bridges();
 }

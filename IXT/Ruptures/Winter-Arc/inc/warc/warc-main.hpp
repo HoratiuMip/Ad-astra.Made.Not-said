@@ -57,7 +57,7 @@ _WARC_PROTECTED:
     int _parse_proc_earth_imm( char* argv[], const char* process );
 
 public:
-    int main( int argc, char* argv[], VOID_DOUBLE_LINK vdl );
+    int main( int argc, char* argv[] );
 };
 
 

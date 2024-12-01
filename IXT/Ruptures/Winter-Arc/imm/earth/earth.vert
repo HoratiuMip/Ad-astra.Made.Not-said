@@ -18,6 +18,10 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 proj;
 
+void apply_model( inout vec3 ref ) {
+    ref = vec3( model * vec4( ref, 1.0 ) );
+}
+
 void main() {
     vs_out.tex_crd = tex_crd;
     vs_out.nrm     = nrm;

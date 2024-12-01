@@ -117,15 +117,22 @@ int EARTH::main( int argc, char* argv[] ) {
 
         struct _SATS {
             _SATS() 
-            : noaa{ { sat::NORAD_ID_NOAA_15 }, { sat::NORAD_ID_NOAA_18 }, { sat::NORAD_ID_NOAA_19 } }
+            : noaa{ { sat::NORAD_ID_NOAA_15 }, { sat::NORAD_ID_NOAA_18 }, { sat::NORAD_ID_NOAA_19 } },
+              highlight{ "highlight", glm::vec4{ 0.541, 0.0, 1.0, 0.0 } }
             {
                 hth_update = std::thread{ th_update, this };
+
+                for( auto& s : noaa )
+                    s.mesh.pipe->pull( highlight );
+                highlight.uplink_b();
             }
  
-            Ticker               tick;
-            std::thread          hth_update;
-            std::atomic< int >   required_update_count   { 0 };
-            bool                 attempt_update          = true;
+            Ticker                  tick;
+            std::thread             hth_update;
+            std::atomic< int >      required_update_count   { 0 };
+            bool                    attempt_update          = true;
+            Uniform3< glm::vec4 >   highlight;
+            int                     highlight_state         = 0;
 
             struct _SAT_NOAA {
                 _SAT_NOAA( sat::NORAD_ID nid )
@@ -245,12 +252,29 @@ int EARTH::main( int argc, char* argv[] ) {
                     }
                 }
 
+                highlight.get().r = highlight.get().b = 0.2 + ( 1.0 + glm::pow( sin( tick.up_time() * 9.6 ), 3.0 ) );
+                highlight.uplink_b();
+
                 return *this;
             }
 
             _SATS& splash( ELAPSED_ARGS_DECL ) {
                 for( auto& s : noaa )
                     s.splash( ELAPSED_ARGS_CALL );
+
+                if( highlight_state == 1 ) {
+                    highlight.get().a = 1.0 - highlight.get().a;
+                    highlight.uplink_b();
+
+                    PIMM->rend.uplink_wireframe();
+                    for( auto& s : noaa )
+                        s.splash( ELAPSED_ARGS_CALL );
+                    PIMM->rend.downlink_wireframe();
+
+                    highlight.get().a = 1.0 - highlight.get().a;
+                    highlight.uplink_b();
+                }
+
                 return *this;
             }
 
@@ -270,6 +294,16 @@ int EARTH::main( int argc, char* argv[] ) {
                                 case SURFSCROLL_DIRECTION_DOWN: lens.zoom( -.02 * lens.l2t(), { 1.3, 8.2 } ); break;
                             }
                         } );
+
+                        surf.on< SURFACE_EVENT_KEY >( [ & ] ( SurfKey key, SURFKEY_STATE state, [[maybe_unused]]auto& ) -> void {
+                            if( state == SURFKEY_STATE_UP ) {
+                                switch( key ) {
+                                    case SurfKey::H: {
+                                        sats.highlight_state ^= 1;
+                                    break; }
+                                }
+                            }
+                        } );    
                     break; }
                 }
                 configd_control_scheme = control_scheme;

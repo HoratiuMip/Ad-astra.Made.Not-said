@@ -366,6 +366,10 @@ template<> inline DWORD Uniform3< glm::vec3 >::_uplink( GLuint loc ) {
     glUniform3f( loc, _under.x, _under.y, _under.z  ); 
     return 0;
 }
+template<> inline DWORD Uniform3< glm::vec4 >::_uplink( GLuint loc ) {
+    glUniform4f( loc, _under.x, _under.y, _under.z, _under.w  ); 
+    return 0;
+}
 template<> inline DWORD Uniform3< glm::mat4 >::_uplink( GLuint loc ) {
     glUniformMatrix4fv( loc, 1, GL_FALSE, glm::value_ptr( _under ) ); 
     return 0;

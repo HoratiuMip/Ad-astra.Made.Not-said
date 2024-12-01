@@ -9,10 +9,20 @@ in VS_OUT {
 
 out vec4 final;
 
+uniform vec4      highlight;
 uniform sampler2D map_Kd;
 
 void main() {
-    final = texture( map_Kd, vs_out.tex_crd );
-    final.r *= 0.86;
+    float depth;
+
+    if( highlight.a < 0.1 ) {
+        final = texture( map_Kd, vs_out.tex_crd );
+        final.r *= 0.86;
+        depth = gl_FragCoord.z;
+    } else {
+        final = highlight;
+        depth = 0.0;
+    }
     final.w = 1.0;
+    gl_FragDepth = depth;
 }

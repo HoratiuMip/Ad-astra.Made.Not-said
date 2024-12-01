@@ -163,7 +163,7 @@ public:
         }
 
         _glidx = glidx;
-        echo( this, ECHO_LEVEL_OK ) << "Created with glidx( " << _glidx << ") --- | " << pretty << " |.";
+        echo( this, ECHO_LEVEL_OK ) << "Created with glidx( " << _glidx << " ) --- | " << pretty << " |.";
     }
 
     ShadingPipe3(
@@ -410,9 +410,24 @@ public:
         return glm::normalize( this->right() );
     }
 
+    ggfloat_t l2t() const {
+        return glm::length( tar - pos );
+    }
+
 public:
-    Lens3& zoom( ggfloat_t p ) {
-        pos += this->forward() * p;
+    Lens3& zoom( ggfloat_t p, glm::vec2 lim = glm::vec2{ 0.0, std::numeric_limits< ggfloat_t >::max() } ) {
+        glm::vec3 fwd   = this->forward_n();
+        glm::vec3 n_pos = pos + fwd * p;
+        ggfloat_t d     = glm::length( n_pos - tar );
+
+        if( d < lim.s ) {
+            pos = n_pos + ( d - lim.s ) * fwd;
+        } else if( d > lim.t ) {
+            pos = n_pos + ( d - lim.t ) * fwd;
+        } else {
+            pos = n_pos;
+        }
+
         return *this;
     }
 
@@ -435,7 +450,7 @@ public:
     }
 
     Lens3& spin_ul( glm::vec2 angels, glm::vec2 lim = glm::vec2{ -90.0, 90.0 } ) {
-        static constexpr const float FPU_OFFSET = 0.001f;
+        static constexpr const ggfloat_t FPU_OFFSET = 0.001f;
 
         lim = glm::radians( lim );
 
@@ -515,30 +530,35 @@ public:
             mtl.data = std::move( mtl_base ); 
             
             std::string* tex_name = &mtl.data.ambient_texname;
-
             if( !tex_name->empty() ) {
                 if( this->_push_tex( root_dir / *tex_name, "map_Ka", 0, echo ) != 0 )
                     continue;
 
-                mtl.tex_a_idx = _texs.size() - 1;
+                mtl.tex_Ka_idx = _texs.size() - 1;
             }
 
             tex_name = &mtl.data.diffuse_texname;
-
             if( !tex_name->empty() ) {
                  if( this->_push_tex( root_dir / *tex_name, "map_Kd", 1, echo ) != 0 )
                     continue;
 
-                mtl.tex_d_idx = _texs.size() - 1;
+                mtl.tex_Kd_idx = _texs.size() - 1;
             }
 
             tex_name = &mtl.data.specular_texname;
-
             if( !tex_name->empty() ) {
                 if( this->_push_tex( root_dir / *tex_name, "map_Ks", 2, echo ) != 0 )
                     continue;
 
-                mtl.tex_s_idx = _texs.size() - 1;
+                mtl.tex_Ks_idx = _texs.size() - 1;
+            }
+
+            tex_name = &mtl.data.specular_highlight_texname;
+            if( !tex_name->empty() ) {
+                if( this->_push_tex( root_dir / *tex_name, "map_Ns", 3, echo ) != 0 )
+                    continue;
+
+                mtl.tex_Ns_idx = _texs.size() - 1;
             }
         }
 
@@ -664,9 +684,10 @@ _ENGINE_PROTECTED:
     std::vector< _SubMesh >   _sub_meshes;
     struct _Mtl {
         tinyobj::material_t   data;
-        size_t                tex_a_idx   = -1;
-        size_t                tex_d_idx   = -1;
-        size_t                tex_s_idx   = -1;
+        size_t                tex_Ka_idx   = -1;
+        size_t                tex_Kd_idx   = -1;
+        size_t                tex_Ks_idx   = -1;
+        size_t                tex_Ns_idx   = -1;
     };
     std::vector< _Mtl >       _mtls;
     struct _Tex {
@@ -761,7 +782,8 @@ public:
 
             for( auto& burst : sub.bursts ) {
                 for( size_t tex_idx : {
-                    _mtls[ burst.mtl_idx ].tex_a_idx, _mtls[ burst.mtl_idx ].tex_d_idx, _mtls[ burst.mtl_idx ].tex_s_idx
+                    _mtls[ burst.mtl_idx ].tex_Ka_idx, _mtls[ burst.mtl_idx ].tex_Kd_idx, _mtls[ burst.mtl_idx ].tex_Ks_idx,
+                    _mtls[ burst.mtl_idx ].tex_Ns_idx
                 } ) {
                     if( tex_idx == -1 ) continue;
 

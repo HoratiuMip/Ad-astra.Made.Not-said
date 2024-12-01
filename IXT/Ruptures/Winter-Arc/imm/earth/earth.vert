@@ -9,7 +9,7 @@ out VS_OUT {
     vec3      nrm;
     vec3      sun_ray;
     flat vec3 lens;
-    flat mat4 proj;
+    flat mat4 pvm;
 } vs_out;
 
 uniform vec3 sun_pos;
@@ -23,7 +23,7 @@ void main() {
     vs_out.nrm     = nrm;
     vs_out.sun_ray = sun_pos - vrtx;
     vs_out.lens    = lens_pos;
-    vs_out.proj    = proj;
+    vs_out.pvm     = proj * view * model;
 
-    gl_Position = view * model * vec4( vrtx, 1.0 );
+    gl_Position = vec4( vrtx, 1.0 );
 }

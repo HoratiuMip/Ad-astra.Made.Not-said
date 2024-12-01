@@ -65,6 +65,8 @@ int EARTH::main( int argc, char* argv[] ) {
         Renderer3   rend;
         Lens3       lens;
 
+        int         control_scheme   = 1;
+
         struct _UFRM {
             _UFRM()
             : view{ "view", PIMM->lens.view() },
@@ -218,7 +220,7 @@ int EARTH::main( int argc, char* argv[] ) {
                     }
 
                 l_end:
-                    --required_update_count;
+                    required_update_count.fetch_sub( 1, std::memory_order_release );
                 }
             }
 
@@ -234,7 +236,7 @@ int EARTH::main( int argc, char* argv[] ) {
             _SATS& refresh( ELAPSED_ARGS_DECL ) {
                 if( tick.cmpxchg_lap( 1.0 ) ) {
                     if( noaa[ 0 ].pos_cnt.empty() ) {
-                        ++required_update_count;
+                        required_update_count.store( 1, std::memory_order_release );
                         required_update_count.notify_one();
                     } else {
                         noaa[ 0 ].advance_pos();
@@ -256,16 +258,23 @@ int EARTH::main( int argc, char* argv[] ) {
 
 
         _IMM& control( ELAPSED_ARGS_DECL ) {
-            if( surf.down_any( SurfKey::RIGHT, SurfKey::LEFT, SurfKey::UP, SurfKey::DOWN ) ) {
-                if( surf.down( SurfKey::LSHIFT ) ) {
-                    lens.zoom( ( surf.down( SurfKey::UP ) - surf.down( SurfKey::DOWN ) ) * .02 * ela );
-                    lens.roll( ( surf.down( SurfKey::RIGHT ) - surf.down( SurfKey::LEFT ) ) * .03 * ela );
-                } else 
-                    lens.spin_ul( {
-                        ( surf.down( SurfKey::RIGHT ) - surf.down( SurfKey::LEFT ) ) * .03 * ela,
-                        ( surf.down( SurfKey::UP ) - surf.down( SurfKey::DOWN ) ) * .03 * ela
-                    } );
+            static int configd_control_scheme = 0;
+
+            if( configd_control_scheme != control_scheme ) {
+                surf.socket_unplug( this->xtdx() );
+                switch( control_scheme ) {
+                    case 1: {
+                        surf.on< SURFACE_EVENT_SCROLL >( [ & ] ( Vec2 cursor, SURFSCROLL_DIRECTION dir, [[maybe_unused]]auto& ) -> void {
+                            switch( dir ) {
+                                case SURFSCROLL_DIRECTION_UP: lens.zoom( .02 * lens.l2t(), { 1.3, 8.2 } ); break;
+                                case SURFSCROLL_DIRECTION_DOWN: lens.zoom( -.02 * lens.l2t(), { 1.3, 8.2 } ); break;
+                            }
+                        } );
+                    break; }
+                }
+                configd_control_scheme = control_scheme;
             }
+
 
             if( surf.down( SurfKey::COMMA ) )
                 rend.uplink_wireframe();
@@ -281,7 +290,7 @@ int EARTH::main( int argc, char* argv[] ) {
                 if( lcv == lcv_cmp ) goto l_end;
 
                 Vec2 cd = surf.ptr_v() - lcv;
-                cd *= -PEARTH->lens_sens;
+                cd *= -PEARTH->lens_sens * lens.l2t();
 
                 lens.spin_ul( { cd.x, cd.y } );
 
@@ -297,7 +306,7 @@ int EARTH::main( int argc, char* argv[] ) {
             ufrm.view.uplink_bv( lens.view() );
 
             ufrm.rtc.uplink_bv( ufrm.rtc.get() + rela );
-            ufrm.sun.uplink_bv( glm::rotate( ufrm.sun.get(), ( float )( .0036 * ela ), glm::vec3{ 0, 1, 0 } ) );
+            ufrm.sun.uplink_bv( glm::rotate( ufrm.sun.get(), ( float )( .0012 * ela ), glm::vec3{ 0, 1, 0 } ) );
 
             sats.refresh( ELAPSED_ARGS_CALL );
             

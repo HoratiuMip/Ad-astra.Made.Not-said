@@ -5,6 +5,7 @@ in GS_OUT {
     vec2      tex_crd;
     vec3      nrm;
     vec3      sun_ray;
+    float     w_perl;
     flat vec3 lens;
 } gs_in;
 
@@ -23,14 +24,12 @@ void main() {
 
     vec4 city_lights = texture( map_Ka, gs_in.tex_crd ) * 3.0;
 
-    float perlin_fac = 22.2 * sin( rtc / 14.6 );
-
     final = 
         texture( map_Kd, gs_in.tex_crd ) * light 
         + 
         max( city_lights * dark, vec4( 0.0 ) ) * vec4( 1.0, 1.0, 0.8, 1.0 ) 
         + 
-        vec4( 0.0, 0.4, 0.7, 1.0 ) * ( 1.0 - texture( map_Ks, gs_in.tex_crd ).x ) * max( perlin( abs( vec2( 0.5 ) - gs_in.tex_crd ) * perlin_fac ), 0.0 ) * light;
+        vec4( 0.0, 0.4, 0.7, 1.0 ) * ( 1.0 - texture( map_Ks, gs_in.tex_crd ).x ) * gs_in.w_perl * light;
 
     final.w = 1.0;
 }

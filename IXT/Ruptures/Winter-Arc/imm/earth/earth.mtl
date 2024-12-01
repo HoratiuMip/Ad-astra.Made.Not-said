@@ -12,3 +12,4 @@ illum 2
 map_Ka earth_night_lights.png
 map_Kd earth.png
 map_Ks earth_landmask.jpg
+map_Ns earth_altitude.png

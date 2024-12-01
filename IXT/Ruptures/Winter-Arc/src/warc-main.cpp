@@ -5,11 +5,12 @@ namespace warc {
 
 static struct _INTERNAL {
     struct CONFIG {
-        bool          n2yo_mimic     = false;
-        std::string   n2yo_ip;
+        bool          n2yo_mimic        = false;
+        std::string   n2yo_ip           = ""; 
+        int64_t       n2yo_bulk_count   = 180;
 
-        bool          earth_imm      = false;
-        float         earth_imm_ls   = 1.0;
+        bool          earth_imm         = false;
+        float         earth_imm_ls      = 1.0;
 
     }   config;
 
@@ -46,29 +47,30 @@ int MAIN::_parse_proc_from_config( char* argv[], const char* process ) {
         "n2yo_ip", [] ( boost::json::value& v ) -> int { 
             if( auto* str = v.if_string(); str ) {
                 _internal.config.n2yo_ip = *str;
-            } else {
-                WARC_LOG_RT_ERROR << "Ill-formed.";
-                return -1;
+                return 0;
             }
-            return 0;
+            return -1;
         },
         "n2yo_api_key", [ this ] ( boost::json::value& v ) -> int {
             if( auto* str = v.if_string(); str ) {
                 this->_n2yo.api_key = *str;
-            } else {
-                WARC_LOG_RT_ERROR << "Ill-formed.";
-                return -1;
+                return 0;
             }
-            return 0;
+            return -1;
+        },
+        "n2yo_bulk_count", [ this ] ( boost::json::value& v ) -> int {
+            if( auto* n = v.if_int64(); n ) {
+                _internal.config.n2yo_bulk_count = *n;
+                return 0;
+            }
+            return -1;
         },
         "earth_imm_lens_sens", [ this ] ( boost::json::value& v ) -> int {
-            if( auto* flt = v.if_double(); flt ) {
-                _internal.config.earth_imm_ls = *flt;
-            } else {
-                WARC_LOG_RT_ERROR << "Ill-formed.";
-                return -1;
+            if( auto* f = v.if_double(); f ) {
+                _internal.config.earth_imm_ls = *f;
+                return 0;
             }
-            return 0;
+            return -1;
         }
     };
 
@@ -255,7 +257,7 @@ int MAIN::main( int argc, char* argv[] ) {
             }
 
             {
-            auto res = this->_n2yo.quick_position_xchg( _internal.config.n2yo_ip.c_str(), norad_id, 180 );
+            auto res = this->_n2yo.quick_position_xchg( _internal.config.n2yo_ip.c_str(), norad_id, _internal.config.n2yo_bulk_count );
 
             if( res.data.empty() ) return imm::EARTH_SAT_UPDATE_RESULT_WAIT;
             

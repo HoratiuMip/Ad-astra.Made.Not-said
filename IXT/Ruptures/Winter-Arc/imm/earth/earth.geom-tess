@@ -1,0 +1,120 @@
+#version 410 core
+
+layout( triangles ) in;
+layout( triangle_strip, max_vertices = 120 ) out;
+
+in VS_OUT {
+    vec2      tex_crd;
+    vec3      nrm;
+    vec3      sun_ray;
+    flat vec3 lens;
+    flat mat4 pvm;
+} vs_in[];
+
+out GS_OUT {
+    vec2      tex_crd;
+    vec3      nrm;
+    vec3      sun_ray;
+    flat vec3 lens;
+} gs_out;
+
+uniform sampler2D map_Ns;
+
+void barycentrics( in vec3 trig[ 3 ], in vec3 p, out float u, out float v, out float w ) {
+    vec3 v0 = trig[ 1 ] - trig[ 0 ];
+    vec3 v1 = trig[ 2 ] - trig[ 0 ];
+    vec3 v2 = p - trig[ 0 ];
+
+    float d00 = dot( v0, v0 );
+    float d01 = dot( v0, v1 );
+    float d11 = dot( v1, v1 );
+    float d20 = dot( v2, v0 );
+    float d21 = dot( v2, v1 );
+
+    float den = d00 * d11 - d01 * d01;
+
+    v = ( d11 * d20 - d01 * d21 ) / den;
+    w = ( d00 * d21 - d01 * d20 ) / den;
+    u = 1.0 - v - w;
+}
+
+void tesselate_pair( in vec3 org[ 3 ], in vec3 trig_1[ 3 ], in vec3 trig_2[ 3 ], bool last ) {
+    const int SETS_SZ = 6 * 3 + 3;
+    int sets[ SETS_SZ ] = int[](
+        1, 3, 0,
+        1, 4, 3,
+        2, 4, 1,
+        2, 5, 4,
+        0, 5, 2,
+        0, 3, 5,
+
+        3, 4, 5
+    );
+
+    int  count = 0;
+
+    for( int idx = 0; idx < SETS_SZ - float( last == false ) * 3; ++idx ) {
+        vec3 vrtx = sets[ idx ] < 3 ? trig_1[ sets[ idx ] ] : trig_2[ sets[ idx ] - 3 ];
+
+        float u, v, w;
+        barycentrics( org, vrtx, u, v, w );
+
+        gs_out.tex_crd.x = vs_in[ 0 ].tex_crd.x * u + vs_in[ 1 ].tex_crd.x * v + vs_in[ 2 ].tex_crd.x * w;
+        gs_out.tex_crd.y = vs_in[ 0 ].tex_crd.y * u + vs_in[ 1 ].tex_crd.y * v + vs_in[ 2 ].tex_crd.y * w;
+
+        gs_out.nrm.x = vs_in[ 0 ].nrm.x * u + vs_in[ 1 ].nrm.x * v + vs_in[ 2 ].nrm.x * w;
+        gs_out.nrm.y = vs_in[ 0 ].nrm.y * u + vs_in[ 1 ].nrm.y * v + vs_in[ 2 ].nrm.y * w;
+        gs_out.nrm.z = vs_in[ 0 ].nrm.z * u + vs_in[ 1 ].nrm.z * v + vs_in[ 2 ].nrm.z * w;
+
+        gs_out.sun_ray.x = vs_in[ 0 ].sun_ray.x * u + vs_in[ 1 ].sun_ray.x * v + vs_in[ 2 ].sun_ray.x * w;
+        gs_out.sun_ray.y = vs_in[ 0 ].sun_ray.y * u + vs_in[ 1 ].sun_ray.y * v + vs_in[ 2 ].sun_ray.y * w;
+        gs_out.sun_ray.z = vs_in[ 0 ].sun_ray.z * u + vs_in[ 1 ].sun_ray.z * v + vs_in[ 2 ].sun_ray.z * w;
+
+        gs_out.lens = vs_in[ 0 ].lens;
+
+        vrtx += gs_out.nrm * 0.05 * texture( map_Ns, gs_out.tex_crd ).rgb;
+
+        gl_Position = vs_in[ 0 ].pvm * vec4( vrtx, 1.0 );
+
+        EmitVertex();
+
+        ++count;
+        if( count == 3 ) {
+            count = 0;
+            EndPrimitive();
+        }
+    }
+}
+
+void main() {
+    vec3 org[ 3 ]; 
+    org[ 0 ] = vec3( gl_in[ 0 ].gl_Position );
+    org[ 1 ] = vec3( gl_in[ 1 ].gl_Position );
+    org[ 2 ] = vec3( gl_in[ 2 ].gl_Position );
+
+    vec3 G = vec3( org[ 0 ] + org[ 1 ] + org[ 2 ] ) / 3.0;
+
+    vec3 ref[ 3 ] = vec3[](
+        org[ 0 ] - G, org[ 1 ] - G, org[ 2 ] - G
+    );
+
+    vec3 trig_1[ 3 ] = org;
+    vec3 trig_2[ 3 ];
+
+    const int STEP_COUNT = 4;
+
+    float mul_step = 1.0 / float( STEP_COUNT + 2 );
+    float mul      = 1.0;
+
+    for( int step = 1; step <= STEP_COUNT; ++step ) {
+        mul -= mul_step;
+
+        trig_2[ 0 ] = G + ref[ 0 ] * mul;
+        trig_2[ 1 ] = G + ref[ 1 ] * mul;
+        trig_2[ 2 ] = G + ref[ 2 ] * mul;
+
+        tesselate_pair( org, trig_1, trig_2, step == STEP_COUNT );
+
+        trig_1 = trig_2;
+    }
+}

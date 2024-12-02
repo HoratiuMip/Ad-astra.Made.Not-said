@@ -73,7 +73,8 @@ int EARTH::main( int argc, char* argv[] ) {
               proj{ "proj", glm::perspective( glm::radians( 55.0f ), PIMM->surf.aspect(), 0.1f, 1000.0f ) },
               sun{ "sun_pos", glm::vec3{ 180.0 } },
               lens{ "lens_pos", glm::vec3{ 0 } },
-              rtc{ "rtc", 0.0f }
+              rtc{ "rtc", 0.0f },
+              highlight{ "highlight", glm::vec4{ 0.0, -1.0, 0.0, 0.0 } }
             {}
 
             Uniform3< glm::mat4 >   view;
@@ -81,22 +82,27 @@ int EARTH::main( int argc, char* argv[] ) {
             Uniform3< glm::vec3 >   sun;
             Uniform3< glm::vec3 >   lens;
             Uniform3< glm::f32 >    rtc;
+            Uniform3< glm::vec4 >   highlight;
             
         } ufrm;
 
         struct _EARTH {
             _EARTH() 
-            : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"earth/", "earth", MESH3_FLAG_MAKE_SHADING_PIPE }
+            : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"earth/", "earth", MESH3_FLAG_MAKE_SHADING_PIPE },
+              sat_poss{ "sat_poss" }
             {
                 mesh.model.uplink_v( glm::rotate( glm::mat4{ 1.0 }, -PIf / 2.0f, glm::vec3{ 0, 1, 0 } ) * mesh.model.get() );
 
                 mesh.pipe->pull( 
                     PIMM_UFRM->view, PIMM_UFRM->proj, 
-                    PIMM_UFRM->sun, PIMM_UFRM->rtc 
+                    PIMM_UFRM->sun, PIMM_UFRM->rtc,
+                    PIMM_UFRM->highlight,
+                    this->sat_poss
                 );
             }
 
-            Mesh3   mesh;
+            Mesh3                        mesh;
+            Uniform3< glm::vec3[ 3 ] >   sat_poss;
         } earth;
 
         struct _GALAXY {
@@ -117,22 +123,18 @@ int EARTH::main( int argc, char* argv[] ) {
 
         struct _SATS {
             _SATS() 
-            : noaa{ { sat::NORAD_ID_NOAA_15 }, { sat::NORAD_ID_NOAA_18 }, { sat::NORAD_ID_NOAA_19 } },
-              highlight{ "highlight", glm::vec4{ 0.541, 0.0, 1.0, 0.0 } }
+            : noaa{ { sat::NORAD_ID_NOAA_15 }, { sat::NORAD_ID_NOAA_18 }, { sat::NORAD_ID_NOAA_19 } }
             {
                 hth_update = std::thread{ th_update, this };
 
                 for( auto& s : noaa )
-                    s.mesh.pipe->pull( highlight );
-                highlight.uplink_b();
+                    s.mesh.pipe->pull( PIMM_UFRM->highlight );
             }
  
             Ticker                  tick;
             std::thread             hth_update;
-            std::atomic< int >      required_update_count   { 0 };
+            std::atomic< int >      required_update_count   = 0;
             bool                    attempt_update          = true;
-            Uniform3< glm::vec4 >   highlight;
-            int                     highlight_state         = 0;
 
             struct _SAT_NOAA {
                 _SAT_NOAA( sat::NORAD_ID nid )
@@ -158,11 +160,15 @@ int EARTH::main( int argc, char* argv[] ) {
                 }
 
                 sat::NORAD_ID                 norad_id;     
+
                 glm::mat4                     base_model;
                 glm::vec3                     base_pos;
                 Mesh3                         mesh;
                 glm::vec3                     pos;
+
+                std::mutex                    pos_cnt_mtx;
                 std::deque< sat::POSITION >   pos_cnt;
+                std::atomic< int >            pos_cnt_update_required   = false;
 
                 _SAT_NOAA& pos_to( glm::vec3 n_pos ) {
                     mesh.model.uplink_v( 
@@ -212,22 +218,31 @@ int EARTH::main( int argc, char* argv[] ) {
                         return;
 
                     for( auto& s : noaa ) {
-                        if( !attempt_update ) goto l_end;
+                        if( !attempt_update ) {
+                            WARC_LOG_RT_THAT_WARNING( PEARTH ) << "Will not attempt to update sattelite.";
+                            break;
+                        }
 
-                        switch( PEARTH->_sat_update_func( s.norad_id, s.pos_cnt ) ) {
+                        if( !s.pos_cnt_update_required.load( std::memory_order_acquire ) ) continue;
+
+                        std::unique_lock lock{ s.pos_cnt_mtx };
+                        auto result = PEARTH->_sat_update_func( s.norad_id, s.pos_cnt );
+                        lock.unlock();
+
+                        switch( result ) {
                             case EARTH_SAT_UPDATE_RESULT_OK: break;
                             case EARTH_SAT_UPDATE_RESULT_REJECT: break;
                             case EARTH_SAT_UPDATE_RESULT_RETRY: break;
 
-                            case EARTH_SAT_UPDATE_RESULT_WAIT: {
+                            case EARTH_SAT_UPDATE_RESULT_HOLD: {
                                 attempt_update = false;
-                                WARC_LOG_RT_THAT_WARNING( PEARTH ) << "Satellite position update request responded with \"WAIT\".";
+                                WARC_LOG_RT_THAT_WARNING( PEARTH ) << "Satellite position updater requests \"HOLD\".";
                             break; }
                         }
-                    }
 
-                l_end:
-                    required_update_count.fetch_sub( 1, std::memory_order_release );
+                        s.pos_cnt_update_required.store( false, std::memory_order_release );
+                        required_update_count.fetch_sub( 1, std::memory_order_release );
+                    }
                 }
             }
 
@@ -241,19 +256,25 @@ int EARTH::main( int argc, char* argv[] ) {
             }
             
             _SATS& refresh( ELAPSED_ARGS_DECL ) {
-                if( tick.cmpxchg_lap( 1.0 ) ) { std::cout << "ENT " << noaa[ 0 ].pos_cnt.size() << '\n';
-                    if( noaa[ 0 ].pos_cnt.empty() ) {
-                        required_update_count.store( 1, std::memory_order_release );
-                        required_update_count.notify_one();
-                    } else {
-                        noaa[ 0 ].advance_pos();
-                        noaa[ 1 ].advance_pos();
-                        noaa[ 2 ].advance_pos();
-                    } std::cout << "EXT " << noaa[ 0 ].pos_cnt.size() << '\n';
-                }
+                if( tick.cmpxchg_lap( 1.0 ) ) {
+                    for( int idx = 0; idx < 3; ++idx ) {
+                        _SAT_NOAA& s = noaa[ idx ];
 
-                highlight.get().r = highlight.get().b = 0.2 + ( 1.0 + glm::pow( sin( tick.up_time() * 9.6 ), 3.0 ) );
-                highlight.uplink_b();
+                        std::unique_lock lock{ s.pos_cnt_mtx, std::defer_lock_t{} };
+
+                        if( !lock.try_lock() ) continue;
+
+                        if( s.pos_cnt.empty() ) {
+                            s.pos_cnt_update_required.store( true, std::memory_order_seq_cst );
+                            required_update_count.fetch_add( 1, std::memory_order_seq_cst );
+                            required_update_count.notify_one();
+                        } else {
+                            s.advance_pos();
+                            PIMM->earth.sat_poss.get()[ idx ] = s.pos; /* ( &s - noaa ) / sizeof( _SAT_NOAA ) - always 0, why Ahri? */
+                        }
+                    }
+                    PIMM->earth.sat_poss.uplink_b();
+                }
 
                 return *this;
             }
@@ -261,19 +282,6 @@ int EARTH::main( int argc, char* argv[] ) {
             _SATS& splash( ELAPSED_ARGS_DECL ) {
                 for( auto& s : noaa )
                     s.splash( ELAPSED_ARGS_CALL );
-
-                if( highlight_state == 1 ) {
-                    highlight.get().a = 1.0 - highlight.get().a;
-                    highlight.uplink_b();
-
-                    PIMM->rend.uplink_wireframe();
-                    for( auto& s : noaa )
-                        s.splash( ELAPSED_ARGS_CALL );
-                    PIMM->rend.downlink_wireframe();
-
-                    highlight.get().a = 1.0 - highlight.get().a;
-                    highlight.uplink_b();
-                }
 
                 return *this;
             }
@@ -299,7 +307,7 @@ int EARTH::main( int argc, char* argv[] ) {
                             if( state == SURFKEY_STATE_UP ) {
                                 switch( key ) {
                                     case SurfKey::SPACE: {
-                                        sats.highlight_state ^= 1;
+                                        ufrm.highlight.get().a = 1.0 - ufrm.highlight.get().a;
                                     break; }
                                 }
                             }
@@ -336,6 +344,10 @@ int EARTH::main( int argc, char* argv[] ) {
         }
 
         _IMM& refresh( ELAPSED_ARGS_DECL ) {
+            ufrm.highlight.get().r = ufrm.highlight.get().b = 0.2 + ( 1.0 + glm::pow( sin( sats.tick.up_time() * 8.6 ), 3.0 ) );
+            ufrm.highlight.get().b *= 0.82;
+            ufrm.highlight.uplink_b();
+
             ufrm.lens.uplink_bv( lens.pos );
             ufrm.view.uplink_bv( lens.view() );
 

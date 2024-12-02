@@ -9,18 +9,20 @@ in VS_OUT {
     vec3      nrm;
     vec3      sun_ray;
     flat vec3 lens;
-    flat mat4 pvm;
+    flat mat4 pv;
 } vs_in[];
 
 out GS_OUT {
     vec2      tex_crd;
     vec3      nrm;
     vec3      sun_ray;
+    float     sat_dists[ 3 ];
     float     w_perl;
     flat vec3 lens;
 } gs_out;
 
 uniform float     rtc;
+uniform vec3      sat_poss[ 3 ];
 uniform sampler2D map_Ks;
 uniform sampler2D map_Ns;
 
@@ -46,7 +48,13 @@ void main() {
 
         alt += ( 1.0 - texture( map_Ks, vs_in[ idx ].tex_crd ).r ) * w_perl * 0.22;
 
-        gl_Position = vs_in[ 0 ].pvm * ( gl_in[ idx ].gl_Position + vec4( nrm * alt, 0.0) );
+        gl_Position = ( gl_in[ idx ].gl_Position + vec4( nrm * alt, 0.0) );
+
+        for( int sidx = 0; sidx < 3; ++sidx ) {
+            gs_out.sat_dists[ sidx ] = distance( vec3( gl_Position ), sat_poss[ sidx ] );
+        }
+
+        gl_Position = vs_in[ 0 ].pv * gl_Position;
         EmitVertex();
     }
     EndPrimitive();

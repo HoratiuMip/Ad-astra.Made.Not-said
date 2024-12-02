@@ -165,6 +165,8 @@ int MAIN::_parse_proc_earth_imm( char* argv[], const char* process ) {
 int MAIN::_parse_opts( int argc, char* argv[] ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_opts()" );
 
+    int status = 0;
+
     WARC_LOG_RT_INTEL << "Starting option parsing."; 
 
     struct _OPT {
@@ -191,6 +193,7 @@ int MAIN::_parse_opts( int argc, char* argv[] ) {
 
         if( record == opts + optc ) {
             WARC_LOG_RT_WARNING << "Ignoring invalid option \"" << opt << "\".";
+            status -= 1;
             continue;
         }
 
@@ -207,7 +210,8 @@ int MAIN::_parse_opts( int argc, char* argv[] ) {
             } )()
         ) {
             WARC_LOG_RT_ERROR << "Not enough arguments for option \"" << opt << "\", (" << record->argc << ") required.\n";
-            return -1;
+            status -= 1;
+            continue;
         }
 
         WARC_LOG_RT_INTEL << "Executing procedure for option \"" << opt << "\".";
@@ -218,8 +222,11 @@ int MAIN::_parse_opts( int argc, char* argv[] ) {
         WARC_LOG_RT_OK << "Procedure for option \"" << opt << "\" completed successfully.";
     }  
 
-    WARC_LOG_RT_OK << "Option parsing completed successfully.\n";
-    return 0; 
+    if( status == 0 )
+        WARC_LOG_RT_OK << "Option parsing complete.\n";
+    else
+        WARC_LOG_RT_WARNING << "Option parsing incomplete.\n";
+    return status; 
 }
 
 
@@ -259,7 +266,7 @@ int MAIN::main( int argc, char* argv[] ) {
             {
             auto res = this->_n2yo.quick_position_xchg( _internal.config.n2yo_ip.c_str(), norad_id, _internal.config.n2yo_bulk_count );
 
-            if( res.data.empty() ) return imm::EARTH_SAT_UPDATE_RESULT_WAIT;
+            if( res.data.empty() ) return imm::EARTH_SAT_UPDATE_RESULT_HOLD;
             
             positions.assign( res.data.begin(), res.data.end() );
             }

@@ -280,15 +280,21 @@ public:
 
     Uniform3( 
         const char* name, 
-        const T&    under = {}, 
+        const T&    under, 
         _ENGINE_COMMS_ECHO_ARG 
     ) : Uniform3Unknwn{ name, echo }, _under{ under }
     {}
 
     Uniform3( 
+        const char* name, 
+        _ENGINE_COMMS_ECHO_ARG 
+    ) : Uniform3Unknwn{ name, echo }
+    {}
+
+    Uniform3( 
         ShadingPipe3& pipe,
         const char*   name, 
-        const T&      under = {}, 
+        const T&      under, 
         _ENGINE_COMMS_ECHO_ARG 
     ) : Uniform3Unknwn{ pipe, name, echo }, _under{ under }
     {}
@@ -374,7 +380,10 @@ template<> inline DWORD Uniform3< glm::mat4 >::_uplink( GLuint loc ) {
     glUniformMatrix4fv( loc, 1, GL_FALSE, glm::value_ptr( _under ) ); 
     return 0;
 }
-
+template< > inline DWORD Uniform3< glm::vec3[ 3 ] >::_uplink( GLuint loc ) {
+    glUniform3fv( loc, sizeof( _under ) / sizeof( glm::vec3 ), ( GLfloat* )_under  ); 
+    return 0;
+}
 
 
 class Lens3 : public Descriptor {

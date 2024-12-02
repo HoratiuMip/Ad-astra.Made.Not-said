@@ -241,7 +241,7 @@ int EARTH::main( int argc, char* argv[] ) {
             }
             
             _SATS& refresh( ELAPSED_ARGS_DECL ) {
-                if( tick.cmpxchg_lap( 1.0 ) ) {
+                if( tick.cmpxchg_lap( 1.0 ) ) { std::cout << "ENT " << noaa[ 0 ].pos_cnt.size() << '\n';
                     if( noaa[ 0 ].pos_cnt.empty() ) {
                         required_update_count.store( 1, std::memory_order_release );
                         required_update_count.notify_one();
@@ -249,7 +249,7 @@ int EARTH::main( int argc, char* argv[] ) {
                         noaa[ 0 ].advance_pos();
                         noaa[ 1 ].advance_pos();
                         noaa[ 2 ].advance_pos();
-                    }
+                    } std::cout << "EXT " << noaa[ 0 ].pos_cnt.size() << '\n';
                 }
 
                 highlight.get().r = highlight.get().b = 0.2 + ( 1.0 + glm::pow( sin( tick.up_time() * 9.6 ), 3.0 ) );
@@ -298,7 +298,7 @@ int EARTH::main( int argc, char* argv[] ) {
                         surf.on< SURFACE_EVENT_KEY >( [ & ] ( SurfKey key, SURFKEY_STATE state, [[maybe_unused]]auto& ) -> void {
                             if( state == SURFKEY_STATE_UP ) {
                                 switch( key ) {
-                                    case SurfKey::H: {
+                                    case SurfKey::SPACE: {
                                         sats.highlight_state ^= 1;
                                     break; }
                                 }

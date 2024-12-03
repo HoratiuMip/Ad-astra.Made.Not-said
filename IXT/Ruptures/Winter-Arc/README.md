@@ -52,8 +52,7 @@ Cool description here.
 
 > - This program targets real-time tracking of `NOAA-x` | computing `NOAA-x` future orbits | on-demand, over-the-internet satellite image capturing.
 > ![warc-soft](https://github.com/user-attachments/assets/af779d77-e20a-4efb-b664-691f78f4071b)
-> - Messed around with terrain and waves.
-> ![warc_soft-2](https://github.com/user-attachments/assets/c62edb40-a90e-4dda-9319-3c40dea40824)
+> - More. https://github.com/user-attachments/assets/baadc90d-1e94-4a7c-ad9f-31e88b95c8ef
 
 ## Manuals
 > I. [Winter-Arc-Hardware](#Winter-Arc-Hardware)

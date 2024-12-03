@@ -314,6 +314,10 @@ public:
     operator T& () { return this->get(); }
     operator const T& () const { return this->get(); }
 
+    T* operator -> () {
+        return &_under;
+    }
+
 public:
     Uniform3& operator = ( const T& under ) {
         _under = under;
@@ -360,6 +364,10 @@ _ENGINE_PROTECTED:
 };
 
 
+template<> inline DWORD Uniform3< bool >::_uplink( GLuint loc ) {
+    glUniform1i( loc, ( glm::u32 )_under ); 
+    return 0;
+}
 template<> inline DWORD Uniform3< glm::u32 >::_uplink( GLuint loc ) {
     glUniform1i( loc, _under ); 
     return 0;

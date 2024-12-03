@@ -9,7 +9,8 @@ in VS_OUT {
 
 out vec4 final;
 
-uniform vec4      highlight;
+uniform float     sat_high;      
+uniform vec3      high_spec;
 uniform sampler2D map_Kd;
 
 void main() {
@@ -18,9 +19,9 @@ void main() {
     final = texture( map_Kd, vs_out.tex_crd );
     final.r *= 0.86;
 
-    final *= ( 1.0 - highlight.a );
-    final += highlight * highlight.a;
+    final *= ( 1.0 - sat_high );
+    final += vec4( high_spec, 0.0 ) * sat_high;
     
-    gl_FragDepth = gl_FragCoord.z * ( 1.0 - highlight.a );
+    gl_FragDepth = gl_FragCoord.z * ( 1.0 - sat_high );
     final.w = 1.0;
 }

@@ -66,6 +66,7 @@ int EARTH::main( int argc, char* argv[] ) {
         Lens3       lens;
 
         int         control_scheme   = 1;
+        bool        cinematic        = false;
 
         struct _UFRM {
             _UFRM()
@@ -74,7 +75,7 @@ int EARTH::main( int argc, char* argv[] ) {
               sun{ "sun_pos", glm::vec3{ 180.0 } },
               lens{ "lens_pos", glm::vec3{ 0 } },
               rtc{ "rtc", 0.0f },
-              highlight{ "highlight", glm::vec4{ 0.0, -1.0, 0.0, 0.0 } }
+              sat_high{ "sat_high", 0.0f }
             {}
 
             Uniform3< glm::mat4 >   view;
@@ -82,27 +83,29 @@ int EARTH::main( int argc, char* argv[] ) {
             Uniform3< glm::vec3 >   sun;
             Uniform3< glm::vec3 >   lens;
             Uniform3< glm::f32 >    rtc;
-            Uniform3< glm::vec4 >   highlight;
+            Uniform3< glm::f32 >    sat_high;
             
         } ufrm;
 
         struct _EARTH {
             _EARTH() 
             : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"earth/", "earth", MESH3_FLAG_MAKE_SHADING_PIPE },
-              sat_poss{ "sat_poss" }
+              sat_poss{ "sat_poss" },
+              sat_high_specs{ "sat_high_specs" }
             {
                 mesh.model.uplink_v( glm::rotate( glm::mat4{ 1.0 }, -PIf / 2.0f, glm::vec3{ 0, 1, 0 } ) * mesh.model.get() );
 
                 mesh.pipe->pull( 
                     PIMM_UFRM->view, PIMM_UFRM->proj, 
                     PIMM_UFRM->sun, PIMM_UFRM->rtc,
-                    PIMM_UFRM->highlight,
-                    this->sat_poss
+                    PIMM_UFRM->sat_high,
+                    this->sat_poss, this->sat_high_specs
                 );
             }
 
             Mesh3                        mesh;
             Uniform3< glm::vec3[ 3 ] >   sat_poss;
+            Uniform3< glm::vec3[ 3 ] >   sat_high_specs;
         } earth;
 
         struct _GALAXY {
@@ -127,8 +130,9 @@ int EARTH::main( int argc, char* argv[] ) {
             {
                 hth_update = std::thread{ th_update, this };
 
-                for( auto& s : noaa )
-                    s.mesh.pipe->pull( PIMM_UFRM->highlight );
+                for( auto& s : noaa ) {
+                    s.mesh.pipe->pull( PIMM_UFRM->sat_high );
+                }
             }
  
             Ticker                  tick;
@@ -139,7 +143,8 @@ int EARTH::main( int argc, char* argv[] ) {
             struct _SAT_NOAA {
                 _SAT_NOAA( sat::NORAD_ID nid )
                 : norad_id{ nid },
-                  mesh{ WARC_RUPTURE_IMM_ROOT_DIR"sat_noaa/", "sat_noaa", MESH3_FLAG_MAKE_SHADING_PIPE }
+                  mesh{ WARC_RUPTURE_IMM_ROOT_DIR"sat_noaa/", "sat_noaa", MESH3_FLAG_MAKE_SHADING_PIPE },
+                  high_spec{ "high_spec", glm::vec3{ 0.0 } }
                 {
                     pos = base_pos = glm::vec4{ .0, .0, 1.086, 1.0 };
                     base_model = glm::scale( glm::mat4{ 1.0 }, glm::vec3{ 1.0 / 21.8 / 13.224987 } );
@@ -151,11 +156,20 @@ int EARTH::main( int argc, char* argv[] ) {
                         base_model 
                     );
 
+                    switch( this->norad_id ) {
+                        case sat::NORAD_ID_NOAA_15: base_high_spec = glm::vec3( 0.9, 0.7, 0.0 ); break;
+                        case sat::NORAD_ID_NOAA_18: base_high_spec = glm::vec3( 0.7, 0.0, 0.82 ); break;
+                        case sat::NORAD_ID_NOAA_19: base_high_spec = glm::vec3( 0.8, 0.3, 0 ); break;
+
+                        default: base_high_spec = glm::vec3( 1.0, 0.0, 0.82 ); break;
+                    }
+
                     mesh.pipe->pull(
                         PIMM_UFRM->view,
                         PIMM_UFRM->proj,
                         PIMM_UFRM->sun,
-                        PIMM_UFRM->lens
+                        PIMM_UFRM->lens,
+                        this->high_spec
                     );
                 }
 
@@ -163,8 +177,10 @@ int EARTH::main( int argc, char* argv[] ) {
 
                 glm::mat4                     base_model;
                 glm::vec3                     base_pos;
+                glm::vec3                     base_high_spec;
                 Mesh3                         mesh;
                 glm::vec3                     pos;
+                Uniform3< glm::vec3 >         high_spec;
 
                 std::mutex                    pos_cnt_mtx;
                 std::deque< sat::POSITION >   pos_cnt;
@@ -220,9 +236,10 @@ int EARTH::main( int argc, char* argv[] ) {
                     for( auto& s : noaa ) {
                         if( !attempt_update ) {
                             WARC_LOG_RT_THAT_WARNING( PEARTH ) << "Will not attempt to update sattelite.";
-                            break;
+                            goto l_end;
                         }
 
+                        {
                         if( !s.pos_cnt_update_required.load( std::memory_order_acquire ) ) continue;
 
                         std::unique_lock lock{ s.pos_cnt_mtx };
@@ -239,7 +256,9 @@ int EARTH::main( int argc, char* argv[] ) {
                                 WARC_LOG_RT_THAT_WARNING( PEARTH ) << "Satellite position updater requests \"HOLD\".";
                             break; }
                         }
-
+                        
+                        }
+                    l_end:
                         s.pos_cnt_update_required.store( false, std::memory_order_release );
                         required_update_count.fetch_sub( 1, std::memory_order_release );
                     }
@@ -290,10 +309,12 @@ int EARTH::main( int argc, char* argv[] ) {
 
 
         _IMM& control( ELAPSED_ARGS_DECL ) {
-            static int configd_control_scheme = 0;
+            static Ticker tick;
+            static int    configd_control_scheme = 0;
 
             if( configd_control_scheme != control_scheme ) {
                 surf.socket_unplug( this->xtdx() );
+
                 switch( control_scheme ) {
                     case 1: {
                         surf.on< SURFACE_EVENT_SCROLL >( [ & ] ( Vec2 cursor, SURFSCROLL_DIRECTION dir, [[maybe_unused]]auto& ) -> void {
@@ -304,12 +325,18 @@ int EARTH::main( int argc, char* argv[] ) {
                         } );
 
                         surf.on< SURFACE_EVENT_KEY >( [ & ] ( SurfKey key, SURFKEY_STATE state, [[maybe_unused]]auto& ) -> void {
-                            if( state == SURFKEY_STATE_UP ) {
-                                switch( key ) {
-                                    case SurfKey::SPACE: {
-                                        ufrm.highlight.get().a = 1.0 - ufrm.highlight.get().a;
-                                    break; }
-                                }
+                            switch( key ) {
+                                case SurfKey::SPACE: {
+                                    if( state != SURFKEY_STATE_UP ) break;
+                                    ufrm.sat_high.get() = 1.0 - ufrm.sat_high.get();
+                                break; }
+
+                                case SurfKey::RMB: {
+                                    state == SURFKEY_STATE_DOWN ? surf.hide_def_ptr() : surf.show_def_ptr();
+
+                                    if( state == SURFKEY_STATE_DOWN && tick.lap() <= 0.2 )
+                                        cinematic ^= true;
+                                break; }
                             }
                         } );    
                     break; }
@@ -323,30 +350,57 @@ int EARTH::main( int argc, char* argv[] ) {
             if( surf.down( SurfKey::DOT ) )
                 rend.downlink_wireframe();
 
+
+            if( cinematic ) {
+                lens.spin_ul( { 0.004 * ela, sin( ufrm.rtc.get() / 2.2 ) * 0.001 }, { -82.0, 82.0 } );
+            }
             
+            static bool cursor_anchored = false;
+            static Crd2 cursor_last     = Vec2::O();
             if( surf.down( SurfKey::RMB ) ) {
-                static Vec2 vel     = {};
-                static Vec2 lcv_cmp = {};
+                if( !cursor_anchored ) {
+                    cursor_last = surf.ptr_c();
+                    surf.ptr_reset();
+                    SurfPtr::env_to( { 0.5, 0.5 } );
+                    cursor_anchored = true;
 
-                Vec2 lcv = surf.ptr_pv();
-                if( lcv == lcv_cmp ) goto l_end;
+                    goto l_end_cursor;
+                }
 
-                Vec2 cd = surf.ptr_v() - lcv;
+                Vec2 cd = surf.ptr_v();
+                if( cd == Vec2::O() ) goto l_end_cursor;
                 cd *= -PEARTH->lens_sens * lens.l2t();
 
-                lens.spin_ul( { cd.x, cd.y } );
+                lens.spin_ul( { cd.x, cd.y }, { -82.0, 82.0 } );
+                SurfPtr::env_to( { 0.5, 0.5 } );
 
-                lcv_cmp = lcv;
+            } else if( cursor_anchored ) {
+                SurfPtr::env_to( cursor_last ); 
+                cursor_anchored = false;
             }
+        l_end_cursor:
 
-        l_end:
             return *this;
         }
 
         _IMM& refresh( ELAPSED_ARGS_DECL ) {
-            ufrm.highlight.get().r = ufrm.highlight.get().b = 0.2 + ( 1.0 + glm::pow( sin( sats.tick.up_time() * 8.6 ), 3.0 ) );
-            ufrm.highlight.get().b *= 0.82;
-            ufrm.highlight.uplink_b();
+            ggfloat_t high_fac = 0.2 + ( 1.0 + glm::pow( sin( sats.tick.up_time() * 8.6 ), 3.0 ) );
+
+            for( int idx = 0; idx < 3; ++idx ) {
+                auto& s = sats.noaa[ idx ];
+
+                s.high_spec.uplink_bv(
+                    s.base_high_spec
+                    *
+                    glm::vec3{ high_fac }
+                    *
+                    glm::vec3{ 1.0f, ( float )!s.pos_cnt.empty(), ( float )!s.pos_cnt.empty() }
+                );
+                
+                earth.sat_high_specs.get()[ idx ] = s.high_spec.get();
+            }
+            earth.sat_high_specs.uplink_b();
+            ufrm.sat_high.uplink_b();
 
             ufrm.lens.uplink_bv( lens.pos );
             ufrm.view.uplink_bv( lens.view() );

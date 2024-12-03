@@ -1,11 +1,12 @@
 #version 410 core
+//IXT#include <../common.glsl>
 //IXT#include <../perlin.glsl>
 
 in GS_OUT {
     vec2      tex_crd;
     vec3      nrm;
     vec3      sun_ray;
-    float     sat_dists[ 3 ];
+    float     sat_dists[ SAT_COUNT ];
     float     w_perl;
     flat vec3 lens;
 } gs_in;
@@ -13,7 +14,8 @@ in GS_OUT {
 out vec4 final;
 
 uniform float     rtc;
-uniform vec4      highlight;
+uniform float     sat_high;
+uniform vec3      sat_high_specs[ SAT_COUNT ];
 uniform sampler2D map_Ka;
 uniform sampler2D map_Kd;
 uniform sampler2D map_Ks;
@@ -33,7 +35,7 @@ void main() {
         + 
         vec4( 0.0, 0.4, 0.7, 1.0 ) * ( 1.0 - texture( map_Ks, gs_in.tex_crd ).x ) * gs_in.w_perl * light;
 
-    if( highlight.a != 0.0 && bool( int( floor( ( gs_in.tex_crd.x + gs_in.tex_crd.y ) * 100.0 ) ) & 1 ) ) {
+    if( sat_high != 0.0 && bool( int( floor( ( gs_in.tex_crd.x + gs_in.tex_crd.y ) * 100.0 ) ) & 1 ) ) {
         // 3,116,988m --- sat tx radius
         // 6,378,137m --- earth radius
         // 809,000m   --- sat mean apogee perigee  // CAUTION: THIS HEAVILY ENJINIRD NUMBERS GAVE A HEAVILY ENJINIRD RESULT ( is pretty good actually nice )
@@ -41,15 +43,21 @@ void main() {
         // 3,220,263m --- longest sat to earth
         const float OUTTER_DIST = 0.504;
 
-        float longest_dist = 0.0;
+        float longest_dist     = 0.0;
+        int   furthest_sat_idx = 0;
 
-        for( int sidx = 0; sidx < 3; ++sidx ) {
+        for( int sidx = 0; sidx < SAT_COUNT; ++sidx ) {
             if( gs_in.sat_dists[ sidx ] > OUTTER_DIST ) continue;
 
-            if( gs_in.sat_dists[ sidx ] > longest_dist ) longest_dist = gs_in.sat_dists[ sidx ];
+            if( gs_in.sat_dists[ sidx ] > longest_dist ) {
+                longest_dist = gs_in.sat_dists[ sidx ];
+                furthest_sat_idx = sidx;
+            }
         }
 
-        final.rgb = mix( final.rgb, vec3( 1.0, 0.0, 0.82 ), highlight.r * pow( longest_dist / OUTTER_DIST, 4.0 ) ); 
+        vec3 sat_high_spec = sat_high_specs[ furthest_sat_idx ];
+
+        final.rgb = mix( final.rgb, sat_high_spec, sat_high_spec.r * pow( longest_dist / OUTTER_DIST, 4.0 ) ); 
     } 
 
     final.w = 1.0;

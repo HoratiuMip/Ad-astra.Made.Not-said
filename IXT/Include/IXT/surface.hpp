@@ -383,6 +383,11 @@ public:
         return pull_normal_axis( _prev_pointer );
     }
 
+public:
+    void ptr_reset() {
+        _pointer = _prev_pointer = Vec2::O();
+    }
+
 };
 
 enum SURFACE_STYLE {
@@ -1237,6 +1242,10 @@ public:
         POINT p; GetCursorPos( &p );
 
         return { static_cast< ggfloat_t >( p.x ), static_cast< ggfloat_t >( p.y ) };
+    }
+
+    static void env_to( Crd2 crd ) {
+        SetCursorPos( crd.x * Env::width(), crd.y * Env::height() );
     }
 
 };

@@ -3,12 +3,12 @@
 //IXT#include <../perlin.glsl>
 
 in GS_OUT {
-    vec2      tex_crd;
-    vec3      nrm;
-    vec3      sun_ray;
-    float     sat_dists[ SAT_COUNT ];
-    float     w_perl;
-    flat vec3 lens;
+    vec2    tex_crd;
+    vec3    nrm;
+    vec3    sun_ray;
+    float   sat_dists[ SAT_COUNT ];
+    float   w_perl;
+    vec3    lens2vrtx;
 } gs_in;
 
 out vec4 final;
@@ -33,7 +33,7 @@ void main() {
         + 
         max( city_lights * dark, vec4( 0.0 ) ) * vec4( 1.0, 1.0, 0.8, 1.0 ) 
         + 
-        vec4( 0.0, 0.4, 0.7, 1.0 ) * ( 1.0 - texture( map_Ks, gs_in.tex_crd ).x ) * gs_in.w_perl * light;
+        vec4( 0.0, 0.32, 0.62, 1.0 ) * ( 1.0 - texture( map_Ks, gs_in.tex_crd ).s ) * gs_in.w_perl * light;
 
     if( sat_high != 0.0 && bool( int( floor( ( gs_in.tex_crd.x + gs_in.tex_crd.y ) * 100.0 ) ) & 1 ) ) {
         // 3,116,988m --- sat tx radius
@@ -60,5 +60,19 @@ void main() {
         final.rgb = mix( final.rgb, sat_high_spec, sat_high_spec.r * pow( longest_dist / OUTTER_DIST, 4.0 ) ); 
     } 
 
+    float lens_flare_deg = degrees( acos( dot( gs_in.nrm, gs_in.lens2vrtx ) / ( length( gs_in.nrm ) * length( gs_in.lens2vrtx ) ) ) );
+
+    const float LENS_FBR = 16.0;
+    const float LENS_FFR = 32.0;
+    if( lens_flare_deg <= 90.0 + LENS_FBR && lens_flare_deg >= 90.0 - LENS_FFR ) {
+        float diff   = 90.0 - lens_flare_deg;
+        bool  is_fwd = diff >= 0.0; 
+
+        final.rgb = mix( 
+            final.rgb, vec3( ( 1.0 - light ) * 0.8, 0.62, 0.8 ), 
+            ( 1.0 - abs( 90.0 - lens_flare_deg ) / float( is_fwd ? LENS_FFR : LENS_FBR ) ) * 0.8
+        );
+    }
+    
     final.w = 1.0;
 }

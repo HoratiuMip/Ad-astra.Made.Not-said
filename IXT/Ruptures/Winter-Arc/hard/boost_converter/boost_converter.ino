@@ -17,23 +17,23 @@ const struct _IO {
 } IO;
 
 struct _BOOST_PWM {
-  double   freq   = 56e3;
-  double   duty   = 0.1;
+  inline static const double TOP_FREQ = 32e3;
 
-  double     _T      = 0.0;
+  double   freq   = TOP_FREQ;
+  double   duty   = 0.92;
+
+  uint32_t   _T      = 0.0;
   uint32_t   _ton    = 0.0;
   uint32_t   _toff   = 0.0;
 
   inline void calibrate() {
-    _T    = 1.0 / freq;
-    _ton  = duty * _T * 1e6;
-    _toff = ( 1.0 - duty ) * _T * 1e6;
+    _T    = ( 1.0 / freq ) * 1e6;
+    _ton  = ( duty * _T );
+    _toff = ( ( 1.0 - duty ) * _T );
   }
 
   inline void refresh() {
-    this->freq = ( double )analogRead( IO.pin.IN_BOOST_PWM_FREQ ) / IO.pin.ADC_REZ;
-    this->freq *= 64e3;
-    this->calibrate();
+    analogRead( IO.pin.IN_BOOST_PWM_FREQ );
   }
 
   int setup() {
@@ -50,7 +50,7 @@ void setup() {
   result = boost_pwm.setup();
 
   TCCR1A = 0;
-  TCCR1B = 0b00000101;
+  TCCR1B = 0b00000100;
   TIMSK1 = ( 1 << TOIE1 );
 }
 
@@ -59,15 +59,13 @@ ISR( TIMER1_OVF_vect ) {
 }
 
 void loop() {
-    noInterrupts();
+  digitalWrite( IO.pin.OUT_BOOST_PWM, HIGH );
+  delayMicroseconds( boost_pwm._ton );
 
-    delayMicroseconds( boost_pwm._ton );
-    digitalWrite( IO.pin.OUT_BOOST_PWM, HIGH );
-    
-    delayMicroseconds( boost_pwm._toff );
-    digitalWrite( IO.pin.OUT_BOOST_PWM, LOW );
-    
-    interrupts();
+  noInterrupts();
+  digitalWrite( IO.pin.OUT_BOOST_PWM, LOW );
+  delayMicroseconds( boost_pwm._toff );
+  interrupts();
 }
 
 

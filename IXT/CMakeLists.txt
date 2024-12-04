@@ -7,54 +7,64 @@ set( CMAKE_CXX_EXTENSIONS ON )
 
 message( STATUS "Calibrating IXT immersion engine for build..." )
 
-# Intrinsics filter.
+
+# Intrinsics filter. ----------------------------------
 option( IXT_AVX "IXT_AVX" OFF )
 
-# OS filter.
+
+# OS filter. ----------------------------------
 option( IXT_OS_WINDOWS "IXT_OS_WINDOWS" OFF )
 
-list( LENGTH IXT_OS sz )
-if( NOT ${sz} EQUAL 1 )
-    message( ERROR "None or more than one OS declared." )
-    return()
-endif()
+# list( LENGTH IXT_OS sz )
+# if( NOT ${sz} EQUAL 1 )
+#     message( ERROR "None or more than one OS declared." )
+#     return()
+# endif()
 
-if( IXT_OS STREQUAL "Windows" )
-    set( IXT_OS_WINDOWS ON )
-endif()
+# if( IXT_OS STREQUAL "Windows" )
+#     set( IXT_OS_WINDOWS ON )
+# endif()
 
 
-# GL filter.
+# GL filter. ----------------------------------
 option( IXT_GL_NONE "IXT_GL_NONE" OFF )
 option( IXT_GL_OPEN_GL "IXT_GL_OPEN_GL" OFF )
 option( IXT_GL_DIRECT_2D1 "IXT_GL_DIRECT_2D1" OFF )
 
-list( LENGTH IXT_GLS sz )
-if( NOT ${sz} EQUAL 0 )
-    foreach( gl ${IXT_GLS} )
-        if( gl STREQUAL "None" )
-            set( IXT_GL_NONE ON )
+# list( LENGTH IXT_GLS sz )
+# if( NOT ${sz} EQUAL 0 )
+#     foreach( gl ${IXT_GLS} )
+#         if( gl STREQUAL "None" )
+#             set( IXT_GL_NONE ON )
             
-            if( NOT ${sz} EQUAL 1 )
-                message( ERROR "Declared using both no GLs and GLs: ${IXT_GLS}." )
-                return()
-            endif()
+#             if( NOT ${sz} EQUAL 1 )
+#                 message( ERROR "Declared using both no GLs and GLs: ${IXT_GLS}." )
+#                 return()
+#             endif()
 
-        elseif( gl STREQUAL "OpenGL" )
-            set( IXT_GL_OPEN_GL ON )
+#         elseif( gl STREQUAL "OpenGL" )
+#             set( IXT_GL_OPEN_GL ON )
 
-        elseif( gl STREQUAL "Direct2D1" )
-            set( IXT_GL_DIRECT_2D1 ON )
+#         elseif( gl STREQUAL "Direct2D1" )
+#             set( IXT_GL_DIRECT_2D1 ON )
 
-        endif()
-    endforeach()
-else()
-    message( STATUS "Using no GLs." )
-endif()
+#         endif()
+#     endforeach()
+# else()
+#     message( STATUS "Using no GLs." )
+# endif()
 
 
-# Quintessentials.
-set( IXT_LIB_NAME "IXT" CACHE STRING "IXT lib name." FORCE )
+# BOOST filter.  ----------------------------------
+option( IXT_BOOST "IXT_BOOST" OFF )
+
+
+# OpenSSL filter.  ----------------------------------
+option( IXT_OPEN_SSL "IXT_OPEN_SSL" OFF )
+
+
+# Quintessentials. ----------------------------------
+set( IXT_LIB_NAME "IXT" CACHE STRING "IXT library name." FORCE )
 set( IXT_VERSION "v1.0.0" )
 set( IXT_VERSION_ALIAS "Frost Slumber" )
 set( IXT_VERSION_MAJOR 1 )
@@ -62,7 +72,7 @@ set( IXT_VERSION_MINOR 0 )
 set( IXT_VERSION_PATCH 0 )
 
 
-# IXT components. Every component has a .hpp and, possibly, a .cpp file.
+# IXT components. Every component has a .hpp and, possibly, a .cpp file. ----------------------------------
 set( _ixt_components_ring_0 "" )
 
 file( GLOB rel_file_paths RELATIVE "${CMAKE_CURRENT_LIST_DIR}/Include/IXT" "${CMAKE_CURRENT_LIST_DIR}/Include/IXT/*" )
@@ -86,7 +96,8 @@ endforeach()
 message( STATUS "IXT components set." )
 set( IXT_COMPONENTS_RING_0 ${_ixt_components_ring_0} CACHE STRING "IXT engine components." FORCE )
 
-# IXT externals.
+
+# IXT externals. ----------------------------------
 set(
     IXT_EXT_LIBS
     "-lwinmm"
@@ -107,7 +118,7 @@ set(
 )
 
 
-# IXT fondling.
+# IXT fondling. ----------------------------------
 set( IXT_PROJECT_FONDLE_NAME "IXTFondle" )
 set( IXT_FONDLE_DIR "${CMAKE_CURRENT_LIST_DIR}/Fondle" )
 set( IXT_FONDLE_ASSETS_DIR "${IXT_FONDLE_DIR}/Assets" )
@@ -136,7 +147,7 @@ endforeach()
 message( STATUS "IXT fondle assets generated:\n${IXT_IN_CXX_ASSETS_PATHS}" )
 
 
-# Project details.
+# Project details. ----------------------------------
 project(
     "${IXT_PROJECT_FONDLE_NAME}"
     VERSION 1.0.0
@@ -145,27 +156,28 @@ project(
 
 add_compile_options( "-O3" "-march=native" "$<$<COMPILE_LANGUAGE:CXX>:-Wno-conversion-null>" )
 
-# Preprocessor defines.
-#target_compile_definitions( ${IXT_LIB_NAME} ${IXT_PREPROCESSOR_DEFINITIONS} )
 
-
-# Intrinsics pre.
+# Intrinsics pre. ----------------------------------
 if( IXT_AVX )
     add_compile_definitions( "IXT_AVX=${IXT_AVX}" )
 endif()
 
 
-# OS pre.
+# OS pre. ----------------------------------
 if( IXT_OS_WINDOWS )
+    message( STATUS "Preparing OS Windows." )
+
     add_compile_definitions( "IXT_OS_WINDOWS" )
 endif()
 
-# GL pre.
+# GL pre. ----------------------------------
 if( IXT_GL_NONE )
     add_compile_definitions( "IXT_GL_NONE" )
 endif()
 
 if( IXT_GL_OPEN_GL )
+    message( STATUS "Preparing GL OpenGL." )
+
     option( GLM_BUILD_TESTS OFF )
 
     add_compile_definitions( "GLM_ENABLE_EXPERIMENTAL" )
@@ -179,32 +191,45 @@ if( IXT_GL_OPEN_GL )
 endif()
 
 if( IXT_GL_DIRECT_2D1 )
+    message( STATUS "Preparing GL Direct2D1." )
+
     add_compile_definitions( "IXT_GL_DIRECT_2D1" )
 endif()
 
-# OpenSSL
-include_directories( "${IXT_EXCOM_ROOT_DIR}/OpenSSL/include" )
-set( IXT_OPEN_SSL_LIBS 
-    "${IXT_EXCOM_ROOT_DIR}/OpenSSL/libssl.a"
-    "${IXT_EXCOM_ROOT_DIR}/OpenSSL/libcrypto.a"
-)
-link_libraries( ${IXT_OPEN_SSL_LIBS} )
 
-# Boost
-include_directories( "${IXT_EXCOM_ROOT_DIR}/Boost" )
-link_libraries( "${IXT_EXCOM_ROOT_DIR}/Boost/stage/lib/libboost_json-mgw11-mt-x64-1_86.a" )
+# OpenSSL pre. ----------------------------------
+set( _ixt_open_ssl_libs "" )
+if( IXT_OPEN_SSL )
+    message( STATUS "Preparing OpenSSL." )
 
-# Set those folders' paths into variables.
+    include_directories( "${IXT_EXCOM_ROOT_DIR}/OpenSSL/include" )
+    set( _ixt_open_ssl_libs 
+        "${IXT_EXCOM_ROOT_DIR}/OpenSSL/libssl.a"
+        "${IXT_EXCOM_ROOT_DIR}/OpenSSL/libcrypto.a"
+    )
+    set( IXT_OPEN_SSL_LIBS ${_ixt_open_ssl_libs} CACHE STRING "IXT configurated OpenSSL libraries." FORCE )
+    # link_libraries( ${IXT_OPEN_SSL_LIBS} )
+endif()
+
+# Boost pre. ----------------------------------
+if( IXT_BOOST )
+    message( STATUS "Preparing Boost." )
+
+    include_directories( "${IXT_EXCOM_ROOT_DIR}/Boost" )
+    link_libraries( "${IXT_EXCOM_ROOT_DIR}/Boost/stage/lib/libboost_json-mgw11-mt-x64-1_86.a" )
+endif()
+
+# Set those folders' paths into variables. ----------------------------------
 set( IXT_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/Include" )
 set( IXT_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/Source" )
 
 
-# IXT include and source directories.
+# IXT include and source directories. ----------------------------------
 add_subdirectory( "Source" )
 add_subdirectory( "Include" )
 
 
-# GL post.
+# GL post. ----------------------------------
 if( IXT_GL_OPEN_GL )
     target_link_libraries( ${IXT_LIB_NAME} PUBLIC glm )
     target_link_libraries( ${IXT_LIB_NAME} PUBLIC glfw )
@@ -216,8 +241,13 @@ if( IXT_GL_OPEN_GL )
     target_include_directories( ${IXT_LIB_NAME} PUBLIC "${IXT_EXCOM_ROOT_DIR}/OpenGL/glew/include" )
 endif()
 
+# OpenSSL post. ----------------------------------
+if( IXT_OPEN_SSL )
+    target_link_libraries( ${IXT_LIB_NAME} PUBLIC ${_ixt_open_ssl_libs} )
+endif()
 
-# IXT fondles to build.
+
+# IXT fondles to build. ----------------------------------
 if( IXT_FONDLES_TO_BUILD STREQUAL "ALL" ) 
     file( GLOB files_paths "${IXT_FONDLE_DIR}/*" )
     
@@ -254,8 +284,8 @@ foreach( source ${IXT_FONDLES_TO_BUILD} )
 endforeach()
 
 
-# Ruptures
+# Ruptures ----------------------------------
 add_subdirectory( "Ruptures" )
 
-# Labs
+# Labs ----------------------------------
 add_subdirectory( "Labs" )

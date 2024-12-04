@@ -39,6 +39,7 @@ public:
     int main( int argc, char* argv[] );
 
     void set_sat_pos_update_func( SatUpdateFunc func );
+    void sat_pos_update_hold_resume();
 
 };
 

@@ -1244,6 +1244,10 @@ public:
         return { static_cast< ggfloat_t >( p.x ), static_cast< ggfloat_t >( p.y ) };
     }
 
+    static void env_to( Vec2 vec ) {
+        env_to( pull_normal_axis( vec ) );
+    }
+
     static void env_to( Crd2 crd ) {
         SetCursorPos( crd.x * Env::width(), crd.y * Env::height() );
     }

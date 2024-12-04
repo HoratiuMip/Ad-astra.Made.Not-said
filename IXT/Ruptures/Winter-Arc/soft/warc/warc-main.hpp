@@ -15,12 +15,17 @@
 namespace warc {
 
 
-#define WARC_MAIN_STR WARC_STR"::MAIN"
+#define WARC_MAIN_STR WARC_STR""
+
+#define WARC_MAIN_PARSE_PROC_FUNC( func_name ) int func_name( int argc, char* argv[], const char* process )
 
 
 class MAIN : IXT::Descriptor {
 public:
     IXT_DESCRIPTOR_STRUCT_NAME_OVERRIDE( WARC_MAIN_STR );
+
+_WARC_PROTECTED:
+    friend struct _INTERNAL;
 
 _WARC_PROTECTED:
     n2yo::_N2YO                _n2yo    = {};
@@ -31,30 +36,36 @@ _WARC_PROTECTED:
 
     /*
     | Usage:
-    | --from-config ../some_config_file.json
+    | --from-config <../some_config_file.json>
     */
-    int _parse_proc_from_config( char* argv[], const char* process );
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_from_config );
 
     /*
     | Usage:
-    | --n2yo-api-key use XXX
-    | --n2yo-api-key burn XXX
+    | --n2yo-api-key use <XXX>
+    | --n2yo-api-key burn <XXX>
     | --n2yo-api-key use ash
     | --n2yo-api-key show ash
     */
-    int _parse_proc_n2yo_api_key( char* argv[], const char* process );
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_n2yo_api_key );
+
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_n2yo_ip );
+
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_n2yo_bulk_count );
 
     /*
     | Usage:
     | --n2yo-bypass
     */
-    int _parse_proc_n2yo_bypass( char* argv[], const char* process );
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_n2yo_mode );
 
     /*
     | Usage:
     | --earth-imm
     */
-    int _parse_proc_earth_imm( char* argv[], const char* process );
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm );
+
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm_lens_sens );
 
 public:
     int main( int argc, char* argv[] );

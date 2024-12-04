@@ -6,7 +6,7 @@ in GS_OUT {
     vec2    tex_crd;
     vec3    nrm;
     vec3    sun_ray;
-    float   sat_dists[ SAT_COUNT ];
+    vec3    sat2vrtx[ SAT_COUNT ];
     float   w_perl;
     vec3    lens2vrtx;
 } gs_in;
@@ -28,14 +28,20 @@ void main() {
 
     vec4 city_lights = texture( map_Ka, gs_in.tex_crd ) * 3.0;
 
+    float land = texture( map_Ks, gs_in.tex_crd ).s;
+
     final = 
         texture( map_Kd, gs_in.tex_crd ) * light 
         + 
         max( city_lights * dark, vec4( 0.0 ) ) * vec4( 1.0, 1.0, 0.8, 1.0 ) 
         + 
-        vec4( 0.0, 0.32, 0.62, 1.0 ) * ( 1.0 - texture( map_Ks, gs_in.tex_crd ).s ) * gs_in.w_perl * light;
+        vec4( 0.0, 0.32, 0.62, 1.0 ) * ( 1.0 - land ) * gs_in.w_perl * light;
 
-    if( sat_high != 0.0 && bool( int( floor( ( gs_in.tex_crd.x + gs_in.tex_crd.y ) * 100.0 ) ) & 1 ) ) {
+    if( 
+        sat_high != 0.0 
+        && 
+        bool( int( floor( ( gs_in.tex_crd.x + gs_in.tex_crd.y ) * 100.0 ) ) & 1 ) 
+    ) {
         // 3,116,988m --- sat tx radius
         // 6,378,137m --- earth radius
         // 809,000m   --- sat mean apogee perigee  // CAUTION: THIS HEAVILY ENJINIRD NUMBERS GAVE A HEAVILY ENJINIRD RESULT ( is pretty good actually nice )
@@ -44,23 +50,25 @@ void main() {
         const float OUTTER_DIST = 0.504;
 
         float longest_dist     = 0.0;
-        int   furthest_sat_idx = 0;
+        int   furthest_sat_idx = -1;
 
         for( int sidx = 0; sidx < SAT_COUNT; ++sidx ) {
-            if( gs_in.sat_dists[ sidx ] > OUTTER_DIST ) continue;
+            float sat_dist = length( gs_in.sat2vrtx[ sidx ] );
+            if( sat_dist > OUTTER_DIST ) continue;
 
-            if( gs_in.sat_dists[ sidx ] > longest_dist ) {
-                longest_dist = gs_in.sat_dists[ sidx ];
+            if( sat_dist > longest_dist ) {
+                longest_dist = sat_dist;
                 furthest_sat_idx = sidx;
             }
         }
 
-        vec3 sat_high_spec = sat_high_specs[ furthest_sat_idx ];
-
-        final.rgb = mix( final.rgb, sat_high_spec, sat_high_spec.r * pow( longest_dist / OUTTER_DIST, 4.0 ) ); 
+        if( furthest_sat_idx >= 0 ) {
+            vec3 sat_high_spec = sat_high_specs[ furthest_sat_idx ];
+            final.rgb = mix( final.rgb, sat_high_spec, sat_high_spec.r * pow( longest_dist / OUTTER_DIST, 4.0 ) ); 
+        }
     } 
 
-    float lens_flare_deg = degrees( acos( dot( gs_in.nrm, gs_in.lens2vrtx ) / ( length( gs_in.nrm ) * length( gs_in.lens2vrtx ) ) ) );
+    float lens_flare_deg = degs_btw( gs_in.nrm, gs_in.lens2vrtx );
 
     const float LENS_FBR = 16.0;
     const float LENS_FFR = 32.0;
@@ -69,7 +77,7 @@ void main() {
         bool  is_fwd = diff >= 0.0; 
 
         final.rgb = mix( 
-            final.rgb, vec3( ( 1.0 - light ) * 0.8, 0.62, 0.8 ), 
+            final.rgb, vec3( ( 1.0 - light ) * 0.8, 0.62 + ( 1.0 - light ) * 0.18, 0.8 ), 
             ( 1.0 - abs( 90.0 - lens_flare_deg ) / float( is_fwd ? LENS_FFR : LENS_FBR ) ) * 0.8
         );
     }

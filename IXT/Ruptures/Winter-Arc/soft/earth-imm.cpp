@@ -32,6 +32,10 @@ void EARTH::set_sat_pos_update_func( SatUpdateFunc func ) {
     _sat_update_func = func;
 }
 
+void EARTH::sat_pos_update_hold_resume() {
+    //PIMM->sats.hold_update.store( false, std::memory_order_relaxed );
+}
+
 int EARTH::main( int argc, char* argv[] ) {
     _impl_earth = this;
 
@@ -141,7 +145,6 @@ int EARTH::main( int argc, char* argv[] ) {
             Ticker                  tick;
             std::thread             hth_update;
             std::atomic< int >      required_update_count   = 0;
-            bool                    attempt_update          = true;
 
             struct _SAT_NOAA {
                 _SAT_NOAA( sat::NORAD_ID nid )
@@ -188,6 +191,7 @@ int EARTH::main( int argc, char* argv[] ) {
                 std::mutex                    pos_cnt_mtx;
                 std::deque< sat::POSITION >   pos_cnt;
                 std::atomic< int >            pos_cnt_update_required   = false;
+                std::atomic< bool >           hold_update               = false;
 
                 _SAT_NOAA& pos_to( glm::vec3 n_pos ) {
                     mesh.model.uplink_v( 
@@ -237,8 +241,8 @@ int EARTH::main( int argc, char* argv[] ) {
                         return;
 
                     for( auto& s : noaa ) {
-                        if( !attempt_update ) {
-                            WARC_LOG_RT_THAT_WARNING( PEARTH ) << "Will not attempt to update sattelite.";
+                        if( s.hold_update.load( std::memory_order_relaxed ) ) {
+                            WARC_LOG_RT_THAT_INTEL( PEARTH ) << "Satellite #" << ( int )s.norad_id << " update on hold.";
                             goto l_end;
                         }
 
@@ -255,8 +259,8 @@ int EARTH::main( int argc, char* argv[] ) {
                             case EARTH_SAT_UPDATE_RESULT_RETRY: break;
 
                             case EARTH_SAT_UPDATE_RESULT_HOLD: {
-                                attempt_update = false;
-                                WARC_LOG_RT_THAT_WARNING( PEARTH ) << "Satellite position updater requests \"HOLD\".";
+                                s.hold_update.store( true, std::memory_order_seq_cst );
+                                WARC_LOG_RT_THAT_INTEL( PEARTH ) << "Satellite positions updater requests \"HOLD\".";
                             break; }
                         }
                         
@@ -360,12 +364,10 @@ int EARTH::main( int argc, char* argv[] ) {
             }
             
             static bool cursor_anchored = false;
-            static Crd2 cursor_last     = Vec2::O();
             if( surf.down( SurfKey::RMB ) ) {
                 if( !cursor_anchored ) {
-                    cursor_last = surf.ptr_c();
                     surf.ptr_reset();
-                    SurfPtr::env_to( { 0.5, 0.5 } );
+                    SurfPtr::env_to( Vec2::O() );
                     cursor_anchored = true;
 
                     goto l_end_cursor;
@@ -376,10 +378,10 @@ int EARTH::main( int argc, char* argv[] ) {
                 cd *= -PEARTH->lens_sens * lens.l2t();
 
                 lens.spin_ul( { cd.x, cd.y }, { -82.0, 82.0 } );
-                SurfPtr::env_to( { 0.5, 0.5 } );
+                SurfPtr::env_to( Vec2::O() );
 
             } else if( cursor_anchored ) {
-                SurfPtr::env_to( cursor_last ); 
+                SurfPtr::env_to( Vec2::O() ); 
                 cursor_anchored = false;
             }
         l_end_cursor:

@@ -4,8 +4,10 @@
 
 #include <IXT/descriptor.hpp>
 
-#include <openssl/ssl.h>
-#include <openssl/err.h>
+#if WARC_INET_TLS == 1
+    #include <openssl/ssl.h>
+    #include <openssl/err.h>
+#endif
 
 #include <list>
 #include <mutex>
@@ -18,18 +20,25 @@ namespace warc { namespace inet_tls {
 _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_INET_TLS_STR );
 
 
+inline constexpr const int BUILD_ACTIVE = WARC_INET_TLS;
+
+
 enum INET_PORT : IXT::UWORD {
     INET_PORT_UNKNWN = 0,
 
     INET_PORT_HTTPS = 443,
 
-    _INET_PORT_FORCE_UWORD = 0x7f'7f
+    _INET_PORT_FORCE_UWORD = 0x7f'ff
 };
 
 
 typedef
+#if WARC_INET_TLS == 1
 #if defined( WIN32 )
     ::SOCKET
+#endif
+#elif WARC_INET_TLS == 0
+    int
 #endif
 _SOCKET;
 
@@ -57,8 +66,10 @@ public:
     ~BRIDGE();
 
 _WARC_PROTECTED:
+#if WARC_INET_TLS == 1
     _SOCKET       _socket        = {};
     SSL*          _ssl           = nullptr;
+#endif
 
     std::string   _addr          = {};
     INET_PORT     _port          = INET_PORT_UNKNWN;

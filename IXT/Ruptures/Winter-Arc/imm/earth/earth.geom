@@ -15,7 +15,7 @@ out GS_OUT {
     vec2    tex_crd;
     vec3    nrm;
     vec3    sun_ray;
-    float   sat_dists[ SAT_COUNT ];
+    vec3    sat2vrtx[ SAT_COUNT ];
     float   w_perl;
     vec3    lens2vrtx;
 } gs_out;
@@ -49,7 +49,7 @@ void main() {
         gs_out.lens2vrtx = vec3( gl_Position ) - lens_pos;
 
         for( int sidx = 0; sidx < SAT_COUNT; ++sidx ) {
-            gs_out.sat_dists[ sidx ] = distance( vec3( gl_Position ), sat_poss[ sidx ] );
+            gs_out.sat2vrtx[ sidx ] = vec3( gl_Position ) - sat_poss[ sidx ];
         }
 
         gl_Position = proj * view * gl_Position;

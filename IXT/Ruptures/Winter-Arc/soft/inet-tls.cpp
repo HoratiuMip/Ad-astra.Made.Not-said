@@ -4,19 +4,20 @@ namespace warc { namespace inet_tls {
 
 
 static struct _INTERNAL {
+#if WARC_INET_TLS == 1
 #if defined( WIN32 )    
     WSADATA                wsa_data;
 #endif
     const SSL_METHOD*      ssl_method;
     SSL_CTX*               ssl_context;
-
+#endif
     std::mutex             bsup_lock;
     std::list< HBRIDGE >   bridge_supervisor;
 
 
     int uplink() {
+    #if WARC_INET_TLS == 1
         int status = -1;
-
     #if defined( WIN32 )
         memset( &this->wsa_data, 0, sizeof( WSADATA ) );
         status = WSAStartup( MAKEWORD( 2, 2 ), &this->wsa_data );
@@ -38,11 +39,14 @@ static struct _INTERNAL {
         SSL_CTX_set_min_proto_version( this->ssl_context, TLS1_1_VERSION );
 
         WARC_LOG_RT_OK << "Uplink complete.\n";
-
         return 0;
+    #elif WARC_INET_TLS == 0
+        return -1;
+    #endif
     }
 
     int downlink() {
+    #if WARC_INET_TLS == 1
         int status = -1;
 
         int bridge_count = this->bridge_supervisor.size();
@@ -58,8 +62,10 @@ static struct _INTERNAL {
     #endif
 
         WARC_LOG_RT_OK << "Downlink complete.\n";
-
         return 0;
+    #elif WARC_INET_TLS == 0
+        return -1;
+    #endif
     }
 
 
@@ -98,6 +104,7 @@ const char* BRIDGE::struct_name() const {
 BRIDGE::BRIDGE( const char* addr, INET_PORT port ) 
 : _port{ port }
 {
+#if WARC_INET_TLS == 1
     int          status        = -1;
     _SOCKET      socket_raw    = _SOCKET{};
     sockaddr_in  socket_desc   = {};
@@ -147,9 +154,11 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port )
 
     bad_exit.proc = nullptr;
     WARC_LOG_RT_THIS_OK << "Secure socket created, using " << SSL_get_cipher( this->_ssl ) << ".\n";
+#endif
 }
 
 int BRIDGE::_kill_conn(){
+#if WARC_INET_TLS == 1
     int status = -1;
    
     if( this->_ssl != nullptr ) {
@@ -162,6 +171,9 @@ int BRIDGE::_kill_conn(){
     }
 
     return status;
+#elif WARC_INET_TLS == 0
+    return 0;
+#endif
 }
 
 BRIDGE::~BRIDGE() {
@@ -197,6 +209,7 @@ void BRIDGE::free( HBRIDGE& handle ) {
 }
 
 int BRIDGE::write( const char* buf, int sz ) {
+#if WARC_INET_TLS == 1
     WARC_ASSERT_RT_THIS( buf != nullptr, "NULL buffer.", -1, -1 );
     WARC_ASSERT_RT_THIS( sz > 0, "Write count <= 0.", -1, -1 );
 
@@ -212,9 +225,13 @@ int BRIDGE::write( const char* buf, int sz ) {
 
     WARC_LOG_RT_THIS_OK << "Wrote (" << w << ") bytes.";
     return w;
+#elif WARC_INET_TLS == 0
+    return 0;
+#endif
 }
 
 std::string BRIDGE::read( int sz ) {
+#if WARC_INET_TLS == 1
     WARC_ASSERT_RT_THIS( sz > 0, "Read count <= 0.", -1, "" );
 
     char buf[ sz + 1 ];
@@ -227,6 +244,9 @@ std::string BRIDGE::read( int sz ) {
 
     WARC_LOG_RT_THIS_OK << "Read (" << r << ") bytes.";
     return buf;
+#elif WARC_INET_TLS == 0
+    return 0;
+#endif
 }
 
 std::string BRIDGE::xchg( const char* buf, int w_sz, int r_sz ) {
@@ -240,7 +260,11 @@ std::string BRIDGE::xchg( const char* buf, int w_sz, int r_sz ) {
 }
 
 bool BRIDGE::usable() {
+#if WARC_INET_TLS == 1
     return ( this->_socket != _SOCKET{} ) && ( this->_ssl != nullptr ); 
+#elif WARC_INET_TLS == 0
+    return false;
+#endif
 }
 
 

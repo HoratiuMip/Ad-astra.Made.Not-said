@@ -75,18 +75,23 @@ Cool description here.
 > - Options are parsed sequentially, so every later appearance of an option will overwrite the previous one.
 
 > Example of `CMDL-L`:
-> - `warc.exe --from-config ./config.json --earth-imm --n2yo-mode past`
+> ```console
+> .\warc.exe --from-config .\config.json --earth-imm --n2yo-mode past`
+> ```
 
 > Example of `CFILE`:
-> - `{
+> ```json
+> {
 >    "--n2yo-ip": "A.B.C.D",
 >    "--n2yo-api-key": "use XXX",
 >    "--n2yo-bulk-count": "600",
 >    "--earth-imm-lens-sens": "0.6"
-> }`
+> }
+> ```
 
+> Table:
 > | Option | Description | CMDL-RT | CFILE | CMDL-L |
-> |--------|-------------|--------|---------|-------|
+> |:-------|:------------|:-------:|:-----:|:------:|
 > | `--from-config <arg1>` | The configuration file containing the options for the session. `arg1` is the absolute path to the configuration file. | `No` | `No` | `Yes` |
 > | `--n2yo-mode <arg1>` | How to retrieve satellite data from the `N2YO` server. | `Yes` | `Yes` | `Yes` |
 > > Accepted `arg1`, Satellites positions are...:
@@ -95,7 +100,7 @@ Cool description here.
 > > - `real` - ...real-time. Server connection `IS` made in this mode.
 
 > | Option | Description | CMDL-RT | CFILE | CMDL-L |
-> |--------|-------------|--------|---------|-------|
+> |:-------|:------------|:-------:|:-----:|:------:|
 > | `--n2yo-api-key <arg1> <arg2>` | How to load the n2yo's server api key. | `Yes` | `Yes` | `Yes` |
 > > Accepted combinations of `arg1` and `arg2`:
 > > - `use <XXX>` - where `XXX` is the api key. Sets the current session's api key to `XXX`.
@@ -104,9 +109,9 @@ Cool description here.
 > > - `show ash` - extracts and shows the executable's currently burnt api key.
 
 > | Option | Description | CMDL-RT | CFILE | CMDL-L |
-> |--------|-------------|--------|---------|-------|
+> |:-------|:------------|:-------:|:-----:|:------:|
 > | `--n2yo-ip <arg1>` | The ip of the `N2YO` server. | `Yes` | `Yes` | `Yes` |
-> | `--n2yo-bulk-count` | How many orbit positions ( how many seconds of orbit ) to request from the `N2YO` server, per satellite update. | `Yes` | `Yes` | `Yes` |
+> | `--n2yo-bulk-count <arg1>` | How many orbit positions ( how many seconds of orbit ) to request from the `N2YO` server, per satellite update. | `Yes` | `Yes` | `Yes` |
 > | `--earth-imm` | Launch the immersive earth control module. That is, the graphical component. | `No` | `No` | `Yes` |
 > | `--earth-imm-lens-sens <arg1>` | The sensitivity of the camera. | `Yes` | `Yes` | `Yes` |
 

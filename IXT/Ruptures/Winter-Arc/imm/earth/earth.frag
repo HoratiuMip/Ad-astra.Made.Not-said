@@ -64,7 +64,10 @@ void main() {
 
         if( furthest_sat_idx >= 0 ) {
             vec3 sat_high_spec = sat_high_specs[ furthest_sat_idx ];
-            final.rgb = mix( final.rgb, sat_high_spec, sat_high_spec.r * pow( longest_dist / OUTTER_DIST, 4.0 ) ); 
+
+            if( sat_high_spec.gb != vec2( 0.0 ) ) {
+                final.rgb = mix( final.rgb, sat_high_spec, sat_high_spec.r * pow( longest_dist / OUTTER_DIST, 4.0 ) ); 
+            }
         }
     } 
 
@@ -78,7 +81,7 @@ void main() {
 
         final.rgb = mix( 
             final.rgb, vec3( ( 1.0 - light ) * 0.8, 0.62 + ( 1.0 - light ) * 0.18, 0.8 ), 
-            ( 1.0 - abs( 90.0 - lens_flare_deg ) / float( is_fwd ? LENS_FFR : LENS_FBR ) ) * 0.8
+            ( 1.0 - abs( 90.0 - lens_flare_deg ) / float( is_fwd ? LENS_FFR : LENS_FBR ) ) * 0.6
         );
     }
     

@@ -24,11 +24,11 @@ static struct _INTERNAL {
 
     } opts[ 7 ] = {
         { 1, "--from-config",         0b001, 1, &MAIN::_parse_proc_from_config },
-        { 2, "--n2yo-api-key",        0b111, 1, &MAIN::_parse_proc_n2yo_api_key },
+        { 2, "--n2yo-api-key",        0b111, 2, &MAIN::_parse_proc_n2yo_api_key },
         { 3, "--n2yo-ip",             0b111, 1, &MAIN::_parse_proc_n2yo_ip },
         { 4, "--n2yo-bulk-count",     0b111, 1, &MAIN::_parse_proc_n2yo_bulk_count },
         { 5, "--n2yo-mode",           0b111, 1, &MAIN::_parse_proc_n2yo_mode },
-        { 6, "--earth-imm",           0b101, 0, &MAIN::_parse_proc_earth_imm },
+        { 6, "--earth-imm",           0b001, 0, &MAIN::_parse_proc_earth_imm },
         { 7, "--earth-imm-lens-sens", 0b111, 1, &MAIN::_parse_proc_earth_imm_lens_sens }
     };
     const int optc = sizeof( opts ) / sizeof( OPT );
@@ -61,8 +61,8 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_n2yo_api_key ) {
 
     WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
     WARC_ASSERT_RT( process != nullptr, "Process is NULL.", -1, -1 );
-    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Api key is NULL.", -1, -1 );
-    WARC_ASSERT_RT( argv[ 1 ] != nullptr, "Api key usage mode is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Api key usage mode is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 1 ] != nullptr, "Api key is NULL.", -1, -1 );
 
     struct _SWITCH {
         const char*   str;
@@ -74,7 +74,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_n2yo_api_key ) {
     };
     for( auto& sw : switches ) if( strcmp( argv[ 0 ], sw.str ) == 0 ) goto *sw.lbl;
 
-    WARC_ASSERT_RT( false, "Invalid arguments.", -1, -1 );
+    WARC_ASSERT_RT( false, "Invalid argument.", argv[ 0 ], -1 );
 
 l_burn_key: {
     return this->_n2yo.burn_api_key( argv[ 1 ], process );
@@ -96,7 +96,7 @@ l_use_mode: {
     return 0;
 }
 l_show_ash: {
-    WARC_ASSERT_RT( strcmp( argv[ 1 ], "ash" ) == 0, "Invalid arguments.", argv[ 1 ], -1 );
+    WARC_ASSERT_RT( strcmp( argv[ 1 ], "ash" ) == 0, "Invalid argument.", argv[ 1 ], -1 );
 
     auto key = this->_n2yo.extract_api_key( process );
     

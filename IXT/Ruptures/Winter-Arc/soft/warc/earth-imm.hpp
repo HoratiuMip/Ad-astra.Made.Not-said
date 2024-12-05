@@ -30,6 +30,9 @@ public:
     using SatUpdateFunc = std::function< EARTH_SAT_UPDATE_RESULT( sat::NORAD_ID, std::deque< sat::POSITION >& ) >;
 
 _WARC_PROTECTED:
+    friend struct _IMM;
+
+_WARC_PROTECTED:
     SatUpdateFunc   _sat_update_func   = nullptr;
 
 public:

@@ -2,6 +2,7 @@
 
 #include <warc/common.hpp>
 #include <warc/satellite.hpp>
+#include <warc/astro.hpp>
 
 #include <IXT/render3.hpp>
 #include <IXT/tempo.hpp>

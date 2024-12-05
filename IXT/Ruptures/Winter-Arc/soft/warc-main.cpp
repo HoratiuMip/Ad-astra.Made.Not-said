@@ -22,14 +22,15 @@ static struct _INTERNAL {
         int           least_argc;
         int           ( MAIN::*proc )( int, char**, const char* );
 
-    } opts[ 7 ] = {
-        { 1, "--from-config",         0b001, 1, &MAIN::_parse_proc_from_config },
-        { 2, "--n2yo-api-key",        0b111, 2, &MAIN::_parse_proc_n2yo_api_key },
-        { 3, "--n2yo-ip",             0b111, 1, &MAIN::_parse_proc_n2yo_ip },
-        { 4, "--n2yo-bulk-count",     0b111, 1, &MAIN::_parse_proc_n2yo_bulk_count },
-        { 5, "--n2yo-mode",           0b111, 1, &MAIN::_parse_proc_n2yo_mode },
-        { 6, "--earth-imm",           0b001, 0, &MAIN::_parse_proc_earth_imm },
-        { 7, "--earth-imm-lens-sens", 0b111, 1, &MAIN::_parse_proc_earth_imm_lens_sens }
+    } opts[ 8 ] = {
+        { 1, "--from-config",              0b001, 1, &MAIN::_parse_proc_from_config },
+        { 2, "--n2yo-api-key",             0b111, 2, &MAIN::_parse_proc_n2yo_api_key },
+        { 3, "--n2yo-ip",                  0b111, 1, &MAIN::_parse_proc_n2yo_ip },
+        { 4, "--n2yo-bulk-count",          0b111, 1, &MAIN::_parse_proc_n2yo_bulk_count },
+        { 5, "--n2yo-mode",                0b111, 1, &MAIN::_parse_proc_n2yo_mode },
+        { 6, "--earth-imm",                0b001, 0, &MAIN::_parse_proc_earth_imm },
+        { 7, "--earth-imm-lens-sens",      0b111, 1, &MAIN::_parse_proc_earth_imm_lens_sens },
+        { 8, "--earth-imm-vernal-equinox", 0b111, 1, &MAIN::_parse_proc_earth_imm_vernal_equinox }
     };
     const int optc = sizeof( opts ) / sizeof( OPT );
 
@@ -44,12 +45,13 @@ static struct _INTERNAL {
             _N2YO_MODE_FORCE_DWORD = 0x7f'ff'ff'ff
         };
 
-        N2YO_MODE     n2yo_mode             = N2YO_MODE_RAND;
-        std::string   n2yo_ip               = ""; 
-        int           n2yo_bulk_count       = 180;
+        N2YO_MODE     n2yo_mode                  = N2YO_MODE_RAND;
+        std::string   n2yo_ip                    = ""; 
+        int           n2yo_bulk_count            = 180;
 
-        bool          earth_imm             = false;
-        float         earth_imm_lens_sens   = 1.0;
+        bool          earth_imm                  = false;
+        float         earth_imm_lens_sens        = 1.0;
+        time_t        earth_imm_vernal_equinox   = 0;
 
     } config;
 
@@ -188,6 +190,19 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_lens_sens ) {
     return 0;
 }
 
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_vernal_equinox ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_vernal_equinox()" );
+
+    WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Vernal equinox timestamp is NULL.", -1, -1 );
+
+    time_t ts = atoll( argv[ 0 ] );
+    _internal.config.earth_imm_vernal_equinox = ts;
+
+    WARC_LOG_RT_OK << "Earth immersion reference vernal equinox: \"" << _internal.config.earth_imm_vernal_equinox << "\".";
+    return 0;
+}
+
 
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_from_config ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_from_config()" );
@@ -208,7 +223,10 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_from_config ) {
 
     std::error_code ec;
     boost::json::value jv = boost::json::parse( buffer.get(), ec );
-    WARC_ASSERT_RT( ec.value() == 0, "Fault when parsing json.", ec.message(), -1 );
+    if( ec.value() != 0 ) {
+        WARC_LOG_RT_ERROR << "Fault at parsing JSON (" << ec.message() << "):\n" << buffer.get();
+        return -1;
+    }
 
     auto* config = jv.if_object();
     WARC_ASSERT_RT( config != nullptr, "Configuration is not a JSON object.", -1, -1 );

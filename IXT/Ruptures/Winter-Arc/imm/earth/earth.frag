@@ -26,14 +26,20 @@ void main() {
 
     light = 2.0 * max( light, .06 );
 
-    vec4 city_lights = texture( map_Ka, gs_in.tex_crd ) * 3.0;
+    const float CITY_LIGHTS_BUMP = 0.5;
+    vec4 city_lights = texture( map_Ka, gs_in.tex_crd );
+
+    city_lights.r = pow( city_lights.r, CITY_LIGHTS_BUMP );
+    city_lights.g = pow( city_lights.g, CITY_LIGHTS_BUMP );
+    city_lights.b = pow( city_lights.b, CITY_LIGHTS_BUMP );
+    city_lights *= 2.2;
 
     float land = texture( map_Ks, gs_in.tex_crd ).s;
 
     final = 
         texture( map_Kd, gs_in.tex_crd ) * light 
         + 
-        max( city_lights * dark, vec4( 0.0 ) ) * vec4( 1.0, 1.0, 0.8, 1.0 ) 
+        max( city_lights * dark, vec4( 0.0 ) ) * vec4( 1.0, 1.0, 0.8, 1.0 )
         + 
         vec4( 0.0, 0.32, 0.62, 1.0 ) * ( 1.0 - land ) * gs_in.w_perl * light;
 

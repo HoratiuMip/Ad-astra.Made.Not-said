@@ -67,6 +67,8 @@ _WARC_PROTECTED:
 
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm_lens_sens );
 
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm_vernal_equinox );
+
 public:
     int main( int argc, char* argv[] );
 };

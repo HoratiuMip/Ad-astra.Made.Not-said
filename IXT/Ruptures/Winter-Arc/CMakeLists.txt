@@ -18,6 +18,7 @@ add_library( ${WARC_LIB} STATIC
     "${WINTER_ARC_SOFT_DIR}/n2yo.cpp"
     "${WINTER_ARC_SOFT_DIR}/earth-imm.cpp"
     "${WINTER_ARC_SOFT_DIR}/warc-main.cpp"
+    "${WINTER_ARC_SOFT_DIR}/astro.cpp"
 )
 target_link_libraries( ${WARC_LIB} PUBLIC "IXT" )
 target_include_directories( ${WARC_LIB} PUBLIC ${WINTER_ARC_SOFT_DIR} )

@@ -5,6 +5,10 @@
 namespace warc { namespace sat {
 
 
+#define WARC_SAT_STR WARC_STR"::sat"
+_WARC_IXT_COMPONENT_DESCRIPTOR( WARC_SAT_STR );
+
+
 struct POSITION {
     double    satlatitude;
     double    satlongitude;

@@ -65,7 +65,6 @@ struct _IMM : Descriptor {
         _UFRM()
         : view{ "view", PIMM->lens.view() },
             proj{ "proj", glm::perspective( glm::radians( 55.0f ), PIMM->surf.aspect(), 0.1f, 1000.0f ) },
-            sun{ "sun_pos", glm::vec3{ 180.0 } },
             lens_pos{ "lens_pos", glm::vec3{ 0 } },
             rtc{ "rtc", 0.0f },
             sat_high{ "sat_high", 0.0f }
@@ -73,12 +72,29 @@ struct _IMM : Descriptor {
 
         Uniform3< glm::mat4 >   view;
         Uniform3< glm::mat4 >   proj;
-        Uniform3< glm::vec3 >   sun;
         Uniform3< glm::vec3 >   lens_pos;
         Uniform3< glm::f32 >    rtc;
         Uniform3< glm::f32 >    sat_high;
         
     } ufrm;
+
+    struct _SUN {
+        _SUN()
+        : pos{ "sun_pos", glm::vec3{ 0.0, 0.0, 180.0 } }
+        {
+            auto ll = astro::sun_lat_long_now( 1'679'347'500 );
+            pos.get() = glm::vec3(
+                glm::rotate( glm::mat4{ 1.0 }, glm::radians( ll.second ), glm::vec3{ 0, 1, 0 } )
+                *
+                glm::rotate( glm::mat4{ 1.0 }, -glm::radians( ll.first ), glm::vec3{ 1, 0, 0 } )
+                *
+                glm::vec4{ pos.get(), 1.0 }
+            );
+        }
+
+        Uniform3< glm::vec3 >   pos;
+
+    } sun;
 
     struct _EARTH {
         _EARTH() 
@@ -91,9 +107,9 @@ struct _IMM : Descriptor {
             mesh.pipe->pull( 
                 PIMM_UFRM->view, PIMM_UFRM->proj,
                 PIMM_UFRM->lens_pos, 
-                PIMM_UFRM->sun, 
                 PIMM_UFRM->rtc,
                 PIMM_UFRM->sat_high,
+                PIMM->sun.pos,
                 this->sat_poss, this->sat_high_specs
             );
         }
@@ -161,8 +177,8 @@ struct _IMM : Descriptor {
                 mesh.pipe->pull(
                     PIMM_UFRM->view,
                     PIMM_UFRM->proj,
-                    PIMM_UFRM->sun,
                     PIMM_UFRM->lens_pos,
+                    PIMM->sun.pos,
                     this->high_spec
                 );
             }
@@ -401,7 +417,8 @@ struct _IMM : Descriptor {
         ufrm.view.uplink_bv( lens.view() );
 
         ufrm.rtc.uplink_bv( ufrm.rtc.get() + rela );
-        ufrm.sun.uplink_bv( glm::rotate( ufrm.sun.get(), ( float )( .0012 * ela ), glm::vec3{ 0, 1, 0 } ) );
+        //sun.pos.uplink_bv( glm::rotate( sun.pos.get(), ( float )( .0012 * ela ), glm::vec3{ 0, 1, 0 } ) );
+        sun.pos.uplink_b();
 
         sats.refresh( ELAPSED_ARGS_CALL );
         

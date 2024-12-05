@@ -2,8 +2,8 @@
 Cool description here.
 
 > I.  [Description](#Description)
-> II. [Journal](#Journal)
-> III. [Manuals](#Manuals)
+> II. [Manuals](#Manuals)
+> III. [Journal](#Journal)
 
 
 ## Description
@@ -13,6 +13,103 @@ Cool description here.
 > - `NOAA-19` | downlink @ 137.100 MHz.
 
 > Following notations as `NOAA-x` refer to the above satellites.
+
+
+## Manuals
+> I. [WARC-Hardware](#WARC-Hardware)
+> II. [WARC-Software](#WARC-Software)
+
+### WARC-Hardware
+
+#### Power supply
+> Components:
+> - Battery | `5V`.
+
+#### Signal acquisition system
+> Components:
+> - USB hub | `hama`.
+> - Analog filter & amplifier | `nooelec SAWbird+ NOAA`.
+> - Analog to digital converter & tuner | `RTL-SDR V3`.
+
+> Antenna wiring:
+> - Connect the feed from the antenna into either the SMA-f port of the amplifier, or, to bypass the effects of the filter and amplifier, into the SMA-f port of the converter.
+
+> ICE:
+> - Push down the lever to cut the power supply to the acquisition system.
+
+> Caution:
+> - When bypassing the amplifier, make sure its power supply is disconnected, so it does not induce any floating noise into the signal pipe.
+> - `DO NOT` plug any other equipment into the USB hub ports when the amplifier is operational. The current draw margin is `~50mA`.
+
+#### Cooling system
+> Components:
+> - Fan | `AVC`.
+> - Boost converter | home-made | `~10V`.
+> - Controller | `Arduino UNO` | maintains the output of the boost converter @ `~10V`.
+
+> Fan RPM tuning:
+> - Potentiometer control.
+
+> ICE:
+> - The controller will attempt to keep the voltage of the boost converter @ `~10V`. Shall the voltage exceed `15V`, the controller shall disable the boost converter until a system reset, since this would mean a control loop general failure. The disabled boost converter is indicated by a red LED. Disabling the boost converter does not mean a total cut of power to the fan ( it will be supplied @ the battery voltage ).
+
+### WARC-Software
+
+### Immersion
+> Control:
+> - `RMB` | hold - enable spin mode - move the mouse to spin around the globe.
+> - `RMB` | quick double click, toggle - enable cinematic camera.
+> - `SCROLL` - zoom in/out.
+> - `SPACE` | toggle - highlight satellites and their ~range.
+> - `<`/`,` - enable wireframe rendering.
+> - `>`/`.` - enable full rendering.
+
+#### Options
+> The good old command line arguments. There are three ways to configure the session options:
+> - From the command line arguments @ program launch, `CMDL-L`.
+> - From a configuration file, `CFILE`.
+> - From the console command line, `CMDL-RT`.
+
+> Caution:
+> - Every json field in the configuration file must be a string, since the command line arguments parser is used here as well.
+> - Options are parsed sequentially, so every later appearance of an option will overwrite the previous one.
+
+> Example of `CMDL-L`:
+> - `warc.exe --from-config ./config.json --earth-imm --n2yo-mode past`
+
+> Example of `CFILE`:
+> - `{
+>    "--n2yo-ip": "A.B.C.D",
+>    "--n2yo-api-key": "use XXX",
+>    "--n2yo-bulk-count": "600",
+>    "--earth-imm-lens-sens": "0.6"
+> }`
+
+> | Option | Description | CMDL-RT | CFILE | CMDL-L |
+> |--------|-------------|--------|---------|-------|
+> | `--from-config <arg1>` | The configuration file containing the options for the session. `arg1` is the absolute path to the configuration file. | `No` | `No` | `Yes` |
+> | `--n2yo-mode <arg1>` | How to retrieve satellite data from the `N2YO` server. | `Yes` | `Yes` | `Yes` |
+> > Accepted `arg1`, Satellites positions are...:
+> > - `rand` - ...random. Server connection `IS NOT` made in this mode.
+> > - `past` - ...from a past data file. Server connection `IS NOT` made in this mode.
+> > - `real` - ...real-time. Server connection `IS` made in this mode.
+
+> | Option | Description | CMDL-RT | CFILE | CMDL-L |
+> |--------|-------------|--------|---------|-------|
+> | `--n2yo-api-key <arg1> <arg2>` | How to load the n2yo's server api key. | `Yes` | `Yes` | `Yes` |
+> > Accepted combinations of `arg1` and `arg2`:
+> > - `use <XXX>` - where `XXX` is the api key. Sets the current session's api key to `XXX`.
+> > - `burn <XXX>` - makes a copy of the executable file and burns the api key `XXX` inside it. Current session is terminated.
+> > - `use ash` - extract the api key from its burnt location inside the executable and set it for the current session.
+> > - `show ash` - extracts and shows the executable's currently burnt api key.
+
+> | Option | Description | CMDL-RT | CFILE | CMDL-L |
+> |--------|-------------|--------|---------|-------|
+> | `--n2yo-ip <arg1>` | The ip of the `N2YO` server. | `Yes` | `Yes` | `Yes` |
+> | `--n2yo-bulk-count` | How many orbit positions ( how many seconds of orbit ) to request from the `N2YO` server, per satellite update. | `Yes` | `Yes` | `Yes` |
+> | `--earth-imm` | Launch the immersive earth control module. That is, the graphical component. | `No` | `No` | `Yes` |
+> | `--earth-imm-lens-sens <arg1>` | The sensitivity of the camera. | `Yes` | `Yes` | `Yes` |
+
 
 ## Journal
 
@@ -25,9 +122,6 @@ Cool description here.
 
 > Hardware: 
 > - Dipole antenna tuned for the `NOAA-x` satellites | `~52cm` rod | `120 degrees` between rods.
-> - USB hub | `hama`.
-> - Analog filter & amplifier | `nooelec SAWbird+ NOAA`.
-> - Analog to digital converter & tuner | `RTL-SDR V3`.
 > - Computing power | `Laptop`.
 
 > Components assembled & caged by the toughest material known to mankind, Lego:
@@ -53,25 +147,3 @@ Cool description here.
 > - This program targets real-time tracking of `NOAA-x` | computing `NOAA-x` future orbits | on-demand, over-the-internet satellite image capturing.
 > ![warc-soft](https://github.com/user-attachments/assets/af779d77-e20a-4efb-b664-691f78f4071b)
 > - More. https://github.com/user-attachments/assets/baadc90d-1e94-4a7c-ad9f-31e88b95c8ef
-
-## Manuals
-> I. [Winter-Arc-Hardware](#Winter-Arc-Hardware)
-> II. [Winter-Arc-Software](#Winter-Arc-Software)
-
-### Winter-Arc-Hardware
-> - `DO NOT` plug any other equipment into the USB hub ports when `nooelec SAWbird+ NOAA` amplifier is operational. The current draw margin is `50mA`.
-> - The equipment features the option to bypass the `nooelec SAWbird+ NOAA` amplifier.
-> - Push down the lever to cut the power supply to the acquisition devices.
-
-### Winter-Arc-Software
-
-#### Command line arguments
-> `--from-config <arg1>` - specifies the configuration file containing different parameters for the session. `arg1` is the absolute path to the configuration file.
-
-> `--n2yo-api-key <arg1> <arg2>` - specifies how to treat the situation regarding n2yo's server api key. Accepted combinations of `arg1` and `arg2`:
-> - `use <XXX>` - where `XXX` is the api key. Sets the current session's api key to `XXX`.
-> - `burn <XXX>` - makes a copy of the executable file and burns the api key `XXX` inside it. Current session is terminated.
-> - `use ash` - extract the api key from its burnt location inside the executable and set it for the current session.
-> - `show ash` - extracts and shows the executable's currently burnt api key.
-
-> `--earth-imm` - launch the immersive earth control module. That is, the graphical component.

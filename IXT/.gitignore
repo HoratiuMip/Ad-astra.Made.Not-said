@@ -1,5 +1,12 @@
-!*
+*
 
-Build/
-Docs/*
-Excom/*
+!README.md
+
+!CMake/
+!Fondle/
+!Ruptures/
+!Include/
+!Source/
+!Excom/
+
+!CMakeLists.txt

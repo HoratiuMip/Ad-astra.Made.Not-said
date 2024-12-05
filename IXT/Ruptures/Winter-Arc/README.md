@@ -55,7 +55,7 @@ Cool description here.
 
 ### WARC-Software
 
-### Immersion
+#### Immersion
 > Control:
 > - `RMB` | hold - enable spin mode - move the mouse to spin around the globe.
 > - `RMB` | quick double click, toggle - enable cinematic camera.
@@ -150,5 +150,6 @@ Cool description here.
 > Let us use the `IXT` engine to create an interactive software to work with `NOAA-x` and the created hardware equipment.
 
 > - This program targets real-time tracking of `NOAA-x` | computing `NOAA-x` future orbits | on-demand, over-the-internet satellite image capturing.
-> ![warc-soft](https://github.com/user-attachments/assets/af779d77-e20a-4efb-b664-691f78f4071b)
-> - More. https://github.com/user-attachments/assets/baadc90d-1e94-4a7c-ad9f-31e88b95c8ef
+> ![warc-soft-v3-2](https://github.com/user-attachments/assets/2f672418-77de-47bc-9dc7-6b3350f907d3)
+> ![warc-soft-v3](https://github.com/user-attachments/assets/9ae7ee73-706b-4aaa-a8e3-ccd0f29db944)
+

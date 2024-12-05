@@ -1,5 +1,8 @@
 # `[ =Z< )) O* ]` _WARC_ - The *Winter-Arc* project. 
+Cool picture here.
+![warc-1](https://github.com/user-attachments/assets/99dba2e3-141e-4eb7-9a9f-0d4a03fc632a)
 Cool description here.
+Damn.
 
 > I.  [Description](#Description)
 > II. [Manuals](#Manuals)
@@ -54,6 +57,27 @@ Cool description here.
 > - The controller will attempt to keep the voltage of the boost converter @ `~10V`. Shall the voltage exceed `15V`, the controller shall disable the boost converter until a system reset, since this would mean a control loop general failure. The disabled boost converter is indicated by a red LED. Disabling the boost converter does not mean a total cut of power to the fan ( it will be supplied @ the battery voltage ).
 
 ### WARC-Software
+
+#### Quick build
+> Using `MinGW`:
+> > Clone the `IXT` root folder. `cd` inside it and make a `build` folder.
+> > ```console
+> > chill_individual/../IXT> mkdir build
+> > ```
+> > `cd` inside the `build` folder and run the command:
+> > > If you're building with `SSL`:
+> > > ```console
+> > > chill_individual/../IXT/build> cmake .. -G "MinGW Makefiles" -DIXT_OS_WINDOWS=ON -DIXT_GL_OPEN_GL=ON -DIXT_BOOST=ON -DIXT_OPEN_SSL=ON -DIXT_RUPTURES_TO_BUILD=warc -DWARC_INET_TLS=ON
+> > > ```
+> > > If you're building without `SSL`:
+> > > ```console
+> > > chill_individual/../IXT/build> cmake .. -G "MinGW Makefiles" -DIXT_OS_WINDOWS=ON -DIXT_GL_OPEN_GL=ON -DIXT_BOOST=ON -DIXT_RUPTURES_TO_BUILD=warc -DWARC_INET_TLS=OFF
+> > > ```
+> > Now,
+> > ```console
+> > chill_individual/../IXT/build> make
+> > ```
+> > If everything is green, then is okay.
 
 #### Immersion
 > Control:

@@ -21,18 +21,18 @@ uniform sampler2D map_Kd;
 uniform sampler2D map_Ks;
 
 void main() {
-    float light = dot( gs_in.sun_ray, gs_in.nrm ) / ( length( gs_in.sun_ray ) * length( gs_in.nrm ) );
-    float dark = ( -light + .16 ) / 1.16;
+    float light = dot( -gs_in.sun_ray, gs_in.nrm ) / ( length( gs_in.sun_ray ) * length( gs_in.nrm ) ) + 0.12;
+    float dark = -light + 0.12;
+    
+    light = 1.6 * max( pow( light, 0.82 ), 0.06 ); 
 
-    light = 2.0 * max( light, .06 );
-
-    const float CITY_LIGHTS_BUMP = 0.5;
+    const float CITY_LIGHTS_BUMP = 0.56;
     vec4 city_lights = texture( map_Ka, gs_in.tex_crd );
 
     city_lights.r = pow( city_lights.r, CITY_LIGHTS_BUMP );
     city_lights.g = pow( city_lights.g, CITY_LIGHTS_BUMP );
     city_lights.b = pow( city_lights.b, CITY_LIGHTS_BUMP );
-    city_lights *= 2.2;
+    city_lights *= 3.0;
 
     float land = texture( map_Ks, gs_in.tex_crd ).s;
 

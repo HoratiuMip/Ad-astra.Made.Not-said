@@ -238,12 +238,16 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_from_config ) {
     IXT::UPtr< char[] > buffer{ ( char* )malloc( sz + 1 ) };
     file.read( buffer.get(), sz );
     file.close();
+
     buffer[ sz ] = 0;
+
+    while( buffer[ sz ] != '}' )
+        buffer[ sz-- ] = 0;
 
     std::error_code ec;
     boost::json::value jv = boost::json::parse( buffer.get(), ec );
     if( ec.value() != 0 ) {
-        WARC_LOG_RT_ERROR << "Fault at parsing JSON (" << ec.message() << "):\n" << buffer.get();
+        WARC_LOG_RT_ERROR << "Fault at parsing JSON (" << ec.message() << "):\n";// << buffer.get();
         return -1;
     }
 

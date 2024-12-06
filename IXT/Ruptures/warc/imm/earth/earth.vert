@@ -20,7 +20,7 @@ vec3 apply_model( in vec3 ref ) {
 void main() {
     vs_out.tex_crd = tex_crd;
     vs_out.nrm     = apply_model( nrm );
-    vs_out.sun_ray = sun_pos - apply_model( vrtx );
+    vs_out.sun_ray = vec3( 0.0 ) - normalize( sun_pos );
 
     gl_Position = vec4( apply_model( vrtx ), 1.0 );
 }

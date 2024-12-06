@@ -80,19 +80,26 @@ struct _IMM : Descriptor {
 
     struct _SUN {
         _SUN()
-        : pos{ "sun_pos", glm::vec3{ 0.0, 0.0, 1800.0 } }
+        : pos{ "sun_pos", glm::vec3{ 0.0, 0.0, 180.0 } }
         {
-            auto ll = astro::sun_lat_long_now();
-            pos.get() = glm::vec3(
-                glm::rotate( glm::mat4{ 1.0 }, glm::radians( ll.second ), glm::vec3{ 0, 1, 0 } )
-                *
-                glm::rotate( glm::mat4{ 1.0 }, -glm::radians( ll.first ), glm::vec3{ 1, 0, 0 } )
-                *
-                glm::vec4{ pos.get(), 1.0 }
-            );
+            this->_load_rt_pos();
         }
 
+        Ticker                  tick;
         Uniform3< glm::vec3 >   pos;
+
+        void _load_rt_pos() {
+            auto ll = astro::sun_lat_long_now();
+            pos.get() = glm::vec3{ astro::nrm_from_lat_long( ll ) * 180.0f };
+        }
+
+        _SUN& refresh( ELAPSED_ARGS_DECL ) {
+            if( tick.cmpxchg_lap( 30.0 ) ) {
+                this->_load_rt_pos();
+            }
+
+            return *this;
+        }
 
     } sun;
 
@@ -112,6 +119,8 @@ struct _IMM : Descriptor {
                 PIMM->sun.pos,
                 this->sat_poss, this->sat_high_specs
             );
+
+            PIMM->sun.pos.uplink_b();
         }
 
         Mesh3                        mesh;
@@ -397,6 +406,9 @@ struct _IMM : Descriptor {
     _IMM& refresh( ELAPSED_ARGS_DECL ) {
         ggfloat_t high_fac = 0.2 + ( 1.0 + glm::pow( sin( sats.tick.up_time() * 8.6 ), 3.0 ) );
 
+        sun.refresh( ELAPSED_ARGS_CALL );
+        sats.refresh( ELAPSED_ARGS_CALL );
+
         for( int idx = 0; idx < 3; ++idx ) {
             auto& s = sats.noaa[ idx ];
 
@@ -417,10 +429,6 @@ struct _IMM : Descriptor {
         ufrm.view.uplink_bv( lens.view() );
 
         ufrm.rtc.uplink_bv( ufrm.rtc.get() + rela );
-        //sun.pos.uplink_bv( glm::rotate( sun.pos.get(), ( float )( .0012 * ela ), glm::vec3{ 0, 1, 0 } ) );
-        sun.pos.uplink_b();
-
-        sats.refresh( ELAPSED_ARGS_CALL );
         
         return *this;
     }

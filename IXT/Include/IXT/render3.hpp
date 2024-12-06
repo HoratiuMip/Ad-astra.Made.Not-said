@@ -39,7 +39,7 @@ public:
     Shader3( const std::filesystem::path& path, SHADER3_PHASE phase, _ENGINE_COMMS_ECHO_ARG ) {
         std::string source;
         std::string line;
-        DWORD       status;
+        DWORD       status = 0;
 
         std::function< void( const std::filesystem::path& ) > accumulate_glsl = [ & ] ( const std::filesystem::path& path ) -> void {
             std::ifstream file{ path, std::ios_base::binary };

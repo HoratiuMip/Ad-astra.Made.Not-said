@@ -5,6 +5,7 @@
 #include <warc/satellite.hpp>
 #include <warc/n2yo.hpp>
 #include <warc/earth-imm.hpp>
+#include <warc/astro.hpp>
 
 #include <IXT/descriptor.hpp>
 #include <IXT/file-manip.hpp>
@@ -48,26 +49,23 @@ _WARC_PROTECTED:
     | --n2yo-api-key show ash
     */
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_n2yo_api_key );
-
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_n2yo_ip );
-
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_n2yo_bulk_count );
-
     /*
     | Usage:
     | --n2yo-bypass
     */
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_n2yo_mode );
-
     /*
     | Usage:
     | --earth-imm
     */
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm );
-
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm_lens_sens );
 
-    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm_vernal_equinox );
+
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_astro_ref_vernal_equinox_ts );
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_astro_ref_first_january_ts );
 
 public:
     int main( int argc, char* argv[] );

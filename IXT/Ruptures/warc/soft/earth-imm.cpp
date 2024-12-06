@@ -80,16 +80,16 @@ struct _IMM : Descriptor {
 
     struct _SUN {
         _SUN()
-        : pos{ "sun_pos", glm::vec3{ 180.0 } }
+        : pos{ "sun_pos", glm::vec3{ 0.0, 0.0, 1800.0 } }
         {
-            auto ll = astro::sun_lat_long_now( 1'679'347'500 );
-            // pos.get() = glm::vec3(
-            //     glm::rotate( glm::mat4{ 1.0 }, glm::radians( ll.second ), glm::vec3{ 0, 1, 0 } )
-            //     *
-            //     glm::rotate( glm::mat4{ 1.0 }, -glm::radians( ll.first ), glm::vec3{ 1, 0, 0 } )
-            //     *
-            //     glm::vec4{ pos.get(), 1.0 }
-            // );
+            auto ll = astro::sun_lat_long_now();
+            pos.get() = glm::vec3(
+                glm::rotate( glm::mat4{ 1.0 }, glm::radians( ll.second ), glm::vec3{ 0, 1, 0 } )
+                *
+                glm::rotate( glm::mat4{ 1.0 }, -glm::radians( ll.first ), glm::vec3{ 1, 0, 0 } )
+                *
+                glm::vec4{ pos.get(), 1.0 }
+            );
         }
 
         Uniform3< glm::vec3 >   pos;
@@ -417,7 +417,7 @@ struct _IMM : Descriptor {
         ufrm.view.uplink_bv( lens.view() );
 
         ufrm.rtc.uplink_bv( ufrm.rtc.get() + rela );
-        sun.pos.uplink_bv( glm::rotate( sun.pos.get(), ( float )( .0012 * ela ), glm::vec3{ 0, 1, 0 } ) );
+        //sun.pos.uplink_bv( glm::rotate( sun.pos.get(), ( float )( .0012 * ela ), glm::vec3{ 0, 1, 0 } ) );
         sun.pos.uplink_b();
 
         sats.refresh( ELAPSED_ARGS_CALL );
@@ -436,10 +436,6 @@ struct _IMM : Descriptor {
         return *this;
     }
     
-    _IMM& run_pipe( ELAPSED_ARGS_DECL ) {
-        return this->control( ELAPSED_ARGS_CALL ).refresh( ELAPSED_ARGS_CALL ).splash( ELAPSED_ARGS_CALL );
-    }
-
 };
 
 
@@ -464,7 +460,7 @@ int EARTH::main( int argc, char* argv[] ) {
         double elapsed = elapsed_raw * 60.0;
         
         imm.rend.clear( glm::vec4{ 0.1, 0.1, 0.1, 1.0 } );
-        imm.run_pipe( elapsed, elapsed_raw );
+        imm.control( elapsed, elapsed_raw ).refresh( elapsed, elapsed_raw ).splash( elapsed, elapsed_raw );
         imm.rend.swap();
     }
 

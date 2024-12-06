@@ -4,7 +4,7 @@ namespace warc {
 
 
 static struct _INTERNAL {
-    struct OPT {
+    const struct OPT {
         enum USABLE : IXT::BYTE {
             USABLE_CMDL_LAUNCH_MSK    = 0b001,
             USABLE_CONFIG_FILE_MSK    = 0b010,
@@ -22,15 +22,19 @@ static struct _INTERNAL {
         int           least_argc;
         int           ( MAIN::*proc )( int, char**, const char* );
 
-    } opts[ 8 ] = {
-        { 1, "--from-config",              0b001, 1, &MAIN::_parse_proc_from_config },
-        { 2, "--n2yo-api-key",             0b111, 2, &MAIN::_parse_proc_n2yo_api_key },
-        { 3, "--n2yo-ip",                  0b111, 1, &MAIN::_parse_proc_n2yo_ip },
-        { 4, "--n2yo-bulk-count",          0b111, 1, &MAIN::_parse_proc_n2yo_bulk_count },
-        { 5, "--n2yo-mode",                0b111, 1, &MAIN::_parse_proc_n2yo_mode },
-        { 6, "--earth-imm",                0b001, 0, &MAIN::_parse_proc_earth_imm },
-        { 7, "--earth-imm-lens-sens",      0b111, 1, &MAIN::_parse_proc_earth_imm_lens_sens },
-        { 8, "--earth-imm-vernal-equinox", 0b111, 1, &MAIN::_parse_proc_earth_imm_vernal_equinox }
+    } opts[ 9 ] = {
+        { 1, "--from-config",                 0b001, 1, &MAIN::_parse_proc_from_config },
+
+        { 2, "--n2yo-api-key",                0b111, 2, &MAIN::_parse_proc_n2yo_api_key },
+        { 3, "--n2yo-ip",                     0b111, 1, &MAIN::_parse_proc_n2yo_ip },
+        { 4, "--n2yo-bulk-count",             0b111, 1, &MAIN::_parse_proc_n2yo_bulk_count },
+        { 5, "--n2yo-mode",                   0b111, 1, &MAIN::_parse_proc_n2yo_mode },
+
+        { 6, "--earth-imm",                   0b001, 0, &MAIN::_parse_proc_earth_imm },
+        { 7, "--earth-imm-lens-sens",         0b111, 1, &MAIN::_parse_proc_earth_imm_lens_sens },
+
+        { 8, "--astro-ref-vernal-equinox-ts", 0b111, 1, &MAIN::_parse_proc_astro_ref_vernal_equinox_ts },
+        { 9, "--astro-ref-first-january-ts",  0b111, 1, &MAIN::_parse_proc_astro_ref_first_january_ts }
     };
     const int optc = sizeof( opts ) / sizeof( OPT );
 
@@ -177,6 +181,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm ) {
     return 0;
 }
 
+
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_lens_sens ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_lens_sens()" );
 
@@ -190,16 +195,30 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_lens_sens ) {
     return 0;
 }
 
-WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_vernal_equinox ) {
-    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_vernal_equinox()" );
+
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_vernal_equinox_ts ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_astro_ref_vernal_equinox_ts()" );
 
     WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
     WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Vernal equinox timestamp is NULL.", -1, -1 );
 
     time_t ts = atoll( argv[ 0 ] );
-    _internal.config.earth_imm_vernal_equinox = ts;
+    astro::params.ref_vernal_equinox_ts = ts;
 
-    WARC_LOG_RT_OK << "Earth immersion reference vernal equinox: \"" << _internal.config.earth_imm_vernal_equinox << "\".";
+    WARC_LOG_RT_OK << "Astro reference vernal equinox: " << astro::params.ref_vernal_equinox_ts << ".";
+    return 0;
+}
+
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_first_january_ts ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_astro_ref_first_january_ts()" );
+
+    WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "First January timestamp is NULL.", -1, -1 );
+
+    time_t ts = atoll( argv[ 0 ] );
+    astro::params.ref_first_january_ts = ts;
+
+    WARC_LOG_RT_OK << "Astro reference vernal equinox: \"" << astro::params.ref_first_january_ts << "\".";
     return 0;
 }
 
@@ -285,7 +304,7 @@ int MAIN::_parse_opts( int argc, char* argv[] ) {
 
         if( !std::string_view{ opt }.starts_with( "--" ) ) continue;
 
-        _INTERNAL::OPT* record = std::find_if( _internal.opts, _internal.opts + _internal.optc, [ &opt ] ( _INTERNAL::OPT& rec ) -> bool {
+        const _INTERNAL::OPT* record = std::find_if( _internal.opts, _internal.opts + _internal.optc, [ &opt ] ( const _INTERNAL::OPT& rec ) -> bool {
             if( ( rec.usable & _INTERNAL::OPT::USABLE_CMDL_LAUNCH_MSK ) == 0 ) return false;
             return strcmp( opt, rec.name ) == 0;
         } );

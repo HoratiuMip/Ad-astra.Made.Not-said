@@ -9,9 +9,20 @@ namespace warc { namespace astro {
 _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_ASTRO_STR );
 
 
-std::pair< float, float > sun_lat_long_from_timestamp( time_t ts, time_t rve );
+struct PARAMS {
+    const double   EAID  = 23.5;
+    const time_t   SIY   = 31'556'926;
+    const time_t   SID   = 86'400;
 
-std::pair< float, float > sun_lat_long_now( time_t rve );
+    time_t   ref_vernal_equinox_ts   = -1;
+    time_t   ref_first_january_ts    = -1;
+
+}; inline PARAMS params;
+
+
+std::pair< float, float > sun_lat_long_from_timestamp( time_t ts );
+
+std::pair< float, float > sun_lat_long_now();
 
 
 } };

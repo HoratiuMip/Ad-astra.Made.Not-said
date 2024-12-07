@@ -91,7 +91,7 @@ struct _IMM : Descriptor {
 
         void _load_rt_pos() {
             auto ll = astro::sun_lat_long_now();
-            pos.get() = glm::vec3{ astro::nrm_from_lat_long( ll ) * 180.0f };
+            pos.uplink_bv( glm::vec3{ astro::nrm_from_lat_long( ll ) * 180.0f } );
         }
 
         _SUN& refresh( ELAPSED_ARGS_DECL ) {

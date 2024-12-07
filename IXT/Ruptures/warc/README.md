@@ -1,7 +1,7 @@
 # `[ =Z< )) O* ]` _WARC_ - The *Winter-Arc* project. 
-Cool picture here.
+Satellite. Satbe... or... satbe not. Are we some sort of... league of orbiters? It's right above me, isn't it?
+Earth images captured from the heavens, on demand, via the baddest immersive program and the sickest circuit rig (which I shall not short & burn).
 ![warc-1](https://github.com/user-attachments/assets/99dba2e3-141e-4eb7-9a9f-0d4a03fc632a)
-Cool description here.
 Damn.
 
 > I.  [Description](#Description)

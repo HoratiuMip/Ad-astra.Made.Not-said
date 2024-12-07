@@ -92,7 +92,7 @@ Damn.
 > - `RMB` | hold - enable spin mode - move the mouse to spin around the globe.
 > - `RMB` | quick double click, toggle - enable cinematic camera.
 > - `SCROLL` - zoom in/out.
-> - `SPACE` | toggle - highlight satellites and their ~range.
+> - `SPACE` | toggle - highlight satellites and their ~range. | Alternatively, while holding `RMB`, flick the mouse left and right quickly for a couple of times.
 > - `<`/`,` - enable wireframe rendering.
 > - `>`/`.` - enable full rendering.
 

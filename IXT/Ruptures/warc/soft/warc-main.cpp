@@ -53,10 +53,6 @@ static struct _INTERNAL {
         std::string   n2yo_ip                    = ""; 
         int           n2yo_bulk_count            = 180;
 
-        bool          earth_imm                  = false;
-        float         earth_imm_lens_sens        = 1.0;
-        time_t        earth_imm_vernal_equinox   = 0;
-
     } config;
 
 } _internal;
@@ -173,14 +169,14 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_n2yo_mode ) {
     return 0;
 }
 
+
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm()" );
 
-    _internal.config.earth_imm = true;
+    this->_earth = std::make_shared< imm::EARTH >();
     WARC_LOG_RT_OK << "Enabled earth immersion module.";
     return 0;
 }
-
 
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_lens_sens ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_lens_sens()" );
@@ -188,10 +184,12 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_lens_sens ) {
     WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
     WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Sens is NULL.", -1, -1 );
 
-    float lens_sens = atof( argv[ 0 ] );
-    _internal.config.earth_imm_lens_sens = lens_sens;
+    WARC_ASSERT_RT( this->_earth, "Earth immersion module not enabled.", -1, -1 );
 
-    WARC_LOG_RT_OK << "Earth immersion lens sensitivity: \"" << _internal.config.earth_imm_lens_sens << "\".";
+    float lens_sens = atof( argv[ 0 ] );
+    this->_earth->params().lens_sens = lens_sens;
+
+    WARC_LOG_RT_OK << "Earth immersion lens sensitivity: \"" << lens_sens << "\".";
     return 0;
 }
 
@@ -364,11 +362,7 @@ int MAIN::main( int argc, char* argv[] ) {
         if( continue_program == 'N' ) goto l_main_end;
     } while( continue_program != 'Y' );
 
-    if( _internal.config.earth_imm ) {
-        this->_earth = std::make_shared< imm::EARTH >();
-
-        this->_earth->lens_sens = _internal.config.earth_imm_lens_sens;
-
+    if( this->_earth ) {
         this->_earth->set_sat_pos_update_func( [ &, this ] ( sat::NORAD_ID norad_id, std::deque< sat::POSITION >& positions ) -> imm::EARTH_SAT_UPDATE_RESULT {
             _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::lambda::sat_updater()" );
             

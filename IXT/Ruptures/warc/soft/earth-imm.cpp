@@ -19,6 +19,7 @@ using namespace IXT;
 
 static EARTH* _impl_earth = nullptr;
 #define PEARTH ((EARTH*)_impl_earth)
+#define PEARTH_PARAMS ((EARTH_PARAMS*)(_impl_earth->_params.get()))
 
 static void* _impl_imm = nullptr;
 #define PIMM ((_IMM*)_impl_imm)
@@ -348,7 +349,7 @@ struct _IMM : Descriptor {
                         switch( key ) {
                             case SurfKey::SPACE: {
                                 if( state != SURFKEY_STATE_UP ) break;
-                                ufrm.sat_high.get() = 1.0 - ufrm.sat_high.get();
+                                this->toggle_sat_high();
                             break; }
 
                             case SurfKey::RMB: {
@@ -377,28 +378,66 @@ struct _IMM : Descriptor {
             lens.spin_ul( { 0.004 * ela, cos( cinematic_tick.peek_lap() / 2.2 ) * 0.001 }, { -82.0, 82.0 } );
         }
         
-        static bool cursor_anchored = false;
+
+        static bool   cursor_anchored = false;
+        static float  cursor_delta    = 0.0;
+        static int    cursor_delta_f  = 0;
+        static bool   cursor_delta_a  = false;
+        static Vec2   cursor_last_cd  = {};
+        static Ticker cursor_tick;
+
         if( surf.down( SurfKey::RMB ) ) {
             if( !cursor_anchored ) {
                 surf.ptr_reset();
                 SurfPtr::env_to( Vec2::O() );
+
                 cursor_anchored = true;
+                cursor_delta    = 0.0;
 
                 goto l_end_cursor;
             }
 
             Vec2 cd = surf.ptr_v();
-            if( cd == Vec2::O() ) goto l_end_cursor;
-            cd *= -PEARTH->lens_sens * lens.l2t();
+            if( cd == Vec2::O() ) {
+                cursor_delta_a = false;
+
+                goto l_end_cursor;
+            }
+
+            cd *= -PEARTH_PARAMS->lens_sens * lens.l2t();
 
             lens.spin_ul( { cd.x, cd.y }, { -82.0, 82.0 } );
             SurfPtr::env_to( Vec2::O() );
 
+            if( cursor_delta_a ) goto l_end_cursor;
+
+            cursor_delta += cd.mag() - 0.02;
+
+            if( cursor_delta < 0.0 ) {
+                cursor_delta_f = std::max( cursor_delta_f - 1, 0 );
+                cursor_delta   = 0.0;
+            }
+
+            if( cd.dot( cursor_last_cd ) < 0.0 && cd.mag() >= 0.01 ) {
+                ++cursor_delta_f;
+            }
+
+            if( cursor_delta >= 0.42 && cursor_delta_f >= 4 ) {
+                cursor_delta   = 0.0;
+                cursor_delta_a = true;
+
+                this->toggle_sat_high();
+            }
+
+            cursor_last_cd = cd;
+
         } else if( cursor_anchored ) {
             SurfPtr::env_to( Vec2::O() ); 
             cursor_anchored = false;
+            cursor_delta_a  = false;
         }
     l_end_cursor:
+
 
         return *this;
     }
@@ -444,6 +483,11 @@ struct _IMM : Descriptor {
         return *this;
     }
     
+
+    void toggle_sat_high() {
+        ufrm.sat_high.get() = 1.0 - ufrm.sat_high.get();
+    }
+
 };
 
 
@@ -453,6 +497,15 @@ void EARTH::set_sat_pos_update_func( SatUpdateFunc func ) {
 
 void EARTH::sat_pos_update_hold_resume() {
     //PIMM->sats.hold_update.store( false, std::memory_order_relaxed );
+}
+
+
+void EARTH::set_params( IXT::SPtr< EARTH_PARAMS > ptr ) {
+    _params = std::move( ptr );
+}
+
+EARTH_PARAMS& EARTH::params() {
+    return *_params;
 }
 
 

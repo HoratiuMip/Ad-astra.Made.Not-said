@@ -6,14 +6,15 @@ Damn.
 
 > I.  [Description](#Description)
 > II. [Manuals](#Manuals)
-> III. [Journal](#Journal)
+> III. [Anchors](#Anchors)
+> IV. [Journal](#Journal)
 
 
 ## Description
 > Satellites of interest:
-> - `NOAA-15` | downlink @ 137.620 MHz.
-> - `NOAA-18` | downlink @ 137.9125 MHz.
-> - `NOAA-19` | downlink @ 137.100 MHz.
+> - `NOAA-15` | NORAD id: `25338` | downlink @ 137.620 MHz.
+> - `NOAA-18` | NORAD id: `28654` | downlink @ 137.9125 MHz.
+> - `NOAA-19` | NORAD id: `33591` | downlink @ 137.100 MHz.
 
 > Following notations as `NOAA-x` refer to the above satellites.
 
@@ -59,25 +60,32 @@ Damn.
 ### WARC-Software
 
 #### Quick build
-> Using `MinGW`:
+> Using `MinGW` w/ `gcc`/`g++` version `11.3.0`:
 > > Clone the `IXT` root folder. `cd` inside it and make a `build` folder.
 > > ```console
-> > chill_individual/../IXT> mkdir build
+> > mkdir build
 > > ```
 > > `cd` inside the `build` folder and run the command:
 > > > If you're building with `SSL`:
 > > > ```console
-> > > chill_individual/../IXT/build> cmake .. -G "MinGW Makefiles" -DIXT_OS_WINDOWS=ON -DIXT_GL_OPEN_GL=ON -DIXT_BOOST=ON -DIXT_OPEN_SSL=ON -DIXT_RUPTURES_TO_BUILD=warc -DWARC_INET_TLS=ON
+> > > cmake .. -G "MinGW Makefiles" -DIXT_OS_WINDOWS=ON -DIXT_GL_OPEN_GL=ON -DIXT_BOOST=ON -DIXT_OPEN_SSL=ON -DIXT_RUPTURES_TO_BUILD=warc -DWARC_INET_TLS=ON
 > > > ```
 > > > If you're building without `SSL`:
 > > > ```console
-> > > chill_individual/../IXT/build> cmake .. -G "MinGW Makefiles" -DIXT_OS_WINDOWS=ON -DIXT_GL_OPEN_GL=ON -DIXT_BOOST=ON -DIXT_RUPTURES_TO_BUILD=warc -DWARC_INET_TLS=OFF
+> > > cmake .. -G "MinGW Makefiles" -DIXT_OS_WINDOWS=ON -DIXT_GL_OPEN_GL=ON -DIXT_BOOST=ON -DIXT_RUPTURES_TO_BUILD=warc -DWARC_INET_TLS=OFF
 > > > ```
 > > Now,
 > > ```console
-> > chill_individual/../IXT/build> make
+> > mingw32-make
 > > ```
-> > If everything is green, then is okay.
+> > If everything is $${\color{green}■■■}$$, launch the program for a quick test:
+> > ```console
+> > .\Ruptures\warc\warc.exe
+> > ```
+> > This should initialize the program, prompt the chill user wether to continue, and then terminate independently of the user's choice, since no command line arguments were passed. To make a quick launch of the immersive module, run:
+> > ```console
+> > .\Ruptures\warc\warc.exe --earth-imm --n2yo-mode past
+> > ```
 
 #### Immersion
 > Control:
@@ -138,6 +146,28 @@ Damn.
 > | `--n2yo-bulk-count <arg1>` | How many orbit positions ( how many seconds of orbit ) to request from the `N2YO` server, per satellite update. | `Yes` | `Yes` | `Yes` |
 > | `--earth-imm` | Launch the immersive earth control module. That is, the graphical component. | `No` | `No` | `Yes` |
 > | `--earth-imm-lens-sens <arg1>` | The sensitivity of the camera. | `Yes` | `Yes` | `Yes` |
+
+
+## Anchors
+
+### Hardware
+> - `nooelec SAWbird+ NOAA` | https://www.nooelec.com/store/sdr/sdr-addons/sawbird/sawbird-plus-noaa-308.html
+> - `RTL-SDR V3` | https://www.rtl-sdr.com/rtl-sdr-blog-v-3-dongles-user-guide
+
+### Bridge
+> - `SRD++` | https://www.sdrpp.org
+> - `SatDump` | https://www.satdump.org
+> - `N2YO` | https://www.n2yo.com | https://www.n2yo.com/?s=25338|28654|33591
+
+### Software
+> - `Galaxy texture` | https://svs.gsfc.nasa.gov/4851
+> - `Galaxy model` | From the GOAT | https://github.com/nyjucu
+> - `Earth texture` | https://shadedrelief.com/natural3/ne3_data/8192/textures/1_earth_8k.jpg
+> - `Earth altitude texture` | https://visibleearth.nasa.gov/images/73934/topography
+> - `Earth landmask texture` | https://github.com/SatDump/SatDump/blob/master/resources/maps/landmask.jpg
+> - `Earth night lights texture` | https://visibleearth.nasa.gov/images/55167/earths-city-lights
+> - `Earth model` | From the GOAT | https://github.com/nyjucu
+> - `NOAA textures & model` | https://www.cgtrader.com/free-3d-models/space/spaceship/noaa-15-weather-satellite
 
 
 ## Journal

@@ -205,5 +205,8 @@ Damn.
 
 > - This program targets real-time tracking of `NOAA-x` | computing `NOAA-x` future orbits | on-demand, over-the-internet satellite image capturing.
 > ![warc-soft-v3-2](https://github.com/user-attachments/assets/2f672418-77de-47bc-9dc7-6b3350f907d3)
-> Short video: ![warc-soft-v3](https://github.com/user-attachments/assets/9ae7ee73-706b-4aaa-a8e3-ccd0f29db944)
+
+> Short video [here](https://github.com/user-attachments/assets/3e27c3a2-5ca1-4ed4-9bcf-5f75c5db5a4f).
+
+
 

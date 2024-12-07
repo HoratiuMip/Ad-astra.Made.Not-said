@@ -143,9 +143,16 @@ public:
         .push_color( _status_colors[ status ] )
         .operator<<( _status_strs[ status ] )
         .white()
-        .operator<<( " ]   \t" )
-        .blue();
+        .operator<<( " ]   \t" );
 
+        this->white()
+        .operator<<( "[ " )
+        .gray()
+        .operator<<( time( nullptr ) )
+        .white()
+        .operator<<( " ]" );
+        
+        this->blue();
         for( int64_t n = 1; n <= _depth; ++n )
             this->operator<<( "\\>" );
         

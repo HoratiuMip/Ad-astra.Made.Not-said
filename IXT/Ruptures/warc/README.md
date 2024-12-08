@@ -90,8 +90,9 @@ Damn.
 #### Immersion
 > Control:
 > - `RMB` | hold - enable spin mode - move the mouse to spin around the globe.
-> - `RMB` | quick double click, toggle - enable cinematic camera.
 > - `SCROLL` - zoom in/out.
+> - `C` | toggle - enable cinematic camera. | Alternatively, double click `RMB`.
+> - `B` | toggle - highlight the countries.
 > - `SPACE` | toggle - highlight satellites and their ~range. | Alternatively, while holding `RMB`, flick the mouse left and right quickly for a couple of times.
 > - `<`/`,` - enable wireframe rendering.
 > - `>`/`.` - enable full rendering.
@@ -200,11 +201,10 @@ Damn.
 > |-|-|
 > |![avhrr_3_rgb_MSA_(Uncalibrated)](https://github.com/user-attachments/assets/3cb87800-2a46-44d0-82a2-5042a538dfe2)|![avhrr_3_rgb_MSA_(Uncalibrated)](https://github.com/user-attachments/assets/586c27b8-2e04-4950-ad44-fc6904407af7)|
 
-### Stage-II - Immersive control.
-> Let us use the `IXT` engine to create an interactive software to work with `NOAA-x` and the created hardware equipment.
+### Stage-II - Immersion.
+> Roam around the earth while being in full smooth control over everything. 
+> ![warc-rah-1](https://github.com/user-attachments/assets/6ad2812d-5f1c-4a44-b5fa-8a85c3ac811f)
 
-> - This program targets real-time tracking of `NOAA-x` | computing `NOAA-x` future orbits | on-demand, over-the-internet satellite image capturing.
-> ![warc-soft-v3-2](https://github.com/user-attachments/assets/2f672418-77de-47bc-9dc7-6b3350f907d3)
 
 > Short video [here](https://github.com/user-attachments/assets/3e27c3a2-5ca1-4ed4-9bcf-5f75c5db5a4f).
 

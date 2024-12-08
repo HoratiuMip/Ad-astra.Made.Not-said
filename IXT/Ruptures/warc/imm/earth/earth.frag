@@ -16,25 +16,28 @@ out vec4 final;
 uniform float     rtc;
 uniform float     sat_high;
 uniform vec3      sat_high_specs[ SAT_COUNT ];
-uniform sampler2D map_Ka;
+uniform int       show_countries;
 uniform sampler2D map_Kd;
-uniform sampler2D map_Ks;
+uniform sampler2D map_lights;
+uniform sampler2D map_cal;
 
 void main() {
-    float light = dot( -gs_in.sun_ray, gs_in.nrm ) / ( length( gs_in.sun_ray ) * length( gs_in.nrm ) ) + 0.12;
-    float dark = -light + 0.12;
+    float light = dot( -gs_in.sun_ray, gs_in.nrm ) / ( length( gs_in.sun_ray ) * length( gs_in.nrm ) ) + 0.11;
+    float dark = -light + 0.06875;
     
-    light = 1.6 * max( pow( light, 0.82 ), 0.06 ); 
+    light = 1.6 * max( pow( light, 0.82 ), 0.03 ); 
 
     const float CITY_LIGHTS_BUMP = 0.56;
-    vec4 city_lights = texture( map_Ka, gs_in.tex_crd );
+    vec4 city_lights = texture( map_lights, gs_in.tex_crd );
 
     city_lights.r = pow( city_lights.r, CITY_LIGHTS_BUMP );
     city_lights.g = pow( city_lights.g, CITY_LIGHTS_BUMP );
     city_lights.b = pow( city_lights.b, CITY_LIGHTS_BUMP );
     city_lights *= 3.0;
 
-    float land = texture( map_Ks, gs_in.tex_crd ).s;
+    vec4 cal = texture( map_cal, gs_in.tex_crd );
+
+    float land = cal.b;
 
     final = 
         texture( map_Kd, gs_in.tex_crd ) * light 
@@ -59,6 +62,8 @@ void main() {
         int   furthest_sat_idx = -1;
 
         for( int sidx = 0; sidx < SAT_COUNT; ++sidx ) {
+            if( sat_high_specs[ sidx ].r == 0.0 ) continue;
+
             float sat_dist = length( gs_in.sat2vrtx[ sidx ] );
             if( sat_dist > OUTTER_DIST ) continue;
 
@@ -71,8 +76,10 @@ void main() {
         if( furthest_sat_idx >= 0 ) {
             vec3 sat_high_spec = sat_high_specs[ furthest_sat_idx ];
 
+            float fac = max( sat_high_spec.r, max( sat_high_spec.g, sat_high_spec.b ) );
+
             if( sat_high_spec.gb != vec2( 0.0 ) ) {
-                final.rgb = mix( final.rgb, sat_high_spec, sat_high_spec.r * pow( longest_dist / OUTTER_DIST, 4.0 ) ); 
+                final.rgb = mix( final.rgb, sat_high_spec, fac * pow( longest_dist / OUTTER_DIST, 4.0 ) ); 
             }
         }
     } 
@@ -87,8 +94,14 @@ void main() {
 
         final.rgb = mix( 
             final.rgb, vec3( ( 1.0 - light ) * 0.8, 0.62 + ( 1.0 - light ) * 0.18, 0.8 ), 
-            ( 1.0 - abs( 90.0 - lens_flare_deg ) / float( is_fwd ? LENS_FFR : LENS_FBR ) ) * 0.6
-        );
+            ( 1.0 - abs( 90.0 - lens_flare_deg ) / float( is_fwd ? LENS_FFR : LENS_FBR ) ) * 0.52
+        ) * float( is_fwd ? ( 1.0 - diff / LENS_FFR ) : 1.0 );
+    }
+
+    if( bool( show_countries ) && (
+        ( cal.r >= 0.5 && cal.g < 0.5 && cal.b < 0.5 ) 
+    ) ) {
+        final.rgb = vec3( 0.72, 0.0, 1.0 );
     }
     
     final.w = 1.0;

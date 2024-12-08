@@ -11,7 +11,6 @@ static struct _INTERNAL {
             USABLE_CMDL_REAL_TIME_MSK = 0b100
         };
 
-        int           idx;
         const char*   name;
         /*
         | bit 0 - from command line on launch
@@ -22,19 +21,21 @@ static struct _INTERNAL {
         int           least_argc;
         int           ( MAIN::*proc )( int, char**, const char* );
 
-    } opts[ 9 ] = {
-        { 1, "--from-config",                 0b001, 1, &MAIN::_parse_proc_from_config },
+    } opts[ 11 ] = {
+        { "--from-config",                    0b001, 1, &MAIN::_parse_proc_from_config },
 
-        { 2, "--n2yo-api-key",                0b111, 2, &MAIN::_parse_proc_n2yo_api_key },
-        { 3, "--n2yo-ip",                     0b111, 1, &MAIN::_parse_proc_n2yo_ip },
-        { 4, "--n2yo-bulk-count",             0b111, 1, &MAIN::_parse_proc_n2yo_bulk_count },
-        { 5, "--n2yo-mode",                   0b111, 1, &MAIN::_parse_proc_n2yo_mode },
+        { "--n2yo-api-key",                   0b111, 2, &MAIN::_parse_proc_n2yo_api_key },
+        { "--n2yo-ip",                        0b111, 1, &MAIN::_parse_proc_n2yo_ip },
+        { "--n2yo-bulk-count",                0b111, 1, &MAIN::_parse_proc_n2yo_bulk_count },
+        { "--n2yo-mode",                      0b111, 1, &MAIN::_parse_proc_n2yo_mode },
 
-        { 6, "--earth-imm",                   0b001, 0, &MAIN::_parse_proc_earth_imm },
-        { 7, "--earth-imm-lens-sens",         0b111, 1, &MAIN::_parse_proc_earth_imm_lens_sens },
+        { "--earth-imm",                      0b001, 0, &MAIN::_parse_proc_earth_imm },
+        { "--earth-imm-lens-sens",            0b111, 1, &MAIN::_parse_proc_earth_imm_lens_sens },
+        { "--earth-imm-sat-high-shake-decay", 0b111, 1, &MAIN::_parse_proc_earth_imm_sat_high_shake_decay },
+        { "--earth-imm-sat-high-shake-cross", 0b111, 1, &MAIN::_parse_proc_earth_imm_sat_high_shake_cross },
 
-        { 8, "--astro-ref-vernal-equinox-ts", 0b111, 1, &MAIN::_parse_proc_astro_ref_vernal_equinox_ts },
-        { 9, "--astro-ref-first-january-ts",  0b111, 1, &MAIN::_parse_proc_astro_ref_first_january_ts }
+        { "--astro-ref-vernal-equinox-ts",    0b111, 1, &MAIN::_parse_proc_astro_ref_vernal_equinox_ts },
+        { "--astro-ref-first-january-ts",     0b111, 1, &MAIN::_parse_proc_astro_ref_first_january_ts }
     };
     const int optc = sizeof( opts ) / sizeof( OPT );
 
@@ -193,6 +194,37 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_lens_sens ) {
     return 0;
 }
 
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_sat_high_shake_decay ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_sat_high_shake_decay()" );
+
+    WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Decay is NULL.", -1, -1 );
+
+    WARC_ASSERT_RT( this->_earth, "Earth immersion module not enabled.", -1, -1 );
+
+    float decay = atof( argv[ 0 ] );
+    this->_earth->params().sat_high_decay = decay;
+
+    WARC_LOG_RT_OK << "Earth immersion satellite highlight decay time: \"" << decay << "\".";
+    return 0;
+}
+
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_sat_high_shake_cross ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_sat_high_shake_cross()" );
+
+    WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Cross is NULL.", -1, -1 );
+
+    WARC_ASSERT_RT( this->_earth, "Earth immersion module not enabled.", -1, -1 );
+
+    float cross = atoi( argv[ 0 ] );
+    this->_earth->params().sat_high_cross = cross;
+
+    WARC_LOG_RT_OK << "Earth immersion satellite highlight cross count: \"" << cross << "\".";
+    return 0;
+}
+
+
 
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_vernal_equinox_ts ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_astro_ref_vernal_equinox_ts()" );
@@ -254,27 +286,29 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_from_config ) {
 
     for( auto& opt : _internal.opts ) {
         if( ( opt.usable & _INTERNAL::OPT::USABLE_CONFIG_FILE_MSK ) == 0 ) continue;
+    
+        boost::json::value* v = config->if_contains( opt.name );
 
-        boost::json::value& v = ( *config )[ opt.name ];
-
-        if( v.is_null() ) {
-            //WARC_LOG_RT_WARNING << "Configuration \"" << opt.name << "\" is null. Continuing...";
+        if( v == nullptr ) continue;
+        
+        if( v->is_null() ) {
+            WARC_LOG_RT_WARNING << "Configuration \"" << opt.name << "\" is null. Ignoring...";
             continue; 
         }
 
-        auto* str = v.if_string();
+        auto* str = v->if_string();
         if( str == nullptr ) {
-            WARC_LOG_RT_WARNING << "Configuration \"" << opt.name << "\" is not a string. Continuing...";
+            WARC_LOG_RT_WARNING << "Configuration \"" << opt.name << "\" is not a string. Ignoring...";
             continue; 
         }
 
-        WARC_LOG_RT_INTEL << "Proc configuration \"" << opt.name << "\".";
+        WARC_LOG_RT_INTEL << "Begin proc for configuration \"" << opt.name << "\".";
 
         std::vector< std::string > arg_strs; arg_strs.reserve( 16 );
         std::vector< char* >       args; args.reserve( 16 );
 
         size_t pos1 = 0;
-        size_t pos2;
+        size_t pos2 = 0;
         do {
             pos2 = str->find( ' ', pos2 ); pos2 = ( pos2 == std::string::npos ? str->size() : pos2 );
 
@@ -353,11 +387,11 @@ int MAIN::main( int argc, char* argv[] ) {
     WARC_ASSERT_RT( status == 0, "Fault at starting the IXT engine.", status, status );
 
     status = inet_tls::uplink();
-    WARC_ASSERT_RT( status == 0 || WARC_INET_TLS == 0, "Fault at starting the <inet_tls> module.", status, status );
+    WARC_ASSERT_RT( status == 0 || WARC_INET_TLS == 0, "Fault at starting the internet transport layer security module.", status, status );
 
-    char continue_program;
+    char continue_program = 'a';
     do {
-        WARC_LOG_RT_OK << "Initialization complete. Continue the program? [Y/N]: ";
+        WARC_LOG_RT_INPUT << "Initialization complete. Continue the program? [Y/N]: ";
         std::cin >> continue_program;
         if( continue_program == 'N' ) goto l_main_end;
     } while( continue_program != 'Y' );

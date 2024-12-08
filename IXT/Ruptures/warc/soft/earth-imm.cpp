@@ -108,7 +108,8 @@ struct _IMM : Descriptor {
         _EARTH() 
         : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"earth/", "earth", MESH3_FLAG_MAKE_SHADING_PIPE },
             sat_poss{ "sat_poss" },
-            sat_high_specs{ "sat_high_specs" }
+            sat_high_specs{ "sat_high_specs" },
+            show_countries{ "show_countries", 0 }
         {
             mesh.model.uplink_v( glm::rotate( glm::mat4{ 1.0 }, -PIf / 2.0f, glm::vec3{ 0, 1, 0 } ) * mesh.model.get() );
 
@@ -118,7 +119,7 @@ struct _IMM : Descriptor {
                 PIMM_UFRM->rtc,
                 PIMM_UFRM->sat_high,
                 PIMM->sun.pos,
-                this->sat_poss, this->sat_high_specs
+                this->sat_poss, this->sat_high_specs, this->show_countries
             );
 
             PIMM->sun.pos.uplink_b();
@@ -127,6 +128,8 @@ struct _IMM : Descriptor {
         Mesh3                        mesh;
         Uniform3< glm::vec3[ 3 ] >   sat_poss;
         Uniform3< glm::vec3[ 3 ] >   sat_high_specs;
+        Uniform3< glm::i32 >         show_countries;
+
     } earth;
 
     struct _GALAXY {
@@ -161,12 +164,14 @@ struct _IMM : Descriptor {
         std::atomic< int >      required_update_count   = 0;
 
         struct _SAT_NOAA {
+            static constexpr float BASE_ELEVATION = 1.086;
+
             _SAT_NOAA( sat::NORAD_ID nid )
             : norad_id{ nid },
                 mesh{ WARC_RUPTURE_IMM_ROOT_DIR"sat_noaa/", "sat_noaa", MESH3_FLAG_MAKE_SHADING_PIPE },
                 high_spec{ "high_spec", glm::vec3{ 0.0 } }
             {
-                pos = base_pos = glm::vec4{ .0, .0, 1.086, 1.0 };
+                pos = glm::vec4{ .0, .0, BASE_ELEVATION, 1.0 };
                 base_model = glm::scale( glm::mat4{ 1.0 }, glm::vec3{ 1.0 / 21.8 / 13.224987 } );
                 mesh.model.uplink_v( 
                     glm::translate( glm::mat4{ 1.0 }, pos ) 
@@ -177,9 +182,9 @@ struct _IMM : Descriptor {
                 );
 
                 switch( this->norad_id ) {
-                    case sat::NORAD_ID_NOAA_15: base_high_spec = glm::vec3( 0.9, 0.7, 0.0 ); break;
-                    case sat::NORAD_ID_NOAA_18: base_high_spec = glm::vec3( 0.7, 0.0, 0.82 ); break;
-                    case sat::NORAD_ID_NOAA_19: base_high_spec = glm::vec3( 0.8, 0.3, 0 ); break;
+                    case sat::NORAD_ID_NOAA_15: base_high_spec = glm::vec3( 0.001, 0.8, 0.4 ); break;
+                    case sat::NORAD_ID_NOAA_18: base_high_spec = glm::vec3( 0.4, 0.001, 0.8 ); break;
+                    case sat::NORAD_ID_NOAA_19: base_high_spec = glm::vec3( 0.8, 0.4, 0.001 ); break;
 
                     default: base_high_spec = glm::vec3( 1.0, 0.0, 0.82 ); break;
                 }
@@ -196,7 +201,6 @@ struct _IMM : Descriptor {
             sat::NORAD_ID                 norad_id;     
 
             glm::mat4                     base_model;
-            glm::vec3                     base_pos;
             glm::vec3                     base_high_spec;
             Mesh3                         mesh;
             glm::vec3                     pos;
@@ -230,14 +234,7 @@ struct _IMM : Descriptor {
             }
 
             glm::vec3 translate_latlong_2_glpos( const sat::POSITION& sat_pos ) {
-                float rx = glm::radians( sat_pos.satlatitude );
-                float ry = glm::radians( sat_pos.satlongitude );
-
-                return glm::rotate( glm::mat4{ 1.0 }, ry, glm::vec3{ 0, 1, 0 } )
-                    *
-                    glm::rotate( glm::mat4{ 1.0 }, -rx, glm::vec3{ 1, 0, 0 } )
-                    *
-                    glm::vec4{ base_pos, 1.0 };
+                return astro::nrm_from_lat_long( astro::LAT_LONG{ ( float )sat_pos.satlatitude, ( float )sat_pos.satlongitude } ) * BASE_ELEVATION;
             }
 
             _SAT_NOAA& splash( ELAPSED_ARGS_DECL ) {
@@ -352,16 +349,30 @@ struct _IMM : Descriptor {
                                 this->toggle_sat_high();
                             break; }
 
+                            case SurfKey::C: {
+                                if( state != SURFKEY_STATE_UP ) break;
+                                this->toggle_cinematic();
+                            break; }
+
+                            case SurfKey::B: {
+                                if( state != SURFKEY_STATE_UP ) break;
+                                this->toggle_show_countries();
+                            break; }
+
                             case SurfKey::RMB: {
                                 state == SURFKEY_STATE_DOWN ? surf.hide_def_ptr() : surf.show_def_ptr();
 
                                 if( state == SURFKEY_STATE_DOWN && tick.lap() <= 0.2 ) {
-                                    cinematic ^= true;
-                                    cinematic_tick.lap();
+                                    this->toggle_cinematic();
                                 }
                             break; }
                         }
-                    } );    
+                    } );   
+                    
+                    surf.on< SURFACE_EVENT_POINTER >( [ & ] ( Vec2 cursor, Vec2 prev_cursor, [[maybe_unused]]auto& ) -> void {
+                        
+                    } );
+
                 break; }
             }
             configd_control_scheme = control_scheme;
@@ -379,62 +390,61 @@ struct _IMM : Descriptor {
         }
         
 
-        static bool   cursor_anchored = false;
-        static float  cursor_delta    = 0.0;
-        static int    cursor_delta_f  = 0;
-        static bool   cursor_delta_a  = false;
-        static Vec2   cursor_last_cd  = {};
-        static Ticker cursor_tick;
+        static bool cursor_anchored = false;
+        static struct _SHAKE_SAT_HIGH {
+            int      cross_count   = 0;
+            float    last_x        = 0;
+            bool     triggered     = false;
+            Ticker   tick;
+
+        } shake_sat_high;
 
         if( surf.down( SurfKey::RMB ) ) {
             if( !cursor_anchored ) {
                 surf.ptr_reset();
                 SurfPtr::env_to( Vec2::O() );
-
                 cursor_anchored = true;
-                cursor_delta    = 0.0;
+
+                shake_sat_high.cross_count = 0;
+                shake_sat_high.triggered   = false;
 
                 goto l_end_cursor;
             }
 
             Vec2 cd = surf.ptr_v();
-            if( cd == Vec2::O() ) {
-                cursor_delta_a = false;
-
-                goto l_end_cursor;
-            }
+            if( cd.x == 0.0 ) goto l_end_cursor;
 
             cd *= -PEARTH_PARAMS->lens_sens * lens.l2t();
 
             lens.spin_ul( { cd.x, cd.y }, { -82.0, 82.0 } );
+            surf.ptr_reset();
             SurfPtr::env_to( Vec2::O() );
 
-            if( cursor_delta_a ) goto l_end_cursor;
+            if( shake_sat_high.triggered ) goto l_end_cursor;
 
-            cursor_delta += cd.mag() - 0.02;
-
-            if( cursor_delta < 0.0 ) {
-                cursor_delta_f = std::max( cursor_delta_f - 1, 0 );
-                cursor_delta   = 0.0;
+            if( shake_sat_high.tick.cmpxchg_lap( PEARTH_PARAMS->sat_high_decay ) ) {
+                shake_sat_high.cross_count = std::max( shake_sat_high.cross_count - 1, 0 );
             }
+            
+            if( std::signbit( cd.x ) == std::signbit( shake_sat_high.last_x ) ) goto l_end_cursor;
 
-            if( cd.dot( cursor_last_cd ) < 0.0 && cd.mag() >= 0.01 ) {
-                ++cursor_delta_f;
-            }
+            if( ++shake_sat_high.cross_count >= PEARTH_PARAMS->sat_high_cross ) {
+                shake_sat_high.cross_count = 0;
 
-            if( cursor_delta >= 0.42 && cursor_delta_f >= 4 ) {
-                cursor_delta   = 0.0;
-                cursor_delta_a = true;
-
+                shake_sat_high.triggered = true;
                 this->toggle_sat_high();
             }
 
-            cursor_last_cd = cd;
+        l_sat_high_shake_end:
+            shake_sat_high.last_x = cd.x;
 
         } else if( cursor_anchored ) {
+            surf.ptr_reset();
             SurfPtr::env_to( Vec2::O() ); 
             cursor_anchored = false;
-            cursor_delta_a  = false;
+
+            shake_sat_high.cross_count = 0;
+            shake_sat_high.triggered   = false;
         }
     l_end_cursor:
 
@@ -461,7 +471,10 @@ struct _IMM : Descriptor {
             
             earth.sat_high_specs.get()[ idx ] = s.high_spec.get();
         }
+        
         earth.sat_high_specs.uplink_b();
+        earth.show_countries.uplink_b();
+
         ufrm.sat_high.uplink_b();
 
         ufrm.lens_pos.uplink_bv( lens.pos );
@@ -486,6 +499,15 @@ struct _IMM : Descriptor {
 
     void toggle_sat_high() {
         ufrm.sat_high.get() = 1.0 - ufrm.sat_high.get();
+    }
+
+    void toggle_show_countries() {
+        earth.show_countries.get() ^= 1;
+    }
+
+    void toggle_cinematic() {
+        cinematic ^= true;
+        cinematic_tick.lap();
     }
 
 };

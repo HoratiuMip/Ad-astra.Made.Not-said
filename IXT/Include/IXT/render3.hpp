@@ -372,6 +372,10 @@ template<> inline DWORD Uniform3< glm::u32 >::_uplink( GLuint loc ) {
     glUniform1i( loc, _under ); 
     return 0;
 }
+template<> inline DWORD Uniform3< glm::i32 >::_uplink( GLuint loc ) {
+    glUniform1i( loc, _under ); 
+    return 0;
+}
 template<> inline DWORD Uniform3< glm::f32 >::_uplink( GLuint loc ) {
     glUniform1f( loc, _under ); 
     return 0;
@@ -388,7 +392,7 @@ template<> inline DWORD Uniform3< glm::mat4 >::_uplink( GLuint loc ) {
     glUniformMatrix4fv( loc, 1, GL_FALSE, glm::value_ptr( _under ) ); 
     return 0;
 }
-template< > inline DWORD Uniform3< glm::vec3[ 3 ] >::_uplink( GLuint loc ) {
+template<> inline DWORD Uniform3< glm::vec3[ 3 ] >::_uplink( GLuint loc ) {
     glUniform3fv( loc, sizeof( _under ) / sizeof( glm::vec3 ), ( GLfloat* )_under  ); 
     return 0;
 }
@@ -550,36 +554,33 @@ public:
     
             mtl.data = std::move( mtl_base ); 
             
-            std::string* tex_name = &mtl.data.ambient_texname;
-            if( !tex_name->empty() ) {
-                if( this->_push_tex( root_dir / *tex_name, "map_Ka", 0, echo ) != 0 )
-                    continue;
+            GLuint tex_unit = 0;
 
-                mtl.tex_Ka_idx = _texs.size() - 1;
+            struct _DEFAULT_TEX {
+                const char*    key;
+                std::string*   name;
+            } dft_texs[] = {
+                { "map_Ka", &mtl.data.ambient_texname },
+                { "map_Kd", &mtl.data.diffuse_texname },
+                { "map_Ks", &mtl.data.specular_texname },
+                { "map_Ns", &mtl.data.specular_highlight_texname }
+            };
+
+            for( auto& [ key, name ] : dft_texs ) {
+                if( name->empty() ) continue;
+
+                if( this->_push_tex( root_dir / *name, key, tex_unit, echo ) != 0 ) continue;
+
+                mtl.tex_idxs.push_back( _texs.size() - 1 );
+                ++tex_unit;
             }
+        
+            for( auto& [ key, value ] : mtl.data.unknown_parameter ) {
+                if( key.find( "map" ) != std::string::npos && this->_push_tex( root_dir / value, key, tex_unit, echo ) == 0 ) {
+                    mtl.tex_idxs.push_back( _texs.size() - 1 );
+                    ++tex_unit;
+                }
 
-            tex_name = &mtl.data.diffuse_texname;
-            if( !tex_name->empty() ) {
-                 if( this->_push_tex( root_dir / *tex_name, "map_Kd", 1, echo ) != 0 )
-                    continue;
-
-                mtl.tex_Kd_idx = _texs.size() - 1;
-            }
-
-            tex_name = &mtl.data.specular_texname;
-            if( !tex_name->empty() ) {
-                if( this->_push_tex( root_dir / *tex_name, "map_Ks", 2, echo ) != 0 )
-                    continue;
-
-                mtl.tex_Ks_idx = _texs.size() - 1;
-            }
-
-            tex_name = &mtl.data.specular_highlight_texname;
-            if( !tex_name->empty() ) {
-                if( this->_push_tex( root_dir / *tex_name, "map_Ns", 3, echo ) != 0 )
-                    continue;
-
-                mtl.tex_Ns_idx = _texs.size() - 1;
             }
         }
 
@@ -704,11 +705,8 @@ _ENGINE_PROTECTED:
     };
     std::vector< _SubMesh >   _sub_meshes;
     struct _Mtl {
-        tinyobj::material_t   data;
-        size_t                tex_Ka_idx   = -1;
-        size_t                tex_Kd_idx   = -1;
-        size_t                tex_Ks_idx   = -1;
-        size_t                tex_Ns_idx   = -1;
+        tinyobj::material_t     data;
+        std::vector< size_t >   tex_idxs;
     };
     std::vector< _Mtl >       _mtls;
     struct _Tex {
@@ -802,10 +800,7 @@ public:
             glBindVertexArray( sub.VAO );
 
             for( auto& burst : sub.bursts ) {
-                for( size_t tex_idx : {
-                    _mtls[ burst.mtl_idx ].tex_Ka_idx, _mtls[ burst.mtl_idx ].tex_Kd_idx, _mtls[ burst.mtl_idx ].tex_Ks_idx,
-                    _mtls[ burst.mtl_idx ].tex_Ns_idx
-                } ) {
+                for( size_t tex_idx : _mtls[ burst.mtl_idx ].tex_idxs ) {
                     if( tex_idx == -1 ) continue;
 
                     _Tex& tex = _texs[ tex_idx ];

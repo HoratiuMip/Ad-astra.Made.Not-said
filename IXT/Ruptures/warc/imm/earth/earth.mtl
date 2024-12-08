@@ -9,7 +9,7 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Ka earth_night_lights.png
 map_Kd earth.png
-map_Ks earth_landmask.jpg
-map_Ns earth_altitude.png
+map_lights earth_night_lights.png
+map_cal earth_cal.png
+map_alt earth_altitude.png

@@ -24,7 +24,9 @@ enum EARTH_SAT_UPDATE_RESULT : int {
 };
 
 struct EARTH_PARAMS {
-    float   lens_sens   = 1.0;
+    float   lens_sens        = 1.0;
+    float   sat_high_decay   = 0.26;
+    int     sat_high_cross   = 6;
 };
 
 class EARTH : public IXT::Descriptor {

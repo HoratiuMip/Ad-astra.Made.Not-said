@@ -27,7 +27,7 @@ void main() {
     
     light = 1.6 * max( pow( light, 0.82 ), 0.03 ); 
 
-    const float CITY_LIGHTS_BUMP = 0.56;
+    const float CITY_LIGHTS_BUMP = 0.62;
     vec4 city_lights = texture( map_lights, gs_in.tex_crd );
 
     city_lights.r = pow( city_lights.r, CITY_LIGHTS_BUMP );
@@ -101,7 +101,9 @@ void main() {
     if( bool( show_countries ) && (
         ( cal.r >= 0.5 && cal.g < 0.5 && cal.b < 0.5 ) 
     ) ) {
-        final.rgb = vec3( 0.72, 0.0, 1.0 );
+        float fac = pow( abs( sin( rtc * 1.6 ) ), 1.2 );
+
+        final.rgb = vec3( 0.72 * fac, 1.0 - fac, fac );
     }
     
     final.w = 1.0;

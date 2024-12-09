@@ -31,7 +31,8 @@ enum ECHO_LEVEL {
     ECHO_LEVEL_ERROR   = 2,
     ECHO_LEVEL_INTEL   = 3,
     ECHO_LEVEL_PENDING = 4,
-    ECHO_LEVEL_INPUT   = 5
+    ECHO_LEVEL_INPUT   = 5,
+    ECHO_LEVEL_DEBUG   = 6
 };
 
 // template< ECHO_MODE MODE >
@@ -53,11 +54,11 @@ public:
 
 _ENGINE_PROTECTED:
     inline static OS::CONSOLE_CLR _status_colors[] = {
-        OS::CONSOLE_CLR_GREEN, OS::CONSOLE_CLR_YELLOW, OS::CONSOLE_CLR_RED, OS::CONSOLE_CLR_TURQ, OS::CONSOLE_CLR_BLUE, OS::CONSOLE_CLR_PINK
+        OS::CONSOLE_CLR_GREEN, OS::CONSOLE_CLR_YELLOW, OS::CONSOLE_CLR_RED, OS::CONSOLE_CLR_TURQ, OS::CONSOLE_CLR_BLUE, OS::CONSOLE_CLR_PINK, OS::CONSOLE_CLR_GRAY
     };
 
     inline static const char* _status_strs[] = {
-        "OK", "WARNING", "ERROR", "INTEL", "PENDING", "INPUT"
+        "OK", "WARNING", "ERROR", "INTEL", "PENDING", "INPUT", "DEBUG"
     };
 
 public:

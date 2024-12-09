@@ -79,6 +79,7 @@ struct _IMM : Descriptor {
         
     } ufrm;
 
+
     struct _SUN {
         _SUN()
         : pos{ "sun_pos", glm::vec3{ 0.0, 0.0, 180.0 } }
@@ -146,6 +147,7 @@ struct _IMM : Descriptor {
         }
 
         Mesh3   mesh;
+
     } galaxy;
 
     struct _SATS {
@@ -253,7 +255,7 @@ struct _IMM : Descriptor {
 
                 for( auto& s : noaa ) {
                     if( s.hold_update.load( std::memory_order_relaxed ) ) {
-                        WARC_LOG_RT_THAT_INTEL( PEARTH ) << "Satellite #" << ( int )s.norad_id << " update on hold.";
+                        WARC_ECHO_RT_THAT_INTEL( PEARTH ) << "Satellite #" << ( int )s.norad_id << " update on hold.";
                         goto l_end;
                     }
 
@@ -271,7 +273,7 @@ struct _IMM : Descriptor {
 
                         case EARTH_SAT_UPDATE_RESULT_HOLD: {
                             s.hold_update.store( true, std::memory_order_seq_cst );
-                            WARC_LOG_RT_THAT_INTEL( PEARTH ) << "Satellite positions updater requests \"HOLD\".";
+                            WARC_ECHO_RT_THAT_INTEL( PEARTH ) << "Satellite positions updater requests \"HOLD\".";
                         break; }
                     }
                     
@@ -326,9 +328,240 @@ struct _IMM : Descriptor {
     } sats;
 
 
+    struct _CTRL : Descriptor {
+        IXT_DESCRIPTOR_STRUCT_NAME_OVERRIDE( WARC_IMM_STR"::_CTRL")
+
+        struct _DRAIN;
+    
+    #define _WARC_IMM_CTRL_PUSH_SINK( _1, _2, _3 ) this->push_sink( _SINK{ name: _1, proc: _2, iec: _3 } )
+        struct _SINK {
+            const char*              name     = nullptr;
+            std::function< int() >   proc     = nullptr;
+            int                      iec      = 1;
+
+            std::vector< _DRAIN* >   drains   = {};
+
+            int                      _cec     = 0;
+        };
+
+    #define _WARC_IMM_CTRL_PUSH_DRAIN( _1, _2, _3, _4 ) this->push_drain( _DRAIN{ name: _1, cond: _2, fire: _3, engd: _4 } )
+        struct _DRAIN {
+            const char*               name    = nullptr;
+            std::function< bool() >   cond    = nullptr;
+            bool                      fire    = false;
+            bool                      engd    = true;
+
+            std::vector< _SINK* >     sinks   = {};
+        };
+
+    #define _WARC_IMM_CTRL_BSD( s, d ) ( this->bind_sink_2_drain( s, d ) )
+    #define _WARC_IMM_CTRL_BDS( d, s ) ( this->bind_drain_2_sink( d, s ) )
+    #define _WARC_IMM_CTRL_BSDS( s1, d, s2 ) ( _WARC_IMM_CTRL_BSD( s1, d ), _WARC_IMM_CTRL_BDS( d, s2 ) )
+
+    #define _WARC_IMM_CTRL_TOKENS( c, ... ) ( this->insert_tokens( c, __VA_ARGS__ ) )
+        struct _TOKEN {
+            _SINK*   sink   = nullptr;
+        };
+
+        std::vector< IXT::SPtr< _SINK > >    sinks    = {};
+        std::vector< IXT::SPtr< _DRAIN > >   drains   = {}; 
+        std::list< _TOKEN >                  tokens   = {};
+
+        _CTRL() {
+        #pragma region TEST
+            {
+            _WARC_IMM_CTRL_PUSH_SINK( "Control test sink 1.",
+                ( [ & ] () -> int { WARC_ECHO_RT_DEBUG << sinks[ 0 ]->name; return 0; } ),
+                1
+            );
+
+            _WARC_IMM_CTRL_PUSH_SINK( "Control test sink 2.",
+                ( [ & ] () -> int { WARC_ECHO_RT_DEBUG << sinks[ 1 ]->name; return 0; } ),
+                3
+            );
+
+            _WARC_IMM_CTRL_PUSH_DRAIN( "Control drain test sink 1 to 2, activate on key F1.",
+                ( [ & ] () -> bool { return PIMM->surf.down( SurfKey::F1 ); } ),
+                false, true
+            );
+
+            _WARC_IMM_CTRL_PUSH_DRAIN( "Control drain test sink 2 to 1, activate on key F2.",
+                ( [ & ] () -> bool { return PIMM->surf.down( SurfKey::F2 ); } ),
+                false, true
+            );
+
+            _WARC_IMM_CTRL_BSDS( 0, 0, 1 );
+            _WARC_IMM_CTRL_BSDS( 1, 1, 0 );
+
+            _WARC_IMM_CTRL_TOKENS( false, 0 );
+            }
+        #pragma endregion TEST
+
+        #pragma region LENS
+            {
+            static struct _SHAKE_SAT_HIGH {
+                int      cross_count   = 0;
+                float    last_x        = 0;
+                bool     triggered     = false;
+                Ticker   tick;
+
+            } shake_sat_high;
+
+            auto idle = _WARC_IMM_CTRL_PUSH_SINK( "lens-idle",
+                ( [ & ] () -> int { 
+                    PIMM->surf.show_def_ptr();
+                    
+                    return 0; 
+                } ),
+                1
+            );
+
+            auto init = _WARC_IMM_CTRL_PUSH_SINK( "lens-init",
+                ( [ & ] () -> int {
+                    static Ticker tick{ ticker_lap_epoch_init_t{} };
+
+                    PIMM->surf.hide_def_ptr();
+
+                    if( tick.lap() <= 0.2 )
+                        PIMM->toggle_cinematic();
+
+                    PIMM->surf.ptr_reset();
+                    SurfPtr::env_to( Vec2::O() );
+
+                    shake_sat_high.cross_count = 0;
+                    shake_sat_high.triggered   = false;
+
+                    return 0;
+                } ),
+                1
+            );
+
+            auto loop = _WARC_IMM_CTRL_PUSH_SINK( "lens-loop",
+                ( [ & ] () -> int {
+                    Vec2 cd = PIMM->surf.ptr_v();
+                    if( cd.x == 0.0 ) return 0;
+
+                    cd *= -PEARTH_PARAMS->lens_sens * PIMM->lens.l2t();
+
+                    PIMM->lens.spin_ul( { cd.x, cd.y }, { -82.0, 82.0 } );
+                    PIMM->surf.ptr_reset();
+                    SurfPtr::env_to( Vec2::O() );
+
+                    if( shake_sat_high.triggered ) return 0;
+
+                    if( shake_sat_high.tick.cmpxchg_lap( PEARTH_PARAMS->sat_high_decay ) ) {
+                        shake_sat_high.cross_count = std::max( shake_sat_high.cross_count - 1, 0 );
+                    }
+                    
+                    if( std::signbit( cd.x ) == std::signbit( shake_sat_high.last_x ) ) return 0;
+
+                    if( ++shake_sat_high.cross_count >= PEARTH_PARAMS->sat_high_cross ) {
+                        shake_sat_high.cross_count = 0;
+
+                        shake_sat_high.triggered = true;
+                        PIMM->toggle_sat_high();
+                    }
+
+                    shake_sat_high.last_x = cd.x;
+
+                    return 0;
+                } ),
+                -1
+            );
+
+            auto idle2init = _WARC_IMM_CTRL_PUSH_DRAIN( "lens-idle-to-init",
+                ( [ & ] () -> bool { return PIMM->surf.down( SurfKey::RMB ); } ),
+                false, true
+            );
+
+            auto init2loop = _WARC_IMM_CTRL_PUSH_DRAIN( "lens-init-to-loop",
+                ( [ & ] () -> bool { return true; } ),
+                false, true
+            );
+
+            auto loop2idle = _WARC_IMM_CTRL_PUSH_DRAIN( "lens-loop-to-idle",
+                ( [ & ] () -> bool { return !PIMM->surf.down( SurfKey::RMB ); } ),
+                false, true
+            );
+            
+            _WARC_IMM_CTRL_BSDS( idle, idle2init, init );
+            _WARC_IMM_CTRL_BSDS( init, init2loop, loop );
+            _WARC_IMM_CTRL_BSDS( loop, loop2idle, idle );
+
+            _WARC_IMM_CTRL_TOKENS( false, idle );
+            }
+        #pragma endregion LENS
+
+        }
+
+
+        template< typename S >
+        size_t push_sink( S&& snk ) {
+            this->sinks.emplace_back( std::make_shared< S >( std::forward< S >( snk ) ) );
+            return this->sinks.size() - 1;
+        }
+
+        template< typename D >
+        size_t push_drain( D&& dr ) {
+            this->drains.emplace_back( std::make_shared< D >( std::forward< D >( dr ) ) );
+            return this->drains.size() - 1;
+        }
+
+        template< typename ...Ts >
+        void insert_tokens( bool clr, Ts... ts  ) {
+            ( this->tokens.emplace_back( sinks[ ts ].get() ), ... );
+        }
+
+        void bind_sink_2_drain( size_t snk, size_t drn ) {
+            this->sinks[ snk ]->drains.push_back( this->drains[ drn ].get() );
+        }
+
+        void bind_drain_2_sink( size_t drn, size_t snk ) {
+            this->drains[ drn ]->sinks.push_back( this->sinks[ snk ].get() );
+        }
+
+    
+        int frame() {
+            int status = 0;
+
+            int step      = 1;
+            int last_step = tokens.size();
+
+            for( auto tok = tokens.begin(); step <= last_step && tok != tokens.end(); ++tok ) {
+                bool drained = false;
+
+                if( ++tok->sink->_cec <= tok->sink->iec || tok->sink->iec < 0 ) {
+                    status |= tok->sink->proc();
+                } else if( tok->sink->drains.empty() ) {
+                    drained = true;
+                }
+
+                for( auto& drn : tok->sink->drains ) {
+                    if( !drn->engd || !( drn->fire || drn->cond() ) ) goto l_token_end;
+
+                    drained = true;
+                    for( auto& snk : drn->sinks )
+                        tokens.push_back( _TOKEN{ sink: snk } );
+                }
+
+                if( drained ) {
+                    tok->sink->_cec = 0;
+                    tok = tokens.erase( tok );
+                }
+
+            l_token_end:
+                ++step;
+            }
+
+            return status;
+        }
+
+    } ctrl;
+
+
     _IMM& control( ELAPSED_ARGS_DECL ) {
         static Ticker tick;
-        static int    configd_control_scheme = 0;
+        static int    configd_control_scheme = 0; 
 
         if( configd_control_scheme != control_scheme ) {
             surf.socket_unplug( this->xtdx() );
@@ -359,13 +592,6 @@ struct _IMM : Descriptor {
                                 this->toggle_show_countries();
                             break; }
 
-                            case SurfKey::RMB: {
-                                state == SURFKEY_STATE_DOWN ? surf.hide_def_ptr() : surf.show_def_ptr();
-
-                                if( state == SURFKEY_STATE_DOWN && tick.lap() <= 0.2 ) {
-                                    this->toggle_cinematic();
-                                }
-                            break; }
                         }
                     } );   
                     
@@ -383,70 +609,9 @@ struct _IMM : Descriptor {
             rend.uplink_wireframe();
         if( surf.down( SurfKey::DOT ) )
             rend.downlink_wireframe();
-
-
-        if( cinematic ) {
-            lens.spin_ul( { 0.004 * ela, cos( cinematic_tick.peek_lap() / 2.2 ) * 0.001 }, { -82.0, 82.0 } );
-        }
         
 
-        static bool cursor_anchored = false;
-        static struct _SHAKE_SAT_HIGH {
-            int      cross_count   = 0;
-            float    last_x        = 0;
-            bool     triggered     = false;
-            Ticker   tick;
-
-        } shake_sat_high;
-
-        if( surf.down( SurfKey::RMB ) ) {
-            if( !cursor_anchored ) {
-                surf.ptr_reset();
-                SurfPtr::env_to( Vec2::O() );
-                cursor_anchored = true;
-
-                shake_sat_high.cross_count = 0;
-                shake_sat_high.triggered   = false;
-
-                goto l_end_cursor;
-            }
-
-            Vec2 cd = surf.ptr_v();
-            if( cd.x == 0.0 ) goto l_end_cursor;
-
-            cd *= -PEARTH_PARAMS->lens_sens * lens.l2t();
-
-            lens.spin_ul( { cd.x, cd.y }, { -82.0, 82.0 } );
-            surf.ptr_reset();
-            SurfPtr::env_to( Vec2::O() );
-
-            if( shake_sat_high.triggered ) goto l_end_cursor;
-
-            if( shake_sat_high.tick.cmpxchg_lap( PEARTH_PARAMS->sat_high_decay ) ) {
-                shake_sat_high.cross_count = std::max( shake_sat_high.cross_count - 1, 0 );
-            }
-            
-            if( std::signbit( cd.x ) == std::signbit( shake_sat_high.last_x ) ) goto l_end_cursor;
-
-            if( ++shake_sat_high.cross_count >= PEARTH_PARAMS->sat_high_cross ) {
-                shake_sat_high.cross_count = 0;
-
-                shake_sat_high.triggered = true;
-                this->toggle_sat_high();
-            }
-
-        l_sat_high_shake_end:
-            shake_sat_high.last_x = cd.x;
-
-        } else if( cursor_anchored ) {
-            surf.ptr_reset();
-            SurfPtr::env_to( Vec2::O() ); 
-            cursor_anchored = false;
-
-            shake_sat_high.cross_count = 0;
-            shake_sat_high.triggered   = false;
-        }
-    l_end_cursor:
+        ctrl.frame();
 
 
         return *this;
@@ -454,6 +619,12 @@ struct _IMM : Descriptor {
 
     _IMM& refresh( ELAPSED_ARGS_DECL ) {
         ggfloat_t high_fac = 0.2 + ( 1.0 + glm::pow( sin( sats.tick.up_time() * 8.6 ), 3.0 ) );
+
+
+        if( cinematic ) {
+            lens.spin_ul( { 0.004 * ela, cos( cinematic_tick.peek_lap() / 2.2 ) * 0.001 }, { -82.0, 82.0 } );
+        }
+
 
         sun.refresh( ELAPSED_ARGS_CALL );
         sats.refresh( ELAPSED_ARGS_CALL );

@@ -88,13 +88,13 @@ l_use_mode: {
         WARC_ASSERT_RT( !key.empty(), "Could not extract key.", argv[ 1 ], -1 );
 
         this->_n2yo.api_key = std::move( key );
-        WARC_LOG_RT_OK << "Key extracted and loaded.";
+        WARC_ECHO_RT_OK << "Key extracted and loaded.";
 
         return 0;
     }
 
     this->_n2yo.api_key = argv[ 1 ];
-    WARC_LOG_RT_OK << "Key loaded.";
+    WARC_ECHO_RT_OK << "Key loaded.";
 
     return 0;
 }
@@ -104,9 +104,9 @@ l_show_ash: {
     auto key = this->_n2yo.extract_api_key( process );
     
     if( key.empty() )
-        WARC_LOG_RT_INTEL << "This process, \"" << process << "\", has no burnt key.";
+        WARC_ECHO_RT_INTEL << "This process, \"" << process << "\", has no burnt key.";
     else
-        WARC_LOG_RT_INTEL << "This process, \"" << process << "\", has the key \"" << key << "\" burnt.";
+        WARC_ECHO_RT_INTEL << "This process, \"" << process << "\", has the key \"" << key << "\" burnt.";
 
     return 0;
 }
@@ -121,7 +121,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_n2yo_ip ) {
 
     _internal.config.n2yo_ip = argv[ 0 ];
 
-    WARC_LOG_RT_OK << "N2YO ip: \"" << _internal.config.n2yo_ip << "\".";
+    WARC_ECHO_RT_OK << "N2YO ip: \"" << _internal.config.n2yo_ip << "\".";
     return 0;
 }
 
@@ -135,7 +135,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_n2yo_bulk_count ) {
     WARC_ASSERT_RT( bulk_count >= 0 && bulk_count <= _INTERNAL::CONFIG::N2YO_BULK_COUNT_MAX, "Bulk count out of bounds.", bulk_count, -1 );
     _internal.config.n2yo_bulk_count = bulk_count;
 
-    WARC_LOG_RT_OK << "N2YO bulk count: \"" << _internal.config.n2yo_bulk_count << "\".";
+    WARC_ECHO_RT_OK << "N2YO bulk count: \"" << _internal.config.n2yo_bulk_count << "\".";
     return 0;
 }
 
@@ -161,12 +161,12 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_n2yo_mode ) {
 
         default: {
             _internal.config.n2yo_mode = _INTERNAL::CONFIG::N2YO_MODE_UNKNWN;
-            WARC_LOG_RT_ERROR << "Unknown N2YO mode: \"" << argv[ 0 ] << "\".";
+            WARC_ECHO_RT_ERROR << "Unknown N2YO mode: \"" << argv[ 0 ] << "\".";
             return -1;
         }
     }
 
-    WARC_LOG_RT_OK << "N2YO mode: \"" << argv[ 0 ] << "\".";
+    WARC_ECHO_RT_OK << "N2YO mode: \"" << argv[ 0 ] << "\".";
     return 0;
 }
 
@@ -175,7 +175,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm()" );
 
     this->_earth = std::make_shared< imm::EARTH >();
-    WARC_LOG_RT_OK << "Enabled earth immersion module.";
+    WARC_ECHO_RT_OK << "Enabled earth immersion module.";
     return 0;
 }
 
@@ -190,7 +190,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_lens_sens ) {
     float lens_sens = atof( argv[ 0 ] );
     this->_earth->params().lens_sens = lens_sens;
 
-    WARC_LOG_RT_OK << "Earth immersion lens sensitivity: \"" << lens_sens << "\".";
+    WARC_ECHO_RT_OK << "Earth immersion lens sensitivity: \"" << lens_sens << "\".";
     return 0;
 }
 
@@ -205,7 +205,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_sat_high_shake_decay ) {
     float decay = atof( argv[ 0 ] );
     this->_earth->params().sat_high_decay = decay;
 
-    WARC_LOG_RT_OK << "Earth immersion satellite highlight decay time: \"" << decay << "\".";
+    WARC_ECHO_RT_OK << "Earth immersion satellite highlight decay time: \"" << decay << "\".";
     return 0;
 }
 
@@ -220,7 +220,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_sat_high_shake_cross ) {
     float cross = atoi( argv[ 0 ] );
     this->_earth->params().sat_high_cross = cross;
 
-    WARC_LOG_RT_OK << "Earth immersion satellite highlight cross count: \"" << cross << "\".";
+    WARC_ECHO_RT_OK << "Earth immersion satellite highlight cross count: \"" << cross << "\".";
     return 0;
 }
 
@@ -235,7 +235,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_vernal_equinox_ts ) {
     time_t ts = atoll( argv[ 0 ] );
     astro::params.ref_vernal_equinox_ts = ts;
 
-    WARC_LOG_RT_OK << "Astro reference vernal equinox: " << astro::params.ref_vernal_equinox_ts << ".";
+    WARC_ECHO_RT_OK << "Astro reference vernal equinox: " << astro::params.ref_vernal_equinox_ts << ".";
     return 0;
 }
 
@@ -248,7 +248,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_first_january_ts ) {
     time_t ts = atoll( argv[ 0 ] );
     astro::params.ref_first_january_ts = ts;
 
-    WARC_LOG_RT_OK << "Astro reference vernal equinox: \"" << astro::params.ref_first_january_ts << "\".";
+    WARC_ECHO_RT_OK << "Astro reference vernal equinox: \"" << astro::params.ref_first_january_ts << "\".";
     return 0;
 }
 
@@ -259,7 +259,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_from_config ) {
     WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
     WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Configuration file path is NULL.", -1, -1 );
 
-    WARC_LOG_RT_INTEL << "Parsing json.";
+    WARC_ECHO_RT_INTEL << "Parsing json.";
 
     std::ifstream file{ argv[ 0 ] };
     WARC_ASSERT_RT( file, "Could not open configuration file.", argv[ 0 ], -1 );
@@ -277,7 +277,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_from_config ) {
     std::error_code ec;
     boost::json::value jv = boost::json::parse( buffer.get(), ec );
     if( ec.value() != 0 ) {
-        WARC_LOG_RT_ERROR << "Fault at parsing JSON (" << ec.message() << "):\n";// << buffer.get();
+        WARC_ECHO_RT_ERROR << "Fault at parsing JSON (" << ec.message() << "):\n";// << buffer.get();
         return -1;
     }
 
@@ -292,17 +292,17 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_from_config ) {
         if( v == nullptr ) continue;
         
         if( v->is_null() ) {
-            WARC_LOG_RT_WARNING << "Configuration \"" << opt.name << "\" is null. Ignoring...";
+            WARC_ECHO_RT_WARNING << "Configuration \"" << opt.name << "\" is null. Ignoring...";
             continue; 
         }
 
         auto* str = v->if_string();
         if( str == nullptr ) {
-            WARC_LOG_RT_WARNING << "Configuration \"" << opt.name << "\" is not a string. Ignoring...";
+            WARC_ECHO_RT_WARNING << "Configuration \"" << opt.name << "\" is not a string. Ignoring...";
             continue; 
         }
 
-        WARC_LOG_RT_INTEL << "Begin proc for configuration \"" << opt.name << "\".";
+        WARC_ECHO_RT_INTEL << "Begin proc for configuration \"" << opt.name << "\".";
 
         std::vector< std::string > arg_strs; arg_strs.reserve( 16 );
         std::vector< char* >       args; args.reserve( 16 );
@@ -325,14 +325,14 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_from_config ) {
         WARC_ASSERT_RT( status == 0, "Proc configuration fault.", status, -1 );
     }
 
-    WARC_LOG_RT_OK << "Json parsed.";
+    WARC_ECHO_RT_OK << "Json parsed.";
     return 0;
 }
 
 int MAIN::_parse_opts( int argc, char* argv[] ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_opts()" );
 
-    WARC_LOG_RT_INTEL << "Begin option parsing."; 
+    WARC_ECHO_RT_INTEL << "Begin option parsing."; 
 
     for( int idx = 1; idx < argc; ++idx ) {
         char*   opt      = argv[ idx ];
@@ -346,7 +346,7 @@ int MAIN::_parse_opts( int argc, char* argv[] ) {
         } );
 
         if( record == _internal.opts + _internal.optc ) {
-            WARC_LOG_RT_WARNING << "Ignoring invalid option \"" << opt << "\".";
+            WARC_ECHO_RT_WARNING << "Ignoring invalid option \"" << opt << "\".";
             continue;
         }
 
@@ -362,19 +362,19 @@ int MAIN::_parse_opts( int argc, char* argv[] ) {
                 return argc_step < record->least_argc;
             } )()
         ) {
-            WARC_LOG_RT_ERROR << "Not enough arguments for option \"" << opt << "\", at least (" << record->least_argc << ") required.\n";
+            WARC_ECHO_RT_ERROR << "Not enough arguments for option \"" << opt << "\", at least (" << record->least_argc << ") required.\n";
             return -1;
         }
 
-        WARC_LOG_RT_INTEL << "Begin proc for \"" << opt << "\".";
+        WARC_ECHO_RT_INTEL << "Begin proc for \"" << opt << "\".";
 
         int status = ( this->*( record->proc ) )( argc_step, opt_ptr + 1, argv[ 0 ] );
         WARC_ASSERT_RT( status == 0, "Option proc exited with error.\n", status, status );
 
-        WARC_LOG_RT_OK << "Proc for \"" << opt << "\" complete.";
+        WARC_ECHO_RT_OK << "Proc for \"" << opt << "\" complete.";
     }  
 
-    WARC_LOG_RT_OK << "Option parsing complete.\n";
+    WARC_ECHO_RT_OK << "Option parsing complete.\n";
     return 0; 
 }
 
@@ -391,7 +391,7 @@ int MAIN::main( int argc, char* argv[] ) {
 
     char continue_program = 'a';
     do {
-        WARC_LOG_RT_INPUT << "Initialization complete. Continue the program? [Y/N]: ";
+        WARC_ECHO_RT_INPUT << "Initialization complete. Continue the program? [Y/N]: ";
         std::cin >> continue_program;
         if( continue_program == 'N' ) goto l_main_end;
     } while( continue_program != 'Y' );
@@ -400,7 +400,7 @@ int MAIN::main( int argc, char* argv[] ) {
         this->_earth->set_sat_pos_update_func( [ &, this ] ( sat::NORAD_ID norad_id, std::deque< sat::POSITION >& positions ) -> imm::EARTH_SAT_UPDATE_RESULT {
             _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::lambda::sat_updater()" );
             
-            WARC_LOG_RT_INTEL << "Updating satellite #" << ( int )norad_id << ", mode #" << _internal.config.n2yo_mode << ".";
+            WARC_ECHO_RT_INTEL << "Updating satellite #" << ( int )norad_id << ", mode #" << _internal.config.n2yo_mode << ".";
 
             switch( _internal.config.n2yo_mode ) {
                 case _INTERNAL::CONFIG::N2YO_MODE_RAND: {

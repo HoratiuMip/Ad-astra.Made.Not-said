@@ -24,21 +24,21 @@ static struct _INTERNAL {
 
         WARC_ASSERT_RT( status == 0, "WSAStartup failed.", status, -1 );
 
-        WARC_LOG_RT_OK << "WSAStartup success.";
+        WARC_ECHO_RT_OK << "WSAStartup success.";
     #endif
 
         SSL_library_init(); /* Always returns 1. */
-        WARC_LOG_RT_OK << "SSL library init success.";
+        WARC_ECHO_RT_OK << "SSL library init success.";
 
         SSL_load_error_strings();
-        WARC_LOG_RT_OK << "SSL load error strings success.";
+        WARC_ECHO_RT_OK << "SSL load error strings success.";
 
         this->ssl_method  = TLS_client_method();
         this->ssl_context = SSL_CTX_new( this->ssl_method );
 
         SSL_CTX_set_min_proto_version( this->ssl_context, TLS1_1_VERSION );
 
-        WARC_LOG_RT_OK << "Uplink complete.\n";
+        WARC_ECHO_RT_OK << "Uplink complete.\n";
         return 0;
     #elif WARC_INET_TLS == 0
         return -1;
@@ -53,7 +53,7 @@ static struct _INTERNAL {
         status = this->purge_zombie_bridges();
 
         if( status != bridge_count )
-            WARC_LOG_RT_WARNING << "( " << ( bridge_count - status ) << " ) bridge(s) outside referenced.";
+            WARC_ECHO_RT_WARNING << "( " << ( bridge_count - status ) << " ) bridge(s) outside referenced.";
 
         SSL_CTX_free( this->ssl_context );
 
@@ -61,7 +61,7 @@ static struct _INTERNAL {
         status = WSACleanup();
     #endif
 
-        WARC_LOG_RT_OK << "Downlink complete.\n";
+        WARC_ECHO_RT_OK << "Downlink complete.\n";
         return 0;
     #elif WARC_INET_TLS == 0
         return -1;
@@ -78,7 +78,7 @@ static struct _INTERNAL {
             if( bridge->use_count() > 1 ) { ++bridge; continue; }
             
             ++zombie_count;
-            WARC_LOG_RT_INTEL << "Purging: \"" << bridge->get()->struct_name() << "\".";
+            WARC_ECHO_RT_INTEL << "Purging: \"" << bridge->get()->struct_name() << "\".";
             bridge = this->bridge_supervisor.erase( bridge );
         }
 
@@ -137,7 +137,7 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port )
     socket_desc.sin_addr.s_addr = inet_addr( this->_addr.c_str() );
     socket_desc.sin_port        = htons( this->_port ); 
     
-    WARC_LOG_RT_THIS_PENDING << "Connecting...";
+    WARC_ECHO_RT_THIS_PENDING << "Connecting...";
     status = connect( socket_raw, ( sockaddr* )&socket_desc, sizeof( sockaddr_in ) );
     WARC_ASSERT_RT_THIS( status == 0, "Server connection general fault.", status, ; );
 
@@ -148,12 +148,12 @@ BRIDGE::BRIDGE( const char* addr, INET_PORT port )
     this->_socket = socket_raw;
     SSL_set_fd( this->_ssl, this->_socket );
 
-    WARC_LOG_RT_THIS_PENDING << "TLS probing...";
+    WARC_ECHO_RT_THIS_PENDING << "TLS probing...";
     status = SSL_connect( this->_ssl );
     WARC_ASSERT_RT_THIS( status > 0, "Secure handshake fault.", -1, ; );
 
     bad_exit.proc = nullptr;
-    WARC_LOG_RT_THIS_OK << "Secure socket created, using " << SSL_get_cipher( this->_ssl ) << ".\n";
+    WARC_ECHO_RT_THIS_OK << "Secure socket created, using " << SSL_get_cipher( this->_ssl ) << ".\n";
 #endif
 }
 
@@ -215,7 +215,7 @@ int BRIDGE::write( const char* buf, int sz ) {
 
     int w = 0;
 
-    WARC_LOG_RT_THIS_PENDING << "Writing (" << sz << ") bytes.";
+    WARC_ECHO_RT_THIS_PENDING << "Writing (" << sz << ") bytes.";
 
     do {
         int res = SSL_write( this->_ssl, buf, sz - w );
@@ -223,7 +223,7 @@ int BRIDGE::write( const char* buf, int sz ) {
         w += res;
     } while( w < sz );
 
-    WARC_LOG_RT_THIS_OK << "Wrote (" << w << ") bytes.";
+    WARC_ECHO_RT_THIS_OK << "Wrote (" << w << ") bytes.";
     return w;
 #elif WARC_INET_TLS == 0
     return 0;
@@ -236,13 +236,13 @@ std::string BRIDGE::read( int sz ) {
 
     char buf[ sz + 1 ];
 
-    WARC_LOG_RT_THIS_PENDING << "Reading (" << sz << ") bytes.";
+    WARC_ECHO_RT_THIS_PENDING << "Reading (" << sz << ") bytes.";
     int r = SSL_read( this->_ssl, buf, sz );
     WARC_ASSERT_RT_THIS( r > 0, "SSL read fault.", r, "" );
 
     buf[ r ] = '\0';
 
-    WARC_LOG_RT_THIS_OK << "Read (" << r << ") bytes.";
+    WARC_ECHO_RT_THIS_OK << "Read (" << r << ") bytes.";
     return buf;
 #elif WARC_INET_TLS == 0
     return 0;

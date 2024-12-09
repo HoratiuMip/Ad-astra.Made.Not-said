@@ -14,14 +14,14 @@ LAT_LONG sun_lat_long_from_timestamp( time_t ts ) {
     double days = ( double )( ( ts - params.ref_first_january_ts ) % params.SIY ) / params.SID;
     double hour = ( double )( ts % params.SID ) / params.SID * 24.0;
     
-    WARC_LOG_RT_INTEL << "Current year: " << year << " | Days since the first of January: " << days << " | Current hour: " << hour << ".";
+    WARC_ECHO_RT_INTEL << "Current year: " << year << " | Days since the first of January: " << days << " | Current hour: " << hour << ".";
 
     double D = 6.240'040'77 + 0.017'201'97*( 365.25*( int )year + ( int )days );
     double d = -7.659*sin( D ) + 9.863*sin( 2*D + 3.5932 );
 
     ll.lng = -15.0*( hour - 12.0 + d/60.0 );
 
-    WARC_LOG_RT_INTEL << "Approximated subsolar point @" << ts << ": lat " << ll.lat << " | long " << ll.lng << ".";
+    WARC_ECHO_RT_INTEL << "Approximated subsolar point @" << ts << ": lat " << ll.lat << " | long " << ll.lng << ".";
 
     return ll;
 }

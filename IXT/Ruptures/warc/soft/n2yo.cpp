@@ -13,7 +13,7 @@ int _N2YO::burn_api_key( const char* key, const char* process ) {
     WARC_ASSERT_RT( process != nullptr, "Process is NULL.", -1, -1 );
     WARC_ASSERT_RT( key != nullptr, "Key is NULL.", -1, -1 );
     
-    WARC_LOG_RT_INTEL << "Burning key into the mirror of \"" << process << "\".";
+    WARC_ECHO_RT_INTEL << "Burning key into the mirror of \"" << process << "\".";
 
     int key_len = strlen( key );
     WARC_ASSERT_RT( key_len <= API_KEY_ASH_LEN - API_KEY_ASH_SIG_LEN, "Key too long to burn.", key_len, -1 );
@@ -30,7 +30,7 @@ int _N2YO::burn_api_key( const char* key, const char* process ) {
     file_read.read( buffer.get(), sz );
     file_read.close();
 
-    WARC_LOG_RT_INTEL << "Process file mirrored.";
+    WARC_ECHO_RT_INTEL << "Process file mirrored.";
 
     std::string_view  buf_view{ buffer.get(), sz };
     std::string       cmp{ API_KEY_ASH, API_KEY_ASH_SIG_LEN }; 
@@ -44,7 +44,7 @@ int _N2YO::burn_api_key( const char* key, const char* process ) {
         -1, -1
     );
 
-    WARC_LOG_RT_INTEL << "Burning into process file mirror.";
+    WARC_ECHO_RT_INTEL << "Burning into process file mirror.";
 
     char* ash_begin = buffer.get() + pos + API_KEY_ASH_SIG_LEN;
     char* ash_end   = buffer.get() + pos + API_KEY_ASH_LEN;
@@ -55,7 +55,7 @@ int _N2YO::burn_api_key( const char* key, const char* process ) {
     ash_begin[ idx ] = '\0';
     }
     
-    WARC_LOG_RT_INTEL << "Writing process file mirror.";
+    WARC_ECHO_RT_INTEL << "Writing process file mirror.";
 
     std::string mirror_process{ process };
     mirror_process += "(N2YO-API-KEY-BURNT)";
@@ -63,14 +63,14 @@ int _N2YO::burn_api_key( const char* key, const char* process ) {
     std::ofstream file_write{ mirror_process.c_str(), std::ios_base::binary };
 
     if( !file_write ) {
-        WARC_LOG_RT_ERROR << "Could not open file \"" << mirror_process << "\" for key burn.";
+        WARC_ECHO_RT_ERROR << "Could not open file \"" << mirror_process << "\" for key burn.";
         return -1;
     }
 
     file_write.write( buffer.get(), sz );
     file_write.close();
 
-    WARC_LOG_RT_OK << "Burnt key into \"" << mirror_process << "\".";
+    WARC_ECHO_RT_OK << "Burnt key into \"" << mirror_process << "\".";
 
     return 0;
 }
@@ -80,7 +80,7 @@ std::string _N2YO::extract_api_key( const char* process ) {
 
     WARC_ASSERT_RT( process != nullptr, "Process is NULL.", -1, "" );
 
-    WARC_LOG_RT_INTEL << "Extracting key from \"" << process << "\".";
+    WARC_ECHO_RT_INTEL << "Extracting key from \"" << process << "\".";
 
     std::ifstream file_read{ process, std::ios_base::binary };
     WARC_ASSERT_RT( file_read, "Could not open process file.", -1, "" );
@@ -94,7 +94,7 @@ std::string _N2YO::extract_api_key( const char* process ) {
     file_read.read( buffer.get(), sz );
     file_read.close();
 
-    WARC_LOG_RT_INTEL << "Process file read.";
+    WARC_ECHO_RT_INTEL << "Process file read.";
 
     std::string_view  buf_view{ buffer.get(), sz };
     std::string       cmp{ API_KEY_ASH, API_KEY_ASH_SIG_LEN }; 
@@ -113,7 +113,7 @@ std::string _N2YO::extract_api_key( const char* process ) {
     for( int idx = 0; ( buffer[ pos + idx ] != '\0' ) && ( idx < API_KEY_ASH_LEN - API_KEY_ASH_SIG_LEN ); ++idx )
         key += buffer[ pos + API_KEY_ASH_SIG_LEN + idx ];
 
-    WARC_LOG_RT_OK << "Extracted key.";
+    WARC_ECHO_RT_OK << "Extracted key.";
 
     return key;
 }
@@ -162,7 +162,7 @@ std::string _N2YO::tufilin_positions_request(
         result = result.replace( pos, strlen( procs[ idx ] ), cvt_arg( idx ) );
     }
 
-    WARC_LOG_RT_OK << "Tufillin\'d n2yo request:\n" << result;
+    WARC_ECHO_RT_OK << "Tufillin\'d n2yo request:\n" << result;
 
     return result.replace( pos, strlen( REDACTED_APK ), this->api_key );
 }
@@ -179,7 +179,7 @@ std::string _N2YO::send_get_positions(
     WARC_ASSERT_RT( this->socket != nullptr, "Socket is NULL.", -1, "" );
     WARC_ASSERT_RT( this->socket->usable(), "Socket is unusable.", -1, "" );
 
-    WARC_LOG_RT_INTEL << "Sending get request.";
+    WARC_ECHO_RT_INTEL << "Sending get request.";
 
     std::string tufilind_request = this->tufilin_positions_request(
         norad_id, steps, obs_lat, obs_lng, obs_alt
@@ -195,7 +195,7 @@ std::string _N2YO::send_get_positions(
         resp += chunk;
     }
 
-    WARC_LOG_RT_OK << "Got response, (" << resp.size() << ") bytes.";
+    WARC_ECHO_RT_OK << "Got response, (" << resp.size() << ") bytes.";
     return resp;
 }
 
@@ -206,7 +206,7 @@ POSITIONS _N2YO::json_2_positions( std::string_view json ) {
 
     WARC_ASSERT_RT( json.data() != nullptr, "Json is NULL.", -1, {} );
 
-    WARC_LOG_RT_INTEL << "Parsing json.";
+    WARC_ECHO_RT_INTEL << "Parsing json.";
 
     IXT::UPtr< char[] > buffer{ ( char* )malloc( json.size() + 1 ) };
     memcpy( buffer.get(), json.data(), json.size() );
@@ -216,7 +216,7 @@ POSITIONS _N2YO::json_2_positions( std::string_view json ) {
     boost::json::value jv = boost::json::parse( buffer.get(), ec );
     
     if( ec.value() != 0 ) {
-        WARC_LOG_RT_ERROR << "Fault parsing json: \"" << ec.message() << "\":\n" << json.data();
+        WARC_ECHO_RT_ERROR << "Fault parsing json: \"" << ec.message() << "\":\n" << json.data();
         return {};
     }
 
@@ -250,7 +250,7 @@ POSITIONS _N2YO::json_2_positions( std::string_view json ) {
         pos_data.JSON_PULL_DOUBLE( data, dec );
     }
 
-    WARC_LOG_RT_OK << "Json parsed.";
+    WARC_ECHO_RT_OK << "Json parsed.";
     return rez;
 }
 
@@ -289,7 +289,7 @@ POSITIONS _N2YO::quick_position_xchg(
     }
     
     auto rez = this->json_2_positions( json );
-    WARC_LOG_RT_WARNING << "Transactioncount is: " << rez.info.transactionscount << ".";
+    WARC_ECHO_RT_WARNING << "Transactioncount is: " << rez.info.transactionscount << ".";
     return rez;
 }
 

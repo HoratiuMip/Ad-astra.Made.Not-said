@@ -43,7 +43,7 @@ void main() {
         vec3  nrm = normalize( vs_in[ idx ].nrm ) * 0.08;
         float alt = sqrt( texture( map_alt, vs_in[ idx ].tex_crd ).s );
 
-        alt += ( 1.0 - cal.b ) * w_perl * 0.16;
+        alt += ( 1.0 - float( cal.b > 0.1 ) ) * w_perl * 0.16;
 
         gl_Position = ( gl_in[ idx ].gl_Position + vec4( nrm * alt, 0.0) );
 

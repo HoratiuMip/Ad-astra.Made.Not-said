@@ -22,12 +22,18 @@ inline constexpr double TICK_MULS[] = {
 };
 
 
+struct ticker_lap_epoch_init_t{};
 
 class Ticker {
 public:
     Ticker()
     : _create{ std::chrono::high_resolution_clock::now() },
       _last_lap{ std::chrono::high_resolution_clock::now() }
+    {}
+
+    Ticker( [[maybe_unused]]ticker_lap_epoch_init_t )
+    : _create{ std::chrono::high_resolution_clock::now() },
+      _last_lap{}
     {}
 
 _ENGINE_PROTECTED:

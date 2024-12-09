@@ -556,6 +556,10 @@ _ENGINE_PROTECTED:
             return;
         }
 
+    #if defined( _ENGINE_OS_WINDOWS )
+        
+    #endif
+
         this->downlink_context_on_this_thread( echo );
 
     #endif

@@ -24,6 +24,7 @@ static EARTH* _impl_earth = nullptr;
 static void* _impl_imm = nullptr;
 #define PIMM ((_IMM*)_impl_imm)
 #define PIMM_UFRM ((_IMM::_UFRM*)&PIMM->ufrm)
+#define PIMM_CTRL ((_IMM::_CTRL*)&PIMM->ctrl)
 
 #define ELAPSED_ARGS_DECL double ela, double rela
 #define ELAPSED_ARGS_CALL ela, rela
@@ -110,7 +111,7 @@ struct _IMM : Descriptor {
         : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"earth/", "earth", MESH3_FLAG_MAKE_SHADING_PIPE },
             sat_poss{ "sat_poss" },
             sat_high_specs{ "sat_high_specs" },
-            show_countries{ "show_countries", 0 }
+            countries{ "show_countries", 0 }
         {
             mesh.model.uplink_v( glm::rotate( glm::mat4{ 1.0 }, -PIf / 2.0f, glm::vec3{ 0, 1, 0 } ) * mesh.model.get() );
 
@@ -120,7 +121,7 @@ struct _IMM : Descriptor {
                 PIMM_UFRM->rtc,
                 PIMM_UFRM->sat_high,
                 PIMM->sun.pos,
-                this->sat_poss, this->sat_high_specs, this->show_countries
+                this->sat_poss, this->sat_high_specs, this->countries
             );
 
             PIMM->sun.pos.uplink_b();
@@ -129,7 +130,7 @@ struct _IMM : Descriptor {
         Mesh3                        mesh;
         Uniform3< glm::vec3[ 3 ] >   sat_poss;
         Uniform3< glm::vec3[ 3 ] >   sat_high_specs;
-        Uniform3< glm::i32 >         show_countries;
+        Uniform3< glm::i32 >         countries;
 
     } earth;
 
@@ -161,9 +162,9 @@ struct _IMM : Descriptor {
             }
         }
 
-        Ticker                  tick;
-        std::thread             hth_update;
-        std::atomic< int >      required_update_count   = 0;
+        Ticker            tick;
+        std::thread       hth_update;
+        std::atomic_int   required_update_count   = 0;
 
         struct _SAT_NOAA {
             static constexpr float BASE_ELEVATION = 1.086;
@@ -210,8 +211,8 @@ struct _IMM : Descriptor {
 
             std::mutex                    pos_cnt_mtx;
             std::deque< sat::POSITION >   pos_cnt;
-            std::atomic< int >            pos_cnt_update_required   = false;
-            std::atomic< bool >           hold_update               = false;
+            std::atomic_int               pos_cnt_update_required   = false;
+            std::atomic_bool              hold_update               = false;
 
             _SAT_NOAA& pos_to( glm::vec3 n_pos ) {
                 mesh.model.uplink_v( 
@@ -333,25 +334,35 @@ struct _IMM : Descriptor {
 
         struct _DRAIN;
     
-    #define _WARC_IMM_CTRL_PUSH_SINK( _1, _2, _3 ) this->push_sink( _SINK{ name: _1, proc: _2, iec: _3 } )
+    #define _WARC_IMM_CTRL_PUSH_SINK( _1, _2, _3, _4 ) this->push_sink( _SINK{ name: _1, proc: _2, execc: _3, _cexecc: _4 } )
+    #define _WARC_IMM_CTRL_SINK_PROC_NONE ( [] () -> int { return 0; } )
         struct _SINK {
-            const char*              name     = nullptr;
-            std::function< int() >   proc     = nullptr;
-            int                      iec      = 1;
+            std::string              name      = nullptr;
+            std::function< int() >   proc      = nullptr;
+            int                      execc     = 1;
 
-            std::vector< _DRAIN* >   drains   = {};
+            std::vector< _DRAIN* >   drains    = {};
 
-            int                      _cec     = 0;
+            int                      _cexecc   = 0;
         };
 
-    #define _WARC_IMM_CTRL_PUSH_DRAIN( _1, _2, _3, _4 ) this->push_drain( _DRAIN{ name: _1, cond: _2, fire: _3, engd: _4 } )
+    #define _WARC_IMM_CTRL_PUSH_DRAIN( _1, _2, _3 ) this->push_drain( _DRAIN{ name: _1, cond: _2, engd: _3 } )
+    #define _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY ( [] () -> bool { return false; } )
+    #define _WARC_IMM_CTRL_DRAIN_COND_PIPE_BUFFER ( [] () -> bool { return true; } )
+    #define _WARC_IMM_CTRL_DRAIN_COND_CONCISE( c ) ( [ & ] () -> bool{ return (c); } )
         struct _DRAIN {
-            const char*               name    = nullptr;
-            std::function< bool() >   cond    = nullptr;
-            bool                      fire    = false;
-            bool                      engd    = true;
+        
 
-            std::vector< _SINK* >     sinks   = {};
+            std::string               name     = nullptr;
+            std::function< bool() >   cond     = nullptr;
+            bool                      engd     = true;
+
+            std::vector< _SINK* >     sinks    = {};
+
+            bool                      _trigd   = false;
+            
+            void trigger() { _trigd = true; }
+            void trigger( std::memory_order m  ) { std::atomic_ref< bool >{ _trigd }.store( true, m ); }
         };
 
     #define _WARC_IMM_CTRL_BSD( s, d ) ( this->bind_sink_2_drain( s, d ) )
@@ -369,36 +380,80 @@ struct _IMM : Descriptor {
 
         _CTRL() {
         #pragma region TEST
-            {
-            _WARC_IMM_CTRL_PUSH_SINK( "Control test sink 1.",
-                ( [ & ] () -> int { WARC_ECHO_RT_DEBUG << sinks[ 0 ]->name; return 0; } ),
-                1
-            );
+            // {
+            // _WARC_IMM_CTRL_PUSH_SINK( "Control test sink 1.",
+            //     ( [ & ] () -> int { WARC_ECHO_RT_DEBUG << sinks[ 0 ]->name; return 0; } ),
+            //     1, 0
+            // );
 
-            _WARC_IMM_CTRL_PUSH_SINK( "Control test sink 2.",
-                ( [ & ] () -> int { WARC_ECHO_RT_DEBUG << sinks[ 1 ]->name; return 0; } ),
-                3
-            );
+            // _WARC_IMM_CTRL_PUSH_SINK( "Control test sink 2.",
+            //     ( [ & ] () -> int { WARC_ECHO_RT_DEBUG << sinks[ 1 ]->name; return 0; } ),
+            //     3, 0
+            // );
 
-            _WARC_IMM_CTRL_PUSH_DRAIN( "Control drain test sink 1 to 2, activate on key F1.",
-                ( [ & ] () -> bool { return PIMM->surf.down( SurfKey::F1 ); } ),
-                false, true
-            );
+            // _WARC_IMM_CTRL_PUSH_DRAIN( "Control drain test sink 1 to 2, activate on key F1.",
+            //     ( [ & ] () -> bool { return PIMM->surf.down( SurfKey::F1 ); } ),
+            //     true
+            // );
 
-            _WARC_IMM_CTRL_PUSH_DRAIN( "Control drain test sink 2 to 1, activate on key F2.",
-                ( [ & ] () -> bool { return PIMM->surf.down( SurfKey::F2 ); } ),
-                false, true
-            );
+            // _WARC_IMM_CTRL_PUSH_DRAIN( "Control drain test sink 2 to 1, activate on key F2.",
+            //     ( [ & ] () -> bool { return PIMM->surf.down( SurfKey::F2 ); } ),
+            //     true
+            // );
 
-            _WARC_IMM_CTRL_BSDS( 0, 0, 1 );
-            _WARC_IMM_CTRL_BSDS( 1, 1, 0 );
+            // _WARC_IMM_CTRL_BSDS( 0, 0, 1 );
+            // _WARC_IMM_CTRL_BSDS( 1, 1, 0 );
 
-            _WARC_IMM_CTRL_TOKENS( false, 0 );
-            }
+            // _WARC_IMM_CTRL_TOKENS( false, 0 );
+            // }
         #pragma endregion TEST
 
+        #pragma region CINEMATIC
+            auto cinematic_toggle = _WARC_IMM_CTRL_PUSH_SINK( "cinematic-toggle",
+                ( [ & ] () -> int { PIMM->toggle_cinematic(); return 0; } ),
+                1, 1
+            );
+            
+            auto cinematic_toggle_2self = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "cinematic-toggle-to-self", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
+            );
+
+            _WARC_IMM_CTRL_BSDS( cinematic_toggle, cinematic_toggle_2self, cinematic_toggle );
+
+            _WARC_IMM_CTRL_TOKENS( false, cinematic_toggle );
+        #pragma endregion CINEMATIC
+
+        #pragma region COUNTRIES
+            auto countries_toggle = _WARC_IMM_CTRL_PUSH_SINK( "countries-toggle",
+                ( [ & ] () -> int { PIMM->toggle_countries(); return 0; } ),
+                1, 1
+            );
+            
+            auto countries_toggle_2self = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "countries-toggle-to-self", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
+            );
+
+            _WARC_IMM_CTRL_BSDS( countries_toggle, countries_toggle_2self, countries_toggle );
+
+            _WARC_IMM_CTRL_TOKENS( false, countries_toggle );
+        #pragma endregion COUNTRIES
+
+        #pragma region SAT_HIGH
+            auto sat_high_toggle = _WARC_IMM_CTRL_PUSH_SINK( "sat-high-toggle",
+                ( [ & ] () -> int { PIMM->toggle_sat_high(); return 0; } ),
+                1, 1
+            );
+            
+            auto sat_high_toggle_2self = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "sat-high-toggle-to-self", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
+            );
+
+            _WARC_IMM_CTRL_BSDS( sat_high_toggle, sat_high_toggle_2self, sat_high_toggle );
+
+            _WARC_IMM_CTRL_TOKENS( false, sat_high_toggle );
+        #pragma endregion SAT_HIGH
+
         #pragma region LENS
-            {
             static struct _SHAKE_SAT_HIGH {
                 int      cross_count   = 0;
                 float    last_x        = 0;
@@ -407,23 +462,16 @@ struct _IMM : Descriptor {
 
             } shake_sat_high;
 
-            auto idle = _WARC_IMM_CTRL_PUSH_SINK( "lens-idle",
-                ( [ & ] () -> int { 
-                    PIMM->surf.show_def_ptr();
-                    
-                    return 0; 
-                } ),
-                1
+            auto lens_idle = _WARC_IMM_CTRL_PUSH_SINK( 
+                "lens-idle", _WARC_IMM_CTRL_SINK_PROC_NONE, 1, 0
             );
 
-            auto init = _WARC_IMM_CTRL_PUSH_SINK( "lens-init",
-                ( [ & ] () -> int {
+            auto lens_init = _WARC_IMM_CTRL_PUSH_SINK( "lens-init",
+                ( [ &, cinematic_toggle_2self ] () -> int {
                     static Ticker tick{ ticker_lap_epoch_init_t{} };
 
-                    PIMM->surf.hide_def_ptr();
-
                     if( tick.lap() <= 0.2 )
-                        PIMM->toggle_cinematic();
+                        PIMM_CTRL->trigger( cinematic_toggle_2self );
 
                     PIMM->surf.ptr_reset();
                     SurfPtr::env_to( Vec2::O() );
@@ -433,11 +481,11 @@ struct _IMM : Descriptor {
 
                     return 0;
                 } ),
-                1
+                1, 0
             );
 
-            auto loop = _WARC_IMM_CTRL_PUSH_SINK( "lens-loop",
-                ( [ & ] () -> int {
+            auto lens_loop = _WARC_IMM_CTRL_PUSH_SINK( "lens-loop",
+                ( [ &, sat_high_toggle_2self ] () -> int {
                     Vec2 cd = PIMM->surf.ptr_v();
                     if( cd.x == 0.0 ) return 0;
 
@@ -459,39 +507,102 @@ struct _IMM : Descriptor {
                         shake_sat_high.cross_count = 0;
 
                         shake_sat_high.triggered = true;
-                        PIMM->toggle_sat_high();
+                        PIMM_CTRL->trigger( sat_high_toggle_2self, std::memory_order_relaxed );
                     }
 
                     shake_sat_high.last_x = cd.x;
 
                     return 0;
                 } ),
-                -1
+                -1, 0
             );
 
-            auto idle2init = _WARC_IMM_CTRL_PUSH_DRAIN( "lens-idle-to-init",
-                ( [ & ] () -> bool { return PIMM->surf.down( SurfKey::RMB ); } ),
-                false, true
+            auto lens_idle2init = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "lens-idle-to-init", _WARC_IMM_CTRL_DRAIN_COND_CONCISE( PIMM->surf.down( SurfKey::RMB ) ), true
             );
 
-            auto init2loop = _WARC_IMM_CTRL_PUSH_DRAIN( "lens-init-to-loop",
-                ( [ & ] () -> bool { return true; } ),
-                false, true
+            auto lens_init2loop = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "lens-init-to-loop", _WARC_IMM_CTRL_DRAIN_COND_PIPE_BUFFER, true
             );
 
-            auto loop2idle = _WARC_IMM_CTRL_PUSH_DRAIN( "lens-loop-to-idle",
-                ( [ & ] () -> bool { return !PIMM->surf.down( SurfKey::RMB ); } ),
-                false, true
+            auto lens_loop2idle = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "lens-loop-to-idle", _WARC_IMM_CTRL_DRAIN_COND_CONCISE( !PIMM->surf.down( SurfKey::RMB ) ), true
             );
             
-            _WARC_IMM_CTRL_BSDS( idle, idle2init, init );
-            _WARC_IMM_CTRL_BSDS( init, init2loop, loop );
-            _WARC_IMM_CTRL_BSDS( loop, loop2idle, idle );
+            _WARC_IMM_CTRL_BSDS( lens_idle, lens_idle2init, lens_init );
+            _WARC_IMM_CTRL_BSDS( lens_init, lens_init2loop, lens_loop );
+            _WARC_IMM_CTRL_BSDS( lens_loop, lens_loop2idle, lens_idle );
 
-            _WARC_IMM_CTRL_TOKENS( false, idle );
-            }
+            _WARC_IMM_CTRL_TOKENS( false, lens_idle );
         #pragma endregion LENS
 
+        #pragma region RENDER_MODE
+            auto render_mode_iterate = _WARC_IMM_CTRL_PUSH_SINK( "render-mode-iterate",
+                ( [ &, ctr = 0 ] () mutable -> int {
+                    switch( ctr ) {
+                        case 0: PIMM->rend.uplink_fill(); break;
+                        case 1: PIMM->rend.uplink_wireframe(); break;
+                    }
+
+                    if( ++ctr > 1 ) ctr = 0;
+
+                    return 0;
+                } ),
+                1, 0
+            );
+
+            auto render_mode_iterate_2self = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "render-mode-iterate-to-self", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
+            );
+
+            _WARC_IMM_CTRL_BSDS( render_mode_iterate, render_mode_iterate_2self, render_mode_iterate );
+
+            _WARC_IMM_CTRL_TOKENS( false, render_mode_iterate );
+        #pragma endregion RENDER_MODE
+
+            PIMM->surf.socket_plug< SURFACE_EVENT_KEY >( 
+                this->xtdx(), SURFACE_SOCKET_PLUG_AT_EXIT, 
+            [ = ] ( SurfKey key, SURFKEY_STATE state, [[maybe_unused]]auto& ) -> void {
+                switch( key ) {
+                    case SurfKey::RMB: {
+                        state == SURFKEY_STATE_DOWN ? PIMM->surf.hide_def_ptr() : PIMM->surf.show_def_ptr();
+                    break; }
+
+                    case SurfKey::C: {
+                        if( state != SURFKEY_STATE_DOWN ) break;
+
+                        PIMM_CTRL->trigger( cinematic_toggle_2self, std::memory_order_relaxed );
+                    break; }
+
+                    case SurfKey::B: {
+                        if( state != SURFKEY_STATE_DOWN ) break;
+
+                        PIMM_CTRL->trigger( countries_toggle_2self, std::memory_order_relaxed );
+                    break; }
+
+                    case SurfKey::SPACE: {
+                        if( state != SURFKEY_STATE_DOWN ) break;
+
+                        PIMM_CTRL->trigger( sat_high_toggle_2self, std::memory_order_relaxed );
+                    break; }
+
+                    case SurfKey::DOT: {
+                        if( state != SURFKEY_STATE_DOWN ) break;
+
+                        PIMM_CTRL->trigger( render_mode_iterate_2self, std::memory_order_relaxed );
+                    break; }
+                }
+            } );
+
+            PIMM->surf.socket_plug< SURFACE_EVENT_SCROLL >(
+                this->xtdx(), SURFACE_SOCKET_PLUG_AT_EXIT,
+                [ & ] ( Vec2 cursor, SURFSCROLL_DIRECTION dir, [[maybe_unused]]auto& ) -> void {
+                    switch( dir ) {
+                        case SURFSCROLL_DIRECTION_UP: PIMM->lens.zoom( .02 * PIMM->lens.l2t(), { 1.3, 8.2 } ); break;
+                        case SURFSCROLL_DIRECTION_DOWN: PIMM->lens.zoom( -.02 * PIMM->lens.l2t(), { 1.3, 8.2 } ); break;
+                    }
+                }
+            );
         }
 
 
@@ -512,6 +623,7 @@ struct _IMM : Descriptor {
             ( this->tokens.emplace_back( sinks[ ts ].get() ), ... );
         }
 
+
         void bind_sink_2_drain( size_t snk, size_t drn ) {
             this->sinks[ snk ]->drains.push_back( this->drains[ drn ].get() );
         }
@@ -520,33 +632,43 @@ struct _IMM : Descriptor {
             this->drains[ drn ]->sinks.push_back( this->sinks[ snk ].get() );
         }
 
-    
-        int frame() {
+
+        void trigger( size_t idx ) { this->drains[ idx ]->trigger(); }
+        void trigger( size_t idx, std::memory_order m ) { this->drains[ idx ]->trigger( m ); }
+
+
+        int frame( ELAPSED_ARGS_DECL ) {
             int status = 0;
 
             int step      = 1;
             int last_step = tokens.size();
 
             for( auto tok = tokens.begin(); step <= last_step && tok != tokens.end(); ++tok ) {
-                bool drained = false;
-
-                if( ++tok->sink->_cec <= tok->sink->iec || tok->sink->iec < 0 ) {
+                if( ( tok->sink->execc < 0 ) || ( tok->sink->_cexecc + 1 <= tok->sink->execc ) ) {
                     status |= tok->sink->proc();
+                    ++tok->sink->_cexecc;
                 } else if( tok->sink->drains.empty() ) {
-                    drained = true;
+                    tok = tokens.erase( tok );
                 }
 
                 for( auto& drn : tok->sink->drains ) {
-                    if( !drn->engd || !( drn->fire || drn->cond() ) ) goto l_token_end;
+                    if( 
+                        !drn->engd 
+                        || 
+                        !( std::atomic_ref< bool >{ drn->_trigd }.load( std::memory_order_acquire ) || drn->cond() ) 
+                    ) goto l_token_end;
 
-                    drained = true;
-                    for( auto& snk : drn->sinks )
-                        tokens.push_back( _TOKEN{ sink: snk } );
-                }
+                    std::atomic_ref< bool >{ drn->_trigd }.store( false, std::memory_order_relaxed );
 
-                if( drained ) {
-                    tok->sink->_cec = 0;
-                    tok = tokens.erase( tok );
+                    auto snk = drn->sinks.begin();
+                    if( snk == drn->sinks.end() ) continue;
+
+                    tok->sink->_cexecc = 0;
+                    tok->sink = *snk;
+                    ++snk;
+
+                    for( ; snk != drn->sinks.end(); ++snk )
+                        tokens.push_back( _TOKEN{ sink: *snk } );
                 }
 
             l_token_end:
@@ -558,64 +680,6 @@ struct _IMM : Descriptor {
 
     } ctrl;
 
-
-    _IMM& control( ELAPSED_ARGS_DECL ) {
-        static Ticker tick;
-        static int    configd_control_scheme = 0; 
-
-        if( configd_control_scheme != control_scheme ) {
-            surf.socket_unplug( this->xtdx() );
-
-            switch( control_scheme ) {
-                case 1: {
-                    surf.on< SURFACE_EVENT_SCROLL >( [ & ] ( Vec2 cursor, SURFSCROLL_DIRECTION dir, [[maybe_unused]]auto& ) -> void {
-                        switch( dir ) {
-                            case SURFSCROLL_DIRECTION_UP: lens.zoom( .02 * lens.l2t(), { 1.3, 8.2 } ); break;
-                            case SURFSCROLL_DIRECTION_DOWN: lens.zoom( -.02 * lens.l2t(), { 1.3, 8.2 } ); break;
-                        }
-                    } );
-
-                    surf.on< SURFACE_EVENT_KEY >( [ & ] ( SurfKey key, SURFKEY_STATE state, [[maybe_unused]]auto& ) -> void {
-                        switch( key ) {
-                            case SurfKey::SPACE: {
-                                if( state != SURFKEY_STATE_UP ) break;
-                                this->toggle_sat_high();
-                            break; }
-
-                            case SurfKey::C: {
-                                if( state != SURFKEY_STATE_UP ) break;
-                                this->toggle_cinematic();
-                            break; }
-
-                            case SurfKey::B: {
-                                if( state != SURFKEY_STATE_UP ) break;
-                                this->toggle_show_countries();
-                            break; }
-
-                        }
-                    } );   
-                    
-                    surf.on< SURFACE_EVENT_POINTER >( [ & ] ( Vec2 cursor, Vec2 prev_cursor, [[maybe_unused]]auto& ) -> void {
-                        
-                    } );
-
-                break; }
-            }
-            configd_control_scheme = control_scheme;
-        }
-
-
-        if( surf.down( SurfKey::COMMA ) )
-            rend.uplink_wireframe();
-        if( surf.down( SurfKey::DOT ) )
-            rend.downlink_wireframe();
-        
-
-        ctrl.frame();
-
-
-        return *this;
-    }
 
     _IMM& refresh( ELAPSED_ARGS_DECL ) {
         ggfloat_t high_fac = 0.2 + ( 1.0 + glm::pow( sin( sats.tick.up_time() * 8.6 ), 3.0 ) );
@@ -644,7 +708,7 @@ struct _IMM : Descriptor {
         }
         
         earth.sat_high_specs.uplink_b();
-        earth.show_countries.uplink_b();
+        earth.countries.uplink_b();
 
         ufrm.sat_high.uplink_b();
 
@@ -672,8 +736,8 @@ struct _IMM : Descriptor {
         ufrm.sat_high.get() = 1.0 - ufrm.sat_high.get();
     }
 
-    void toggle_show_countries() {
-        earth.show_countries.get() ^= 1;
+    void toggle_countries() {
+        earth.countries.get() ^= 1;
     }
 
     void toggle_cinematic() {
@@ -714,7 +778,8 @@ int EARTH::main( int argc, char* argv[] ) {
         double elapsed = elapsed_raw * 60.0;
         
         imm.rend.clear( glm::vec4{ 0.1, 0.1, 0.1, 1.0 } );
-        imm.control( elapsed, elapsed_raw ).refresh( elapsed, elapsed_raw ).splash( elapsed, elapsed_raw );
+        imm.ctrl.frame( elapsed, elapsed_raw );
+        imm.refresh( elapsed, elapsed_raw ).splash( elapsed, elapsed_raw );
         imm.rend.swap();
     }
 

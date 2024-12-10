@@ -6,8 +6,6 @@
 #include <IXT/concepts.hpp>
 #include <IXT/os.hpp>
 
-
-
 namespace _ENGINE_NAMESPACE {
 
 

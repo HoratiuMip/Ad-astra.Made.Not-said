@@ -9,13 +9,13 @@ in VS_OUT {
 out vec4 final;
 
 uniform sampler2D map_Kd;
-uniform sampler2D map_Ks;
+uniform sampler2D map_shine;
 
 uniform float rtc;
 
 void main() {
     vec4 tex_frag = texture( map_Kd, vs_out.tex_crd );
-    vec3 grn_fac  = texture( map_Ks, vs_out.tex_crd ).rgb;
+    vec3 grn_fac  = texture( map_shine, vs_out.tex_crd ).rgb;
 
     bool is_star = grn_fac.g > 0.5 && grn_fac.r < 0.5 && grn_fac.b < 0.5;
 

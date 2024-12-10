@@ -891,7 +891,7 @@ public:
         return *this;
     }
 
-    Renderer3& downlink_wireframe() {
+    Renderer3& uplink_fill() {
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         return *this;
     }

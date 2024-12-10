@@ -103,7 +103,7 @@ void main() {
     ) ) {
         float fac = pow( abs( sin( rtc * 1.6 ) ), 1.2 );
 
-        final.rgb = vec3( 0.72 * fac, 1.0 - fac, fac );
+        final.rgb = vec3( fac, 1.0 - fac, fac );
     }
     
     final.w = 1.0;

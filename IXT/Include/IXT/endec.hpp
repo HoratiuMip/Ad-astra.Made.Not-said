@@ -171,7 +171,11 @@ public:
             char mod = ( width * bytes_ps ) % 4;
             padding = ( 4 - mod ) * ( mod != 0 );
 
-            echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.data() << "\".";
+            echo( this, ECHO_LEVEL_OK ) 
+            << "Created | W( " << width 
+            << " ) | H( " << height
+            << " ) | BPS( " << bytes_ps 
+            << " ) | from: \"" << path.data() << "\".";
         }
 
         ~Bmp() {

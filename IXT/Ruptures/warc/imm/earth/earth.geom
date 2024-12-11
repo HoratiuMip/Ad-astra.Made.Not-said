@@ -24,7 +24,6 @@ uniform float     rtc;
 uniform vec3      sat_poss[ SAT_COUNT ];
 uniform vec3      lens_pos;
 uniform sampler2D map_cal;
-uniform sampler2D map_alt;
 uniform mat4      proj;
 uniform mat4      view;
 
@@ -41,7 +40,7 @@ void main() {
         gs_out.w_perl  = w_perl;
 
         vec3  nrm = normalize( vs_in[ idx ].nrm ) * 0.08;
-        float alt = sqrt( texture( map_alt, vs_in[ idx ].tex_crd ).s );
+        float alt = sqrt( cal.g );
 
         alt += ( 1.0 - float( cal.b > 0.1 ) ) * w_perl * 0.16;
 

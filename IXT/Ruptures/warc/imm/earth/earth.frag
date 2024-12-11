@@ -98,9 +98,7 @@ void main() {
         ) * float( is_fwd ? ( 1.0 - diff / LENS_FFR ) : 1.0 );
     }
 
-    if( bool( show_countries ) && (
-        ( cal.r >= 0.5 && cal.g < 0.5 && cal.b < 0.5 ) 
-    ) ) {
+    if( bool( show_countries ) && cal.r > 0.2 ) {
         float fac = pow( abs( sin( rtc * 1.6 ) ), 1.2 );
 
         final.rgb = vec3( fac, 1.0 - fac, fac );

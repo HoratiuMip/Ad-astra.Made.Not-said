@@ -7,7 +7,7 @@
 #include <IXT/concepts.hpp>
 #include <IXT/endec.hpp>
 #include <IXT/tempo.hpp>
-#include <IXT/volatile-ptr.hpp>
+#include <IXT/hyper-vector.hpp>
 
 namespace _ENGINE_NAMESPACE {
 
@@ -197,22 +197,22 @@ public:
 public:
     Wave() = default;
 
-    Wave( SPtr< Audio > audio )
-    : _audio{ std::move( audio ) }
+    Wave( HVEC< Audio > audio )
+    : _audio{ audio.reloc() }
     {}
 
 public:
     virtual ~Wave() = default;
 
 _ENGINE_PROTECTED:
-    SPtr< Audio >   _audio   = nullptr;
+    HVEC< Audio >   _audio   = nullptr;
     
 public:
     bool is_playing() const;
 
     void play();
 
-    void play( SPtr< Wave > self );
+    void play( HVEC< Wave > self );
 
 public:
     virtual void set() = 0;
@@ -226,8 +226,8 @@ public:
         return _audio != nullptr;
     }
 
-    Wave& dock_in( SPtr< Audio > audio ) {
-        _audio = std::move( audio );
+    Wave& dock_in( HVEC< Audio > audio ) {
+        _audio = audio.reloc();
         return *this;
     }
 
@@ -237,7 +237,7 @@ public:
     }
 
 public:
-    Audio& audio() const {
+    Audio& audio() {
         return *_audio;
     }
 
@@ -279,7 +279,7 @@ public:
       _block_count       { block_count },
       _block_sample_count{ block_sample_count * tunnel_count },
       _block_current     { 0 },
-      _blocks_memory      { nullptr },
+      _blocks_memory     { nullptr },
       _wave_headers      { nullptr },
       _device            { device.data() },
       _free_block_count  { block_count }
@@ -413,7 +413,7 @@ _ENGINE_PROTECTED:
     std::condition_variable     _cnd_var              = {};
     std::mutex                  _mtx                  = {};
 
-    std::list< VPtr< Wave > >   _waves                = {};
+    std::list< HVEC< Wave > >   _waves                = {};
 
 #if defined( _ENGINE_AVX )
     struct {
@@ -612,17 +612,17 @@ public:
     }
 
 public:
-    bool is_playing( const Wave& wave ) {
+    bool is_playing( const Wave& wave ) const {
         return std::find_if( _waves.begin(), _waves.end(), [ &wave ] ( auto& node ) -> bool {
             return node->xtdx() == wave.xtdx();
         } ) != _waves.end();
     }
 
-    Audio& play( VPtr< Wave > wave ) {
+    Audio& play( HVEC< Wave > wave ) {
         wave->set();
 
         if( !this->is_playing( *wave ) )
-            _waves.emplace_back( std::move( wave ) );
+            _waves.emplace_back( wave.reloc() );
 
         return *this;
     }
@@ -646,11 +646,11 @@ public:
     Sound() = default;
 
     Sound( 
-        SPtr< Audio >      audio, 
+        HVEC< Audio >      audio, 
         std::string_view   path, 
         _ENGINE_COMMS_ECHO_ARG 
     )
-    : Wave{ std::move( audio ) }
+    : Wave{ audio.reloc() }
     {
         using namespace std::string_literals;
 
@@ -658,10 +658,10 @@ public:
         if( path.ends_with( ".wav" ) ) {
             Endec::Wav< double > wav{ path, echo };
 
-            _stream         = std::move( wav.stream );
-            _sample_rate    = wav.sample_rate;
-            _sample_count   = wav.sample_count;
-            _tunnel_count  = wav.tunnel_count;
+            _stream       = wav.stream.reloc();
+            _sample_rate  = wav.sample_rate;
+            _sample_count = wav.sample_count;
+            _tunnel_count = wav.tunnel_count;
 
             echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.data() << "\".";
         } else
@@ -671,10 +671,10 @@ public:
         if( !_audio ) return;
 
         if( _sample_rate != _audio->sample_rate() )
-            echo( this, ECHO_LEVEL_WARNING ) << "Sample rate does not match with docked in audio's.";
+            echo( this, ECHO_LEVEL_WARNING ) << "Sample rate ( " << _sample_rate << " ) does not match with docked in audio's ( " << _audio->sample_rate() << " ).";
 
         if( _tunnel_count != _audio->tunnel_count() )
-            echo( this, ECHO_LEVEL_WARNING ) << "Tunnel count does not match with docked in audio's.";
+            echo( this, ECHO_LEVEL_WARNING ) << "Tunnel count ( " << _tunnel_count << " ) does not match with docked in audio's ( " << _audio->tunnel_count() << " ).";
 
         echo( this, ECHO_LEVEL_OK ) << "Audio docked.";
     }
@@ -691,7 +691,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    SPtr< double[] >      _stream         = nullptr;
+    HVEC< double[] >      _stream         = nullptr;
 
     std::list< double >   _needles        = {};
 
@@ -797,12 +797,12 @@ public:
     Synth() = default;
 
     Synth( 
-        SPtr< Audio >   audio,
+        HVEC< Audio >   audio,
         Generator       generator,
         double          decay_in_secs,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : Wave{ std::move( audio ) }, _generator{ generator }
+    : Wave{ audio.reloc() }, _generator{ generator }
     {
         echo( this, ECHO_LEVEL_OK ) << "Created from source generator.";
 

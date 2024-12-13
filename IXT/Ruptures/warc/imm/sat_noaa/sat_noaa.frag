@@ -1,4 +1,5 @@
 #version 410 core
+//IXT#name<sat-noaa-frag>
 
 in VS_OUT {
     vec2 tex_crd;

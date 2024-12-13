@@ -56,7 +56,7 @@ struct _IMM : Descriptor {
     } _impl_set;
 
     Surface     surf;
-    Renderer3   rend;
+    Render3   rend;
     Lens3       lens;
 
     int         control_scheme   = 1;
@@ -108,7 +108,7 @@ struct _IMM : Descriptor {
 
     struct _EARTH {
         _EARTH() 
-        : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"earth/", "earth", MESH3_FLAG_MAKE_SHADING_PIPE },
+        : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"earth/", "earth", MESH3_FLAG_MAKE_PIPES },
             sat_poss{ "sat_poss" },
             sat_high_specs{ "sat_high_specs" },
             countries{ "show_countries", 0 }
@@ -136,7 +136,7 @@ struct _IMM : Descriptor {
 
     struct _GALAXY {
         _GALAXY()
-        : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"galaxy/", "galaxy", MESH3_FLAG_MAKE_SHADING_PIPE }
+        : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"galaxy/", "galaxy", MESH3_FLAG_MAKE_PIPES }
         {
             mesh.model = glm::scale( glm::mat4{ 1.0 }, glm::vec3{ 200.0 } ) * mesh.model.get();
             mesh.model.uplink();
@@ -171,7 +171,7 @@ struct _IMM : Descriptor {
 
             _SAT_NOAA( sat::NORAD_ID nid )
             : norad_id{ nid },
-                mesh{ WARC_RUPTURE_IMM_ROOT_DIR"sat_noaa/", "sat_noaa", MESH3_FLAG_MAKE_SHADING_PIPE },
+                mesh{ WARC_RUPTURE_IMM_ROOT_DIR"sat_noaa/", "sat_noaa", MESH3_FLAG_MAKE_PIPES },
                 high_spec{ "high_spec", glm::vec3{ 0.0 } }
             {
                 pos = glm::vec4{ .0, .0, BASE_ELEVATION, 1.0 };
@@ -539,12 +539,13 @@ struct _IMM : Descriptor {
         #pragma region RENDER_MODE
             auto render_mode_iterate = _WARC_IMM_CTRL_PUSH_SINK( "render-mode-iterate",
                 ( [ &, ctr = 0 ] () mutable -> int {
-                    switch( ctr ) {
+                    switch( ctr++ ) {
                         case 0: PIMM->rend.uplink_fill(); break;
                         case 1: PIMM->rend.uplink_wireframe(); break;
-                    }
+                        case 2: PIMM->rend.uplink_points(); break;
 
-                    if( ++ctr > 1 ) ctr = 0;
+                        default: ctr = 0; break;
+                    }
 
                     return 0;
                 } ),
@@ -777,7 +778,7 @@ int EARTH::main( int argc, char* argv[] ) {
         double elapsed_raw = tick.lap();
         double elapsed = elapsed_raw * 60.0;
         
-        imm.rend.clear( glm::vec4{ 0.1, 0.1, 0.1, 1.0 } );
+        imm.rend.clear( glm::vec4{ 0.0, 0.0, 0.0, 1.0 } );
         imm.ctrl.frame( elapsed, elapsed_raw );
         imm.refresh( elapsed, elapsed_raw ).splash( elapsed, elapsed_raw );
         imm.rend.swap();

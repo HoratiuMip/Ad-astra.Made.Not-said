@@ -5,7 +5,7 @@
 #include <IXT/descriptor.hpp>
 #include <IXT/comms.hpp>
 #include <IXT/surface.hpp>
-#include <IXT/volatile-ptr.hpp>
+#include <IXT/hyper-vector.hpp>
 
 #if defined( _ENGINE_GL_DIRECT_2D1 )
 

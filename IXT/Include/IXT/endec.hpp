@@ -6,7 +6,7 @@
 #include <IXT/bit-manip.hpp>
 #include <IXT/comms.hpp>
 #include <IXT/file-manip.hpp>
-#include <IXT/volatile-ptr.hpp>
+#include <IXT/hyper-vector.hpp>
 
 
 
@@ -65,9 +65,9 @@ public:
             file.read( raw_stream.get(), byte_count );
 
 
-            tunnel_count = Bytes::as< uint16_t, WAV_FMT_CHANNEL_COUNT_SZ, BIT_END_LITTLE >( &WAV_FMT_CHANNEL_COUNT_OFS[ raw_stream.get() ] );
+            tunnel_count = Bytes::as< WORD, WAV_FMT_CHANNEL_COUNT_SZ, BIT_END_LITTLE >( &WAV_FMT_CHANNEL_COUNT_OFS[ raw_stream.get() ] );
 
-            sample_rate = Bytes::as< uint32_t, WAV_FMT_SAMPLE_RATE_SZ, BIT_END_LITTLE >( &WAV_FMT_SAMPLE_RATE_OFS[ raw_stream.get() ] );
+            sample_rate = Bytes::as< DWORD, WAV_FMT_SAMPLE_RATE_SZ, BIT_END_LITTLE >( &WAV_FMT_SAMPLE_RATE_OFS[ raw_stream.get() ] );
 
             bits_per_sample = Bytes::as< uint16_t, WAV_FMT_BITS_PER_SAMPLE_SZ, BIT_END_LITTLE >( &WAV_FMT_BITS_PER_SAMPLE_OFS[ raw_stream.get() ] );
 
@@ -76,7 +76,7 @@ public:
             sample_count = Bytes::as< uint64_t, WAV_FMT_SAMPLE_COUNT_SZ, BIT_END_LITTLE >( &WAV_FMT_SAMPLE_COUNT_OFS[ raw_stream.get() ] ) / bytes_per_sample;
 
 
-            stream.reset( new T[ sample_count ] );
+            stream.vector( ( T* )malloc( sample_count * sizeof( T ) ) );
 
             if( !stream ) {
                 echo( this, ECHO_LEVEL_ERROR ) << "Bad alloc for stream buffer.";
@@ -109,12 +109,12 @@ public:
         }
 
     
-        SPtr< T[] >   stream            = nullptr;
+        HVEC< T[] >   stream            = nullptr;
 
-        uint64_t      sample_rate       = 0;
+        DWORD         sample_rate       = 0;
         uint16_t      bits_per_sample   = 0;
         uint64_t      sample_count      = 0;
-        uint16_t      tunnel_count      = 0;
+        WORD          tunnel_count      = 0;
 
     };
 
@@ -153,7 +153,7 @@ public:
         
             buf_size = File::byte_count( file );
 
-            buffer = malloc( buf_size * sizeof( ubyte_t ) );
+            buffer.vector( ( ubyte_t* )malloc( buf_size * sizeof( ubyte_t ) ) );
 
             file.read( ( char* )buffer.get(), buf_size );
 
@@ -184,7 +184,7 @@ public:
         }
 
     public:
-        VPtr< ubyte_t[] >   buffer     = nullptr;
+        HVEC< ubyte_t[] >   buffer     = nullptr;
         size_t              buf_size   = 0;
 
         udword_t            data_ofs   = 0;
@@ -197,12 +197,12 @@ public:
         uint16_t            bytes_ps   = 0;
 
     public:
-        ubyte_t* operator [] ( size_t row ) const {
+        ubyte_t* operator [] ( size_t row ) {
             return buffer + ( ptrdiff_t )( data_ofs + row * ( width * bytes_ps + padding ) );
         }
 
     public:
-        dword_t write_file( std::string_view path, _ENGINE_COMMS_ECHO_ARG ) const {
+        dword_t write_file( std::string_view path, _ENGINE_COMMS_ECHO_ARG ) {
             std::ofstream file{ path.data(), std::ios_base::binary };
 
             if( !file ) {

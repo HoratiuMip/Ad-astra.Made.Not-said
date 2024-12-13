@@ -1,5 +1,6 @@
 #version 410 core
-//IXT#include <../perlin.glsl>
+//IXT#name<galaxy-frag>
+//IXT#include<../perlin.glsl>
 
 in VS_OUT {
     vec2 tex_crd;
@@ -9,13 +10,13 @@ in VS_OUT {
 out vec4 final;
 
 uniform sampler2D map_Kd;
-uniform sampler2D map_shine;
+uniform sampler2D IXT_map_shine;
 
 uniform float rtc;
 
 void main() {
     vec4 tex_frag = texture( map_Kd, vs_out.tex_crd );
-    vec3 grn_fac  = texture( map_shine, vs_out.tex_crd ).rgb;
+    vec3 grn_fac  = texture( IXT_map_shine, vs_out.tex_crd ).rgb;
 
     bool is_star = grn_fac.g > 0.5 && grn_fac.r < 0.5 && grn_fac.b < 0.5;
 

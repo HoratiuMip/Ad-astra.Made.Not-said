@@ -1,4 +1,5 @@
 #version 410 core
+//IXT#name<sat-noaa-vert>
 
 layout( location = 0 ) in vec3 vrtx;
 layout( location = 1 ) in vec3 nrm;

@@ -58,6 +58,40 @@ static struct _INTERNAL {
 
 } _internal;
 
+static bool _confirm_continue_program() {
+    char continue_program = 'a';
+
+    const char* ee_msgs[] = {
+        "Tufilin'd w/ smart messages."
+    };
+    int  ee_idx           = -3;
+
+    do {
+        WARC_ECHO_RT_INPUT << "Initialization complete. Continue the program? [Y/N]: ";
+        std::cin >> continue_program;
+        if( continue_program == 'N' ) return false;
+        if( continue_program == 'Y' ) return true;
+
+        if( ee_idx >= 0 ) {
+            WARC_ECHO_RT_ERROR << ee_msgs[ ee_idx++ ];
+            ee_idx %= sizeof( ee_msgs ) / sizeof( char* );
+            continue;
+        }
+
+        if( continue_program == 'y' || continue_program == 'n' ) {
+            WARC_ECHO_RT_ERROR << "If you would be so kind to open your fucking eyes, I request CAPITAL letters. :)";
+            ++ee_idx;
+            continue;
+        }
+
+        WARC_ECHO_RT_ERROR << "Perhaps you are off a couple rows, or columns, on your keyboard. :)";
+        ++ee_idx;
+
+    } while( true );
+
+    return false;
+}
+
 
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_n2yo_api_key ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_n2yo_api_key()" );
@@ -389,12 +423,9 @@ int MAIN::main( int argc, char* argv[] ) {
     status = inet_tls::uplink();
     WARC_ASSERT_RT( status == 0 || WARC_INET_TLS == 0, "Fault at starting the internet transport layer security module.", status, status );
 
-    char continue_program = 'a';
-    do {
-        WARC_ECHO_RT_INPUT << "Initialization complete. Continue the program? [Y/N]: ";
-        std::cin >> continue_program;
-        if( continue_program == 'N' ) goto l_main_end;
-    } while( continue_program != 'Y' );
+
+    if( !_confirm_continue_program() ) goto l_main_end;
+
 
     if( this->_earth ) {
         this->_earth->set_sat_pos_update_func( [ &, this ] ( sat::NORAD_ID norad_id, std::deque< sat::POSITION >& positions ) -> imm::EARTH_SAT_UPDATE_RESULT {
@@ -449,6 +480,7 @@ int MAIN::main( int argc, char* argv[] ) {
 
         this->_earth->main( argc, argv );
     }
+
 
 l_main_end:
     status = inet_tls::downlink();

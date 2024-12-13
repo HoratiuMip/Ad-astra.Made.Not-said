@@ -1,6 +1,7 @@
 #version 410 core
-//IXT#include <../common.glsl>
-//IXT#include <../perlin.glsl>
+//IXT#name<earth-geom>
+//IXT#include<../common.glsl>
+//IXT#include<../perlin.glsl>
 
 layout( triangles ) in;
 layout( triangle_strip, max_vertices = 3 ) out;
@@ -23,7 +24,7 @@ out GS_OUT {
 uniform float     rtc;
 uniform vec3      sat_poss[ SAT_COUNT ];
 uniform vec3      lens_pos;
-uniform sampler2D map_cal;
+uniform sampler2D IXT_map_cal;
 uniform mat4      proj;
 uniform mat4      view;
 
@@ -32,7 +33,7 @@ void main() {
     
     for( int idx = 0; idx < 3; ++idx ) {
         float w_perl = max( perlin( abs( vec2( 0.5 ) - vs_in[ idx ].tex_crd ) * perlin_fac ), 0.0 );
-        vec4  cal    = texture( map_cal, vs_in[ idx ].tex_crd );
+        vec4  cal    = texture( IXT_map_cal, vs_in[ idx ].tex_crd );
 
         gs_out.tex_crd = vs_in[ idx ].tex_crd;
         gs_out.nrm     = vs_in[ idx ].nrm;
@@ -42,7 +43,7 @@ void main() {
         vec3  nrm = normalize( vs_in[ idx ].nrm ) * 0.08;
         float alt = sqrt( cal.g );
 
-        alt += ( 1.0 - float( cal.b > 0.1 ) ) * w_perl * 0.16;
+        alt += ( 1.0 - float( cal.b > 0.1 ) ) * w_perl * 1.16;
 
         gl_Position = ( gl_in[ idx ].gl_Position + vec4( nrm * alt, 0.0) );
 

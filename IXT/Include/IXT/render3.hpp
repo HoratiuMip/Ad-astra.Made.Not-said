@@ -4,7 +4,7 @@
 
 #include <IXT/descriptor.hpp>
 #include <IXT/surface.hpp>
-#include <IXT/volatile-ptr.hpp>
+#include <IXT/hyper-vector.hpp>
 
 #if defined( _ENGINE_GL_OPEN_GL )
 
@@ -47,27 +47,53 @@ public:
             if( !file ) {
                 echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.string().c_str() << "\".";
                 status = -1;
+                return;
             }
 
             while( std::getline( file, line ) ) {
-                static const char* DIRECTIVE_INCLUDE_STR = "//IXT#include";
+                struct _Directive {
+                    const char*   str;
+                    void*         lbl;
+                } directives[] = {
+                    { str: "//IXT#include", lbl: &&l_directive_include },
+                    { str: "//IXT#name", lbl: &&l_directive_name }
+                };
 
-                if( !line.starts_with( DIRECTIVE_INCLUDE_STR ) ) {
-                    source += line; source += '\n';
-                    continue;
+                std::string arg;
+
+                for( auto& d : directives ) {
+                    if( !line.starts_with( d.str ) ) continue;
+                    
+                    size_t q1 = line.find_first_of( '<' );
+                    size_t q2 = line.find_last_of( '>' );
+
+                    if( q1 == std::string::npos && q2 == std::string::npos ) {
+                        echo( this, ECHO_LEVEL_ERROR ) << "Directive argument must be quoted between \"<>\".";
+                        status = -1;
+                        return;
+                    }
+                    
+                    arg = std::string{ line.c_str() + q1 + 1, q2 - q1 - 1 };
+                    goto *d.lbl;
                 }
-
-                size_t q1 = line.find_first_of( '<' );
-                size_t q2 = line.find_last_of( '>' );
-
-                if( q1 == std::string::npos ) {
-                    echo( this, ECHO_LEVEL_ERROR ) << "Include directive path must be quoted between \"<>\".";
+                goto l_code_line;
+            
+            l_directive_include:
+                accumulate_glsl( path.parent_path() / arg );
+                continue;
+            
+            l_directive_name:
+                if( !_name.empty() ) {
+                    echo( this, ECHO_LEVEL_ERROR ) << "Multiple names given. Initial name \"" << _name << "\", conflicting with \"" << arg << "\".";
                     status = -1;
                     return;
                 }
-                line.pop_back();
 
-                accumulate_glsl( path.parent_path() / std::string{ line.c_str() + q1 + 1, q2 - q1 - 1 } );
+                _name = arg;
+                continue;
+
+            l_code_line:
+                source += line; source += '\n';
             }
         };
 
@@ -96,7 +122,14 @@ public:
         }
 
         _glidx = glidx;
-        echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.string().c_str() << "\".";
+        echo( this, ECHO_LEVEL_OK ) << "Created as: \"" << _name << "\", from \"" << path.string().c_str() << "\".";
+    }
+
+    Shader3( Shader3&& other ) {
+        _glidx = other._glidx;
+        _name  = std::move( other._name );
+
+        other._glidx = 0;
     }
 
     ~Shader3() {
@@ -104,7 +137,8 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    GLuint   _glidx   = NULL;
+    GLuint        _glidx   = NULL;
+    std::string   _name    = {};
 
 public:
     operator decltype( _glidx ) () const {
@@ -113,6 +147,10 @@ public:
 
     GLuint glidx() const {
         return _glidx;
+    }
+
+    const std::string& name() const {
+        return _name;
     }
 
 };
@@ -137,13 +175,13 @@ public:
     ) {
         GLuint glidx = glCreateProgram();
 
-        std::string pretty;
+        std::string pretty = "";
 
-        if( vert != nullptr ) { pretty += "VRTX->"; glAttachShader( glidx, vert->glidx() ); _shaders[ 0 ] = std::move( vert ); }
-        if( tesc != nullptr ) { pretty += "TESC->"; glAttachShader( glidx, tesc->glidx() ); _shaders[ 1 ] = std::move( tesc ); }
-        if( tese != nullptr ) { pretty += "TESE->"; glAttachShader( glidx, tese->glidx() ); _shaders[ 2 ] = std::move( tese ); }
-        if( geom != nullptr ) { pretty += "GEOM->"; glAttachShader( glidx, geom->glidx() ); _shaders[ 3 ] = std::move( geom ); }
-        if( frag != nullptr ) { pretty += "FRAG"; glAttachShader( glidx, frag->glidx() ); _shaders[ 4 ] = std::move( frag ); }
+        if( vert != nullptr ) { pretty += "VRTX->"; glAttachShader( glidx, vert->glidx() ); _shaders[ 0 ].reset( std::move( vert ) ); }
+        if( tesc != nullptr ) { pretty += "TESC->"; glAttachShader( glidx, tesc->glidx() ); _shaders[ 1 ].reset( std::move( tesc ) ); }
+        if( tese != nullptr ) { pretty += "TESE->"; glAttachShader( glidx, tese->glidx() ); _shaders[ 2 ].reset( std::move( tese ) ); }
+        if( geom != nullptr ) { pretty += "GEOM->"; glAttachShader( glidx, geom->glidx() ); _shaders[ 3 ].reset( std::move( geom ) ); }
+        if( frag != nullptr ) { pretty += "FRAG"; glAttachShader( glidx, frag->glidx() ); _shaders[ 4 ].reset( std::move( frag ) ); }
 
         if( tesc == nullptr && tese == nullptr )
             this->draw_mode = GL_TRIANGLES;
@@ -155,7 +193,7 @@ public:
         GLint success;
         glGetProgramiv( glidx, GL_LINK_STATUS, &success );
         if( !success ) {
-            GLchar log_buf[ 512 ];
+            GLchar log_buf[ 512 ]; memset( log_buf, sizeof( log_buf ), 0 );
             glGetProgramInfoLog( glidx, sizeof( log_buf ), NULL, log_buf );
             
             echo( this, ECHO_LEVEL_ERROR ) << "Attaching shaders: \"" << log_buf << "\".";
@@ -381,7 +419,7 @@ template<> inline DWORD Uniform3< glm::f32 >::_uplink( GLuint loc ) {
     return 0;
 }
 template<> inline DWORD Uniform3< glm::vec3 >::_uplink( GLuint loc ) {
-    glUniform3f( loc, _under.x, _under.y, _under.z  ); 
+    glUniform3f( loc, _under.x, _under.y, _under.z ); 
     return 0;
 }
 template<> inline DWORD Uniform3< glm::vec4 >::_uplink( GLuint loc ) {
@@ -507,7 +545,7 @@ public:
 #define _ENGINE_MESH3__PUSH_TEX( mtl_attr, name, unit )
 
 enum MESH3_FLAG : DWORD {
-    MESH3_FLAG_MAKE_SHADING_PIPE = 1,
+    MESH3_FLAG_MAKE_PIPES = 1 << 0,
 
     _MESH3_FLAG = 0x7F'FF'FF'FF
 };
@@ -556,17 +594,17 @@ public:
             
             GLuint tex_unit = 0;
 
-            struct _DEFAULT_TEX {
+            struct _GENERAL_TEX {
                 const char*    key;
                 std::string*   name;
-            } dft_texs[] = {
+            } general_texs[] = {
                 { "map_Ka", &mtl.data.ambient_texname },
                 { "map_Kd", &mtl.data.diffuse_texname },
                 { "map_Ks", &mtl.data.specular_texname },
                 { "map_Ns", &mtl.data.specular_highlight_texname }
             };
 
-            for( auto& [ key, name ] : dft_texs ) {
+            for( auto& [ key, name ] : general_texs ) {
                 if( name->empty() ) continue;
 
                 if( this->_push_tex( root_dir / *name, key, tex_unit, echo ) != 0 ) continue;
@@ -576,11 +614,21 @@ public:
             }
         
             for( auto& [ key, value ] : mtl.data.unknown_parameter ) {
+                if( !key.starts_with( "IXT" ) ) {
+                    echo( this, ECHO_LEVEL_WARNING ) << "Unrecognized general parameter \"" << key << "\".";
+                    continue;
+                }
+
+                bool resolved = false;
+
                 if( key.find( "map" ) != std::string::npos && this->_push_tex( root_dir / value, key, tex_unit, echo ) == 0 ) {
                     mtl.tex_idxs.push_back( _texs.size() - 1 );
                     ++tex_unit;
+                    resolved = true;
                 }
 
+                if( !resolved ) 
+                    echo( this, ECHO_LEVEL_WARNING ) << "Unrecognized IXT parameter \"" << key << "\".";
             }
         }
 
@@ -654,16 +702,16 @@ public:
         for( auto& tex : _texs )
             tex.ufrm = Uniform3< glm::u32 >{ tex.name.c_str(), tex.unit, echo };
 
-        if( flags & MESH3_FLAG_MAKE_SHADING_PIPE ) {  
-            struct PHASE_DATA {
+        if( flags & MESH3_FLAG_MAKE_PIPES ) {  
+            struct PHASE_INFO {
                 int             idx;
                 SHADER3_PHASE   phase;
                 const char*     str;
             };
 
-            ShadingPipe3::SP_t shaders[ SHADER3_PHASE_IDX_RESERVED + 1 ];
+            ShadingPipe3::SP_t shaders[ SHADER3_PHASE_IDX_RESERVED ];
 
-            for( auto phase : std::initializer_list< PHASE_DATA >{ 
+            for( auto phase : std::initializer_list< PHASE_INFO >{ 
                 { SHADER3_PHASE_VERTEX_IDX, SHADER3_PHASE_VERTEX, ".vert" }, 
                 { SHADER3_PHASE_TESS_CTRL_IDX, SHADER3_PHASE_TESS_CTRL, ".tesc" }, 
                 { SHADER3_PHASE_TESS_EVAL_IDX, SHADER3_PHASE_TESS_EVAL, ".tese" }, 
@@ -778,7 +826,7 @@ public:
             echo( this, ECHO_LEVEL_WARNING ) << "Multiple docks on same pipe( " << this->pipe->glidx() << " ) detected.";
         }
 
-        if( other_pipe != nullptr ) this->pipe = std::move( other_pipe );
+        if( other_pipe != nullptr ) this->pipe.reset( std::move( other_pipe ) );
 
         this->model.push( *this->pipe );
 
@@ -821,15 +869,15 @@ public:
 
 
 
-class Renderer3 : public Descriptor {
+class Render3 : public Descriptor {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Renderer3" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Render3" );
     //std::cout << "GOD I SUMMON U. GIVE MIP TEO FOR A FEW DATES (AT LEAST 100)"; 
     //std::cout << "TY";
 public:
-    Renderer3() = default;
+    Render3() = default;
     
-    Renderer3( VPtr< Surface > surface, _ENGINE_COMMS_ECHO_ARG )
+    Render3( VPtr< Surface > surface, _ENGINE_COMMS_ECHO_ARG )
     : _surface{ std::move( surface ) } {
         _surface->uplink_context_on_this_thread( echo );
 
@@ -859,8 +907,8 @@ public:
         echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
 
-    Renderer3( const Renderer3& ) = delete;
-    Renderer3( Renderer3&& ) = delete;
+    Render3( const Render3& ) = delete;
+    Render3( Render3&& ) = delete;
 
 _ENGINE_PROTECTED:
     VPtr< Surface >   _surface    = NULL;
@@ -869,35 +917,40 @@ _ENGINE_PROTECTED:
     const char*       _gl_str     = NULL;    
 
 public:
-    Renderer3& clear( glm::vec4 c = { .0, .0, .0, 1.0 } ) {
+    Render3& clear( glm::vec4 c = { .0, .0, .0, 1.0 } ) {
         glClearColor( c.r, c.g, c.b, c.a );
         glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
         return *this;
     }
 
-    Renderer3& swap() {
+    Render3& swap() {
         glfwSwapBuffers( _surface->handle() );
         return *this;
     }
 
 public:
-    Renderer3& uplink_face_culling() {
+    Render3& uplink_face_culling() {
         glEnable( GL_CULL_FACE );
         return *this;
     }
 
-    Renderer3& downlink_face_culling() {
+    Render3& downlink_face_culling() {
         glDisable( GL_CULL_FACE );
         return *this;
     }
 
-    Renderer3& uplink_fill() {
+    Render3& uplink_fill() {
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
         return *this;
     }
 
-    Renderer3& uplink_wireframe() {
+    Render3& uplink_wireframe() {
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+        return *this;
+    }
+
+    Render3& uplink_points() {
+        glPolygonMode( GL_FRONT_AND_BACK, GL_POINT );
         return *this;
     }
 

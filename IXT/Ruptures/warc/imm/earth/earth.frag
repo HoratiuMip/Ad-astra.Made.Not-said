@@ -1,6 +1,7 @@
 #version 410 core
-//IXT#include <../common.glsl>
-//IXT#include <../perlin.glsl>
+//IXT#name<earth-frag>
+//IXT#include<../common.glsl>
+//IXT#include<../perlin.glsl>
 
 in GS_OUT {
     vec2    tex_crd;
@@ -18,8 +19,8 @@ uniform float     sat_high;
 uniform vec3      sat_high_specs[ SAT_COUNT ];
 uniform int       show_countries;
 uniform sampler2D map_Kd;
-uniform sampler2D map_lights;
-uniform sampler2D map_cal;
+uniform sampler2D IXT_map_lights;
+uniform sampler2D IXT_map_cal;
 
 void main() {
     float light = dot( -gs_in.sun_ray, gs_in.nrm ) / ( length( gs_in.sun_ray ) * length( gs_in.nrm ) ) + 0.11;
@@ -28,14 +29,14 @@ void main() {
     light = 1.6 * max( pow( light, 0.82 ), 0.03 ); 
 
     const float CITY_LIGHTS_BUMP = 0.62;
-    vec4 city_lights = texture( map_lights, gs_in.tex_crd );
+    vec4 city_lights = texture( IXT_map_lights, gs_in.tex_crd );
 
     city_lights.r = pow( city_lights.r, CITY_LIGHTS_BUMP );
     city_lights.g = pow( city_lights.g, CITY_LIGHTS_BUMP );
     city_lights.b = pow( city_lights.b, CITY_LIGHTS_BUMP );
     city_lights *= 3.0;
 
-    vec4 cal = texture( map_cal, gs_in.tex_crd );
+    vec4 cal = texture( IXT_map_cal, gs_in.tex_crd );
 
     float land = cal.b;
 

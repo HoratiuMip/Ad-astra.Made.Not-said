@@ -9,117 +9,6 @@ namespace _ENGINE_NAMESPACE {
 
 
 
-struct no_free_t{};
-
-template< typename _T, bool _is_array = std::is_array_v< _T > >
-class VolatilePtr : public SPtr< _T > {
-public:
-    using Base = SPtr< _T >;
-
-public:
-    using T = std::remove_pointer_t< std::decay_t< _T > >;
-
-public:
-    VolatilePtr() = default;
-
-    VolatilePtr( const VolatilePtr& other ) : Base{ other } {}
-
-    VolatilePtr( VolatilePtr&& other ) : Base{ std::move( other ) } {}
-
-    VolatilePtr( std::nullptr_t ) : Base{ nullptr } {}
-
-    VolatilePtr( decltype( NULL ) ) : Base{ nullptr } {}
-
-    VolatilePtr( T* raw_ptr ) : Base{ raw_ptr } {}
-
-    VolatilePtr( T* raw_ptr, [[maybe_unused]] no_free_t ) : Base{ raw_ptr, [] ( [[maybe_unused]] T* ) -> void {} } {}
-
-    VolatilePtr( T& raw_ref ) : Base{ &raw_ref, [] ( [[maybe_unused]] T* ) -> void {} } {}
-
-    VolatilePtr( T&& raw_move_ref ) noexcept : Base{ std::make_shared< T >( std::move( raw_move_ref ) ) } {}
-
-    VolatilePtr( const SPtr< T >& other ) : Base{ other } {}
-
-    VolatilePtr( SPtr< T >&& other ) noexcept : Base{ std::move( other ) } {}
-
-public:
-    T* operator + ( ptrdiff_t diff ) const {
-        return this->get() + diff;
-    }
-
-    T* operator - ( ptrdiff_t diff ) const {
-        return this->get() - diff;
-    }
-
-public:
-    // operator T* () const {
-    //     return this->get();
-    // }
-
-    // operator const T* () const {
-    //     return this->get();
-    // }
-
-    // operator T& () {
-    //     return *this->get();
-    // }
-
-    // operator const T& () const {
-    //     return *this->get();
-    // }
-
-    // template< typename V >
-    // operator V* () const {
-    //     return ( V* )this->get();
-    // }
-
-    // template< typename V >
-    // operator const V* () const {
-    //     return ( const V* )this->get();
-    // }
-
-public:
-    VolatilePtr< _T >& reset( std::nullptr_t ) {
-        this->Base::reset();
-        return *this;
-    }
-
-    VolatilePtr< _T >& reset( decltype( NULL ) ) {
-        this->Base::reset();
-        return *this;
-    }
-
-    VolatilePtr< _T >& reset( T* raw_ptr ) {
-        this->Base::reset( raw_ptr );
-        return *this;
-    }
-
-    VolatilePtr< _T >& reset( T* raw_ptr, [[maybe_unused]] no_free_t ) {
-        this->Base::reset( raw_ptr, [] ( [[maybe_unused]] T* ) -> void {} );
-        return *this;
-    }
-
-    VolatilePtr< _T >& reset( T& raw_ref ) {
-        this->Base::reset( &raw_ref, [] ( [[maybe_unused]] T* ) -> void {} );
-        return *this;
-    }
-
-    VolatilePtr< _T >& reset( T&& raw_move_ref ) {
-        this->Base::reset( std::make_shared< T >( raw_move_ref ) );
-        return *this;
-    }
-
-    VolatilePtr< _T >& reset( VolatilePtr< _T >&& vptr_move_ref ) {
-        static_cast< Base& >( *this ) = std::move( vptr_move_ref );
-        return *this;
-    }
-};
-
-template< typename T >
-using VPtr = VolatilePtr< T >;
-
-
-
 constexpr QWORD HYPER_VECTOR_SIZE = 16;
 
 enum HYPER_VECTOR_TAG : WORD {
@@ -132,7 +21,7 @@ enum HYPER_VECTOR_TAG : WORD {
 template< typename _T, bool _is_array = std::is_array_v< _T > >
 class HYPER_VECTOR {
 public:
-    template< typename _Tf, bool _is_array_f > friend class HYPER_VECTOR;
+    template< typename, bool > friend class HYPER_VECTOR;
 
 public:
     using T = std::remove_pointer_t< std::decay_t< _T > >;
@@ -140,38 +29,63 @@ public:
 public:
     HYPER_VECTOR() = default;
 
-    template< typename Td > requires( !std::is_class_v< Td > || std::is_base_of_v< T, Td > )
-    HYPER_VECTOR( const HYPER_VECTOR< Td >& other ) 
-    : _ptr{ ( T* )other._ptr }, _tags{ other._tags }
-    {std::cout << 1 << ' ';
-        ( ( _ALLOC_INFO* )( ( BYTE* )_ptr - sizeof( _ALLOC_INFO ) ) )->ref_count.fetch_add( 1, std::memory_order_acquire);
-    }
-
-    template< typename Td > requires( !std::is_class_v< Td > || std::is_base_of_v< T, Td > )
-    HYPER_VECTOR( HYPER_VECTOR< Td >&& other ) 
+    HYPER_VECTOR( const HYPER_VECTOR& other )
     : _ptr{ ( T* )other._ptr }, _tags{ other._tags }
     {
-        std::cout << 2 << ' ';
-        memset( ( void* )&other, 0, HYPER_VECTOR_SIZE );
+        this->_copy( other );
     }
 
-    template< typename Td > requires( !std::is_class_v< Td > || std::is_base_of_v< T, Td > )
-    HYPER_VECTOR( Td* under )
-    : _ptr{ ( T* )under }, _tags{ HYPER_VECTOR_TAG_HARD } 
-    { std::cout << 3 << ' ';}
+    template< typename Thv > requires( !std::is_class_v< Thv > || std::is_base_of_v< T, Thv > )
+    HYPER_VECTOR( const HYPER_VECTOR< Thv >& other ) 
+    : _ptr{ ( T* )other._ptr }, _tags{ other._tags }
+    {
+        this->_copy( other );
+    }
 
-    template< typename Td > requires( !std::is_class_v< Td > || std::is_base_of_v< T, Td > )
-    HYPER_VECTOR( Td& under )
+    HYPER_VECTOR( HYPER_VECTOR&& other )
+    : _ptr{ ( T* )other._ptr }, _tags{ other._tags }
+    {
+        this->_move( std::move( other ) );
+    }
+    template< typename Thv > requires( !std::is_class_v< Thv > || std::is_base_of_v< T, Thv > )
+    HYPER_VECTOR( HYPER_VECTOR< Thv >&& other ) 
+    : _ptr{ ( T* )other._ptr }, _tags{ other._tags }
+    {
+         this->_move( std::move( other ) );
+    }
+
+    template< typename Tp > requires( !std::is_class_v< Tp > || std::is_base_of_v< T, Tp > )
+    HYPER_VECTOR( Tp* under )
+    : _ptr{ ( T* )under }, _tags{ HYPER_VECTOR_TAG_HARD } 
+    {}
+
+    template< typename Tr > requires( !std::is_class_v< Tr > || std::is_base_of_v< T, Tr > )
+    HYPER_VECTOR( Tr& under )
     : _ptr{ ( T* )&under }, _tags{ 0 } 
-    {std::cout << 4 << ' ';}
+    {}
 
     HYPER_VECTOR( decltype( nullptr ) )
-    {std::cout << 6 << ' ';}
+    {}
 
 _ENGINE_PROTECTED:
     explicit HYPER_VECTOR( T* ptr, WORD tags )
     : _ptr{ ptr }, _tags{ ptr == nullptr ? ( WORD )0 : tags }
     {}
+
+_ENGINE_PROTECTED:
+    template< typename Thv >
+    inline void _copy( const HYPER_VECTOR< Thv >& other ) {
+        if( _ALLOC_INFO* info = this->_info(); info != nullptr ) {
+            info->ref_count.fetch_add( 1, std::memory_order_acquire );
+        } else {
+            _tags &= ~HYPER_VECTOR_TAG_HARD;
+        }
+    }
+
+    template< typename Thv >
+    inline void _move( HYPER_VECTOR< Thv >&& other ) {
+        memset( ( void* )&other, 0, HYPER_VECTOR_SIZE );
+    }
 
 public:
     ~HYPER_VECTOR() {
@@ -193,11 +107,10 @@ _ENGINE_PROTECTED:
     BYTE   _reserved[ 6 ]   = {};
 
 public:
-    template< typename ...Args >
-    requires( !std::is_abstract_v< T > )
-    static HYPER_VECTOR< _T > alloc( QWORD count, Args&&... args ) {std::cout <<  "cnt" << count<< ' ';
+    template< typename ...Args > requires( !std::is_abstract_v< T > )
+    static HYPER_VECTOR< _T > allocv( QWORD count, Args&&... args ) {
         void* base = malloc( sizeof( _ALLOC_INFO ) + sizeof( T ) * count );
-        if( base == nullptr ) return HYPER_VECTOR< _T >{ nullptr, 0 };
+        if( base == nullptr ) return HYPER_VECTOR< _T >{ nullptr, ( WORD )0 };
 
         _ALLOC_INFO& info = *( _ALLOC_INFO* )base;
         T* ptr = ( T* )( ( BYTE* )base + sizeof( _ALLOC_INFO ) );
@@ -212,52 +125,78 @@ public:
         }
 
         info.ref_count.store( 1, std::memory_order_release );
-        std::cout << 8 << ' ';
+       
         return HYPER_VECTOR< _T >{ ptr, HYPER_VECTOR_TAG_HARD | HYPER_VECTOR_TAG_INFO };
+    }
+
+    template< typename ...Args > requires( !std::is_abstract_v< T > )
+    inline static HYPER_VECTOR< _T > alloc( Args&&... args ) {
+        return allocv( 1, std::forward< Args >( args )... );
     }
 
 _ENGINE_PROTECTED:
     void _free() {
-        void* free_ptr = nullptr; std::cout << 9;
+        void* free_ptr = nullptr;
 
         if( _ptr == nullptr ) goto l_reset;
-        if( ( _tags & HYPER_VECTOR_TAG_HARD ) == 0 ) goto l_reset;
-        if( ( _tags & HYPER_VECTOR_TAG_INFO ) == 0 ) { free_ptr = ( void* )_ptr; goto l_free; }
-        
-        {
-        _ALLOC_INFO& info = *( _ALLOC_INFO* )( ( BYTE* )_ptr - sizeof( _ALLOC_INFO ) );
-        QWORD old_ref_count = info.ref_count.fetch_sub( 1, std::memory_order_seq_cst );
+
+        if( !this->hard() ) goto l_reset;
+
+    {     
+        _ALLOC_INFO* info = this->_info();
+
+        if( info == nullptr ) { free_ptr = ( void* )_ptr; goto l_free; }
+    {
+        QWORD old_ref_count = info->ref_count.fetch_sub( 1, std::memory_order_seq_cst );
 
         if( old_ref_count != 1 ) goto l_reset;
 
         if constexpr( _is_array ) {
-            for( QWORD idx = 0; idx < info.count; ++idx )
+            for( QWORD idx = 0; idx < info->count; ++idx )
                 ( _ptr + idx )->~T();
         } else {
             _ptr->~T();
         }
 
-        free_ptr = ( void* )&info;
-        }
+        free_ptr = ( void* )info;
+    }
+    }
 
-    l_free: std::cout<<'X';
+    l_free:
         free( free_ptr );
 
     l_reset:
-        memset( ( void* )this, 0, HYPER_VECTOR_SIZE ); std::cout << 10;
+        memset( ( void* )this, 0, HYPER_VECTOR_SIZE );
     }
 
 public:
     template< typename ...Args >
-    HYPER_VECTOR< _T >& vector( Args&&... args ) {
+    HYPER_VECTOR< _T >& vector( Args&&... args ) { 
         this->_free();
 
         new( ( void* )this ) HYPER_VECTOR< _T >{ std::forward< Args >( args )... };
         return *this;
     }
 
+    template< typename ...Args >
+    HYPER_VECTOR< _T >& operator = ( Args&&... args ) {
+        return this->vector( std::forward< Args >( args )... );
+    }
+
+public:
     QWORD count() const {
-        return ( ( _ALLOC_INFO* )( ( BYTE* )_ptr - sizeof( _ALLOC_INFO ) ) )->ref_count.load( std::memory_order_relaxed );
+        return this->info()->ref_count.load( std::memory_order_relaxed );
+    }
+    
+    inline bool hard() const {
+        return ( _tags & HYPER_VECTOR_TAG_HARD ) != 0;
+    }
+
+_ENGINE_PROTECTED:
+    inline _ALLOC_INFO* _info() {
+        if( ( _tags & HYPER_VECTOR_TAG_INFO ) == 0 ) return nullptr;
+
+        return ( _ALLOC_INFO* )( ( BYTE* )_ptr - sizeof( _ALLOC_INFO ) );
     }
 
 public:
@@ -280,13 +219,11 @@ public:
     T& operator << ( ptrdiff_t diff ) { return *( _ptr - diff ); }
 
 public: 
+    bool operator == ( T* ptr ) const { return _ptr == ptr; }
     bool operator != ( T* ptr ) const { return _ptr != ptr; }
+    bool operator == ( decltype( nullptr ) ) const { return _ptr == nullptr; }
+    bool operator != ( decltype( nullptr ) ) const { return _ptr != nullptr; }
     operator bool () const { return _ptr != nullptr; }
-
-public:
-    HYPER_VECTOR< _T >&& reloc() {
-        return ( HYPER_VECTOR< _T >&& )*this;
-    }
 
 };
 static_assert( sizeof( HYPER_VECTOR< BYTE > ) == HYPER_VECTOR_SIZE );

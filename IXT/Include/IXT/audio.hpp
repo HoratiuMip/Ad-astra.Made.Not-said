@@ -198,7 +198,7 @@ public:
     Wave() = default;
 
     Wave( HVEC< Audio > audio )
-    : _audio{ audio.reloc() }
+    : _audio{ std::move( audio ) }
     {}
 
 public:
@@ -227,7 +227,7 @@ public:
     }
 
     Wave& dock_in( HVEC< Audio > audio ) {
-        _audio = audio.reloc();
+        _audio = std::move( audio );
         return *this;
     }
 
@@ -622,7 +622,7 @@ public:
         wave->set();
 
         if( !this->is_playing( *wave ) )
-            _waves.emplace_back( wave.reloc() );
+            _waves.emplace_back( std::move( wave ) );
 
         return *this;
     }
@@ -650,7 +650,7 @@ public:
         std::string_view   path, 
         _ENGINE_COMMS_ECHO_ARG 
     )
-    : Wave{ audio.reloc() }
+    : Wave{ std::move( audio ) }
     {
         using namespace std::string_literals;
 
@@ -658,7 +658,7 @@ public:
         if( path.ends_with( ".wav" ) ) {
             Endec::Wav< double > wav{ path, echo };
 
-            _stream       = wav.stream.reloc();
+            _stream       = std::move( wav.stream );
             _sample_rate  = wav.sample_rate;
             _sample_count = wav.sample_count;
             _tunnel_count = wav.tunnel_count;
@@ -802,7 +802,7 @@ public:
         double          decay_in_secs,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : Wave{ audio.reloc() }, _generator{ generator }
+    : Wave{ std::move( audio ) }, _generator{ generator }
     {
         echo( this, ECHO_LEVEL_OK ) << "Created from source generator.";
 

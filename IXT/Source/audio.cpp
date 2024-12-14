@@ -18,7 +18,7 @@ void Wave::play() {
 }
 
 void Wave::play( HVEC< Wave > self ) {
-    _audio->play( self.reloc() );
+    _audio->play( std::move( self ) );
 }
 
 

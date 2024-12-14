@@ -160,7 +160,7 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "ShadingPipe3" );
 
 public:
-    using SP_t = VPtr< Shader3 >;
+    using SP_t = HVEC< Shader3 >;
 
 public:
     ShadingPipe3() = default;
@@ -177,11 +177,11 @@ public:
 
         std::string pretty = "";
 
-        if( vert != nullptr ) { pretty += "VRTX->"; glAttachShader( glidx, vert->glidx() ); _shaders[ 0 ].reset( std::move( vert ) ); }
-        if( tesc != nullptr ) { pretty += "TESC->"; glAttachShader( glidx, tesc->glidx() ); _shaders[ 1 ].reset( std::move( tesc ) ); }
-        if( tese != nullptr ) { pretty += "TESE->"; glAttachShader( glidx, tese->glidx() ); _shaders[ 2 ].reset( std::move( tese ) ); }
-        if( geom != nullptr ) { pretty += "GEOM->"; glAttachShader( glidx, geom->glidx() ); _shaders[ 3 ].reset( std::move( geom ) ); }
-        if( frag != nullptr ) { pretty += "FRAG"; glAttachShader( glidx, frag->glidx() ); _shaders[ 4 ].reset( std::move( frag ) ); }
+        if( vert != nullptr ) { pretty += "VRTX->"; glAttachShader( glidx, vert->glidx() ); _shaders[ 0 ].vector( std::move( vert ) ); }
+        if( tesc != nullptr ) { pretty += "TESC->"; glAttachShader( glidx, tesc->glidx() ); _shaders[ 1 ].vector( std::move( tesc ) ); }
+        if( tese != nullptr ) { pretty += "TESE->"; glAttachShader( glidx, tese->glidx() ); _shaders[ 2 ].vector( std::move( tese ) ); }
+        if( geom != nullptr ) { pretty += "GEOM->"; glAttachShader( glidx, geom->glidx() ); _shaders[ 3 ].vector( std::move( geom ) ); }
+        if( frag != nullptr ) { pretty += "FRAG"; glAttachShader( glidx, frag->glidx() ); _shaders[ 4 ].vector( std::move( frag ) ); }
 
         if( tesc == nullptr && tese == nullptr )
             this->draw_mode = GL_TRIANGLES;
@@ -223,7 +223,7 @@ public:
 
 _ENGINE_PROTECTED:
     GLuint            _glidx                                   = NULL;
-    VPtr< Shader3 >   _shaders[ SHADER3_PHASE_IDX_RESERVED ]   = {};
+    HVEC< Shader3 >   _shaders[ SHADER3_PHASE_IDX_RESERVED ]   = {};
 
 public: 
     GLuint            draw_mode                                = NULL;
@@ -723,10 +723,10 @@ public:
 
                 if( !std::filesystem::exists( phase_path ) ) continue;
 
-                shaders[ phase.idx ].reset( std::make_shared< Shader3 >( phase_path, phase.phase, echo ) );
+                shaders[ phase.idx ].vector( HVEC< Shader3 >::alloc( phase_path, phase.phase, echo ) );
             }
 
-            this->pipe.reset( std::make_shared< ShadingPipe3 >( 
+            this->pipe.vector( HVEC< ShadingPipe3 >::alloc( 
                 std::move( shaders[ SHADER3_PHASE_VERTEX_IDX ] ), 
                 std::move( shaders[ SHADER3_PHASE_TESS_CTRL_IDX ] ),
                 std::move( shaders[ SHADER3_PHASE_TESS_EVAL_IDX ] ),
@@ -768,7 +768,7 @@ _ENGINE_PROTECTED:
 public:
     Uniform3< glm::mat4 >     model;
 
-    VPtr< ShadingPipe3 >      pipe;
+    HVEC< ShadingPipe3 >      pipe;
 
 _ENGINE_PROTECTED:
     DWORD _push_tex( 
@@ -821,12 +821,12 @@ _ENGINE_PROTECTED:
     }
 
 public:
-    Mesh3& dock_in( VPtr< ShadingPipe3 > other_pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    Mesh3& dock_in( HVEC< ShadingPipe3 > other_pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
         if( other_pipe.get() == this->pipe.get() ) {
             echo( this, ECHO_LEVEL_WARNING ) << "Multiple docks on same pipe( " << this->pipe->glidx() << " ) detected.";
         }
 
-        if( other_pipe != nullptr ) this->pipe.reset( std::move( other_pipe ) );
+        if( other_pipe != nullptr ) this->pipe.vector( std::move( other_pipe ) );
 
         this->model.push( *this->pipe );
 
@@ -877,7 +877,7 @@ public:
 public:
     Render3() = default;
     
-    Render3( VPtr< Surface > surface, _ENGINE_COMMS_ECHO_ARG )
+    Render3( HVEC< Surface > surface, _ENGINE_COMMS_ECHO_ARG )
     : _surface{ std::move( surface ) } {
         _surface->uplink_context_on_this_thread( echo );
 
@@ -911,7 +911,7 @@ public:
     Render3( Render3&& ) = delete;
 
 _ENGINE_PROTECTED:
-    VPtr< Surface >   _surface    = NULL;
+    HVEC< Surface >   _surface    = NULL;
 
     const char*       _rend_str   = NULL;     
     const char*       _gl_str     = NULL;    

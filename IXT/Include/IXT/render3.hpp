@@ -12,6 +12,34 @@ namespace _ENGINE_NAMESPACE {
 
 
 
+class Shader3;
+class ShadingPipe3;
+
+
+
+class RenderCluster3 : public Descriptor {
+public:
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "RenderCluster3" );
+
+_ENGINE_PROTECTED:
+    std::map< std::string, HVEC< Shader3 > >        _shaders;
+    std::map< std::string, HVEC< ShadingPipe3 > >   _pipes;
+
+public:
+    DWORD push_shader( HVEC< Shader3 > shader, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    DWORD pop_shader( const char* name, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVEC< Shader3 > search_shader( const char* name, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+
+public:
+    DWORD push_pipe( HVEC< ShadingPipe3 > pipe, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    DWORD pop_pipe( const char* name, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVEC< Shader3 > search_pipe( const char* name, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+
+};
+inline RenderCluster3 render_cluster{};
+
+
+
 enum SHADER3_PHASE : DWORD {
     SHADER3_PHASE_VERTEX    = GL_VERTEX_SHADER,
     SHADER3_PHASE_TESS_CTRL = GL_TESS_CONTROL_SHADER,
@@ -32,6 +60,9 @@ enum SHADER3_PHASE : DWORD {
 class Shader3 : public Descriptor {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Shader3" );
+
+public:
+    friend class RenderCluster3;
 
 public:
     Shader3() = default;
@@ -709,7 +740,7 @@ public:
                 const char*     str;
             };
 
-            ShadingPipe3::SP_t shaders[ SHADER3_PHASE_IDX_RESERVED ];
+            HVEC< Shader3 > shaders[ SHADER3_PHASE_IDX_RESERVED ];
 
             for( auto phase : std::initializer_list< PHASE_INFO >{ 
                 { SHADER3_PHASE_VERTEX_IDX, SHADER3_PHASE_VERTEX, ".vert" }, 

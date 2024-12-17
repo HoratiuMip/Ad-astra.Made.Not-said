@@ -334,17 +334,19 @@ struct _IMM : Descriptor {
 
         struct _DRAIN;
     
-    #define _WARC_IMM_CTRL_PUSH_SINK( _1, _2, _3, _4 ) this->push_sink( _SINK{ name: _1, proc: _2, execc: _3, _cexecc: _4 } )
-    #define _WARC_IMM_CTRL_SINK_PROC_NONE ( [] () -> int { return 0; } )
+    #define _WARC_IMM_CTRL_PUSH_SINK( _1, _2, _3, _4 ) this->push_sink( _SINK{ name: _1, proc: _2, sexecc: _3, _csexecc: _4 } )
+    #define _WARC_IMM_CTRL_SINK_PROC_NONE ( [] ( ELAPSED_ARGS_DECL ) -> int { return 0; } )
         struct _SINK {
-            std::string              name      = nullptr;
-            std::function< int() >   proc      = nullptr;
-            int                      execc     = 1;
+            std::string                                 name       = nullptr;
+            std::function< int( ELAPSED_ARGS_DECL ) >   proc       = nullptr;
+            int                                         sexecc     = 1;
 
-            std::vector< _DRAIN* >   drains    = {};
+            std::vector< _DRAIN* >                      drains     = {};
 
-            int                      _cexecc   = 0;
+            int                                         _csexecc   = 0;
         };
+
+        using SINK = size_t;
 
     #define _WARC_IMM_CTRL_PUSH_DRAIN( _1, _2, _3 ) this->push_drain( _DRAIN{ name: _1, cond: _2, engd: _3 } )
     #define _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY ( [] () -> bool { return false; } )
@@ -365,6 +367,8 @@ struct _IMM : Descriptor {
             void trigger( std::memory_order m  ) { std::atomic_ref< bool >{ _trigd }.store( true, m ); }
         };
 
+        using DRAIN = size_t;
+
     #define _WARC_IMM_CTRL_BSD( s, d ) ( this->bind_sink_2_drain( s, d ) )
     #define _WARC_IMM_CTRL_BDS( d, s ) ( this->bind_drain_2_sink( d, s ) )
     #define _WARC_IMM_CTRL_BSDS( s1, d, s2 ) ( _WARC_IMM_CTRL_BSD( s1, d ), _WARC_IMM_CTRL_BDS( d, s2 ) )
@@ -377,6 +381,7 @@ struct _IMM : Descriptor {
         std::vector< IXT::SPtr< _SINK > >    sinks    = {};
         std::vector< IXT::SPtr< _DRAIN > >   drains   = {}; 
         std::list< _TOKEN >                  tokens   = {};
+
 
         _CTRL() {
         #pragma region TEST
@@ -409,48 +414,48 @@ struct _IMM : Descriptor {
         #pragma endregion TEST
 
         #pragma region CINEMATIC
-            auto cinematic_toggle = _WARC_IMM_CTRL_PUSH_SINK( "cinematic-toggle",
-                ( [ & ] () -> int { PIMM->toggle_cinematic(); return 0; } ),
+            idxs.cin_tgl = _WARC_IMM_CTRL_PUSH_SINK( "cin-tgl",
+                ( [ & ] ( ELAPSED_ARGS_DECL ) -> int { PIMM->toggle_cinematic(); return 0; } ),
                 1, 1
             );
             
-            auto cinematic_toggle_2self = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "cinematic-toggle-to-self", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
+            idxs.cin_2t = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "cin-2t", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
             );
 
-            _WARC_IMM_CTRL_BSDS( cinematic_toggle, cinematic_toggle_2self, cinematic_toggle );
+            _WARC_IMM_CTRL_BSDS( idxs.cin_tgl, idxs.cin_2t, idxs.cin_tgl );
 
-            _WARC_IMM_CTRL_TOKENS( false, cinematic_toggle );
+            _WARC_IMM_CTRL_TOKENS( false, idxs.cin_tgl );
         #pragma endregion CINEMATIC
 
         #pragma region COUNTRIES
-            auto countries_toggle = _WARC_IMM_CTRL_PUSH_SINK( "countries-toggle",
-                ( [ & ] () -> int { PIMM->toggle_countries(); return 0; } ),
+            idxs.cnt_tgl = _WARC_IMM_CTRL_PUSH_SINK( "cnt-tgl",
+                ( [ & ] ( ELAPSED_ARGS_DECL ) -> int { PIMM->toggle_countries(); return 0; } ),
                 1, 1
             );
             
-            auto countries_toggle_2self = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "countries-toggle-to-self", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
+            idxs.cnt_2t = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "cnt-2t", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
             );
 
-            _WARC_IMM_CTRL_BSDS( countries_toggle, countries_toggle_2self, countries_toggle );
+            _WARC_IMM_CTRL_BSDS( idxs.cnt_tgl, idxs.cnt_2t, idxs.cnt_tgl );
 
-            _WARC_IMM_CTRL_TOKENS( false, countries_toggle );
+            _WARC_IMM_CTRL_TOKENS( false, idxs.cnt_tgl );
         #pragma endregion COUNTRIES
 
         #pragma region SAT_HIGH
-            auto sat_high_toggle = _WARC_IMM_CTRL_PUSH_SINK( "sat-high-toggle",
-                ( [ & ] () -> int { PIMM->toggle_sat_high(); return 0; } ),
+            idxs.sat_high_tgl = _WARC_IMM_CTRL_PUSH_SINK( "sat-high-tgl",
+                ( [ & ] ( ELAPSED_ARGS_DECL ) -> int { PIMM->toggle_sat_high(); return 0; } ),
                 1, 1
             );
             
-            auto sat_high_toggle_2self = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "sat-high-toggle-to-self", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
+            idxs.sat_high_2t = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "sat-high-2t", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
             );
 
-            _WARC_IMM_CTRL_BSDS( sat_high_toggle, sat_high_toggle_2self, sat_high_toggle );
+            _WARC_IMM_CTRL_BSDS( idxs.sat_high_tgl, idxs.sat_high_2t, idxs.sat_high_tgl );
 
-            _WARC_IMM_CTRL_TOKENS( false, sat_high_toggle );
+            _WARC_IMM_CTRL_TOKENS( false, idxs.sat_high_tgl );
         #pragma endregion SAT_HIGH
 
         #pragma region LENS
@@ -462,16 +467,16 @@ struct _IMM : Descriptor {
 
             } shake_sat_high;
 
-            auto lens_idle = _WARC_IMM_CTRL_PUSH_SINK( 
-                "lens-idle", _WARC_IMM_CTRL_SINK_PROC_NONE, 1, 0
+            idxs.lens_reset = _WARC_IMM_CTRL_PUSH_SINK( 
+                "lens-reset", _WARC_IMM_CTRL_SINK_PROC_NONE, 1, 0
             );
 
-            auto lens_init = _WARC_IMM_CTRL_PUSH_SINK( "lens-init",
-                ( [ &, cinematic_toggle_2self ] () -> int {
+            idxs.lens_lock = _WARC_IMM_CTRL_PUSH_SINK( "lens-lock",
+                ( [ & ] ( ELAPSED_ARGS_DECL ) -> int {
                     static Ticker tick{ ticker_lap_epoch_init_t{} };
 
                     if( tick.lap() <= 0.2 )
-                        PIMM_CTRL->trigger( cinematic_toggle_2self );
+                        PIMM_CTRL->trigger( PIMM_CTRL->idxs.cin_2t );
 
                     PIMM->surf.ptr_reset();
                     SurfPtr::env_to( Vec2::O() );
@@ -484,8 +489,8 @@ struct _IMM : Descriptor {
                 1, 0
             );
 
-            auto lens_loop = _WARC_IMM_CTRL_PUSH_SINK( "lens-loop",
-                ( [ &, sat_high_toggle_2self ] () -> int {
+            idxs.lens_frame = _WARC_IMM_CTRL_PUSH_SINK( "lens-loop",
+                ( [ & ] ( ELAPSED_ARGS_DECL ) -> int {
                     Vec2 cd = PIMM->surf.ptr_v();
                     if( cd.x == 0.0 ) return 0;
 
@@ -507,7 +512,7 @@ struct _IMM : Descriptor {
                         shake_sat_high.cross_count = 0;
 
                         shake_sat_high.triggered = true;
-                        PIMM_CTRL->trigger( sat_high_toggle_2self, std::memory_order_relaxed );
+                        PIMM_CTRL->trigger( PIMM_CTRL->idxs.sat_high_2t, std::memory_order_relaxed );
                     }
 
                     shake_sat_high.last_x = cd.x;
@@ -517,49 +522,88 @@ struct _IMM : Descriptor {
                 -1, 0
             );
 
-            auto lens_idle2init = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "lens-idle-to-init", _WARC_IMM_CTRL_DRAIN_COND_CONCISE( PIMM->surf.down( SurfKey::RMB ) ), true
+            idxs.lens_r2l = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "lens-r2l", _WARC_IMM_CTRL_DRAIN_COND_CONCISE( PIMM->surf.down( SurfKey::RMB ) ), true
             );
 
-            auto lens_init2loop = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "lens-init-to-loop", _WARC_IMM_CTRL_DRAIN_COND_PIPE_BUFFER, true
+            idxs.lens_l2f = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "lens-l2f", _WARC_IMM_CTRL_DRAIN_COND_PIPE_BUFFER, true
             );
 
-            auto lens_loop2idle = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "lens-loop-to-idle", _WARC_IMM_CTRL_DRAIN_COND_CONCISE( !PIMM->surf.down( SurfKey::RMB ) ), true
+            idxs.lens_f2r = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "lens-f2r", _WARC_IMM_CTRL_DRAIN_COND_CONCISE( !PIMM->surf.down( SurfKey::RMB ) ), true
             );
             
-            _WARC_IMM_CTRL_BSDS( lens_idle, lens_idle2init, lens_init );
-            _WARC_IMM_CTRL_BSDS( lens_init, lens_init2loop, lens_loop );
-            _WARC_IMM_CTRL_BSDS( lens_loop, lens_loop2idle, lens_idle );
+            _WARC_IMM_CTRL_BSDS( idxs.lens_reset, idxs.lens_r2l, idxs.lens_lock );
+            _WARC_IMM_CTRL_BSDS( idxs.lens_lock, idxs.lens_l2f, idxs.lens_frame );
+            _WARC_IMM_CTRL_BSDS( idxs.lens_frame, idxs.lens_f2r, idxs.lens_reset );
 
-            _WARC_IMM_CTRL_TOKENS( false, lens_idle );
+            _WARC_IMM_CTRL_TOKENS( false, idxs.lens_reset );
         #pragma endregion LENS
 
         #pragma region RENDER_MODE
-            auto render_mode_iterate = _WARC_IMM_CTRL_PUSH_SINK( "render-mode-iterate",
-                ( [ &, ctr = 0 ] () mutable -> int {
-                    switch( ctr++ ) {
+            idxs.rendmode_itr = _WARC_IMM_CTRL_PUSH_SINK( "rendmode-itr",
+                ( [ &, ctr = 0 ] ( ELAPSED_ARGS_DECL ) mutable -> int {
+                    switch( ++ctr ) {
                         case 0: PIMM->rend.uplink_fill(); break;
                         case 1: PIMM->rend.uplink_wireframe(); break;
-                        case 2: PIMM->rend.uplink_points(); break;
-
-                        default: ctr = 0; break;
+                        case 2: PIMM->rend.uplink_points(); [[fallthrough]];
+                        default: ctr = -1; break;
                     }
 
                     return 0;
                 } ),
+                1, 1
+            );
+
+            idxs.rendmode_2t = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "rendmode-2t", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
+            );
+
+            _WARC_IMM_CTRL_BSDS( idxs.rendmode_itr, idxs.rendmode_2t, idxs.rendmode_itr );
+
+            _WARC_IMM_CTRL_TOKENS( false, idxs.rendmode_itr );
+        #pragma endregion RENDER_MODE
+
+        #pragma region CURSOR
+            idxs.crs_reset = _WARC_IMM_CTRL_PUSH_SINK( 
+                "crs-reset", _WARC_IMM_CTRL_SINK_PROC_NONE, 1, 0
+            );
+
+            idxs.crs_frame = _WARC_IMM_CTRL_PUSH_SINK( "crs-frame",
+                [ & ] ( ELAPSED_ARGS_DECL ) -> int {
+                    Vec2 cd = PIMM->surf.ptr_v();
+                    if( cd.x == 0.0 ) return 0;
+
+                    cd *= -PEARTH_PARAMS->lens_sens * PIMM->lens.l2t();
+
+                    PIMM->lens.spin_ul( { cd.x, cd.y }, { -82.0, 82.0 } );
+                    PIMM->surf.ptr_reset();
+                    SurfPtr::env_to( Vec2::O() );
+
+                    if( shake_sat_high.triggered ) return 0;
+
+                    if( shake_sat_high.tick.cmpxchg_lap( PEARTH_PARAMS->sat_high_decay ) ) {
+                        shake_sat_high.cross_count = std::max( shake_sat_high.cross_count - 1, 0 );
+                    }
+                    
+                    if( std::signbit( cd.x ) == std::signbit( shake_sat_high.last_x ) ) return 0;
+
+                    if( ++shake_sat_high.cross_count >= PEARTH_PARAMS->sat_high_cross ) {
+                        shake_sat_high.cross_count = 0;
+
+                        shake_sat_high.triggered = true;
+                        PIMM_CTRL->trigger( PIMM_CTRL->idxs.sat_high_2t, std::memory_order_relaxed );
+                    }
+
+                    shake_sat_high.last_x = cd.x;
+
+                    return 0;
+                },
                 1, 0
             );
 
-            auto render_mode_iterate_2self = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "render-mode-iterate-to-self", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, true
-            );
-
-            _WARC_IMM_CTRL_BSDS( render_mode_iterate, render_mode_iterate_2self, render_mode_iterate );
-
-            _WARC_IMM_CTRL_TOKENS( false, render_mode_iterate );
-        #pragma endregion RENDER_MODE
+        #pragma endregion CURSOR
 
             PIMM->surf.socket_plug< SURFACE_EVENT_KEY >( 
                 this->xtdx(), SURFACE_SOCKET_PLUG_AT_EXIT, 
@@ -572,25 +616,25 @@ struct _IMM : Descriptor {
                     case SurfKey::C: {
                         if( state != SURFKEY_STATE_DOWN ) break;
 
-                        PIMM_CTRL->trigger( cinematic_toggle_2self, std::memory_order_relaxed );
+                        PIMM_CTRL->trigger( PIMM_CTRL->idxs.cin_2t, std::memory_order_relaxed );
                     break; }
 
                     case SurfKey::B: {
                         if( state != SURFKEY_STATE_DOWN ) break;
 
-                        PIMM_CTRL->trigger( countries_toggle_2self, std::memory_order_relaxed );
+                        PIMM_CTRL->trigger( PIMM_CTRL->idxs.cnt_2t, std::memory_order_relaxed );
                     break; }
 
                     case SurfKey::SPACE: {
                         if( state != SURFKEY_STATE_DOWN ) break;
 
-                        PIMM_CTRL->trigger( sat_high_toggle_2self, std::memory_order_relaxed );
+                        PIMM_CTRL->trigger( PIMM_CTRL->idxs.sat_high_2t, std::memory_order_relaxed );
                     break; }
 
                     case SurfKey::DOT: {
                         if( state != SURFKEY_STATE_DOWN ) break;
 
-                        PIMM_CTRL->trigger( render_mode_iterate_2self, std::memory_order_relaxed );
+                        PIMM_CTRL->trigger( PIMM_CTRL->idxs.rendmode_2t, std::memory_order_relaxed );
                     break; }
                 }
             } );
@@ -605,6 +649,38 @@ struct _IMM : Descriptor {
                 }
             );
         }
+
+
+        struct _IDXS {
+            SINK    cin_tgl;
+            DRAIN   cin_2t;
+
+            SINK    cnt_tgl;
+            DRAIN   cnt_2t;
+
+            SINK    sat_high_tgl;
+            DRAIN   sat_high_2t;
+
+            SINK    lens_reset;
+            DRAIN   lens_r2l;
+            SINK    lens_lock;
+            DRAIN   lens_l2f;
+            SINK    lens_frame;
+            DRAIN   lens_f2r;
+
+            SINK    rendmode_itr;
+            DRAIN   rendmode_2t;
+
+            SINK    crs_reset;
+            DRAIN   crs_r2f;
+            SINK    crs_frame;
+            DRAIN   crs_f2r;
+            struct _CRS_INFO {
+                int     x_cross_count   = 0;
+                float   _x_last         = 0.0;
+            }       crs_info;
+
+        } idxs;
 
 
         template< typename S >
@@ -645,9 +721,9 @@ struct _IMM : Descriptor {
             int last_step = tokens.size();
 
             for( auto tok = tokens.begin(); step <= last_step && tok != tokens.end(); ++tok ) {
-                if( ( tok->sink->execc < 0 ) || ( tok->sink->_cexecc + 1 <= tok->sink->execc ) ) {
-                    status |= tok->sink->proc();
-                    ++tok->sink->_cexecc;
+                if( ( tok->sink->sexecc < 0 ) || ( tok->sink->_csexecc + 1 <= tok->sink->sexecc ) ) {
+                    status |= tok->sink->proc( ELAPSED_ARGS_CALL );
+                    ++tok->sink->_csexecc;
                 } else if( tok->sink->drains.empty() ) {
                     tok = tokens.erase( tok );
                 }
@@ -664,7 +740,7 @@ struct _IMM : Descriptor {
                     auto snk = drn->sinks.begin();
                     if( snk == drn->sinks.end() ) continue;
 
-                    tok->sink->_cexecc = 0;
+                    tok->sink->_csexecc = 0;
                     tok->sink = *snk;
                     ++snk;
 
@@ -683,9 +759,6 @@ struct _IMM : Descriptor {
 
 
     _IMM& refresh( ELAPSED_ARGS_DECL ) {
-        ggfloat_t high_fac = 0.2 + ( 1.0 + glm::pow( sin( sats.tick.up_time() * 8.6 ), 3.0 ) );
-
-
         if( cinematic ) {
             lens.spin_ul( { 0.004 * ela, cos( cinematic_tick.peek_lap() / 2.2 ) * 0.001 }, { -82.0, 82.0 } );
         }
@@ -696,6 +769,8 @@ struct _IMM : Descriptor {
 
         for( int idx = 0; idx < 3; ++idx ) {
             auto& s = sats.noaa[ idx ];
+
+            ggfloat_t high_fac = 0.2 + ( 1.0 + glm::pow( sin( sats.tick.up_time() * 8.6 + s.norad_id % 10 ), 3.0 ) );
 
             s.high_spec.uplink_bv(
                 s.base_high_spec

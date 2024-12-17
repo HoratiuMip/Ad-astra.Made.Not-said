@@ -185,10 +185,20 @@ Damn.
 > 
 > ![warc-rah-1](https://github.com/user-attachments/assets/6ad2812d-5f1c-4a44-b5fa-8a85c3ac811f)
 >
-> Short video [here](https://github.com/user-attachments/assets/3e27c3a2-5ca1-4ed4-9bcf-5f75c5db5a4f).
+> Performace affinity:
+> - Dynamic allocations avoided in between frames | Heavy data locality.
+> - Cache-line-sharing-free multi-threaded control system | Fine tuning of atomic read/modify/writes.
+> - State-machine-like general behaviour | Each frame execution does strictly what it needs to execute.
 
 ### The-Rig
 > Moment for upgrades, cooling and structural reinforcement.
+>
+> ![warc-rig](https://github.com/user-attachments/assets/be6a9801-f109-4cf2-bbb6-505f48604592)
+>
+> Upgrades:
+> - Heat sinks mounted with adhesive thermal pads | fan blowing air over them.
+> - Storage for ports protections caps.
+> - General structure reinforced | Pluging cords in/out does not cause stress on the components.
 
 
 ## Hyper-Links

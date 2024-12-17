@@ -6,8 +6,8 @@ Damn.
 
 > I.  [Description](#Description)
 > II. [Manuals](#Manuals)
-> III. [Anchors](#Anchors)
-> IV. [Journal](#Journal)
+> III. [Journal](#Journal)
+> IV. [Hyper-Links](#Hyper-Links)
 
 
 ## Description
@@ -149,35 +149,14 @@ Damn.
 > | `--earth-imm-lens-sens <arg1>` | The sensitivity of the camera. | `Yes` | `Yes` | `Yes` |
 
 
-## Anchors
-
-### Hardware
-> - `nooelec SAWbird+ NOAA` | https://www.nooelec.com/store/sdr/sdr-addons/sawbird/sawbird-plus-noaa-308.html
-> - `RTL-SDR V3` | https://www.rtl-sdr.com/rtl-sdr-blog-v-3-dongles-user-guide
-
-### Bridge
-> - `SRD++` | https://www.sdrpp.org
-> - `SatDump` | https://www.satdump.org
-> - `N2YO` | https://www.n2yo.com | https://www.n2yo.com/?s=25338|28654|33591
-
-### Software
-> - `Galaxy texture` | https://svs.gsfc.nasa.gov/4851
-> - `Galaxy model` | From the GOAT | https://github.com/nyjucu
-> - `Earth texture` | https://shadedrelief.com/natural3/ne3_data/8192/textures/1_earth_8k.jpg
-> - `Earth altitude texture` | https://visibleearth.nasa.gov/images/73934/topography
-> - `Earth landmask texture` | https://github.com/SatDump/SatDump/blob/master/resources/maps/landmask.jpg
-> - `Earth night lights texture` | https://visibleearth.nasa.gov/images/55167/earths-city-lights
-> - `Earth model` | From the GOAT | https://github.com/nyjucu
-> - `NOAA textures & model` | https://www.cgtrader.com/free-3d-models/space/spaceship/noaa-15-weather-satellite
-
-
 ## Journal
 
-> I. [Stage-I](#Stage-I)
-> II. [Stage-II](#Stage-II)
+> I. [The-Sound](#The-Sound)
+> II. [The-Immersion](#The-Immersion)
+> III. [The-Rig](#The-Rig)
 
-### Stage-I - Anyone up there?
-> Let us receive even the faintest signal, in order to have a strong starting anchor, using the following pipeline:
+### The-Sound
+> Anyone up there? Let us search for even the faintest signal, in order to have a strong starting anchor, using the following pipeline:
 > ![warc-stage-i-pipe](https://github.com/user-attachments/assets/e3677ac9-e98d-4575-b429-7d97479286e7)
 
 > Hardware: 
@@ -201,12 +180,44 @@ Damn.
 > |-|-|
 > |![avhrr_3_rgb_MSA_(Uncalibrated)](https://github.com/user-attachments/assets/3cb87800-2a46-44d0-82a2-5042a538dfe2)|![avhrr_3_rgb_MSA_(Uncalibrated)](https://github.com/user-attachments/assets/586c27b8-2e04-4950-ad44-fc6904407af7)|
 
-### Stage-II - Immersion.
-> Roam around the earth while being in full smooth control over everything. 
+### The-Immersion
+> Roam around the earth, being in full control, Godlike.
+> 
 > ![warc-rah-1](https://github.com/user-attachments/assets/6ad2812d-5f1c-4a44-b5fa-8a85c3ac811f)
+>
+> Performace affinity:
+> - Dynamic allocations avoided in between frames | Heavy data locality.
+> - Cache-line-sharing-free multi-threaded control system | Fine tuning of atomic read/modify/writes.
+> - State-machine-like general behaviour | Each frame execution does strictly what it needs to execute.
+
+### The-Rig
+> Moment for upgrades, cooling and structural reinforcement.
+>
+> ![warc-rig](https://github.com/user-attachments/assets/be6a9801-f109-4cf2-bbb6-505f48604592)
+>
+> Upgrades:
+> - Heat sinks mounted with adhesive thermal pads | fan blowing air over them.
+> - Storage for ports protections caps.
+> - General structure reinforced | Pluging cords in/out does not cause stress on the components.
 
 
-> Short video [here](https://github.com/user-attachments/assets/3e27c3a2-5ca1-4ed4-9bcf-5f75c5db5a4f).
+## Hyper-Links
 
+### Hardware
+> - `nooelec SAWbird+ NOAA` | https://www.nooelec.com/store/sdr/sdr-addons/sawbird/sawbird-plus-noaa-308.html
+> - `RTL-SDR V3` | https://www.rtl-sdr.com/rtl-sdr-blog-v-3-dongles-user-guide
 
+### Bridge
+> - `SRD++` | https://www.sdrpp.org
+> - `SatDump` | https://www.satdump.org
+> - `N2YO` | https://www.n2yo.com | https://www.n2yo.com/?s=25338|28654|33591
 
+### Software
+> - `Galaxy texture` | https://svs.gsfc.nasa.gov/4851
+> - `Galaxy model` | From the GOAT | https://github.com/nyjucu
+> - `Earth texture` | https://shadedrelief.com/natural3/ne3_data/8192/textures/1_earth_8k.jpg
+> - `Earth altitude texture` | https://visibleearth.nasa.gov/images/73934/topography
+> - `Earth landmask texture` | https://github.com/SatDump/SatDump/blob/master/resources/maps/landmask.jpg
+> - `Earth night lights texture` | https://visibleearth.nasa.gov/images/55167/earths-city-lights
+> - `Earth model` | From the GOAT | https://github.com/nyjucu
+> - `NOAA textures & model` | https://www.cgtrader.com/free-3d-models/space/spaceship/noaa-15-weather-satellite

@@ -21,7 +21,7 @@ static struct _INTERNAL {
         int           least_argc;
         int           ( MAIN::*proc )( int, char**, const char* );
 
-    } opts[ 11 ] = {
+    } opts[ 12 ] = {
         { "--from-config",                    0b001, 1, &MAIN::_parse_proc_from_config },
 
         { "--n2yo-api-key",                   0b111, 2, &MAIN::_parse_proc_n2yo_api_key },
@@ -31,8 +31,9 @@ static struct _INTERNAL {
 
         { "--earth-imm",                      0b001, 0, &MAIN::_parse_proc_earth_imm },
         { "--earth-imm-lens-sens",            0b111, 1, &MAIN::_parse_proc_earth_imm_lens_sens },
-        { "--earth-imm-sat-high-shake-decay", 0b111, 1, &MAIN::_parse_proc_earth_imm_sat_high_shake_decay },
-        { "--earth-imm-sat-high-shake-cross", 0b111, 1, &MAIN::_parse_proc_earth_imm_sat_high_shake_cross },
+        { "--earth-imm-lens-fov",             0b111, 1, &MAIN::_parse_proc_earth_imm_lens_fov },
+        { "--earth-imm-shake-decay",          0b111, 1, &MAIN::_parse_proc_earth_imm_shake_decay },
+        { "--earth-imm-shake-cross-count",    0b111, 1, &MAIN::_parse_proc_earth_imm_shake_cross_count },
 
         { "--astro-ref-vernal-equinox-ts",    0b111, 1, &MAIN::_parse_proc_astro_ref_vernal_equinox_ts },
         { "--astro-ref-first-january-ts",     0b111, 1, &MAIN::_parse_proc_astro_ref_first_january_ts }
@@ -228,33 +229,49 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_lens_sens ) {
     return 0;
 }
 
-WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_sat_high_shake_decay ) {
-    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_sat_high_shake_decay()" );
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_lens_fov ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_lens_fov()" );
 
     WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
-    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Decay is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Fov is NULL.", -1, -1 );
+
+    WARC_ASSERT_RT( this->_earth, "Earth immersion module not enabled.", -1, -1 );
+
+    float lens_fov = atof( argv[ 0 ] );
+    this->_earth->params().lens_fov = lens_fov;
+
+    WARC_ECHO_RT_OK << "Earth immersion lens sensitivity: \"" << lens_fov << "\".";
+    return 0;
+}
+
+
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_shake_decay ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_shake_decay()" );
+
+    WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Shake decay is NULL.", -1, -1 );
 
     WARC_ASSERT_RT( this->_earth, "Earth immersion module not enabled.", -1, -1 );
 
     float decay = atof( argv[ 0 ] );
-    this->_earth->params().sat_high_decay = decay;
+    this->_earth->params().shake_decay = decay;
 
-    WARC_ECHO_RT_OK << "Earth immersion satellite highlight decay time: \"" << decay << "\".";
+    WARC_ECHO_RT_OK << "Earth immersion shake decay time: \"" << decay << "\".";
     return 0;
 }
 
-WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_sat_high_shake_cross ) {
-    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_sat_high_shake_cross()" );
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_shake_cross_count ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_shake_cross_count()" );
 
     WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
-    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Cross is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Shake cross count is NULL.", -1, -1 );
 
     WARC_ASSERT_RT( this->_earth, "Earth immersion module not enabled.", -1, -1 );
 
-    float cross = atoi( argv[ 0 ] );
-    this->_earth->params().sat_high_cross = cross;
+    int cross_count = atoi( argv[ 0 ] );
+    this->_earth->params().shake_cross_count = cross_count;
 
-    WARC_ECHO_RT_OK << "Earth immersion satellite highlight cross count: \"" << cross << "\".";
+    WARC_ECHO_RT_OK << "Earth immersion shake cross count: \"" << cross_count << "\".";
     return 0;
 }
 

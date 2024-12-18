@@ -62,8 +62,9 @@ _WARC_PROTECTED:
     */
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm );
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm_lens_sens ); 
-    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm_sat_high_shake_decay );
-    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm_sat_high_shake_cross );
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm_lens_fov );
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm_shake_decay );
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_earth_imm_shake_cross_count );
 
 
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_astro_ref_vernal_equinox_ts );

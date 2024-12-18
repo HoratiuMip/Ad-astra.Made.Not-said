@@ -573,8 +573,6 @@ public:
 
 
 
-#define _ENGINE_MESH3__PUSH_TEX( mtl_attr, name, unit )
-
 enum MESH3_FLAG : DWORD {
     MESH3_FLAG_MAKE_PIPES = 1 << 0,
 

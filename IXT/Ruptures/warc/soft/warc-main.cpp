@@ -218,7 +218,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_lens_sens ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_lens_sens()" );
 
     WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
-    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Sens is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Lens sensitivity is NULL.", -1, -1 );
 
     WARC_ASSERT_RT( this->_earth, "Earth immersion module not enabled.", -1, -1 );
 
@@ -233,14 +233,14 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_lens_fov ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_earth_imm_lens_fov()" );
 
     WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
-    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Fov is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Lens FOV is NULL.", -1, -1 );
 
     WARC_ASSERT_RT( this->_earth, "Earth immersion module not enabled.", -1, -1 );
 
     float lens_fov = atof( argv[ 0 ] );
     this->_earth->params().lens_fov = lens_fov;
 
-    WARC_ECHO_RT_OK << "Earth immersion lens sensitivity: \"" << lens_fov << "\".";
+    WARC_ECHO_RT_OK << "Earth immersion lens FOV: \"" << lens_fov << "\".";
     return 0;
 }
 

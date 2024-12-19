@@ -56,8 +56,9 @@ struct _IMM : Descriptor {
     Render3   rend;
     Lens3     lens;
 
-    bool        cinematic        = false;
-    Ticker      cinematic_tick   = {};
+    int      cinematic        = 0;
+    Ticker   cinematic_tick   = {};
+    float    cinematic_wy     = 0.24;
 
     struct _UFRM {
         _UFRM()
@@ -427,16 +428,47 @@ struct _IMM : Descriptor {
         #pragma endregion CURSOR
 
         #pragma region CINEMATIC
-            idxs.cin_tgl = _WARC_IMM_CTRL_PUSH_SINK( "cin-tgl",
-                ( _WARC_IMM_CTRL_SINK_PROC{ PIMM->toggle_cinematic(); return 0; } ),
-                _WARC_IMM_CTRL_SINK_SEXECC( 1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 )
+            idxs.cin_reset = _WARC_IMM_CTRL_PUSH_SINK( 
+                "cin-itr", _WARC_IMM_CTRL_SINK_PROC_NONE, _WARC_IMM_CTRL_SINK_SEXECC( 1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 ) 
             );
             
-            idxs.cin_2t = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "cin-2t", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, _WARC_IMM_CTRL_DRAIN_PROC_NONE, _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+            idxs.cin_2t_lame = _WARC_IMM_CTRL_PUSH_DRAIN( 
+                "cin-2t-lame", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY,
+                ( _WARC_IMM_CTRL_DRAIN_PROC{
+                    switch( ++PIMM->cinematic ) {
+                        case 1: PIMM->cinematic_tick.lap(); [[fallthrough]];
+                        case 2: PIMM->cinematic_wy = 0.24; break;
+                        default: PIMM->cinematic = 0; break;
+                    }
+
+                    return 0;
+                } ), 
+                _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
-            _WARC_IMM_CTRL_BSDS( idxs.cin_tgl, idxs.cin_2t, idxs.cin_tgl );
+            idxs.cin_2t_combo = _WARC_IMM_CTRL_PUSH_DRAIN(
+                "cin-2t-combo", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY,
+                ( _WARC_IMM_CTRL_DRAIN_PROC{
+                    if( cin_info.tick.lap() <= 0.2 ) {
+                        ++cin_info.trigger_count;
+                    } else {
+                        cin_info.trigger_count = 0;
+                    }
+
+                    if( cin_info.trigger_count == 0 ) goto l_end;
+                    
+                    PIMM->cinematic_tick.lap();
+                    PIMM->cinematic_wy = 0.24;
+                    PIMM->cinematic == cin_info.trigger_count ? PIMM->cinematic = 0 : PIMM->cinematic = cin_info.trigger_count;
+
+                l_end:
+                    return 0;
+                } ),
+                _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+            );
+
+            _WARC_IMM_CTRL_BSDS( idxs.cin_reset, idxs.cin_2t_lame, idxs.cin_reset );
+            _WARC_IMM_CTRL_BSDS( idxs.cin_reset, idxs.cin_2t_combo, idxs.cin_reset );
         #pragma endregion CINEMATIC
 
         #pragma region COUNTRIES
@@ -473,25 +505,21 @@ struct _IMM : Descriptor {
                         cnt_info.x_cross_count_capture = crs_info.x_cross_count;
                         cnt_info.triggered = false;
 
-                        Vec2 crs     = PIMM->surf.ptr_v();
-                        glm::vec3 pt = PIMM->lens.forward();
+                        Vec2 crs     = PIMM->surf.ptr_v() * 2.0;
                         glm::vec3 po = glm::vec3{ 0.0 } - PIMM->lens.pos;
-
-                        pt = glm::vec3{ 
-                            glm::rotate( glm::mat4{ 1.0 }, glm::radians( PEARTH_PARAMS->lens_fov / PIMM->surf.aspect() * crs.y ), PIMM->lens.right() ) 
-                            * 
-                            glm::vec4{ pt, 0.0 }
-                        };
-                        pt = glm::vec3{ 
+                        glm::vec3 pt = glm::vec3{ 
                             glm::rotate( glm::mat4{ 1.0 }, glm::radians( PEARTH_PARAMS->lens_fov * crs.x ), PIMM->lens.up ) 
                             * 
-                            glm::vec4{ pt, 0.0 }
+                            glm::rotate( glm::mat4{ 1.0 }, glm::radians( PEARTH_PARAMS->lens_fov / PIMM->surf.aspect() * crs.y ), PIMM->lens.right() )
+                            *
+                            glm::vec4{ PIMM->lens.forward(), 0.0 }
                         };
                         
                         float ptn = glm::length( pt );
-                        glm::vec3 pm = pt / ptn * glm::dot( po, pt ) / ptn;
+                        ptn *= ptn;
+                        glm::vec3 pm = pt * glm::dot( po, pt ) / ptn;
 
-                        cnt_info.effective = glm::length( pm - po ) <= 0.62;
+                        cnt_info.effective = glm::length( pm - po ) <= 0.86;
 
                         return 0;
                     } ), 
@@ -536,7 +564,7 @@ struct _IMM : Descriptor {
                     PIMM->surf.ptr_reset();
                     SurfPtr::env_to( Vec2::O() );
 
-                    if( sat_high_info.triggered ) return 0;
+                    if( sat_high_info.triggered ) goto l_sat_high_end;
 
                     if( sat_high_info.tick.cmpxchg_lap( PEARTH_PARAMS->shake_decay ) ) {
                         sat_high_info.x_cross_count_capture = std::min( sat_high_info.x_cross_count_capture + 1, crs_info.x_cross_count );
@@ -546,20 +574,20 @@ struct _IMM : Descriptor {
                         sat_high_info.triggered = true;
                         PIMM_CTRL->trigger( PIMM_CTRL->idxs.sat_high_2t, std::memory_order_relaxed );
                     }
-
+                
+                l_sat_high_end:
+                    if( PIMM->cinematic != 2 ) goto l_cinematic_end;
+                    PIMM->cinematic_wy = cd.x / elapsed;
+                
+                l_cinematic_end:
                     return 0;
                 } ),
                 _WARC_IMM_CTRL_SINK_SEXECC( -1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 0 )
             );
 
             idxs.lens_r2f = _WARC_IMM_CTRL_PUSH_DRAIN( "lens-r2l", 
-                _WARC_IMM_CTRL_DRAIN_COND_CONCISE( PIMM->surf.down( SurfKey::RMB ) ), 
+                _WARC_IMM_CTRL_DRAIN_COND_CONCISE( PIMM->surf.down( SurfKey::RMB ) && PIMM->cinematic != 1 ), 
                 ( _WARC_IMM_CTRL_DRAIN_PROC{
-                    static Ticker tick{ ticker_lap_epoch_init_t{} };
-
-                    if( tick.lap() <= 0.2 )
-                        PIMM_CTRL->trigger( PIMM_CTRL->idxs.cin_2t );
-
                     PIMM->surf.ptr_reset();
                     SurfPtr::env_to( Vec2::O() );
 
@@ -607,12 +635,14 @@ struct _IMM : Descriptor {
                 switch( key ) {
                     case SurfKey::RMB: {
                         state == SURFKEY_STATE_DOWN ? PIMM->surf.hide_def_ptr() : PIMM->surf.show_def_ptr();
+
+                        if( state != SURFKEY_STATE_DOWN ) break;
+                        PIMM_CTRL->trigger( PIMM_CTRL->idxs.cin_2t_combo, std::memory_order_relaxed );
                     break; }
 
                     case SurfKey::C: {
                         if( state != SURFKEY_STATE_DOWN ) break;
-
-                        PIMM_CTRL->trigger( PIMM_CTRL->idxs.cin_2t, std::memory_order_relaxed );
+                        PIMM_CTRL->trigger( PIMM_CTRL->idxs.cin_2t_lame, std::memory_order_relaxed );
                     break; }
 
                     case SurfKey::B: {
@@ -647,7 +677,7 @@ struct _IMM : Descriptor {
 
             _WARC_IMM_CTRL_TOKENS( true,
                 idxs.crs_reset,
-                idxs.cin_tgl,
+                idxs.cin_reset,
                 idxs.cnt_tgl,
                 idxs.sat_high_tgl,
                 idxs.lens_reset,
@@ -658,8 +688,9 @@ struct _IMM : Descriptor {
 
         struct _IDXS {
             /* Cinematic */
-            SINK    cin_tgl;
-            DRAIN   cin_2t;
+            SINK    cin_reset;
+            DRAIN   cin_2t_lame;
+            DRAIN   cin_2t_combo;
 
             /* Countries */
             SINK    cnt_tgl;
@@ -696,6 +727,11 @@ struct _IMM : Descriptor {
             float    _dx_last        = 0.0;
             Ticker   _x_cross_tick   = { ticker_lap_epoch_init_t{} };
         } crs_info;
+
+        struct _CIN_INFO {
+            int      trigger_count   = 0;
+            Ticker   tick            = { ticker_lap_epoch_init_t{} };
+        } cin_info;
 
         struct _CNT_INFO {
             int      x_cross_count_capture   = 0;
@@ -790,8 +826,10 @@ struct _IMM : Descriptor {
 
 
     _IMM& refresh( float elapsed ) {
-        if( cinematic ) {
-            lens.spin_ul( { 0.24 * elapsed, cos( cinematic_tick.peek_lap() / 2.2 ) * 0.001 }, { -82.0, 82.0 } );
+        if( cinematic == 1 ) {
+            lens.spin_ul( { cinematic_wy * elapsed, cos( cinematic_tick.peek_lap() / 2.2 ) * 0.001 }, { -82.0, 82.0 } );
+        } else if( cinematic == 2 ) {
+            lens.spin_ul( { cinematic_wy * elapsed, 0.0 }, { -82.0, 82.0 } );
         }
 
 
@@ -845,11 +883,6 @@ struct _IMM : Descriptor {
 
     void toggle_countries() {
         earth.countries.get() ^= 1;
-    }
-
-    void toggle_cinematic() {
-        cinematic ^= true;
-        cinematic_tick.lap();
     }
 
 };

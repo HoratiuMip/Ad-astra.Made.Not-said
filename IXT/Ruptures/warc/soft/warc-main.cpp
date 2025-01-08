@@ -21,7 +21,9 @@ static struct _INTERNAL {
         int           least_argc;
         int           ( MAIN::*proc )( int, char**, const char* );
 
-    } opts[ 12 ] = {
+    } opts[ 13 ] = {
+        { "--root-dir",                       0b001, 1, &MAIN::_parse_proc_root_dir },
+
         { "--from-config",                    0b001, 1, &MAIN::_parse_proc_from_config },
 
         { "--n2yo-api-key",                   0b111, 2, &MAIN::_parse_proc_n2yo_api_key },
@@ -91,6 +93,19 @@ static bool _confirm_continue_program() {
     } while( true );
 
     return false;
+}
+
+
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_root_dir ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_root_dir()" );
+
+    WARC_ASSERT_RT( argv != nullptr, "Argv is NULL.", -1, -1 );
+    WARC_ASSERT_RT( argv[ 0 ] != nullptr, "Root directory is NULL.", -1, -1 );
+
+    _global.root_dir = argv[ 0 ];
+
+    WARC_ECHO_RT_OK << "Root directory: \"" << _global.root_dir << "\".";
+    return 0;
 }
 
 
@@ -466,7 +481,7 @@ int MAIN::main( int argc, char* argv[] ) {
                 break; }
 
                 case _INTERNAL::CONFIG::N2YO_MODE_PAST: {
-                    std::filesystem::path path{ WARC_RUPTURE_DATA_ROOT_DIR };
+                    std::filesystem::path path{ WARC_DATA_ROOT_DIR };
                     path /= "n2yo_past_data_";
                     path += std::to_string( ( int )norad_id );
                     path += ".json";

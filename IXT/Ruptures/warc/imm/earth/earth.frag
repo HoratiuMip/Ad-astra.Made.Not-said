@@ -100,9 +100,10 @@ void main() {
     }
 
     if( bool( show_countries ) && cal.r > 0.2 ) {
-        float fac = pow( abs( sin( rtc * 1.6 ) ), 1.2 );
+        float fac = pow( ( sin( rtc * 4.2 ) + 1.0 ) / 2.0, 0.2 );
+        float rb  = fac * ( light + 0.36 );
 
-        final.rgb = vec3( fac, 1.0 - fac, fac );
+        final.rgb = vec3( rb, rb, max( rb, fac ) );
     }
     
     final.w = 1.0;

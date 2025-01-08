@@ -14,7 +14,7 @@ using namespace IXT;
 int main() { 
     Endec::Wav< int > sample_wav{ ASSET_WAV_SAX_PATH };
     
-    auto audio = HVEC< Audio >::alloc(
+    auto audio = HVEC< Audio >::allocc(
         Audio::devices()[ 0 ], 
         sample_wav.sample_rate, sample_wav.tunnel_count, 
         32, 256
@@ -22,14 +22,14 @@ int main() {
     
 
     std::map< decltype( _getch() ), HVEC< Wave > > sample_map{
-        { '1', HVEC< Sound >::alloc( audio, ASSET_WAV_SAX_PATH ) },
-        { '2', HVEC< Sound >::alloc( audio, ASSET_WAV_GANGNAM_PATH ) },
-        { '3', HVEC< Sound >::alloc( audio, ASSET_WAV_90S_PATH ) },
-        { 't', HVEC< Sound >::alloc( audio, ASSET_WAV_NOAA_PATH ) },
-        { 'q', HVEC< Synth >::alloc( audio, Synth::gen_sine( 0.5, 220 ), 3.0 ) },
-        { 'w', HVEC< Synth >::alloc( audio, Synth::gen_sine( 0.5, 440 ), 3.0 ) },
-        { 'e', HVEC< Synth >::alloc( audio, Synth::gen_sine( 0.5, 880 ), 3.0 ) },
-        { 'r', HVEC< Synth >::alloc( audio, Synth::gen_cos( 0.5, 440 ), 3.0 ) }
+        { '1', HVEC< Sound >::allocc( audio, ASSET_WAV_SAX_PATH ) },
+        { '2', HVEC< Sound >::allocc( audio, ASSET_WAV_GANGNAM_PATH ) },
+        { '3', HVEC< Sound >::allocc( audio, ASSET_WAV_90S_PATH ) },
+        { 't', HVEC< Sound >::allocc( audio, ASSET_WAV_NOAA_PATH ) },
+        { 'q', HVEC< Synth >::allocc( audio, Synth::gen_sine( 0.5, 220 ), 3.0 ) },
+        { 'w', HVEC< Synth >::allocc( audio, Synth::gen_sine( 0.5, 440 ), 3.0 ) },
+        { 'e', HVEC< Synth >::allocc( audio, Synth::gen_sine( 0.5, 880 ), 3.0 ) },
+        { 'r', HVEC< Synth >::allocc( audio, Synth::gen_cos( 0.5, 440 ), 3.0 ) }
     };
 
 

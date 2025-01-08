@@ -65,4 +65,13 @@ _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_STR )
 typedef   float   WARC_FTYPE;
 
 
+inline struct _GLOBAL {
+    std::filesystem::path   root_dir   = ".";
+} _global;
+
+#define WARC_ROOT_DIR ( _global.root_dir )
+#define WARC_IMM_ROOT_DIR ( WARC_ROOT_DIR/"imm" )
+#define WARC_DATA_ROOT_DIR ( WARC_ROOT_DIR/"data" )
+
+
 };

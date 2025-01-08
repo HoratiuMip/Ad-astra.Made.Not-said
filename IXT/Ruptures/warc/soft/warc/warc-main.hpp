@@ -35,6 +35,8 @@ _WARC_PROTECTED:
 _WARC_PROTECTED:
     int _parse_opts( int argc, char* argv[] );
 
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_root_dir );
+
     /*
     | Usage:
     | --from-config <../some_config_file.json>

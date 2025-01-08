@@ -23,11 +23,6 @@ add_library( ${WARC_LIB} STATIC
 target_link_libraries( ${WARC_LIB} PUBLIC "IXT" )
 target_include_directories( ${WARC_LIB} PUBLIC ${WINTER_ARC_SOFT_DIR} )
 
-set( _warc_lib_compile_definitions
-    "WARC_RUPTURE_ROOT_DIR=\"${CMAKE_CURRENT_LIST_DIR}/\""
-    "WARC_RUPTURE_IMM_ROOT_DIR=\"${CMAKE_CURRENT_LIST_DIR}/imm/\""
-    "WARC_RUPTURE_DATA_ROOT_DIR=\"${CMAKE_CURRENT_LIST_DIR}/data/\""
-)
 
 if( WARC_INET_TLS )
     list( APPEND _warc_lib_compile_definitions "WARC_INET_TLS=1" )

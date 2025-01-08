@@ -8,7 +8,7 @@ using namespace IXT;
 
 
 int main() {
-    auto hvec = HVEC< int >::alloc( 0x9 );
+    auto hvec = HVEC< int >::allocc( 0x9 );
 
     comms() << *hvec; 
 }

@@ -153,18 +153,18 @@ public:
         }
 
         _glidx = glidx;
-        echo( this, ECHO_LEVEL_OK ) << "Created as: \"" << _name << "\", from \"" << path.string().c_str() << "\".";
+        echo( this, ECHO_LEVEL_OK ) << "Created as \"" << _name << "\"( " << _glidx << " ), from \"" << path.string().c_str() << "\".";
     }
 
     Shader3( Shader3&& other ) {
         _glidx = other._glidx;
         _name  = std::move( other._name );
 
-        other._glidx = 0;
+        other._glidx = NULL;
     }
 
     ~Shader3() {
-        glDeleteShader( _glidx );
+        if( _glidx ) glDeleteShader( std::exchange( _glidx, NULL ) );
     }
 
 _ENGINE_PROTECTED:
@@ -191,30 +191,41 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "ShadingPipe3" );
 
 public:
-    using SP_t = HVEC< Shader3 >;
+    inline static constexpr char   STAGE_NAME_SEP   = '-';
 
 public:
     ShadingPipe3() = default;
 
-    ShadingPipe3( 
-        SP_t vert,
-        SP_t tesc,
-        SP_t tese,
-        SP_t geom, 
-        SP_t frag, 
-        _ENGINE_COMMS_ECHO_ARG 
-    ) {
+    ShadingPipe3( Shader3* shaders[ 5 ], _ENGINE_COMMS_ECHO_ARG ) {
         GLuint glidx = glCreateProgram();
+
+        if( !glidx ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "OpenGL returned NULL shader program.";
+            return;
+        }
 
         std::string pretty = "";
 
-        if( vert != nullptr ) { pretty += "VRTX->"; glAttachShader( glidx, vert->glidx() ); _shaders[ 0 ].vector( std::move( vert ) ); }
-        if( tesc != nullptr ) { pretty += "TESC->"; glAttachShader( glidx, tesc->glidx() ); _shaders[ 1 ].vector( std::move( tesc ) ); }
-        if( tese != nullptr ) { pretty += "TESE->"; glAttachShader( glidx, tese->glidx() ); _shaders[ 2 ].vector( std::move( tese ) ); }
-        if( geom != nullptr ) { pretty += "GEOM->"; glAttachShader( glidx, geom->glidx() ); _shaders[ 3 ].vector( std::move( geom ) ); }
-        if( frag != nullptr ) { pretty += "FRAG"; glAttachShader( glidx, frag->glidx() ); _shaders[ 4 ].vector( std::move( frag ) ); }
+        static const char* stage_pretties[ 5 ] = {
+            "VRTX-", ">TESC-", ">TESE-", ">GEOM-", ">FRAG"
+        };
 
-        if( tesc == nullptr && tese == nullptr )
+        for( DWORD idx = 0; idx < 5; ++idx ) {
+            Shader3*& shader = shaders[ idx ];
+            if( shader == nullptr ) continue;
+
+            pretty += stage_pretties[ idx ];
+            _name += shader->name() + STAGE_NAME_SEP;
+
+            glAttachShader( glidx, shader->glidx() );
+        }
+        _name.pop_back();
+
+        if( pretty.starts_with( '>' ) || pretty.ends_with( '-' ) ) {
+            echo( this, ECHO_LEVEL_WARNING ) << "Shader stages ill-arranged.";
+        }
+
+        if( shaders[ 1 ] == nullptr && shaders[ 2 ] == nullptr )
             this->draw_mode = GL_TRIANGLES;
         else
             this->draw_mode = GL_PATCHES;
@@ -227,37 +238,31 @@ public:
             GLchar log_buf[ 512 ]; memset( log_buf, sizeof( log_buf ), 0 );
             glGetProgramInfoLog( glidx, sizeof( log_buf ), NULL, log_buf );
             
-            echo( this, ECHO_LEVEL_ERROR ) << "Attaching shaders: \"" << log_buf << "\".";
+            echo( this, ECHO_LEVEL_ERROR ) << "Fault attaching shaders: \"" << log_buf << "\".";
             return;
         }
 
         _glidx = glidx;
-        echo( this, ECHO_LEVEL_OK ) << "Created with glidx( " << _glidx << " ) --- | " << pretty << " |.";
+        echo( this, ECHO_LEVEL_OK ) << "Created as \"" << _name << "\"( " << _glidx << " ) | " << pretty << " |.";
     }
 
-    ShadingPipe3(
-        const Shader3& vert,
-        const Shader3& geom,
-        const Shader3& frag,
-        _ENGINE_COMMS_ECHO_ARG 
-    )
-    : ShadingPipe3{ SP_t{ vert }, SP_t{ nullptr }, SP_t{ nullptr }, SP_t{ geom }, SP_t{ frag } }
-    {}
+    ShadingPipe3( ShadingPipe3&& other ) {
+        _glidx = std::exchange( other._glidx, NULL );
+        _name  = std::move( other._name );
+        
+        draw_mode = std::exchange( other.draw_mode, NULL );
+    }
 
-    ShadingPipe3(
-        const Shader3& vert,
-        const Shader3& frag,
-        _ENGINE_COMMS_ECHO_ARG 
-    )
-    : ShadingPipe3{ SP_t{ vert } , SP_t{ nullptr }, SP_t{ nullptr }, SP_t{ nullptr }, SP_t{ frag } }
-    {}
+    ~ShadingPipe3() {
+        if( _glidx ) glDeleteProgram( std::exchange( _glidx, NULL ) );
+    }
 
 _ENGINE_PROTECTED:
-    GLuint            _glidx                                   = NULL;
-    HVEC< Shader3 >   _shaders[ SHADER3_PHASE_IDX_RESERVED ]   = {};
+    GLuint            _glidx          = NULL;
+    std::string       _name           = {};
 
 public: 
-    GLuint            draw_mode                                = NULL;
+    GLuint            draw_mode       = NULL;
 
 public:
     operator GLuint () const {
@@ -266,6 +271,10 @@ public:
 
     GLuint glidx() const {
         return _glidx;
+    }
+
+    const std::string& name() {
+        return _name;
     }
 
 public:
@@ -738,31 +747,27 @@ public:
                 const char*     str;
             };
 
-            HVEC< Shader3 > shaders[ SHADER3_PHASE_IDX_RESERVED ];
+            Shader3 shaders[ 5 ];
+            Shader3* shaders_ptrs[ 5 ];
+            memset( shaders_ptrs, 0, sizeof( shaders_ptrs ) );
 
             for( auto phase : std::initializer_list< PHASE_INFO >{ 
-                { SHADER3_PHASE_VERTEX_IDX, SHADER3_PHASE_VERTEX, ".vert" }, 
-                { SHADER3_PHASE_TESS_CTRL_IDX, SHADER3_PHASE_TESS_CTRL, ".tesc" }, 
-                { SHADER3_PHASE_TESS_EVAL_IDX, SHADER3_PHASE_TESS_EVAL, ".tese" }, 
-                { SHADER3_PHASE_GEOMETRY_IDX, SHADER3_PHASE_GEOMETRY, ".geom" }, 
-                { SHADER3_PHASE_FRAGMENT_IDX, SHADER3_PHASE_FRAGMENT, ".frag" } } 
+                { 0, SHADER3_PHASE_VERTEX, ".vert" }, 
+                { 1, SHADER3_PHASE_TESS_CTRL, ".tesc" }, 
+                { 2, SHADER3_PHASE_TESS_EVAL, ".tese" }, 
+                { 3, SHADER3_PHASE_GEOMETRY, ".geom" }, 
+                { 4, SHADER3_PHASE_FRAGMENT, ".frag" } } 
             ) {
                 std::filesystem::path phase_path{ root_dir_p };
                 phase_path += phase.str;
 
                 if( !std::filesystem::exists( phase_path ) ) continue;
 
-                shaders[ phase.idx ].vector( HVEC< Shader3 >::alloc( phase_path, phase.phase, echo ) );
+                new ( &shaders[ phase.idx ] ) Shader3{ phase_path, phase.phase, echo };
+                shaders_ptrs[ phase.idx ] = shaders + phase.idx;
             }
 
-            this->pipe.vector( HVEC< ShadingPipe3 >::alloc( 
-                std::move( shaders[ SHADER3_PHASE_VERTEX_IDX ] ), 
-                std::move( shaders[ SHADER3_PHASE_TESS_CTRL_IDX ] ),
-                std::move( shaders[ SHADER3_PHASE_TESS_EVAL_IDX ] ),
-                std::move( shaders[ SHADER3_PHASE_GEOMETRY_IDX ] ), 
-                std::move( shaders[ SHADER3_PHASE_FRAGMENT_IDX ] ), 
-                echo 
-            ) );
+            this->pipe.vector( HVEC< ShadingPipe3 >::allocc( shaders_ptrs, echo ) );
 
             this->dock_in( nullptr, echo );
         }

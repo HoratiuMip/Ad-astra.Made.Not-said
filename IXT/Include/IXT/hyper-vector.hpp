@@ -12,10 +12,18 @@ namespace _ENGINE_NAMESPACE {
 constexpr QWORD HYPER_VECTOR_SIZE = 16;
 
 enum HYPER_VECTOR_TAG : WORD {
-    HYPER_VECTOR_TAG_HARD = 1 << 0,
-    HYPER_VECTOR_TAG_INFO = 1 << 1,
+    HYPER_VECTOR_TAG_HARD        = 1 << 0,
+    HYPER_VECTOR_TAG_INFO        = 1 << 1,
+    HYPER_VECTOR_TAG_CONSTRUCTED = 1 << 2,
 
     _HYPER_VECTOR_TAG_FORCE_WORD = 0x7f'ff
+};
+
+enum HYPER_VECTOR_ALLOC_FLAG : WORD {
+    HYPER_VECTOR_ALLOC_FLAG_CONSTRUCT  = 1 << 0,
+    //HYPER_VECTOR_ALLOC_FLAG_TRACK_REFS = 1 << 1,
+
+    _HYPER_VECTOR_ALLOC_FLAG_FORCE_WORD = 0x7f'ff
 };
 
 template< typename _T, bool _is_array = std::is_array_v< _T > >
@@ -106,32 +114,55 @@ _ENGINE_PROTECTED:
     WORD   _tags            = 0;
     BYTE   _reserved[ 6 ]   = {};
 
-public:
-    template< typename ...Args > requires( !std::is_abstract_v< T > )
-    static HYPER_VECTOR< _T > allocv( QWORD count, Args&&... args ) {
+_ENGINE_PROTECTED:
+    template< HYPER_VECTOR_ALLOC_FLAG a_flag, typename ...Args > requires( !std::is_abstract_v< T > )
+    static HYPER_VECTOR< _T > _alloc( QWORD count, Args&&... args ) {
         void* base = malloc( sizeof( _ALLOC_INFO ) + sizeof( T ) * count );
+
         if( base == nullptr ) return HYPER_VECTOR< _T >{ nullptr, ( WORD )0 };
 
         _ALLOC_INFO& info = *( _ALLOC_INFO* )base;
         T* ptr = ( T* )( ( BYTE* )base + sizeof( _ALLOC_INFO ) );
 
-        if constexpr( _is_array ) {
-            for( QWORD idx = 0; idx < count; ++idx )
-                new( ptr + idx ) T{ std::forward< Args >( args )... };
-            
-            info.count = count;
-        } else {
-            new( ptr ) T{ std::forward< Args >( args )... };
+        WORD tag = ( WORD )( HYPER_VECTOR_TAG_HARD | HYPER_VECTOR_TAG_INFO );
+
+        if constexpr( a_flag & HYPER_VECTOR_ALLOC_FLAG_CONSTRUCT ) {
+            tag = WORD( tag | HYPER_VECTOR_TAG_CONSTRUCTED );
+
+            if constexpr( _is_array ) {
+                for( QWORD idx = 0; idx < count; ++idx )
+                    new( ptr + idx ) T{ std::forward< Args >( args )... };
+                
+                info.count = count;
+            } else {
+                new( ptr ) T{ std::forward< Args >( args )... };
+            }
         }
 
         info.ref_count.store( 1, std::memory_order_release );
        
-        return HYPER_VECTOR< _T >{ ptr, HYPER_VECTOR_TAG_HARD | HYPER_VECTOR_TAG_INFO };
+        return HYPER_VECTOR< _T >{ ptr, tag };
+    }
+
+public:
+    template< typename ...Args > requires( !std::is_abstract_v< T > )
+    inline static HYPER_VECTOR< _T > alloc( Args&&... args ) {
+        return _alloc< ( WORD )0 >( 1, std::forward< Args >( args )... );
     }
 
     template< typename ...Args > requires( !std::is_abstract_v< T > )
-    inline static HYPER_VECTOR< _T > alloc( Args&&... args ) {
-        return allocv( 1, std::forward< Args >( args )... );
+    inline static HYPER_VECTOR< _T > allocc( Args&&... args ) {
+        return _alloc< HYPER_VECTOR_ALLOC_FLAG_CONSTRUCT >( 1, std::forward< Args >( args )... );
+    }
+
+    template< typename ...Args > requires( !std::is_abstract_v< T > )
+    inline static HYPER_VECTOR< _T > allocv( QWORD count, Args&&... args ) {
+        return _alloc< ( WORD )0 >( count, std::forward< Args >( args )... );
+    }
+
+    template< typename ...Args > requires( !std::is_abstract_v< T > )
+    inline static HYPER_VECTOR< _T > allocvc( QWORD count, Args&&... args ) {
+        return _alloc< HYPER_VECTOR_ALLOC_FLAG_CONSTRUCT >( count, std::forward< Args >( args )... );
     }
 
 _ENGINE_PROTECTED:
@@ -184,7 +215,7 @@ public:
     }
 
 public:
-    QWORD count() const {
+    inline QWORD count() const {
         return this->info()->ref_count.load( std::memory_order_relaxed );
     }
     

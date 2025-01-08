@@ -105,7 +105,7 @@ struct _IMM : Descriptor {
 
     struct _EARTH {
         _EARTH() 
-        : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"earth/", "earth", MESH3_FLAG_MAKE_PIPES },
+        : mesh{ WARC_IMM_ROOT_DIR/"earth/", "earth", MESH3_FLAG_MAKE_PIPES },
           sat_poss{ "sat_poss" },
           sat_high_specs{ "sat_high_specs" },
           countries{ "show_countries", 0 }
@@ -133,7 +133,7 @@ struct _IMM : Descriptor {
 
     struct _GALAXY {
         _GALAXY()
-        : mesh{ WARC_RUPTURE_IMM_ROOT_DIR"galaxy/", "galaxy", MESH3_FLAG_MAKE_PIPES }
+        : mesh{ WARC_IMM_ROOT_DIR/"galaxy/", "galaxy", MESH3_FLAG_MAKE_PIPES }
         {
             mesh.model = glm::scale( glm::mat4{ 1.0 }, glm::vec3{ 200.0 } ) * mesh.model.get();
             mesh.model.uplink();
@@ -168,7 +168,7 @@ struct _IMM : Descriptor {
 
             _SAT_NOAA( sat::NORAD_ID nid )
             : norad_id{ nid },
-                mesh{ WARC_RUPTURE_IMM_ROOT_DIR"sat_noaa/", "sat_noaa", MESH3_FLAG_MAKE_PIPES },
+                mesh{ WARC_IMM_ROOT_DIR/"sat_noaa/", "sat_noaa", MESH3_FLAG_MAKE_PIPES },
                 high_spec{ "high_spec", glm::vec3{ 0.0 } }
             {
                 pos = glm::vec4{ .0, .0, BASE_ELEVATION, 1.0 };
@@ -787,13 +787,13 @@ struct _IMM : Descriptor {
 
         template< typename S >
         size_t push_sink( S&& snk ) {
-            this->sinks.emplace_back( HVEC< S >::alloc( std::forward< S >( snk ) ) );
+            this->sinks.emplace_back( HVEC< S >::allocc( std::forward< S >( snk ) ) );
             return this->sinks.size() - 1;
         }
 
         template< typename D >
         size_t push_drain( D&& dr ) {
-            this->drains.emplace_back( HVEC< D >::alloc( std::forward< D >( dr ) ) );
+            this->drains.emplace_back( HVEC< D >::allocc( std::forward< D >( dr ) ) );
             return this->drains.size() - 1;
         }
 
@@ -822,12 +822,13 @@ struct _IMM : Descriptor {
             int step      = 1;
             int last_step = tokens.size();
 
-            for( auto tok = tokens.begin(); step <= last_step && tok != tokens.end(); ++tok ) {
+            for( auto tok = tokens.begin(); step <= last_step && tok != tokens.end(); ) {
                 if( ( tok->sink->sexecc < 0 ) || ( tok->sink->_csexecc + 1 <= tok->sink->sexecc ) ) {
                     status |= tok->sink->proc( elapsed );
                     ++tok->sink->_csexecc;
                 } else if( tok->sink->drains.empty() ) {
                     tok = tokens.erase( tok );
+                    goto l_token_end_no_itr;
                 }
 
                 for( auto& drn : tok->sink->drains ) {
@@ -840,7 +841,8 @@ struct _IMM : Descriptor {
                     drn->proc( elapsed );
                     
                     /* Since drn->_trigd is read only from this thread, does it make sense to write it atomically? */
-                    std::atomic_ref< bool >{ drn->_trigd }.store( false, std::memory_order_relaxed );
+                    //std::atomic_ref< bool >{ drn->_trigd }.store( false, std::memory_order_relaxed );
+                    drn->_trigd = false;
 
                     auto snk = drn->sinks.begin();
                     if( snk == drn->sinks.end() ) continue;
@@ -854,6 +856,8 @@ struct _IMM : Descriptor {
                 }
 
             l_token_end:
+                ++tok;
+            l_token_end_no_itr:
                 ++step;
             }
 

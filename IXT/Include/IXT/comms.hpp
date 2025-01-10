@@ -154,7 +154,7 @@ public:
         
         this->blue();
         for( int64_t n = 1; n <= _depth; ++n )
-            this->operator<<( "\\>" );
+            this->operator<<( '|' );
         
         const char* struct_name = invoker.struct_name();
 

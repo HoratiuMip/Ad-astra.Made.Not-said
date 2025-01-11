@@ -7,6 +7,8 @@
 #include <warc/earth-imm.hpp>
 #include <warc/astro.hpp>
 
+#include <warc-spec-mod/barracuda_controller.hpp>
+
 #include <IXT/descriptor.hpp>
 #include <IXT/file-manip.hpp>
 #include <IXT/init.hpp>
@@ -29,8 +31,10 @@ _WARC_PROTECTED:
     friend struct _INTERNAL;
 
 _WARC_PROTECTED:
-    n2yo::_N2YO                _n2yo    = {};
-    IXT::SPtr< imm::EARTH >    _earth   = nullptr;   
+    IXT::DWORD                 _ixt_init_flags   = 0;
+
+    n2yo::_N2YO                _n2yo             = {};
+    IXT::SPtr< imm::EARTH >    _earth            = nullptr;   
 
 _WARC_PROTECTED:
     int _parse_opts( int argc, char* argv[] );
@@ -71,6 +75,8 @@ _WARC_PROTECTED:
 
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_astro_ref_vernal_equinox_ts );
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_astro_ref_first_january_ts );
+
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_spec_mod_barracuda_controller );
 
 public:
     int main( int argc, char* argv[] );

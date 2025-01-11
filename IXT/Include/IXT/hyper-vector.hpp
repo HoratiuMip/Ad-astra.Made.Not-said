@@ -233,21 +233,21 @@ _ENGINE_PROTECTED:
 public:
     const T* operator -> () const { return _ptr; }
     const T* get() const { return _ptr; }
-    const T& operator * () const { return *_ptr; }
-    const T& operator [] ( ptrdiff_t diff ) const { return _ptr[ diff ]; }
+    std::enable_if_t< !std::is_same_v< T, void >, const T& > operator * () const { return *_ptr; }
+    std::enable_if_t< !std::is_same_v< T, void >, const T& > operator [] ( ptrdiff_t diff ) const { return _ptr[ diff ]; }
     const T* operator + ( ptrdiff_t diff ) const { return _ptr + diff; }
     const T* operator - ( ptrdiff_t diff ) const { return _ptr - diff; }
-    const T& operator >> ( ptrdiff_t diff ) const { return *( _ptr + diff ); }
-    const T& operator << ( ptrdiff_t diff ) const { return *( _ptr - diff ); }
+    std::enable_if_t< !std::is_same_v< T, void >, const T& > operator >> ( ptrdiff_t diff ) const { return *( _ptr + diff ); }
+    std::enable_if_t< !std::is_same_v< T, void >, const T& > operator << ( ptrdiff_t diff ) const { return *( _ptr - diff ); }
 
     T* operator -> () { return _ptr; }
     T* get() { return _ptr; }
-    T& operator * () { return *_ptr; }
-    T& operator [] ( ptrdiff_t diff ) { return _ptr[ diff ]; }
+    std::enable_if_t< !std::is_same_v< T, void >, T& > operator * () { return *_ptr; }
+    std::enable_if_t< !std::is_same_v< T, void >, T& > operator [] ( ptrdiff_t diff ) { return _ptr[ diff ]; }
     T* operator + ( ptrdiff_t diff ) { return _ptr + diff; }
     T* operator - ( ptrdiff_t diff ) { return _ptr - diff; }
-    T& operator >> ( ptrdiff_t diff ) { return *( _ptr + diff ); }
-    T& operator << ( ptrdiff_t diff ) { return *( _ptr - diff ); }
+    std::enable_if_t< !std::is_same_v< T, void >, T& > operator >> ( ptrdiff_t diff ) { return *( _ptr + diff ); }
+    std::enable_if_t< !std::is_same_v< T, void >, T& > operator << ( ptrdiff_t diff ) { return *( _ptr - diff ); }
 
 public: 
     bool operator == ( T* ptr ) const { return _ptr == ptr; }

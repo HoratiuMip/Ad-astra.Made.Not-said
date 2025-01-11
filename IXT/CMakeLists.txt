@@ -111,6 +111,7 @@ set(
     "-lgdi32"
     "-lws2_32"
     "-lwsock32"
+    "-lbthprops"
     "-lcrypt32"
     "libcomctl32.a"
     "libcomdlg32.a"

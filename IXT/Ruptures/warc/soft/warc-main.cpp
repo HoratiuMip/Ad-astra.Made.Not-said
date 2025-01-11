@@ -21,24 +21,26 @@ static struct _INTERNAL {
         int           least_argc;
         int           ( MAIN::*proc )( int, char**, const char* );
 
-    } opts[ 13 ] = {
-        { "--root-dir",                       0b001, 1, &MAIN::_parse_proc_root_dir },
+    } opts[ 14 ] = {
+        { "--root-dir",                        0b001, 1, &MAIN::_parse_proc_root_dir },
 
-        { "--from-config",                    0b001, 1, &MAIN::_parse_proc_from_config },
+        { "--from-config",                     0b001, 1, &MAIN::_parse_proc_from_config },
 
-        { "--n2yo-api-key",                   0b111, 2, &MAIN::_parse_proc_n2yo_api_key },
-        { "--n2yo-ip",                        0b111, 1, &MAIN::_parse_proc_n2yo_ip },
-        { "--n2yo-bulk-count",                0b111, 1, &MAIN::_parse_proc_n2yo_bulk_count },
-        { "--n2yo-mode",                      0b111, 1, &MAIN::_parse_proc_n2yo_mode },
+        { "--n2yo-api-key",                    0b111, 2, &MAIN::_parse_proc_n2yo_api_key },
+        { "--n2yo-ip",                         0b111, 1, &MAIN::_parse_proc_n2yo_ip },
+        { "--n2yo-bulk-count",                 0b111, 1, &MAIN::_parse_proc_n2yo_bulk_count },
+        { "--n2yo-mode",                       0b111, 1, &MAIN::_parse_proc_n2yo_mode },
 
-        { "--earth-imm",                      0b001, 0, &MAIN::_parse_proc_earth_imm },
-        { "--earth-imm-lens-sens",            0b111, 1, &MAIN::_parse_proc_earth_imm_lens_sens },
-        { "--earth-imm-lens-fov",             0b111, 1, &MAIN::_parse_proc_earth_imm_lens_fov },
-        { "--earth-imm-shake-decay",          0b111, 1, &MAIN::_parse_proc_earth_imm_shake_decay },
-        { "--earth-imm-shake-cross-count",    0b111, 1, &MAIN::_parse_proc_earth_imm_shake_cross_count },
+        { "--earth-imm",                       0b001, 0, &MAIN::_parse_proc_earth_imm },
+        { "--earth-imm-lens-sens",             0b111, 1, &MAIN::_parse_proc_earth_imm_lens_sens },
+        { "--earth-imm-lens-fov",              0b111, 1, &MAIN::_parse_proc_earth_imm_lens_fov },
+        { "--earth-imm-shake-decay",           0b111, 1, &MAIN::_parse_proc_earth_imm_shake_decay },
+        { "--earth-imm-shake-cross-count",     0b111, 1, &MAIN::_parse_proc_earth_imm_shake_cross_count },
 
-        { "--astro-ref-vernal-equinox-ts",    0b111, 1, &MAIN::_parse_proc_astro_ref_vernal_equinox_ts },
-        { "--astro-ref-first-january-ts",     0b111, 1, &MAIN::_parse_proc_astro_ref_first_january_ts }
+        { "--astro-ref-vernal-equinox-ts",     0b111, 1, &MAIN::_parse_proc_astro_ref_vernal_equinox_ts },
+        { "--astro-ref-first-january-ts",      0b111, 1, &MAIN::_parse_proc_astro_ref_first_january_ts },
+
+        { "--spec-mod-barracuda-controller",   0b111, 0, &MAIN::_parse_proc_spec_mod_barracuda_controller }
     };
     const int optc = sizeof( opts ) / sizeof( OPT );
 
@@ -291,7 +293,6 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_earth_imm_shake_cross_count ) {
 }
 
 
-
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_vernal_equinox_ts ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_astro_ref_vernal_equinox_ts()" );
 
@@ -315,6 +316,17 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_first_january_ts ) {
     astro::params.ref_first_january_ts = ts;
 
     WARC_ECHO_RT_OK << "Astro reference vernal equinox: \"" << astro::params.ref_first_january_ts << "\".";
+    return 0;
+}
+
+
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_spec_mod_barracuda_controller ) {
+    _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_spec_mod_barracuda_controller()" );
+
+    int status = spec_mod::push_device( "BARRACUDA-Controller", nullptr );
+    WARC_ASSERT_RT( status == 0, "Could not push the device in the special modules reservation station.", status, status );
+
+    _ixt_init_flags |= IXT::INIT_FLAG_UPLINK_NETWORK | IXT::INIT_FLAG_UPLINK_NETWORK_CONTINUE_IF_FAULT;
     return 0;
 }
 
@@ -449,17 +461,21 @@ int MAIN::main( int argc, char* argv[] ) {
     int status = this->_parse_opts( argc, argv );
     WARC_ASSERT_RT( status == 0, "Option parsing fault.", status, status );
 
-    status = IXT::initial_uplink( argc, argv, 0, nullptr, nullptr );
+    status = IXT::initial_uplink( argc, argv, _ixt_init_flags, nullptr, nullptr );
     WARC_ASSERT_RT( status == 0, "Fault at starting the IXT engine.", status, status );
 
     status = inet_tls::uplink();
     WARC_ASSERT_RT( status == 0 || WARC_INET_TLS == 0, "Fault at starting the internet transport layer security module.", status, status );
 
+    if( auto barra_device = spec_mod::pull_device( "BARRACUDA-Controller" ); barra_device.has_value() ) {
+        barra_device->vector( IXT::HVEC< spec_mod::BARRACUDA_CONTROLLER >::allocc() );
+
+        ( *barra_device )->set_soft_params( this->_earth.get() );
+    }
 
     if( !_confirm_continue_program() ) goto l_main_end;
 
-
-    if( this->_earth ) {
+    if( this->_earth != nullptr ) {
         this->_earth->set_sat_pos_update_func( [ &, this ] ( sat::NORAD_ID norad_id, std::deque< sat::POSITION >& positions ) -> imm::EARTH_SAT_UPDATE_RESULT {
             _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::lambda::sat_updater()" );
             

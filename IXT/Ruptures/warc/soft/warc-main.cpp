@@ -467,10 +467,14 @@ int MAIN::main( int argc, char* argv[] ) {
     status = inet_tls::uplink();
     WARC_ASSERT_RT( status == 0 || WARC_INET_TLS == 0, "Fault at starting the internet transport layer security module.", status, status );
 
-    if( auto barra_device = spec_mod::pull_device( "BARRACUDA-Controller" ); barra_device.has_value() ) {
+    if( auto* barra_device = spec_mod::deep_pull_device( "BARRACUDA-Controller" ); barra_device != nullptr ) {
         barra_device->vector( IXT::HVEC< spec_mod::BARRACUDA_CONTROLLER >::allocc() );
+        status |= ( *barra_device )->set();
+        status |= ( *barra_device )->set_soft_params( this->_earth.get() );
 
-        ( *barra_device )->set_soft_params( this->_earth.get() );
+        if( std::exchange( status, 0 ) != 0 ) {
+            WARC_ECHO_RT_WARNING << "Could not set the BARRACUDA controller properly.";
+        }
     }
 
     if( !_confirm_continue_program() ) goto l_main_end;
@@ -526,7 +530,10 @@ int MAIN::main( int argc, char* argv[] ) {
             return imm::EARTH_SAT_UPDATE_RESULT_OK;
         } );
 
-        this->_earth->main( argc, argv );
+        this->_earth->main( argc, argv, [ & ] () -> int {
+            spec_mod::engage_devices();
+            return 0;
+        } );
     }
 
 

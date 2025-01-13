@@ -19,7 +19,37 @@ enum BARRACUDA_CONTROLLER_FLAG : DWORD {
     _BARRACUDA_CONTROLLER_FLAG_FORCE_DWORD = 0x7F'FF'FF'FF
 };
 
-class BarracudaController : public Descriptor{
+struct barracuda_controller_state_descriptor_t {
+    struct _switch_t {
+        BYTE   dwn        = 0;
+        BYTE   prs        = 0;
+        BYTE   rls        = 0;
+        BYTE   reserved   = 0;
+    };
+    static_assert( sizeof( _switch_t ) == sizeof( DWORD ) );
+
+    struct _joystick_t {
+        _switch_t   sw   = {};
+        float       x    = 0.0;
+        float       y    = 0.0;
+    };
+    static_assert( sizeof( _joystick_t ) == sizeof( _switch_t ) + 2*sizeof( float ) );
+
+    barracuda_controller_state_descriptor_t() : _size{ sizeof( barracuda_controller_state_descriptor_t ) } {}
+
+    const DWORD   _size;
+    _switch_t     sw_b, sw_r, sw_y, sw_g;
+    _joystick_t   rachel, samantha;
+};
+static_assert( sizeof( barracuda_controller_state_descriptor_t ) == 
+    sizeof( DWORD ) // Structure size for compatibility.
+    +
+    4*sizeof( barracuda_controller_state_descriptor_t::_switch_t ) // 4 switches.
+    +
+    2*sizeof( barracuda_controller_state_descriptor_t::_joystick_t ) // 2 joysticks.
+);
+
+class BarracudaController : public Descriptor {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "SpecMod::BarracudaController" );
 
@@ -135,6 +165,11 @@ public:
         if( count < 0 ) { echo( this, ECHO_LEVEL_ERROR ) << "TX fault( " << count << " |" << WSAGetLastError() << " )."; return count; }
 
         return count;
+    }
+
+public:
+    DWORD read_state_descriptor( barracuda_controller_state_descriptor_t* desc, _ENGINE_COMMS_ECHO_ARG ) {
+        return this->read( ( char* )desc, sizeof( barracuda_controller_state_descriptor_t ), echo );
     }
 
 };

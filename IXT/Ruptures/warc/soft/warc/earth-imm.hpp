@@ -34,10 +34,10 @@ struct EARTH_CTRL_PARAMS {
     struct _DRAIN;
     
 #define _WARC_IMM_CTRL_PUSH_SINK( _1, _2, _3, _4 ) this->push_sink( _SINK{ name: _1, proc: _2, sexecc: _3, _csexecc: _4 } )
-#define _WARC_IMM_CTRL_SINK_PROC_NONE ( [] ( [[maybe_unused]]float ) -> int { return 0; } )
-#define _WARC_IMM_CTRL_SINK_PROC [ & ] ( float elapsed ) -> int
-#define _WARC_IMM_CTRL_SINK_SEXECC( count ) (count)
-#define _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( count ) (count)
+#define WARC_IMM_CTRL_SINK_PROC_NONE ( [] ( [[maybe_unused]]float ) -> int { return 0; } )
+#define WARC_IMM_CTRL_SINK_PROC [ & ] ( float elapsed ) -> int
+#define WARC_IMM_CTRL_SINK_SEXECC( count ) (count)
+#define WARC_IMM_CTRL_SINK_INITIAL_SEXECC( count ) (count)
     struct _SINK {
         std::string                     name       = nullptr;
         std::function< int( float ) >   proc       = nullptr;
@@ -49,11 +49,11 @@ struct EARTH_CTRL_PARAMS {
     };
 
 #define _WARC_IMM_CTRL_PUSH_DRAIN( _1, _2, _3, _4 ) this->push_drain( _DRAIN{ name: _1, cond: _2, proc: _3, engd: _4 } )
-#define _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY ( [] () -> bool { return false; } )
-#define _WARC_IMM_CTRL_DRAIN_COND_CONCISE( c ) ( [ & ] () -> bool{ return (c); } )
-#define _WARC_IMM_CTRL_DRAIN_PROC_NONE ( [] ( [[maybe_unused]]float ) -> int { return 0; } )
-#define _WARC_IMM_CTRL_DRAIN_PROC [ & ] ( float elapsed ) -> int
-#define _WARC_IMM_CTRL_DRAIN_ENGAGED( flag ) (flag)
+#define WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY ( [] () -> bool { return false; } )
+#define WARC_IMM_CTRL_DRAIN_COND_CONCISE( c ) ( [ & ] () -> bool{ return (c); } )
+#define WARC_IMM_CTRL_DRAIN_PROC_NONE ( [] ( [[maybe_unused]]float ) -> int { return 0; } )
+#define WARC_IMM_CTRL_DRAIN_PROC [ & ] ( float elapsed ) -> int
+#define WARC_IMM_CTRL_DRAIN_ENGAGED( flag ) ( flag )
     struct _DRAIN {
         std::string                     name     = nullptr;
         std::function< bool() >         cond     = nullptr;
@@ -73,6 +73,8 @@ struct EARTH_CTRL_PARAMS {
 #define _WARC_IMM_CTRL_BSDS( s1, d, s2 ) ( _WARC_IMM_CTRL_BSD( s1, d ), _WARC_IMM_CTRL_BDS( d, s2 ) )
 
 #define _WARC_IMM_CTRL_TOKENS( c, ... ) ( this->insert_tokens( c, __VA_ARGS__ ) )
+#define WARC_IMM_CTRL_INSERT_TOKENS_NO_CLEAR ( 0 )
+#define WARC_IMM_CTRL_INSERT_TOKENS_CLEAR ( 1 )
     struct _TOKEN {
         _SINK*   sink   = nullptr;
     };
@@ -185,6 +187,7 @@ public:
     IXT_DESCRIPTOR_STRUCT_NAME_OVERRIDE( WARC_IMM_STR"::EARTH" );
 
 public:
+    using on_ready_callback_t = std::function< int() >;
     using SatUpdateFunc = std::function< EARTH_SAT_UPDATE_RESULT( sat::NORAD_ID, std::deque< sat::POSITION >& ) >;
 
 _WARC_PROTECTED:
@@ -195,7 +198,7 @@ _WARC_PROTECTED:
     IXT::SPtr< EARTH_PARAMS >   _params            = { std::make_shared< EARTH_PARAMS >() }; 
 
 public:
-    int main( int argc, char* argv[] );
+    int main( int argc, char* argv[], on_ready_callback_t on_ready_callback );
 
     void set_sat_pos_update_func( SatUpdateFunc func );
     void sat_pos_update_hold_resume();
@@ -204,6 +207,7 @@ public:
     EARTH_PARAMS& params();
 
     EARTH_CTRL_PARAMS& ctrl();
+    IXT::Lens3& lens();
 
 };
 

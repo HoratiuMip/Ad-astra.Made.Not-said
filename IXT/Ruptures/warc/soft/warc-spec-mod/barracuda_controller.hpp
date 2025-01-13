@@ -12,55 +12,62 @@ public:
     IXT_DESCRIPTOR_STRUCT_NAME_OVERRIDE( WARC_SPEC_MOD_STR"::BARRACUDA_CONTROLLER" );
 
 public:
-    BARRACUDA_CONTROLLER( IXT_COMMS_ECHO_ARG ) {
-        std::atomic_bool data_link_complete{ false };
+    virtual int set( IXT_COMMS_ECHO_ARG ) override {
+        int status = 0;
 
-        _imm_control_th = std::thread( [ &data_link_complete, this ] () mutable -> void {
-            struct _RELEASE_EXIT_LEASH {
-                ~_RELEASE_EXIT_LEASH() { proc(); } std::function< void() > proc;
-            } release_exit_leash{ proc: [ &data_link_complete ] () -> void { data_link_complete.store( true, std::memory_order_release ); data_link_complete.notify_one(); } };
+        status = this->IXT::SpecMod::BarracudaController::data_link( L"BARRACUDA", 0 );
+        WARC_ASSERT_RT_THIS( status == 0, "Could not connect to the BARRACUDA controller.", status, status );
 
-            int status = -1;
-            
-            status = this->IXT::SpecMod::BarracudaController::data_link( L"BARRACUDA", 0 );
-            WARC_ASSERT_RT_THIS( status == 0, "Could not connect to the BARRACUDA controller.", status, ; );
+        status = this->IXT::SpecMod::BarracudaController::write( "X", 2 );
+        WARC_ASSERT_RT_THIS( status >= 0, "Could not TX initial byte string.", status, status );
 
-            status = this->IXT::SpecMod::BarracudaController::write( "X", 2 );
-            WARC_ASSERT_RT_THIS( status >= 0, "Could not TX initial byte string.", status, ; );
+        return status;
+    }
 
-            release_exit_leash.proc();
+    virtual int engage( IXT_COMMS_ECHO_ARG ) override {
+        int status = 0;
 
-            static constexpr const int BUFFER_SIZE = 512;
-            static constexpr const int READ_FAULT_SLEEP_S = 3;
+        WARC_ASSERT_RT_THIS( this->IXT::SpecMod::BarracudaController::uplinked(), "BARRACUDA controller not set.", -1, -1 );
 
-            //char front_sentinel[] = "BARRA-FRONT-SENTINEL";
-            char buffer[ BUFFER_SIZE + 1 ]; buffer[ BUFFER_SIZE ] = 0; // <- Matei. ( he's between BARRA's, did you get it? )
-            //char back_sentinel[] = "BACK-SENTINEL-BARRA";
+        imm::EARTH* imm = this->soft_params< imm::EARTH >();
+        WARC_ASSERT_RT_THIS( imm != nullptr, "Immersion pointer not flashed to soft parameter.", -1, -1 );
 
-            while( true ) {
-                int status = this->IXT::SpecMod::BarracudaController::read( buffer, BUFFER_SIZE );
+        _imm_idxs.lens_f = imm->ctrl().push_sink( imm::EARTH_CTRL_PARAMS::_SINK{
+            name: "BARRACUDA-Controller-lens-f",
+            proc: ( WARC_IMM_CTRL_SINK_PROC{
+                std::cout << 1;
+                return 0;
+            } ),
+            sexecc: -1
+        } );
+        imm->ctrl().insert_tokens( WARC_IMM_CTRL_INSERT_TOKENS_NO_CLEAR, _imm_idxs.lens_f );
 
-                if( status < 0 ) {
-                    WARC_ECHO_RT_WARNING << "Read fault, retrying in ( " << READ_FAULT_SLEEP_S << " )s.";
-                    std::this_thread::sleep_for( std::chrono::seconds( READ_FAULT_SLEEP_S ) );
+        WARC_ECHO_RT_THIS_OK << "Engaged control pipework. Launching communication thread.";
+
+        _imm_control_th = std::thread( [ imm, this ] () -> void { 
+            while( this->DEVICE::_engaged.load( std::memory_order_relaxed ) ) {
+                int status = this->IXT::SpecMod::BarracudaController::read_state_descriptor( &desc );
+
+                if( status < sizeof( IXT::DWORD ) || status != this->desc._size ) {
+                    WARC_ECHO_RT_THIS_WARNING << "Read fault( " << status << " ), retrying in " << read_error_timeout_s << "s.";
+                    std::this_thread::sleep_for( std::chrono::seconds( read_error_timeout_s ) );
                     continue;
-                }
-
-                buffer[ status ] = 0;
-                WARC_ECHO_RT_THIS_INTEL << "RX'd:\n" << buffer;
-
-                if( std::string_view{ buffer, status }.find( "( G, Y, R, B ) = ( 0" ) != std::string_view::npos ) {
-                    auto& ctrl = this->soft_params< imm::EARTH >()->ctrl();
-                    ctrl.trigger( ctrl.idxs.sat_high_2t );
                 }
             }
         } );
-
-        data_link_complete.wait( false, std::memory_order_acquire );
+    
+        return status;
     }
 
 _WARC_PROTECTED:
-    std::thread   _imm_control_th   = {};
+    std::thread                                             _imm_control_th        = {};
+    struct _IMM_IDXS {
+        imm::EARTH_CTRL_PARAMS::SINK    lens_f;
+    }                                                       _imm_idxs              = {};
+
+public:
+    int                                                     read_error_timeout_s   = 5;
+    IXT::SpecMod::barracuda_controller_state_descriptor_t   desc                   = {};
 
 };
 

@@ -332,15 +332,15 @@ struct _IMM : Descriptor {
         _CTRL() {
         #pragma region CURSOR
             idxs.crs_reset = _WARC_IMM_CTRL_PUSH_SINK( "crs-reset", 
-                _WARC_IMM_CTRL_SINK_PROC{
+                WARC_IMM_CTRL_SINK_PROC{
                     memset( ( void* )&crs_info, 0, sizeof( crs_info ) );
                     return 0;
                 }, 
-                _WARC_IMM_CTRL_SINK_SEXECC( 1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 0 )
+                WARC_IMM_CTRL_SINK_SEXECC( 1 ), WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 0 )
             );
 
             idxs.crs_frame = _WARC_IMM_CTRL_PUSH_SINK( "crs-frame",
-                ( _WARC_IMM_CTRL_SINK_PROC{
+                ( WARC_IMM_CTRL_SINK_PROC{
                     Vec2 crs = PIMM->surf.ptr_v();
                     if( crs.x == 0.0 ) return 0;
 
@@ -357,15 +357,15 @@ struct _IMM : Descriptor {
                     crs_info._dx_last = dx;
                     return 0;
                 } ),
-                _WARC_IMM_CTRL_SINK_SEXECC( -1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 0 )
+                WARC_IMM_CTRL_SINK_SEXECC( -1 ), WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 0 )
             );
 
             idxs.crs_r2f = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "crs-r2f", _WARC_IMM_CTRL_DRAIN_COND_CONCISE( true ), _WARC_IMM_CTRL_DRAIN_PROC_NONE, _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                "crs-r2f", WARC_IMM_CTRL_DRAIN_COND_CONCISE( true ), WARC_IMM_CTRL_DRAIN_PROC_NONE, WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             idxs.crs_f2r = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "crs-f2r", _WARC_IMM_CTRL_DRAIN_COND_CONCISE( false ), _WARC_IMM_CTRL_DRAIN_PROC_NONE, _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                "crs-f2r", WARC_IMM_CTRL_DRAIN_COND_CONCISE( false ), WARC_IMM_CTRL_DRAIN_PROC_NONE, WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             _WARC_IMM_CTRL_BSDS( idxs.crs_reset, idxs.crs_r2f, idxs.crs_frame );
@@ -374,17 +374,17 @@ struct _IMM : Descriptor {
 
         #pragma region CINEMATIC
             idxs.cin_reset = _WARC_IMM_CTRL_PUSH_SINK( 
-                "cin-reset", _WARC_IMM_CTRL_SINK_PROC_NONE, _WARC_IMM_CTRL_SINK_SEXECC( 1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 ) 
+                "cin-reset", WARC_IMM_CTRL_SINK_PROC_NONE, WARC_IMM_CTRL_SINK_SEXECC( 1 ), WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 ) 
             );
 
             idxs.cin_combo = _WARC_IMM_CTRL_PUSH_SINK(
-                "cin-combo", _WARC_IMM_CTRL_SINK_PROC_NONE, _WARC_IMM_CTRL_SINK_SEXECC( 1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 )
+                "cin-combo", WARC_IMM_CTRL_SINK_PROC_NONE, WARC_IMM_CTRL_SINK_SEXECC( 1 ), WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 )
             );
             
             idxs.cin_r2r = _WARC_IMM_CTRL_PUSH_DRAIN( 
                 "cin-r2r", 
-                _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY,
-                ( _WARC_IMM_CTRL_DRAIN_PROC{
+                WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY,
+                ( WARC_IMM_CTRL_DRAIN_PROC{
                     switch( ++PIMM->cinematic ) {
                         case 1: PIMM->cinematic_tick.lap(); [[fallthrough]];
                         case 2: PIMM->cinematic_wy = 0.24; break;
@@ -393,35 +393,35 @@ struct _IMM : Descriptor {
 
                     return 0;
                 } ), 
-                _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             idxs.cin_r2c = _WARC_IMM_CTRL_PUSH_DRAIN( 
                 "cin-r2c", 
-                _WARC_IMM_CTRL_DRAIN_COND_CONCISE( PIMM->surf.down( SurfKey::RMB ) ),
-                ( _WARC_IMM_CTRL_DRAIN_PROC{
+                WARC_IMM_CTRL_DRAIN_COND_CONCISE( PIMM->surf.down( SurfKey::RMB ) ),
+                ( WARC_IMM_CTRL_DRAIN_PROC{
                     cin_info.trigger_count = 0;
                     cin_info.tick.lap();
                     return 0;
                 } ),
-                _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             idxs.cin_c2c = _WARC_IMM_CTRL_PUSH_DRAIN(
                 "cin-c2c",
-                _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY,
-                ( _WARC_IMM_CTRL_DRAIN_PROC{
+                WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY,
+                ( WARC_IMM_CTRL_DRAIN_PROC{
                     ++cin_info.trigger_count;
                     cin_info.tick.lap();
                     return 0;
                 } ),
-                _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             idxs.cin_c2r = _WARC_IMM_CTRL_PUSH_DRAIN(
                 "cin-c2r",
-                _WARC_IMM_CTRL_DRAIN_COND_CONCISE( cin_info.tick.peek_lap() > 0.2 ),
-                ( _WARC_IMM_CTRL_DRAIN_PROC{
+                WARC_IMM_CTRL_DRAIN_COND_CONCISE( cin_info.tick.peek_lap() > 0.2 ),
+                ( WARC_IMM_CTRL_DRAIN_PROC{
                     switch( cin_info.trigger_count ) {
                         case 2: PIMM->cinematic == 1 ? PIMM->cinematic = 0 : PIMM->cinematic = 1; break;
                         case 3: PIMM->cinematic == 2 ? PIMM->cinematic = 0 : PIMM->cinematic = 2; break;
@@ -434,7 +434,7 @@ struct _IMM : Descriptor {
 
                     return 0;
                 } ),
-                _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             _WARC_IMM_CTRL_BSDS( idxs.cin_reset, idxs.cin_r2r, idxs.cin_reset );
@@ -445,12 +445,12 @@ struct _IMM : Descriptor {
 
         #pragma region COUNTRIES
             idxs.cnt_tgl = _WARC_IMM_CTRL_PUSH_SINK( 
-                "cnt-tgl", _WARC_IMM_CTRL_SINK_PROC_NONE, _WARC_IMM_CTRL_SINK_SEXECC( 1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 )
+                "cnt-tgl", WARC_IMM_CTRL_SINK_PROC_NONE, WARC_IMM_CTRL_SINK_SEXECC( 1 ), WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 )
             );
 
             idxs.cnt_frame = _WARC_IMM_CTRL_PUSH_SINK( 
                 "cnt-frame",
-                ( _WARC_IMM_CTRL_SINK_PROC{
+                ( WARC_IMM_CTRL_SINK_PROC{
                     if( cnt_info.triggered || !cnt_info.effective ) return 0;
 
                     if( cnt_info.tick.cmpxchg_lap( PEARTH_PARAMS->shake_decay ) ) {
@@ -464,20 +464,20 @@ struct _IMM : Descriptor {
 
                     return 0;
                 } ),
-                _WARC_IMM_CTRL_SINK_SEXECC( -1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 0 )
+                WARC_IMM_CTRL_SINK_SEXECC( -1 ), WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 0 )
             );
             
             idxs.cnt_2t = _WARC_IMM_CTRL_PUSH_DRAIN( 
                 "cnt-2t", 
-                _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, 
-                ( _WARC_IMM_CTRL_DRAIN_PROC{ PIMM->toggle_countries(); return 0; } ), 
-                _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, 
+                ( WARC_IMM_CTRL_DRAIN_PROC{ PIMM->toggle_countries(); return 0; } ), 
+                WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             idxs.cnt_t2f = _WARC_IMM_CTRL_PUSH_DRAIN( 
                 "cnt-t2f", 
-                _WARC_IMM_CTRL_DRAIN_COND_CONCISE( PIMM->surf.down( SurfKey::LMB ) ), 
-                ( _WARC_IMM_CTRL_DRAIN_PROC{
+                WARC_IMM_CTRL_DRAIN_COND_CONCISE( PIMM->surf.down( SurfKey::LMB ) ), 
+                ( WARC_IMM_CTRL_DRAIN_PROC{
                         cnt_info.x_cross_count_capture = crs_info.x_cross_count;
                         cnt_info.triggered = false;
 
@@ -499,11 +499,11 @@ struct _IMM : Descriptor {
 
                         return 0;
                 } ), 
-                _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             idxs.cnt_f2t = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "cnt-f2t", _WARC_IMM_CTRL_DRAIN_COND_CONCISE( !PIMM->surf.down( SurfKey::LMB ) ), _WARC_IMM_CTRL_DRAIN_PROC_NONE, _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                "cnt-f2t", WARC_IMM_CTRL_DRAIN_COND_CONCISE( !PIMM->surf.down( SurfKey::LMB ) ), WARC_IMM_CTRL_DRAIN_PROC_NONE, WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             _WARC_IMM_CTRL_BSDS( idxs.cnt_tgl, idxs.cnt_2t, idxs.cnt_tgl );
@@ -514,12 +514,12 @@ struct _IMM : Descriptor {
         #pragma region SAT_HIGH
             idxs.sat_high_tgl = _WARC_IMM_CTRL_PUSH_SINK( 
                 "sat-high-tgl",
-                ( _WARC_IMM_CTRL_SINK_PROC{ PIMM->toggle_sat_high(); return 0; } ),
-                _WARC_IMM_CTRL_SINK_SEXECC( 1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 )
+                ( WARC_IMM_CTRL_SINK_PROC{ PIMM->toggle_sat_high(); return 0; } ),
+                WARC_IMM_CTRL_SINK_SEXECC( 1 ), WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 )
             );
             
             idxs.sat_high_2t = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "sat-high-2t", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, _WARC_IMM_CTRL_DRAIN_PROC_NONE, _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                "sat-high-2t", WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, WARC_IMM_CTRL_DRAIN_PROC_NONE, WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             _WARC_IMM_CTRL_BSDS( idxs.sat_high_tgl, idxs.sat_high_2t, idxs.sat_high_tgl );
@@ -527,12 +527,12 @@ struct _IMM : Descriptor {
 
         #pragma region LENS
             idxs.lens_reset = _WARC_IMM_CTRL_PUSH_SINK( 
-                "lens-reset", _WARC_IMM_CTRL_SINK_PROC_NONE, _WARC_IMM_CTRL_SINK_SEXECC( 1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 0 )
+                "lens-reset", WARC_IMM_CTRL_SINK_PROC_NONE, WARC_IMM_CTRL_SINK_SEXECC( 1 ), WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 0 )
             );
 
             idxs.lens_frame = _WARC_IMM_CTRL_PUSH_SINK( 
                 "lens-frame",
-                ( _WARC_IMM_CTRL_SINK_PROC{
+                ( WARC_IMM_CTRL_SINK_PROC{
                     Vec2 cd = PIMM->surf.ptr_v();
                     if( cd.x == 0.0 ) return 0;
 
@@ -560,13 +560,13 @@ struct _IMM : Descriptor {
                 l_cinematic_end:
                     return 0;
                 } ),
-                _WARC_IMM_CTRL_SINK_SEXECC( -1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 0 )
+                WARC_IMM_CTRL_SINK_SEXECC( -1 ), WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 0 )
             );
 
             idxs.lens_r2f = _WARC_IMM_CTRL_PUSH_DRAIN( 
                 "lens-r2f", 
-                _WARC_IMM_CTRL_DRAIN_COND_CONCISE( PIMM->surf.down( SurfKey::RMB ) && PIMM->cinematic != 1 ), 
-                ( _WARC_IMM_CTRL_DRAIN_PROC{
+                WARC_IMM_CTRL_DRAIN_COND_CONCISE( PIMM->surf.down( SurfKey::RMB ) && PIMM->cinematic != 1 ), 
+                ( WARC_IMM_CTRL_DRAIN_PROC{
                     PIMM->surf.ptr_reset();
                     SurfPtr::env_to( Vec2::O() );
 
@@ -575,11 +575,11 @@ struct _IMM : Descriptor {
 
                     return 0;
                 } ), 
-                _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             idxs.lens_f2r = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "lens-f2r", _WARC_IMM_CTRL_DRAIN_COND_CONCISE( !PIMM->surf.down( SurfKey::RMB ) ), _WARC_IMM_CTRL_DRAIN_PROC_NONE, _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                "lens-f2r", WARC_IMM_CTRL_DRAIN_COND_CONCISE( !PIMM->surf.down( SurfKey::RMB ) ), WARC_IMM_CTRL_DRAIN_PROC_NONE, WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
             
             _WARC_IMM_CTRL_BSDS( idxs.lens_reset, idxs.lens_r2f, idxs.lens_frame );
@@ -599,11 +599,11 @@ struct _IMM : Descriptor {
 
                     return 0;
                 } ),
-                _WARC_IMM_CTRL_SINK_SEXECC( 1 ), _WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 )
+                WARC_IMM_CTRL_SINK_SEXECC( 1 ), WARC_IMM_CTRL_SINK_INITIAL_SEXECC( 1 )
             );
 
             idxs.rendmode_2t = _WARC_IMM_CTRL_PUSH_DRAIN( 
-                "rendmode-2t", _WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, _WARC_IMM_CTRL_DRAIN_PROC_NONE, _WARC_IMM_CTRL_DRAIN_ENGAGED( true )
+                "rendmode-2t", WARC_IMM_CTRL_DRAIN_COND_TRIGGER_ONLY, WARC_IMM_CTRL_DRAIN_PROC_NONE, WARC_IMM_CTRL_DRAIN_ENGAGED( true )
             );
 
             _WARC_IMM_CTRL_BSDS( idxs.rendmode_itr, idxs.rendmode_2t, idxs.rendmode_itr );
@@ -655,7 +655,7 @@ struct _IMM : Descriptor {
                 }
             );
 
-            _WARC_IMM_CTRL_TOKENS( true,
+            _WARC_IMM_CTRL_TOKENS( WARC_IMM_CTRL_INSERT_TOKENS_NO_CLEAR,
                 idxs.crs_reset,
                 idxs.cin_reset,
                 idxs.cnt_tgl,
@@ -802,13 +802,15 @@ EARTH_CTRL_PARAMS& EARTH::ctrl() {
 
 
 
-int EARTH::main( int argc, char* argv[] ) {
+int EARTH::main( int argc, char* argv[], on_ready_callback_t on_ready_callback  ) {
     _impl_earth = this;
 
     _IMM imm;
-
     Ticker tick;
-   
+    
+    int status = on_ready_callback();
+    WARC_ASSERT_RT_THIS( status == 0, "On ready callback did not return success. Aborted.", status, status );
+
     while( !imm.surf.down( SurfKey::ESC ) ) {
         float elapsed = tick.lap();
         

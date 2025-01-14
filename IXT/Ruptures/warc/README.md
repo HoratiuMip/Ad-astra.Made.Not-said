@@ -185,17 +185,30 @@ Damn.
 > 
 > ![warc-rah-1](https://github.com/user-attachments/assets/6ad2812d-5f1c-4a44-b5fa-8a85c3ac811f)
 >
-> Performace affinity:
+#### Performace affinity:
 > - Dynamic allocations avoided in between frames | Heavy data locality.
 > - Cache-line-sharing-free multi-threaded control system | Fine tuning of atomic read/modify/writes.
 > - State-machine-like general behaviour | Each frame execution does strictly what it needs to execute.
+> 
+#### Control pipework:
+> A Petri-Net-like structure that contains so called "tokens", which are "moved" around the net every frame, invoking different procedures to control the program. Right next follows a more detailed explanation on the camera cinematic mode control ( `CCMC` ), as of 14 JAN 2025.
+> 
+> ![warc-control-pipework](https://github.com/user-attachments/assets/1d6a6bfa-4f64-4a62-92b4-0d702e2197f1)
+> 
+> - At program launch the pipework is created by pushing sinks and drains, each with their own procedures and parameters. In the `CCMC`, the sinks have no procedures. The procedures are scattered along the drains.
+> - Next, the sinks are connected between one another via the drains, thus creating the pipework. Finally, a token is inserted into the `cin_reset` sink and the pipework is now ready to flow.
+> - In the `CCMC`, pressing `C` iterates through all the cinematic modes, thus, this event triggers the `cin_r2r` ( cinematic reset-to-reset ) drain, which invokes to procedure of iteration.
+> - For a "SMUS" `CCMC`, double or triple clicking `RMB` sets the cinematic mode to "demo" or "free-spin", respectively. In the pipework, when `RMB` is down, the token moves to the `cin_combo` sink. During this state, two drains may have their condition true: `cin_c2c` on `RMB` down, which counts the number of quick clicks, and `cin_c2r` on time-between-clicks expiration, which decides in which cinematic mode to jump.
+> - Creating new control sources is a piece of cake. The `BARRACUDA-Controller` specific module support adds a new control device, without interfering with the already existing control code. For example, pressing the blue switch on the controller triggers the cinematic modes iteration.
+> - The big picture is, after the pipework flow has begun, drains' conditions and triggers define the control flow.
+
 
 ### The-Rig
 > Moment for upgrades, cooling and structural reinforcement.
 >
 > ![warc-rig](https://github.com/user-attachments/assets/be6a9801-f109-4cf2-bbb6-505f48604592)
 >
-> Upgrades:
+#### Upgrades:
 > - Heat sinks mounted with adhesive thermal pads | fan blowing air over them.
 > - Storage for ports protections caps.
 > - General structure reinforced | Pluging cords in/out does not cause stress on the components.

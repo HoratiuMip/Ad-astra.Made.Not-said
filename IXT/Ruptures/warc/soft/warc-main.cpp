@@ -1,4 +1,5 @@
 #include <warc/warc-main.hpp>
+#include <warc-spec-mod/all-spec-mods.hpp>
 
 namespace warc {
 
@@ -323,10 +324,11 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_first_january_ts ) {
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_spec_mod_barracuda_controller ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_spec_mod_barracuda_controller()" );
 
-    int status = spec_mod::push_device( "BARRACUDA-Controller", nullptr );
-    WARC_ASSERT_RT( status == 0, "Could not push the device in the special modules reservation station.", status, status );
+    int status = spec_mod::push_device( "BARRACUDA-Controller", IXT::HVEC< spec_mod::BARRACUDA_CONTROLLER >::allocc() );
+    WARC_ASSERT_RT( status == 0, "Could not push the device in the special module reservation station.", status, status );
 
     _ixt_init_flags |= IXT::INIT_FLAG_UPLINK_NETWORK | IXT::INIT_FLAG_UPLINK_NETWORK_CONTINUE_IF_FAULT;
+    WARC_ECHO_RT_OK << "Pushed the device in the special module reservation station.";
     return 0;
 }
 
@@ -467,14 +469,9 @@ int MAIN::main( int argc, char* argv[] ) {
     status = inet_tls::uplink();
     WARC_ASSERT_RT( status == 0 || WARC_INET_TLS == 0, "Fault at starting the internet transport layer security module.", status, status );
 
-    if( auto* barra_device = spec_mod::deep_pull_device( "BARRACUDA-Controller" ); barra_device != nullptr ) {
-        barra_device->vector( IXT::HVEC< spec_mod::BARRACUDA_CONTROLLER >::allocc() );
-        status |= ( *barra_device )->set();
-        status |= ( *barra_device )->set_soft_params( this->_earth.get() );
-
-        if( std::exchange( status, 0 ) != 0 ) {
-            WARC_ECHO_RT_WARNING << "Could not set the BARRACUDA controller properly.";
-        }
+    status = spec_mod::set_devices( *this );
+    if( status != 0 ) {
+        WARC_ECHO_RT_WARNING << "Some special module devices were not set properly.";
     }
 
     if( !_confirm_continue_program() ) goto l_main_end;
@@ -531,15 +528,16 @@ int MAIN::main( int argc, char* argv[] ) {
         } );
 
         this->_earth->main( argc, argv, [ & ] () -> int {
-            spec_mod::engage_devices();
+            spec_mod::engage_devices( *this );
             return 0;
         } );
     }
 
 
 l_main_end:
-    status = inet_tls::downlink();
-    status = IXT::final_downlink( argc, argv, 0, nullptr, nullptr );
+    status |= inet_tls::downlink();
+    status |= spec_mod::disengage_devices( std::memory_order_seq_cst, *this );
+    status |= IXT::final_downlink( argc, argv, 0, nullptr, nullptr );
     return status;
 }
 

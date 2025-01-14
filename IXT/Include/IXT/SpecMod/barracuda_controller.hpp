@@ -85,11 +85,11 @@ _ENGINE_PROTECTED:
 
         BLUETOOTH_DEVICE_SEARCH_PARAMS bt_dev_sp = {
             dwSize:               sizeof( BLUETOOTH_DEVICE_SEARCH_PARAMS ),
-            fReturnAuthenticated: TRUE,
-            fReturnRemembered:    FALSE,
-            fReturnUnknown:       TRUE,
-            fReturnConnected:     TRUE,
-            fIssueInquiry:        TRUE,
+            fReturnAuthenticated: true,
+            fReturnRemembered:    false,
+            fReturnUnknown:       true,
+            fReturnConnected:     true,
+            fIssueInquiry:        true,
             cTimeoutMultiplier:   2,
             hRadio:               NULL
         };
@@ -155,14 +155,14 @@ _ENGINE_PROTECTED:
 public:
     DWORD read( char* buffer, DWORD count, _ENGINE_COMMS_ECHO_ARG ) {
         count = recv( _bt_socket, buffer, count, 0 );
-        if( count < 0 ) { echo( this, ECHO_LEVEL_ERROR ) << "RX fault( " << count << " | " << WSAGetLastError() << " )."; return count; }
+        if( count <= 0 ) { echo( this, ECHO_LEVEL_ERROR ) << "RX fault( " << count << " | " << WSAGetLastError() << " )."; return count; }
 
         return count;
     }
 
     DWORD write( const char* buffer, DWORD count, _ENGINE_COMMS_ECHO_ARG ) {
         count = send( _bt_socket, buffer, count, 0 );
-        if( count < 0 ) { echo( this, ECHO_LEVEL_ERROR ) << "TX fault( " << count << " |" << WSAGetLastError() << " )."; return count; }
+        if( count <= 0 ) { echo( this, ECHO_LEVEL_ERROR ) << "TX fault( " << count << " |" << WSAGetLastError() << " )."; return count; }
 
         return count;
     }

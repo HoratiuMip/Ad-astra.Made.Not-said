@@ -64,6 +64,29 @@ l_cold:
     }
 }
 
+HVEC< Shader3 >* RenderCluster3::deep_query_for_shader( const char* name, bool hot, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    if( !hot ) goto l_cold;
+
+l_hot:
+    {
+    std::unique_lock lock{ _shaders.map_mtx };
+    HVEC< Shader3 >* ret = &_shaders.map[ name ];
+    lock.unlock();
+
+    return ret;
+    }
+l_cold:
+    {
+    std::unique_lock lock{ _shaders.map_mtx };
+    auto record = _shaders.map.find( name );
+    if( record == _shaders.map.end() ) return nullptr;
+    lock.unlock();
+
+    return &record->second;
+    }
+
+}
+
 
 
 

@@ -536,9 +536,8 @@ struct _IMM : Descriptor {
                     Vec2 cd = PIMM->surf.ptr_v();
                     if( cd.x == 0.0 ) return 0;
 
-                    cd *= -PEARTH_PARAMS->lens_sens * PIMM->lens.l2t();
-
-                    PIMM->lens.spin_ul( { cd.x, cd.y }, { -82.0, 82.0 } );
+                    cd *= -1;
+                    PEARTH->lens_spin( { cd.x, cd.y } );
                     PIMM->surf.ptr_reset();
                     SurfPtr::env_to( Vec2::O() );
 
@@ -649,8 +648,8 @@ struct _IMM : Descriptor {
                 this->xtdx(), SURFACE_SOCKET_PLUG_AT_EXIT,
                 [ & ] ( Vec2 cursor, SURFSCROLL_DIRECTION dir, [[maybe_unused]]auto& ) -> void {
                     switch( dir ) {
-                        case SURFSCROLL_DIRECTION_UP: PIMM->lens.zoom( .02 * PIMM->lens.l2t(), { 1.3, 8.2 } ); break;
-                        case SURFSCROLL_DIRECTION_DOWN: PIMM->lens.zoom( -.02 * PIMM->lens.l2t(), { 1.3, 8.2 } ); break;
+                        case SURFSCROLL_DIRECTION_UP: PEARTH->lens_zoom( .02 ); break;
+                        case SURFSCROLL_DIRECTION_DOWN: PEARTH->lens_zoom( -.02 ); break;
                     }
                 }
             );
@@ -800,6 +799,13 @@ EARTH_CTRL_PARAMS& EARTH::ctrl() {
     return *PIMM_CTRL;
 }
 
+void EARTH::lens_spin( glm::vec2 thetas ) {
+    PIMM->lens.spin_ul( thetas * PEARTH_PARAMS->lens_sens * PIMM->lens.l2t(), { -82.0, 82.0 } );
+}
+
+void EARTH::lens_zoom( float delta ) {
+    PIMM->lens.zoom( delta * PIMM->lens.l2t(), { 1.3, 8.2 } );
+}
 
 
 int EARTH::main( int argc, char* argv[], on_ready_callback_t on_ready_callback  ) {

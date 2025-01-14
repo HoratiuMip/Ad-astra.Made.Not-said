@@ -36,6 +36,7 @@ public:
     DWORD push_shader( HVEC< Shader3 > shader, bool owr, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
     DWORD pop_shader( std::variant< const char*, XtDx > id, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
     HVEC< Shader3 > query_for_shader( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVEC< Shader3 >* deep_query_for_shader( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
 
 public:
     DWORD push_pipe( HVEC< ShadePipe3 > pipe, _ENGINE_COMMS_ECHO_NO_DFT_ARG );

@@ -54,23 +54,48 @@ int purge_device( device_name_t name ) {
     return 0;
 }
 
-int engage_devices() {
+static int _trigger_devices( bool set, warc::MAIN& main, IXT_COMMS_ECHO_ARG ) {
     int status = 0;
 
     std::unique_lock lock{ _internal.devices_mtx };
     for( auto& [ name, device ] : _internal.devices ) {
-        WARC_ECHO_RT_INTEL << "Engaging device \"" << name << "\".";
+        WARC_ECHO_RT_INTEL << ( set ? "Setting" : "Engaging" ) << " device \"" << name << "\".";
        
-        if( int dev_status = device->engage(); dev_status != 0 ) {
-            WARC_ECHO_RT_WARNING << "Could not engage device \"" << name << "\" properly.";
+        if( int dev_status = ( set ? device->set( main, echo ) : device->engage( main, echo ) ); dev_status != 0 ) {
+            WARC_ECHO_RT_WARNING << "Could not " << ( set ? "set" : "engage" ) << " device \"" << name << "\" properly.";
             status |= dev_status;
         } else {
-            WARC_ECHO_RT_OK << "Enaged device \"" << name << "\".";
+            WARC_ECHO_RT_OK << ( set ? "Set" : "Engaged" ) << " device \"" << name << "\".";
         }
     }
 
     return status;
 }
 
+int set_devices( warc::MAIN& main, IXT_COMMS_ECHO_NO_DFT_ARG ) {
+    return _trigger_devices( true, main, echo );
+}
+
+int engage_devices( warc::MAIN& main, IXT_COMMS_ECHO_NO_DFT_ARG ) {
+    return _trigger_devices( false, main, echo );
+}
+
+int disengage_devices( std::memory_order mo, warc::MAIN& main, IXT_COMMS_ECHO_NO_DFT_ARG ) {
+    int status = 0;
+
+    std::unique_lock lock{ _internal.devices_mtx };
+    for( auto& [ name, device ] : _internal.devices ) {
+        WARC_ECHO_RT_INTEL << "Disengaging device \"" << name << "\".";
+
+        if( int dev_status = device->request_disengage( mo, main, echo ); dev_status != 0 ) {
+            WARC_ECHO_RT_WARNING << "Could not disengage device \"" << name << "\" properly.";
+            status |= dev_status;
+        } else {
+            WARC_ECHO_RT_OK << "Disengaged device \"" << name << "\".";
+        }
+    }
+
+    return status;
+}
 
 } };

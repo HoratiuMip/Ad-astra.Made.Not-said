@@ -7,8 +7,6 @@
 #include <warc/earth-imm.hpp>
 #include <warc/astro.hpp>
 
-#include <warc-spec-mod/barracuda_controller.hpp>
-
 #include <IXT/descriptor.hpp>
 #include <IXT/file-manip.hpp>
 #include <IXT/init.hpp>
@@ -80,6 +78,10 @@ _WARC_PROTECTED:
 
 public:
     int main( int argc, char* argv[] );
+
+public:
+    imm::EARTH& imm_earth() { return *_earth; }
+
 };
 
 

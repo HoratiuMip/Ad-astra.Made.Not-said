@@ -207,7 +207,8 @@ public:
     EARTH_PARAMS& params();
 
     EARTH_CTRL_PARAMS& ctrl();
-    IXT::Lens3& lens();
+    void lens_spin( glm::vec2 thetas );
+    void lens_zoom( float delta );
 
 };
 

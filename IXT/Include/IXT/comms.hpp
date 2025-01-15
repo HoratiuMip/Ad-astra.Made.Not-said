@@ -276,6 +276,22 @@ _ENGINE_PROTECTED:
 
     Echo                      _rt_echo      = { nullptr, 0 };
 
+_ENGINE_PROTECTED:
+    friend struct _RtEchoOneLiner;
+    struct _RtEchoOneLiner {
+        _RtEchoOneLiner( Comms& c, Echo& e, auto* that, ECHO_LEVEL level )
+        : comms{ c }, echo{ e } { comms._out_mtx.lock(); echo( that, level ); }
+
+        ~_RtEchoOneLiner() { comms._out_mtx.unlock(); }
+
+        Comms&   comms;
+        Echo&    echo;
+
+        template< typename T >
+        requires is_std_ostringstream_pushable< std::decay_t< T > >
+        inline Echo& operator << ( T&& frag ) { return echo.operator<<( std::forward< T >( frag ) ); }
+    };
+
 public:
     template< typename T >
     requires std::is_base_of_v< out_stream_t, T >
@@ -341,12 +357,12 @@ public:
     }
 
 public:
-    Echo& operator () ( ECHO_LEVEL level = ECHO_LEVEL_INTEL ) {
-        return _rt_echo( this, level );
+    inline _RtEchoOneLiner operator () ( ECHO_LEVEL level = ECHO_LEVEL_INTEL ) {
+        return { *this, _rt_echo, this, level };
     }
 
-    Echo& operator () ( auto* that, ECHO_LEVEL level = ECHO_LEVEL_INTEL ) {
-        return _rt_echo( that, level );
+    inline _RtEchoOneLiner operator () ( auto* that, ECHO_LEVEL level = ECHO_LEVEL_INTEL ) {
+        return { *this, _rt_echo, that, level };
     }
 
 public:

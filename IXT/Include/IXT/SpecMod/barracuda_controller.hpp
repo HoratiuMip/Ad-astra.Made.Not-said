@@ -71,7 +71,7 @@ public:
     }
 
 public:
-    DWORD data_link( const std::wstring& name, DWORD flags, _ENGINE_COMMS_ECHO_ARG ) {
+    DWORD data_link( const std::wstring& name, DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
         if( DWORD rez = this->_query_system_load_bt_addr( name, flags, echo ); rez != 0 ) return rez;
 
         if( DWORD rez = this->_connect_load_socket( flags, echo ); rez != 0 ) return rez;
@@ -80,7 +80,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    DWORD _query_system_load_bt_addr( const std::wstring& name, DWORD flags, _ENGINE_COMMS_ECHO_ARG ) {
+    DWORD _query_system_load_bt_addr( const std::wstring& name, DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
         echo( this, ECHO_LEVEL_INTEL ) << "Pulling bluetooth address.";
 
         BLUETOOTH_DEVICE_SEARCH_PARAMS bt_dev_sp = {
@@ -123,7 +123,7 @@ _ENGINE_PROTECTED:
         return 0;
     }
 
-    DWORD _connect_load_socket( DWORD flags, _ENGINE_COMMS_ECHO_ARG ) {
+    DWORD _connect_load_socket( DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
         echo( this, ECHO_LEVEL_PENDING ) << "Attempting data link...";
 
         _bt_socket = socket( AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM );
@@ -153,14 +153,14 @@ _ENGINE_PROTECTED:
     }
 
 public:
-    DWORD read( char* buffer, DWORD count, _ENGINE_COMMS_ECHO_ARG ) {
+    DWORD read( char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
         count = recv( _bt_socket, buffer, count, 0 );
         if( count <= 0 ) { echo( this, ECHO_LEVEL_ERROR ) << "RX fault( " << count << " | " << WSAGetLastError() << " )."; return count; }
 
         return count;
     }
 
-    DWORD write( const char* buffer, DWORD count, _ENGINE_COMMS_ECHO_ARG ) {
+    DWORD write( const char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
         count = send( _bt_socket, buffer, count, 0 );
         if( count <= 0 ) { echo( this, ECHO_LEVEL_ERROR ) << "TX fault( " << count << " |" << WSAGetLastError() << " )."; return count; }
 
@@ -168,7 +168,7 @@ public:
     }
 
 public:
-    DWORD read_state_descriptor( barracuda_controller_state_descriptor_t* desc, _ENGINE_COMMS_ECHO_ARG ) {
+    DWORD read_state_descriptor( barracuda_controller_state_descriptor_t* desc, _ENGINE_COMMS_ECHO_RT_ARG ) {
         return this->read( ( char* )desc, sizeof( barracuda_controller_state_descriptor_t ), echo );
     }
 

@@ -17,7 +17,7 @@ public:
     virtual ~BARRACUDA_CONTROLLER() override {}
 
 public:
-    virtual int set( warc::MAIN& main, IXT_COMMS_ECHO_ARG ) override {
+    virtual int set( warc::MAIN& main, IXT_COMMS_ECHO_RT_ARG ) override {
         int status = 0;
 
         status = this->IXT::SpecMod::BarracudaController::data_link( L"BARRACUDA", 0 );
@@ -31,7 +31,7 @@ public:
         return status;
     }
 
-    virtual int engage( warc::MAIN& main, IXT_COMMS_ECHO_ARG ) override {
+    virtual int engage( warc::MAIN& main, IXT_COMMS_ECHO_RT_ARG ) override {
         int status = 0;
 
         WARC_ASSERT_RT_THIS( this->IXT::SpecMod::BarracudaController::uplinked(), "BARRACUDA controller not set.", -1, -1 );
@@ -80,7 +80,7 @@ public:
         return status;
     }
 
-    virtual int disengage( warc::MAIN& main, IXT_COMMS_ECHO_ARG ) override {
+    virtual int disengage( warc::MAIN& main, IXT_COMMS_ECHO_RT_ARG ) override {
         if( _imm_control_th.joinable() ) _imm_control_th.join();
         WARC_ECHO_RT_THIS_OK << "Disengaged from control pipework. Communication thread shutdown.";
         return 0;

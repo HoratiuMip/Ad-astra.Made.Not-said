@@ -47,7 +47,7 @@ HVEC< Shader3 > RenderCluster3::query_for_shader( const char* name, bool hot, _E
 l_hot:
     { 
     std::unique_lock lock{ _shaders.map_mtx };
-    HVEC< Shader3 > ret = _shaders.map[ name ];
+    HVEC< Shader3 >& ret = _shaders.map[ name ];
     lock.unlock();
 
     if( ret == nullptr ) ret.vector( HVEC< Shader3 >::allocc() );

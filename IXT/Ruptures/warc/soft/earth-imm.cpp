@@ -800,6 +800,7 @@ EARTH_CTRL_PARAMS& EARTH::ctrl() {
 }
 
 void EARTH::lens_spin( glm::vec2 thetas ) {
+    if( PIMM->cinematic == 1 ) return;
     PIMM->lens.spin_ul( thetas * PEARTH_PARAMS->lens_sens * PIMM->lens.l2t(), { -82.0, 82.0 } );
 }
 

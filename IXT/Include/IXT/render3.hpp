@@ -63,7 +63,7 @@ enum SHADER3_DIRECTIVE : DWORD {
     _SHADER3_DIRECTIVE_FORCE_DWORD = 0x7F'FF'FF'FF
 };
 
-#define _ENGINE_SHADER3_EXEC_DIRECTIVE_CALLBACK( func, dir, arg, ptr ) ( create_gl_shader = ( func && std::invoke( func, dir, arg, ptr ) == 0 ) )
+#define _ENGINE_SHADER3_EXEC_DIRECTIVE_CALLBACK( func, dir, arg, ptr ) ( create_gl_shader = ( func && ( directive_cb_status = std::invoke( func, dir, arg, ptr ) ) == 0 ) )
 
 class Shader3 : public Descriptor {
 public:
@@ -86,8 +86,9 @@ public:
     ) {
         std::string source;
         std::string line;
-        DWORD       status           = 0;
-        bool        create_gl_shader = true;
+        DWORD       status              = 0;
+        DWORD       directive_cb_status = 0;
+        bool        create_gl_shader    = true;
 
         std::function< void( const std::filesystem::path& ) > accumulate_glsl = [ & ] ( const std::filesystem::path& path ) -> void {
             std::ifstream file{ path, std::ios_base::binary };
@@ -187,7 +188,7 @@ public:
         return;
         }
     l_gl_shader_create_skip:
-        echo( this, ECHO_LEVEL_OK ) << "Created as \"" << _name << "\", without compiling source.";
+        echo( this, ECHO_LEVEL_OK ) << "Created as \"" << _name << "\", without compiling source ( " << directive_cb_status << " ).";
         return;
     }
 

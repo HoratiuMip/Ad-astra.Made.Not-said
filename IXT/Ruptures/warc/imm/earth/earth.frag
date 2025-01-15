@@ -36,16 +36,20 @@ void main() {
     city_lights.b = pow( city_lights.b, CITY_LIGHTS_BUMP );
     city_lights *= 3.0;
 
+    vec4 texel = texture( map_Kd, gs_in.tex_crd );
     vec4 cal = texture( IXT_map_cal, gs_in.tex_crd );
 
     float land = cal.b;
+    float seems_water = float( texel.b > texel.r + texel.g );
 
     final = 
-        texture( map_Kd, gs_in.tex_crd ) * light 
+        texel * light 
         + 
         max( city_lights * dark, vec4( 0.0 ) ) * vec4( 1.0, 1.0, 0.8, 1.0 )
         + 
-        vec4( 0.0, 0.32, 0.62, 1.0 ) * ( 1.0 - land ) * gs_in.w_perl * light;
+        ( 1.0 - land ) * vec4( 0.0, 0.32, 0.62, 1.0 ) * gs_in.w_perl * light
+        +
+        seems_water * vec4( 0.48, 0.48, 0.52, 1.0 ) * pow( max( dot( gs_in.nrm, -normalize( gs_in.lens2vrtx ) ), 0.0 ), 6.4 ) * light;
 
     if( 
         sat_high != 0.0 
@@ -95,12 +99,12 @@ void main() {
 
         final.rgb = mix( 
             final.rgb, vec3( ( 1.0 - light ) * 0.8, 0.62 + ( 1.0 - light ) * 0.18, 0.8 ), 
-            ( 1.0 - abs( 90.0 - lens_flare_deg ) / float( is_fwd ? LENS_FFR : LENS_FBR ) ) * 0.52
+            ( 1.0 - abs( 90.0 - lens_flare_deg ) / float( is_fwd ? LENS_FFR : LENS_FBR ) ) * 0.8
         ) * float( is_fwd ? ( 1.0 - diff / LENS_FFR ) : 1.0 );
     }
 
     if( bool( show_countries ) && cal.r > 0.2 ) {
-        float fac = pow( ( sin( rtc * 4.2 + ( gs_in.tex_crd.s - 0.5 ) * ( gs_in.tex_crd.t - 0.5 ) * 2.2 ) + 1.0 ) / 2.0, 0.2 );
+        float fac = pow( ( sin( rtc * 3.2 + ( gs_in.tex_crd.s - 0.5 ) * ( gs_in.tex_crd.t - 0.5 ) * 16.2 ) + 1.0 ) / 2.0, 0.2 );
         float rb  = fac * ( light + 0.36 );
 
         final.rgb = vec3( rb, rb, max( rb, fac ) );

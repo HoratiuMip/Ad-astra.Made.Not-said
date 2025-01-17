@@ -39,9 +39,10 @@ public:
     HVEC< Shader3 >* deep_query_for_shader( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
 
 public:
-    DWORD push_pipe( HVEC< ShadePipe3 > pipe, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
-    DWORD pop_pipe( const char* name, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
-    HVEC< Shader3 > search_for_pipe( const char* name, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    DWORD push_pipe( HVEC< ShadePipe3 > pipe, bool owr, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    DWORD pop_pipe( std::variant< const char*, XtDx > id, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVEC< ShadePipe3 > query_for_pipe( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVEC< ShadePipe3 >* deep_query_for_pipe( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
 
 };
 inline RenderCluster3 GME_render_cluster3{};
@@ -225,6 +226,9 @@ public:
 class ShadePipe3 : public Descriptor {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "ShadePipe3" );
+
+public:
+    friend class RenderCluster3;
 
 public:
     inline static constexpr char   STAGE_NAME_SEP   = '-';

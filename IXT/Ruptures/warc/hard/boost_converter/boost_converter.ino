@@ -17,7 +17,7 @@ const struct _IO {
 } IO;
 
 struct _BOOST_PWM {
-  inline static const double TOP_FREQ = 32e3;
+  inline static const double TOP_FREQ = 54e3;
 
   double   freq   = TOP_FREQ;
   double   duty   = 0.92;

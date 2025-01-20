@@ -13,7 +13,17 @@ namespace _ENGINE_NAMESPACE {
 
 
 class Shader3;
-class ShadePipe3;
+class ShaderPipe3;
+
+enum SHADER3_PHASE : DWORD {
+    SHADER3_PHASE_VERTEX    = GL_VERTEX_SHADER,
+    SHADER3_PHASE_TESS_CTRL = GL_TESS_CONTROL_SHADER,
+    SHADER3_PHASE_TESS_EVAL = GL_TESS_EVALUATION_SHADER,
+    SHADER3_PHASE_GEOMETRY  = GL_GEOMETRY_SHADER,
+    SHADER3_PHASE_FRAGMENT  = GL_FRAGMENT_SHADER,
+
+    _SHADER3_PHASE_FORCE_DWORD = 0x7F'FF'FF'FF
+};
 
 
 
@@ -29,7 +39,7 @@ _ENGINE_PROTECTED:
     
     struct _PIPES {
         std::mutex                                    map_mtx;
-        std::map< std::string, HVEC< ShadePipe3 > >   map;
+        std::map< std::string, HVEC< ShaderPipe3 > >   map;
     } _pipes;
 
 public:
@@ -39,32 +49,27 @@ public:
     HVEC< Shader3 >* deep_query_for_shader( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
 
 public:
-    DWORD push_pipe( HVEC< ShadePipe3 > pipe, bool owr, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    DWORD push_pipe( HVEC< ShaderPipe3 > pipe, bool owr, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
     DWORD pop_pipe( std::variant< const char*, XtDx > id, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
-    HVEC< ShadePipe3 > query_for_pipe( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
-    HVEC< ShadePipe3 >* deep_query_for_pipe( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVEC< ShaderPipe3 > query_for_pipe( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVEC< ShaderPipe3 >* deep_query_for_pipe( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+
+public:
+    HVEC< Shader3 > make_or_pull_shader_from_path( const std::filesystem::path& path, SHADER3_PHASE phase, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVEC< ShaderPipe3 > make_or_pull_pipe_from_ptr_arr( Shader3* shaders[ 5 ], _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVEC< ShaderPipe3 > make_or_pull_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
 
 };
 inline RenderCluster3 GME_render_cluster3{};
 
 
 
-enum SHADER3_PHASE : DWORD {
-    SHADER3_PHASE_VERTEX    = GL_VERTEX_SHADER,
-    SHADER3_PHASE_TESS_CTRL = GL_TESS_CONTROL_SHADER,
-    SHADER3_PHASE_TESS_EVAL = GL_TESS_EVALUATION_SHADER,
-    SHADER3_PHASE_GEOMETRY  = GL_GEOMETRY_SHADER,
-    SHADER3_PHASE_FRAGMENT  = GL_FRAGMENT_SHADER,
-
-    _SHADER3_PHASE_FORCE_DWORD = 0x7F'FF'FF'FF
-};
 enum SHADER3_DIRECTIVE : DWORD {
     SHADER3_DIRECTIVE_INCLUDE, SHADER3_DIRECTIVE_NAME,
 
     _SHADER3_DIRECTIVE_FORCE_DWORD = 0x7F'FF'FF'FF
 };
-
-#define _ENGINE_SHADER3_EXEC_DIRECTIVE_CALLBACK( func, dir, arg, ptr ) ( create_gl_shader = ( func && ( directive_cb_status = std::invoke( func, dir, arg, ptr ) ) == 0 ) )
+#define _ENGINE_SHADER3_EXEC_DIRECTIVE_CALLBACK( func, dir, arg, ptr ) ( create_gl_shader = ( func ? ( ( directive_cb_status = std::invoke( func, dir, arg, ptr ) ) == 0 ) : true ) )
 
 class Shader3 : public Descriptor {
 public:
@@ -223,9 +228,16 @@ public:
 
 };
 
-class ShadePipe3 : public Descriptor {
+enum SHADER_PIPE3_ATTR : DWORD {
+    SHADER_PIPE3_ATTR_NAME,
+
+    _SHADER_PIPE3_ATTR_FORCE_DWORD = 0x7F'FF'FF'FF
+};
+#define _ENGINE_SHADER_PIPE3_EXEC_ATTR_CALLBACK( func, attr, arg, ptr ) ( create_gl_program = ( func ? ( ( attr_cb_status = std::invoke( func, attr, arg, ptr ) ) == 0 ) : true ) )
+
+class ShaderPipe3 : public Descriptor {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "ShadePipe3" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "ShaderPipe3" );
 
 public:
     friend class RenderCluster3;
@@ -234,15 +246,18 @@ public:
     inline static constexpr char   STAGE_NAME_SEP   = '-';
 
 public:
-    ShadePipe3() = default;
+    typedef   std::function< DWORD( SHADER_PIPE3_ATTR, const std::string&, void* ) >   attr_callback_t;
 
-    ShadePipe3( Shader3* shaders[ 5 ], _ENGINE_COMMS_ECHO_ARG ) {
-        GLuint glidx = glCreateProgram();
+public:
+    ShaderPipe3() = default;
 
-        if( glidx == 0 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "OpenGL returned NULL shader program.";
-            return;
-        }
+    ShaderPipe3( 
+        Shader3*        shaders[ 5 ], 
+        attr_callback_t attr_cb,
+        _ENGINE_COMMS_ECHO_ARG 
+    ) {
+        bool  create_gl_program = true;
+        DWORD attr_cb_status    = 0;
 
         std::string pretty = "";
 
@@ -256,10 +271,10 @@ public:
 
             pretty += stage_pretties[ idx ];
             _name += shader->name() + STAGE_NAME_SEP;
-
-            glAttachShader( glidx, shader->glidx() );
         }
         _name.pop_back();
+
+        _ENGINE_SHADER_PIPE3_EXEC_ATTR_CALLBACK( attr_cb, SHADER_PIPE3_ATTR_NAME, _name, nullptr );
 
         if( pretty.starts_with( '>' ) || pretty.ends_with( '-' ) ) {
             echo( this, ECHO_LEVEL_WARNING ) << "Shader stages ill-arranged.";
@@ -269,6 +284,20 @@ public:
             this->draw_mode = GL_TRIANGLES;
         else
             this->draw_mode = GL_PATCHES;
+
+        if( !create_gl_program ) goto l_program_create_skip;
+        {
+        GLuint glidx = glCreateProgram();
+        if( glidx == 0 ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "OpenGL returned NULL shader program.";
+            return;
+        }
+
+        for( DWORD idx = 0; idx < 5; ++idx ) {
+            if( shaders[ idx ] == nullptr ) continue;
+
+            glAttachShader( glidx, shaders[ idx ]->glidx() );
+        }
 
         glLinkProgram( glidx );
 
@@ -284,16 +313,21 @@ public:
 
         _glidx = glidx;
         echo( this, ECHO_LEVEL_OK ) << "Created as \"" << _name << "\"( " << _glidx << " ) | " << pretty << " |.";
+        return;
+        }
+    l_program_create_skip:
+        echo( this, ECHO_LEVEL_OK ) << "Created as \"" << _name << "\", without creating program ( " << attr_cb_status << " ).";
+        return;
     }
 
-    ShadePipe3( ShadePipe3&& other ) {
+    ShaderPipe3( ShaderPipe3&& other ) {
         _glidx = std::exchange( other._glidx, NULL );
         _name  = std::move( other._name );
         
         draw_mode = std::exchange( other.draw_mode, NULL );
     }
 
-    ~ShadePipe3() {
+    ~ShaderPipe3() {
         if( _glidx ) glDeleteProgram( std::exchange( _glidx, NULL ) );
     }
 
@@ -318,14 +352,14 @@ public:
     }
 
 public:
-    ShadePipe3& uplink() {
+    ShaderPipe3& uplink() {
         glUseProgram( _glidx );
         return *this;
     }
 
 public:
     template< typename ...Args >
-    ShadePipe3& pull( Args&&... args );
+    ShaderPipe3& pull( Args&&... args );
 
 };
 
@@ -348,7 +382,7 @@ public:
     }
 
     Uniform3Unknwn( 
-        ShadePipe3& pipe,
+        ShaderPipe3& pipe,
         const char*   anchor, 
         _ENGINE_COMMS_ECHO_ARG 
     ) 
@@ -370,7 +404,7 @@ public:
     }
 
 public:
-    DWORD push( ShadePipe3& pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD push( ShaderPipe3& pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
         pipe.uplink();
         GLuint loc = glGetUniformLocation( pipe, _anchor.c_str() );
 
@@ -386,7 +420,7 @@ public:
 };
 
 template< typename ...Args >
-ShadePipe3& ShadePipe3::pull( Args&&... args ) {
+ShaderPipe3& ShaderPipe3::pull( Args&&... args ) {
     ( args.push( *this ), ... );
     return *this;
 }
@@ -410,7 +444,7 @@ public:
     {}
 
     Uniform3( 
-        ShadePipe3& pipe,
+        ShaderPipe3& pipe,
         const char*   name, 
         const T&      under, 
         _ENGINE_COMMS_ECHO_ARG 
@@ -781,47 +815,7 @@ public:
             tex.ufrm = Uniform3< glm::u32 >{ tex.name.c_str(), tex.unit, echo };
 
         if( flags & MESH3_FLAG_MAKE_PIPES ) {  
-            struct PHASE_INFO {
-                int             idx;
-                SHADER3_PHASE   phase;
-                const char*     str;
-            };
-
-            HVEC< Shader3 > shaders[ 5 ] = {};
-            Shader3* shaders_ptrs[ 5 ]; memset( shaders_ptrs, 0, sizeof( shaders_ptrs ) );
-
-            for( auto phase : std::initializer_list< PHASE_INFO >{ 
-                { 0, SHADER3_PHASE_VERTEX, ".vert" }, 
-                { 1, SHADER3_PHASE_TESS_CTRL, ".tesc" }, 
-                { 2, SHADER3_PHASE_TESS_EVAL, ".tese" }, 
-                { 3, SHADER3_PHASE_GEOMETRY, ".geom" }, 
-                { 4, SHADER3_PHASE_FRAGMENT, ".frag" } } 
-            ) {
-                std::filesystem::path phase_path{ root_dir_p };
-                phase_path += phase.str;
-
-                if( !std::filesystem::exists( phase_path ) ) continue;
-                
-                Shader3 shader{ phase_path, phase.phase, 
-                    [ & ] ( SHADER3_DIRECTIVE directive, const std::string& arg, void* ptr ) -> DWORD {
-                        switch( directive ) {
-                            case SHADER3_DIRECTIVE_NAME: {
-                                shaders[ phase.idx ].vector( GME_render_cluster3.query_for_shader( arg.c_str(), true, echo ) );
-                                if( shaders[ phase.idx ]->glidx() != 0 ) return -1;
-                            break; }
-                        }
-                        return 0;
-                    }, echo 
-                };
-                
-                if( shaders[ phase.idx ]->glidx() == 0 ) 
-                    new ( shaders[ phase.idx ].get() ) Shader3{ std::move( shader ) };
-
-                shaders_ptrs[ phase.idx ] = shaders[ phase.idx ].get();
-            }
-
-            this->pipe.vector( HVEC< ShadePipe3 >::allocc( shaders_ptrs, echo ) );
-
+            this->pipe.vector( GME_render_cluster3.make_or_pull_pipe_from_prefixed_path( root_dir_p, echo ) );
             this->dock_in( nullptr, echo );
         }
 	}
@@ -855,7 +849,7 @@ _ENGINE_PROTECTED:
 public:
     Uniform3< glm::mat4 >     model;
 
-    HVEC< ShadePipe3 >      pipe;
+    HVEC< ShaderPipe3 >      pipe;
 
 _ENGINE_PROTECTED:
     DWORD _push_tex( 
@@ -908,7 +902,7 @@ _ENGINE_PROTECTED:
     }
 
 public:
-    Mesh3& dock_in( HVEC< ShadePipe3 > other_pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    Mesh3& dock_in( HVEC< ShaderPipe3 > other_pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
         if( other_pipe.get() == this->pipe.get() ) {
             echo( this, ECHO_LEVEL_WARNING ) << "Multiple docks on same pipe( " << this->pipe->glidx() << " ) detected.";
         }
@@ -928,8 +922,9 @@ public:
         return this->splash( *this->pipe );
     }
 
-    Mesh3& splash( ShadePipe3& pipe ) {
+    Mesh3& splash( ShaderPipe3& pipe ) {
         pipe.uplink();
+        this->model.uplink();
 
         for( _SubMesh& sub : _sub_meshes ) {
             glBindVertexArray( sub.VAO );

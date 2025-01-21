@@ -57,6 +57,7 @@ public:
 public:
     HVEC< Shader3 > make_or_pull_shader_from_path( const std::filesystem::path& path, SHADER3_PHASE phase, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
     HVEC< ShaderPipe3 > make_or_pull_pipe_from_ptr_arr( Shader3* shaders[ 5 ], _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVEC< ShaderPipe3 > make_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
     HVEC< ShaderPipe3 > make_or_pull_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
 
 };
@@ -365,14 +366,14 @@ public:
 
 
 
-class Uniform3Unknwn : public Descriptor {
+class Uniform3Impl : public Descriptor {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Uniform3" );
 
 public:
-    Uniform3Unknwn() = default;
+    Uniform3Impl() = default;
 
-    Uniform3Unknwn( 
+    Uniform3Impl( 
         const char* anchor, 
         _ENGINE_COMMS_ECHO_ARG 
     ) 
@@ -381,12 +382,12 @@ public:
         echo( this, ECHO_LEVEL_OK ) << "Created. Ready to dock \"" << anchor << "\".";
     }
 
-    Uniform3Unknwn( 
+    Uniform3Impl( 
         ShaderPipe3& pipe,
         const char*   anchor, 
         _ENGINE_COMMS_ECHO_ARG 
     ) 
-    : Uniform3Unknwn{ anchor, echo }
+    : Uniform3Impl{ anchor, echo }
     {
         this->push( pipe, echo );
     }
@@ -396,7 +397,7 @@ _ENGINE_PROTECTED:
     std::map< GLuint, GLuint >   _locs;
 
 public:
-    Uniform3Unknwn& operator = ( const Uniform3Unknwn& other ) {
+    Uniform3Impl& operator = ( const Uniform3Impl& other ) {
         _anchor = other._anchor;
         _locs.clear();
         _locs.insert( other._locs.begin(), other._locs.end() );
@@ -426,7 +427,7 @@ ShaderPipe3& ShaderPipe3::pull( Args&&... args ) {
 }
 
 template< typename T >
-class Uniform3 : public Uniform3Unknwn {
+class Uniform3 : public Uniform3Impl {
 public:
     Uniform3() = default;
 
@@ -434,13 +435,13 @@ public:
         const char* name, 
         const T&    under, 
         _ENGINE_COMMS_ECHO_ARG 
-    ) : Uniform3Unknwn{ name, echo }, _under{ under }
+    ) : Uniform3Impl{ name, echo }, _under{ under }
     {}
 
     Uniform3( 
         const char* name, 
         _ENGINE_COMMS_ECHO_ARG 
-    ) : Uniform3Unknwn{ name, echo }
+    ) : Uniform3Impl{ name, echo }
     {}
 
     Uniform3( 
@@ -448,11 +449,11 @@ public:
         const char*   name, 
         const T&      under, 
         _ENGINE_COMMS_ECHO_ARG 
-    ) : Uniform3Unknwn{ pipe, name, echo }, _under{ under }
+    ) : Uniform3Impl{ pipe, name, echo }, _under{ under }
     {}
 
     Uniform3( const Uniform3< T >& other )
-    : Uniform3Unknwn{ other },
+    : Uniform3Impl{ other },
       _under{ other._under }
     {} 
 
@@ -815,7 +816,7 @@ public:
             tex.ufrm = Uniform3< glm::u32 >{ tex.name.c_str(), tex.unit, echo };
 
         if( flags & MESH3_FLAG_MAKE_PIPES ) {  
-            this->pipe.vector( GME_render_cluster3.make_or_pull_pipe_from_prefixed_path( root_dir_p, echo ) );
+            this->pipe.vector( GME_render_cluster3.make_pipe_from_prefixed_path( root_dir_p, echo ) );
             this->dock_in( nullptr, echo );
         }
 	}

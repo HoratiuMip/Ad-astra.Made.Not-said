@@ -12,9 +12,12 @@ DWORD RenderCluster3::func_name( HVEC< type > rezervation, bool owr, _ENGINE_COM
     std::unique_lock lock{ station.map_mtx }; \
     auto& record = station.map[ rezervation->name_field ]; \
     lock.unlock(); \
-    if( !owr && record->glidx() != 0 ) { \
-        echo( this, ECHO_LEVEL_ERROR ) << "Pushing rezervation \"" << record->name_field << "\" overwrites existing one. Aborted."; \
-        return -1; \
+    if( record != nullptr ) { \
+        if( !owr ) { \
+            echo( this, ECHO_LEVEL_ERROR ) << "Pushing rezervation \"" << record->name_field << "\" overwrites existing one. Aborted."; \
+            return -1; \
+        } \
+        echo( this, ECHO_LEVEL_INTEL ) << "Overwriting rezervation \"" << record->name_field << "\"."; \
     } \
     record.vector( std::move( rezervation ) ); \
     return 0; \
@@ -137,7 +140,9 @@ HVEC< ShaderPipe3 > RenderCluster3::make_or_pull_pipe_from_ptr_arr( Shader3* sha
     return ret;
 }
 
-HVEC< ShaderPipe3 > RenderCluster3::make_or_pull_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_RT_ARG ) {
+
+template< bool query_station >
+static HVEC< ShaderPipe3 > _pipe_from_prefixed_path( RenderCluster3* that, const std::filesystem::path& path, _ENGINE_COMMS_ECHO_RT_ARG ) {
     struct PHASE_INFO {
         int             idx;
         SHADER3_PHASE   phase;
@@ -158,10 +163,25 @@ HVEC< ShaderPipe3 > RenderCluster3::make_or_pull_pipe_from_prefixed_path( const 
 
         if( !std::filesystem::exists( phase_path ) ) continue;
         
-        shaders_ptrs[ phase.idx ] = this->make_or_pull_shader_from_path( phase_path, phase.phase, echo ).get();
+        shaders_ptrs[ phase.idx ] = that->make_or_pull_shader_from_path( phase_path, phase.phase, echo ).get();
     }
 
-    return this->make_or_pull_pipe_from_ptr_arr( shaders_ptrs, echo );
+    if constexpr( query_station ) {
+        return that->make_or_pull_pipe_from_ptr_arr( shaders_ptrs, echo );
+    } else {    
+        auto pipe = HVEC< ShaderPipe3 >::allocc( shaders_ptrs, nullptr, echo );
+        DWORD status = that->push_pipe( pipe, true, echo );
+
+        return pipe;
+    }
+}
+
+HVEC< ShaderPipe3 > RenderCluster3::make_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    return _pipe_from_prefixed_path< false >( this, path, echo );
+}
+
+HVEC< ShaderPipe3 > RenderCluster3::make_or_pull_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    return _pipe_from_prefixed_path< true >( this, path, echo );
 }
 
 

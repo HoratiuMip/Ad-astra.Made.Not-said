@@ -1,7 +1,7 @@
 /*
 */
 
-#include <IXT/aritm.hpp>
+#include <IXT/geomet.hpp>
 #include <IXT/surface.hpp>
 #include <IXT/render2.hpp>
 

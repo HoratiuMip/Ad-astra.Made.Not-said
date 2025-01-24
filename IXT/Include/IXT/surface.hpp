@@ -4,7 +4,7 @@
 
 #include <IXT/descriptor.hpp>
 #include <IXT/comms.hpp>
-#include <IXT/aritm.hpp>
+#include <IXT/geomet.hpp>
 #include <IXT/env.hpp>
 
 

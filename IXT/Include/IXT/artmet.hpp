@@ -1,6 +1,6 @@
 #pragma once
 /*
-Operations which could be specialized depending on T and AVX level are marked with "T&AVX".
+Further to be specialized depending on T, and, perhaps, using AVX.
 */
 
 #include <IXT/descriptor.hpp>
@@ -34,16 +34,35 @@ public:
     : dat_base_t{ std::move( ( dat_base_t& )other ) }
     {}
 
-public:
-    vector& sc_mul( const T& sc ) {
-        /* T&AVX */
-        for( auto& e : *this ) e *= sc;
+public: 
+#define _ARTMET_VECTOR_SC_OP_FUNC_T_SIG( op ) template< typename T_sc > requires requires{ std::declval< T >() op##= T_sc{}; }
+#define _ARTMET_VECTOR_SC_OP_FUNC( name, op ) \
+    _ARTMET_VECTOR_SC_OP_FUNC_T_SIG( op ) \
+    inline vector& name( const T_sc& sc ) { \
+        for( auto& e : *this ) e op##= sc; \
+        return *this; \
+    } \
+    _ARTMET_VECTOR_SC_OP_FUNC_T_SIG( op ) \
+    inline vector ct_##name( const T_sc& sc ) { \
+        return vector{ *this }.name( sc ); \
+    } \
+    _ARTMET_VECTOR_SC_OP_FUNC_T_SIG( op ) inline vector& operator op##= ( const T_sc& sc ) { return this->name< T_sc >( sc ); } \
+    _ARTMET_VECTOR_SC_OP_FUNC_T_SIG( op ) inline vector operator op ( const T_sc& sc ) { return this->ct_##name< T_sc >( sc ); }
+
+    _ARTMET_VECTOR_SC_OP_FUNC( add, + )
+    _ARTMET_VECTOR_SC_OP_FUNC( sub, - )
+    _ARTMET_VECTOR_SC_OP_FUNC( mul, * )
+    _ARTMET_VECTOR_SC_OP_FUNC( div, / )
+    _ARTMET_VECTOR_SC_OP_FUNC( shr, >> )
+    _ARTMET_VECTOR_SC_OP_FUNC( shl, << )
+
+    template< typename ...FuncArgs, typename ...Args > 
+    vector& arg_in( T( *func )( FuncArgs... ), Args&&... args ) {
+        for( auto& e : *this ) e = func( e, std::forward< Args >( args )... );
         return *this;
     }
 
-    inline vector& operator *= ( const T& sc ) { return this->sc_mul( sc ); }
-    inline vector operator * ( const T& sc ) { return vector{ *this }->sc_mul( sc ); }
-
+public:
     T dot( const vector& other ) {
         if( this->size() != other.size() ) {
             comms( this, ECHO_LEVEL_ERROR ) << "Dot multiplication of different length vectors, this ( " << this->size() << " ), other ( " << other.size() << " ).";
@@ -52,7 +71,6 @@ public:
 
         T rez = T{};
 
-        /* T&AVX */
         for( DWORD idx = 0; idx < this->size(); ++idx ) {
             rez += this->operator[]( idx ) * other.operator[]( idx );
         }
@@ -63,13 +81,13 @@ public:
     inline T operator &= ( const vector& other ) { return this->dot( other ); }
     inline T operator & ( const vector& other ) const { return vector{ *this }.dot( other ); } 
 
+public:
     vector& ew_mul( const vector& other ) {
         if( this->size() != other.size() ) {
             comms( this, ECHO_LEVEL_ERROR ) << "Element-wise multiplication of different length vectors, this ( " << this->size() << " ), other ( " << other.size() << " ).";
             return *this;
         }
 
-        /* T&AVX */
         for( DWORD idx = 0; idx < this->size(); ++idx ) {
             this->operator[]( idx ) *= other.operator[]( idx );
         }
@@ -132,9 +150,11 @@ public:
 template< typename T > inline std::ostream& operator << ( std::ostream& os, const matrix< T >& mat ) {
     os << "matrix of ( " << mat.size() << "x" << mat.front().size() << " ) elements:\n"; 
     for( auto& row : mat ) {
-        
+        os << "[ ";
+        for( auto& e : row ) os << e << ' ';
+        os << "]\n";
     }
-    return os << " ]\n";
+    return os << '\n';
 }
 
 

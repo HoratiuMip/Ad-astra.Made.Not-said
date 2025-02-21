@@ -1,7 +1,7 @@
 # `[ =Z< )) O* ]` _WARC_ - The *Winter-Arc* project. 
 Satellite. Satbe... or... satbe not. Are we some sort of... league of orbiters? It's right above me, isn't it?
 Earth images captured from the heavens, on demand, via the baddest immersive program and the sickest circuit rig (which I shall not short & burn).
-![warc-1](https://github.com/user-attachments/assets/99dba2e3-141e-4eb7-9a9f-0d4a03fc632a)
+> ![warc-thumb-2](https://github.com/user-attachments/assets/8427430b-c346-4615-a8f0-297e7836227a)
 Damn.
 
 > I.  [Description](#Description)
@@ -11,6 +11,10 @@ Damn.
 
 
 ## Description
+> ![warc-whole-1](https://github.com/user-attachments/assets/2b84fb3c-ce23-48ce-a540-fcab955bc96b)
+
+> Quick client launch tutorial [here](https://www.youtube.com/watch?v=n78CpjPrs64).
+
 > Satellites of interest:
 > - `NOAA-15` | NORAD id: `25338` | downlink @ 137.620 MHz.
 > - `NOAA-18` | NORAD id: `28654` | downlink @ 137.9125 MHz.
@@ -91,11 +95,12 @@ Damn.
 > Control:
 > - `RMB` | hold - enable spin mode - move the mouse to spin around the globe.
 > - `SCROLL` - zoom in/out.
-> - `C` | toggle - enable cinematic camera. | Alternatively, double click `RMB`.
-> - `B` | toggle - highlight the countries.
-> - `SPACE` | toggle - highlight satellites and their ~range. | Alternatively, while holding `RMB`, flick the mouse left and right quickly for a couple of times.
-> - `<`/`,` - enable wireframe rendering.
-> - `>`/`.` - enable full rendering.
+> - `C` | toggle - iterate through camera modes.
+> - Double `RMB` | toggle - enable/disable cinematic camera mode.
+> - Triple `RMB` | toggle - enable/disable free-spin camera mode.
+> - `B` | toggle - highlight the countries. | Alternatively, hold `LMB` on Earth and shake the mouse.
+> - `SPACE` | toggle - highlight satellites and their ~range. | Alternatively, hold `RMB` and shake the mouse.
+> - `>`/`.` | toggle - iterate through render modes.
 
 #### Options
 > The good old command line arguments. There are three ways to configure the session options:
@@ -125,7 +130,9 @@ Damn.
 > Table:
 > | Option | Description | CMDL-RT | CFILE | CMDL-L |
 > |:-------|:------------|:-------:|:-----:|:------:|
-> | `--from-config <arg1>` | The configuration file containing the options for the session. `arg1` is the absolute path to the configuration file. | `No` | `No` | `Yes` |
+> | `--root-dir <arg1>` | The root directory to be used. `arg1` is the RELATIVE path to the root directory. | `No` | `No` | `Yes` |
+> | `--from-config <arg1>` | The configuration file containing the options for the session. `arg1` is the ABSOLUTE path to the configuration file. | `No` | `No` | `Yes` |
+> | `--spec-mod-barracuda-controller` | Attempt to connect to the Barracuda Controller before launching the program. | `No` | `Yes` | `Yes` |
 > | `--n2yo-mode <arg1>` | How to retrieve satellite data from the `N2YO` server. | `Yes` | `Yes` | `Yes` |
 > > Accepted `arg1`, Satellites positions are...:
 > > - `rand` - ...random. Server connection `IS NOT` made in this mode.
@@ -147,6 +154,11 @@ Damn.
 > | `--n2yo-bulk-count <arg1>` | How many orbit positions ( how many seconds of orbit ) to request from the `N2YO` server, per satellite update. | `Yes` | `Yes` | `Yes` |
 > | `--earth-imm` | Launch the immersive earth control module. That is, the graphical component. | `No` | `No` | `Yes` |
 > | `--earth-imm-lens-sens <arg1>` | The sensitivity of the camera. | `Yes` | `Yes` | `Yes` |
+> | `--earth-imm-lens-fov <arg1>` | The Field of view of the camera, in degrees. | `Yes` | `Yes` | `Yes` |
+> | `--earth-imm-shake-decay <arg1>` | How fast the mouse shake effect decays over time. | `Yes` | `Yes` | `Yes` |
+> | `--earth-imm-shake-cross-count <arg1>` | The number of mouse left-to-right/right-to-left movements required to be considered a shake. | `Yes` | `Yes` | `Yes` |
+> | `--astro-ref-vernal-equinox-ts <arg1>` | Timestamp of the most recent vernal equinox, used to compute sun position. | `Yes` | `Yes` | `Yes` |
+> | `--astro-ref-first-january-ts <arg1>` | Timestamp of the most recent first of january, used to compute sun position. | `Yes` | `Yes` | `Yes` |
 
 
 ## Journal

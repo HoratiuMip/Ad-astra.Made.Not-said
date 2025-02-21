@@ -26,6 +26,8 @@ enum HYPER_VECTOR_ALLOC_FLAG : WORD {
     _HYPER_VECTOR_ALLOC_FLAG_FORCE_WORD = 0x7f'ff
 };
 
+struct hvec_soft_t{};
+
 template< typename _T, bool _is_array = std::is_array_v< _T > >
 class HYPER_VECTOR {
 public:
@@ -65,6 +67,11 @@ public:
     template< typename Tp > requires( !std::is_class_v< Tp > || std::is_base_of_v< T, Tp > )
     HYPER_VECTOR( Tp* under )
     : _ptr{ ( T* )under }, _tags{ HYPER_VECTOR_TAG_HARD } 
+    {}
+
+    template< typename Tp > requires( !std::is_class_v< Tp > || std::is_base_of_v< T, Tp > )
+    HYPER_VECTOR( Tp* under, [[maybe_unused]]hvec_soft_t )
+    : _ptr{ ( T* )under }, _tags{ 0 } 
     {}
 
     template< typename Tr > requires( !std::is_class_v< Tr > || std::is_base_of_v< T, Tr > )
@@ -216,7 +223,9 @@ public:
 
 public:
     inline QWORD count() const {
-        return this->info()->ref_count.load( std::memory_order_relaxed );
+        _ALLOC_INFO* info = this->_info();
+
+        return info ? info->ref_count.load( std::memory_order_relaxed ) : 1;
     }
     
     inline bool hard() const {
@@ -224,7 +233,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    inline _ALLOC_INFO* _info() {
+    inline _ALLOC_INFO* _info() const {
         if( ( _tags & HYPER_VECTOR_TAG_INFO ) == 0 ) return nullptr;
 
         return ( _ALLOC_INFO* )( ( BYTE* )_ptr - sizeof( _ALLOC_INFO ) );

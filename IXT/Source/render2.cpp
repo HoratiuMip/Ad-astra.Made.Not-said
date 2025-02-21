@@ -32,7 +32,7 @@ Renderer2DefaultSweeps::Renderer2DefaultSweeps( Renderer2& renderer, _ENGINE_COM
     } ) {
         uint64_t bytes = ( ( uint64_t )( enum_bytes ) & ( uint64_t )( RENDERER2_DFT_SWEEP_RGBA_MASK ) ) >> 32; 
 
-        _default_sweeps.emplace_back( std::make_shared< SldSweep2 >(
+        _default_sweeps.emplace_back( HVEC< SldSweep2 >::allocc(
             renderer, 
             RGBA{
                 ( uint8_t )( ( bytes & 0xFF'00'00'00 ) >> 24 ),

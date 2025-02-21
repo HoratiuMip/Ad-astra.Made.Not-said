@@ -1158,7 +1158,7 @@ public:
             return;
         }
 
-        _bitmap.reset( tmp_bmp, no_free_t{} );
+        _bitmap.vector( tmp_bmp, hvec_soft_t{} );
 
 
         udword_t w = 0;
@@ -1174,7 +1174,7 @@ public:
 
 public:
     ~Sprite2() {
-        if( _bitmap.unique() ) _bitmap->Release();
+        if( _bitmap.count() == 1 ) _bitmap->Release();
     }
 
 _ENGINE_PROTECTED:

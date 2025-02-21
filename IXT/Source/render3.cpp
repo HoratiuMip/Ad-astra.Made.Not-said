@@ -1,6 +1,8 @@
 /*
 */
 
+#if defined( _ENGINE_GL_OPEN_GL )
+
 #include <IXT/render3.hpp>
 
 namespace _ENGINE_NAMESPACE {
@@ -187,3 +189,5 @@ HVEC< ShaderPipe3 > RenderCluster3::make_or_pull_pipe_from_prefixed_path( const 
 
 
 };
+
+#endif

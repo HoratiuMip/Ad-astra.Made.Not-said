@@ -40,7 +40,7 @@ Renderer2DefaultSweeps::Renderer2DefaultSweeps( Renderer2& renderer, _ENGINE_COM
                 ( uint8_t )( ( bytes & 0x00'00'FF'00 ) >> 8 ),
                 ( uint8_t )( ( bytes & 0x00'00'00'FF ) >> 0 )
             }, 
-            3.0f, 
+            0.01f, 
             echo
         ) ); 
     }
@@ -66,7 +66,7 @@ RenderSpec2& Renderer2::line(
     const Sweep2& brush
 ) {
     _target->DrawLine(
-        _surface->localize( c1 ), _surface->localize( c2 ),
+        c1, c2,
         brush,
         brush.width()
     );
@@ -99,8 +99,6 @@ Viewport2& Viewport2::splash_bounds( RENDERER2_DFT_SWEEP sweep_idx ) {
 
     Crd2 tl = this->topl_c();
     Crd2 br = this->botr_c();
-    _super_spec->deep_dive( tl );
-    _super_spec->deep_dive( br );
 
     _renderer->target()->DrawRectangle( 
         D2D1::RectF( tl.x, tl.y, br.x, br.y ), 

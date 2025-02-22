@@ -65,7 +65,7 @@ public:
 
 
 
-using RenderSpec2tmx = D2D1::Matrix3x2F;
+using render_spec2_tmx_t = D2D1::Matrix3x2F;
 
 class RenderSpec2 : public Descriptor {
 public:
@@ -116,11 +116,7 @@ public:
     virtual Vec2 size() const = 0;
 
 public:
-    virtual dword_t deep_dive( RenderSpec2tmx& ) const = 0;
-
-    virtual dword_t deep_dive( Crd2& ) const = 0;
-
-    virtual dword_t shallow_dive( Vec2& ) const = 0;
+    virtual DWORD deep_dive( render_spec2_tmx_t& ) const = 0;
 
 public:
     RenderSpec2& super_spec() {
@@ -140,7 +136,7 @@ public:
 
 class BareRenderSlave2 {
 public:
-    virtual dword_t rend2( RenderSpec2& spec, void* args ) = 0;
+    virtual DWORD rend2( RenderSpec2& spec, void* args ) = 0;
 
 public:
     template< typename T >
@@ -234,7 +230,7 @@ public:
             return;
         }
 
-        if( 
+        if(
             _factory->CreateHwndRenderTarget(
                 D2D1::RenderTargetProperties(),
                 D2D1::HwndRenderTargetProperties(
@@ -250,8 +246,9 @@ public:
         }
 
 
-        _tmxs[ 0 ] = RenderSpec2tmx::Identity();
-
+        _tmxs[ 0 ] = render_spec2_tmx_t::Identity();
+        this->deep_dive( _tmxs[ 0 ] );
+        _target->SetTransform( _tmxs[ 0 ] );
 
         *( Renderer2DefaultSweeps* )( this ) = Renderer2DefaultSweeps{ *this, echo };
 
@@ -284,7 +281,7 @@ _ENGINE_PROTECTED:
 
     target_t*             _target                  = nullptr;
 
-    RenderSpec2tmx        _tmxs[ TMX_MAX_COUNT ]   = {};
+    render_spec2_tmx_t    _tmxs[ TMX_MAX_COUNT ]   = {};
     DWORD                 _tmxsdx                  = 0; 
 
 public:
@@ -298,18 +295,6 @@ public:
     IWICImagingFactory*    wic_factory() { return _wic_factory; }
 
 public:
-    Renderer2& charge() {
-        _target->BeginDraw();
-
-        return *this;
-    }
-
-    Renderer2& splash() {
-        _target->EndDraw();
-
-        return *this;
-    }
-
     virtual RenderSpec2& rs2_uplink() override {
         _target->BeginDraw();
         return *this;
@@ -321,11 +306,11 @@ public:
     }
 
 public:
-    Renderer2& push_tmx( const RenderSpec2tmx& tmx ) {
+    Renderer2& push_tmx( const render_spec2_tmx_t& tmx, _ENGINE_COMMS_ECHO_RT_ARG ) {
         DWORD sdx = -1;
 
         if( sdx = _tmxsdx + 1; sdx == TMX_MAX_COUNT ) {
-            comms( this, ECHO_LEVEL_WARNING ) << "Pushing TMX to stack would cause overflow. Aborted.";
+            echo( this, ECHO_LEVEL_WARNING ) << "Pushing TMX to stack would cause overflow. Aborted.";
             return *this;
         }
         
@@ -337,11 +322,11 @@ public:
         return *this;
     }
 
-    Renderer2& pop_tmx() {
+    Renderer2& pop_tmx( _ENGINE_COMMS_ECHO_RT_ARG ) {
         DWORD sdx = -1;
 
         if( sdx = _tmxsdx - 1; sdx < 0 ) {
-            comms( this, ECHO_LEVEL_WARNING ) << "Popping TMX would cause underflow. Aborted.";
+            echo( this, ECHO_LEVEL_WARNING ) << "Popping TMX would cause underflow. Aborted.";
             return *this;
         }
 
@@ -352,7 +337,7 @@ public:
         return *this;
     }
 
-    RenderSpec2tmx& top_tmx() {
+    render_spec2_tmx_t& top_tmx() {
         return _tmxs[ _tmxsdx ];
     }
 
@@ -362,17 +347,8 @@ public:
     Vec2 size() const override { return _surface->size(); }
 
 public:
-    dword_t deep_dive( RenderSpec2tmx& tmx ) const override {
-        tmx = tmx * RenderSpec2tmx::Scale( _surface->width(), _surface->height() );
-        return 0;
-    }
-
-    dword_t deep_dive( Crd2& crd ) const override {
-        crd *= _surface->size();
-        return 0;
-    }
-
-    dword_t shallow_dive( Vec2& vec ) const override {
+    DWORD deep_dive( render_spec2_tmx_t& tmx ) const override {
+        tmx = tmx * render_spec2_tmx_t::Scale( _surface->width(), _surface->height() );
         return 0;
     }
 
@@ -391,66 +367,6 @@ public:
         Vec2 v1, Vec2 v2,
         const Sweep2& sweep
     ) override;
-
-public:
-    template< typename Type, typename ...Args >
-    Renderer2& operator () ( const Type& thing, Args&&... args ) {
-        thing.render( *this, std::forward< Args >( args )... );
-
-        return *this;
-    }
-
-/*
-public:
-    static std::optional< std::pair< Vec2, Vec2 > > clip_CohenSutherland( const Vec2& tl, const Vec2& br, Vec2 p1, Vec2 p2 ) {
-        auto& u = tl.y; auto& l = tl.x;
-        auto& d = br.y; auto& r = br.x;
-
-        // UDRL 
-        auto code_of = [ & ] ( const Vec2& p ) -> char {
-            return ( ( p.y > u ) << 3 ) |
-                   ( ( p.y < d ) << 2 ) |
-                   ( ( p.x > r ) << 1 ) |
-                     ( p.x < l );
-        };
-
-        char code1 = code_of( p1 );
-        char code2 = code_of( p2 );
-
-        auto move_X = [ & ] ( Vec2& mov, const Vec2& piv, char& code ) -> void {
-            for( char sh = 3; sh >= 0; --sh )
-                if( ( code >> sh ) & 1 ) {
-                    switch( sh ) {
-                        case 3: mov = { ( u - mov.y ) / ( piv.y - mov.y ) * ( piv.x - mov.x ) + mov.x, u }; break;
-                        case 2: mov = { ( d - mov.y ) / ( piv.y - mov.y ) * ( piv.x - mov.x ) + mov.x, d }; break;
-
-                        case 1: mov = { r, ( r - mov.x ) / ( piv.x - mov.x ) * ( piv.y - mov.y ) + mov.y }; break;
-                        case 0: mov = { l, ( l - mov.x ) / ( piv.x - mov.x ) * ( piv.y - mov.y ) + mov.y }; break;
-                    }
-
-                    code &= ~( 1 << sh );
-                
-                    break;
-                }
-    
-        };
-
-        bool phase = 1;
-
-        while( true ) {
-            if( code1 == 0 && code2 == 0 ) return std::make_pair( p1, p2 );
-
-            if( code1 & code2 ) return {};
-
-            if( phase )
-                move_X( p1, p2, code1 );
-            else
-                move_X( p2, p1, code2 );
-
-            phase ^= 1;
-        }
-    }
-*/
     
 };
 
@@ -477,9 +393,9 @@ public:
     {   
         Crd2 ref = pull_normal_axis( _origin ) - _size2;
 
-        _tmx = RenderSpec2tmx::Translation( ref.x*this->surface().width(), ref.y*this->surface().height() )
+        _tmx = render_spec2_tmx_t::Scale( _size.x, _size.y ) 
                * 
-               RenderSpec2tmx::Scale( _size.x, _size.y );
+               render_spec2_tmx_t::Translation( ref.x, ref.y );
 
         echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
@@ -498,10 +414,10 @@ public:
     Viewport2( Viewport2&& ) = delete;
 
 _ENGINE_PROTECTED:
-    Vec2             _origin   = {};
-    Vec2             _size     = {};
-    Vec2             _size2    = {};
-    RenderSpec2tmx   _tmx      = { RenderSpec2tmx::Identity() };
+    Vec2                 _origin   = {};
+    Vec2                 _size     = {};
+    Vec2                 _size2    = {};
+    render_spec2_tmx_t   _tmx      = { render_spec2_tmx_t::Identity() };
 
     bool   _restricted   = false;
 
@@ -532,28 +448,16 @@ public:
     Vec2 size() const override { return _size; }
 
 public:
-    dword_t deep_dive( RenderSpec2tmx& tmx ) const override {
+    DWORD deep_dive( render_spec2_tmx_t& tmx ) const override {
         Crd2 c = this->crd();
 
         tmx = tmx
               *
-              RenderSpec2tmx::Scale( _size.x, _size.y ) 
+              render_spec2_tmx_t::Scale( _size.x, _size.y ) 
               * 
-              RenderSpec2tmx::Translation( c.x, c.y );
+              render_spec2_tmx_t::Translation( c.x, c.y );
 
         return _super_spec->deep_dive( tmx ); 
-    }
-
-    dword_t deep_dive( Crd2& crd ) const override {
-        crd *= _size;
-        crd += this->crd();
-        return _super_spec->deep_dive( crd );
-    }
-
-    dword_t shallow_dive( Vec2& vec ) const override {
-        vec *= _size;
-        vec += _origin;
-        return _super_spec->shallow_dive( vec );
     }
 
 public:
@@ -621,8 +525,6 @@ public:
 
         Crd2 tl = this->topl_c();
         Crd2 br = this->botr_c();
-        _super_spec->deep_dive( tl );
-        _super_spec->deep_dive( br );
 
         _renderer->target()->PushAxisAlignedClip(
             D2D1::RectF( tl.x, tl.y, br.x, br.y ),
@@ -889,7 +791,7 @@ public:
             return;
         }
 
-        auto tmx = RenderSpec2tmx::Identity();
+        auto tmx = render_spec2_tmx_t::Identity();
         _render_spec->deep_dive( tmx );
 
         if(
@@ -982,7 +884,7 @@ public:
             return;
         }
 
-        auto tmx = RenderSpec2tmx::Identity();
+        auto tmx = render_spec2_tmx_t::Identity();
         //_render_spec->deep_dive( tmx );
 
         Vec2 srf_sz = _render_spec->surface().size();
@@ -1108,7 +1010,7 @@ public:
 
         } tools{};
 
-        if( udword_t res = 
+        if( UDWORD res = 
             render_spec->renderer().wic_factory()->CreateDecoderFromFilename(
                 std::wstring{ path.begin(), path.end() }.c_str(),
                 nullptr,
@@ -1121,17 +1023,17 @@ public:
             return;
         }
 
-        if( udword_t res = tools.wic_decoder->GetFrame( 0, &tools.wic_frame ); res != S_OK ) {
+        if( UDWORD res = tools.wic_decoder->GetFrame( 0, &tools.wic_frame ); res != S_OK ) {
             echo( this, ECHO_LEVEL_ERROR ) << "tools.wic_decoder->GetFrame failure: #" << res << ".";
             return;
         }
 
-        if( udword_t res = render_spec->renderer().wic_factory()->CreateFormatConverter( &tools.wic_converter ); res != S_OK ) {
+        if( UDWORD res = render_spec->renderer().wic_factory()->CreateFormatConverter( &tools.wic_converter ); res != S_OK ) {
             echo( this, ECHO_LEVEL_ERROR ) << "render_spec->renderer().wic_factory()->CreateFormatConverter failure: #" << res << ".";
             return;
         }
 
-        if( udword_t res =
+        if( UDWORD res =
             tools.wic_converter->Initialize(
                 tools.wic_frame,
                 GUID_WICPixelFormat32bppPBGRA,
@@ -1147,7 +1049,7 @@ public:
 
         ID2D1Bitmap* tmp_bmp = nullptr;
 
-        if( udword_t res =
+        if( UDWORD res =
             render_spec->renderer().target()->CreateBitmapFromWicBitmap(
                 tools.wic_converter,
                 NULL,
@@ -1161,8 +1063,8 @@ public:
         _bitmap.vector( tmp_bmp, hvec_soft_t{} );
 
 
-        udword_t w = 0;
-        udword_t h = 0;
+        UDWORD w = 0;
+        UDWORD h = 0;
 
         tools.wic_frame->GetSize( &w, &h );
 

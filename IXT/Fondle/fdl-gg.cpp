@@ -33,7 +33,7 @@ int main() {
             this->reserve( count );
         }
 
-        const int16_t           count   = 1;
+        const int16_t           count   = 2;
         std::atomic< size_t >   at      = 0;
 
         void invoke_at() {
@@ -43,7 +43,7 @@ int main() {
 
 //# Lines from corners of surface to pointer vie renderer.
     scenes.emplace_back( [ & ] () -> void {
-        render.charge().fill( RGBA{ 0 } );
+        render.rs2_uplink().fill( RGBA{ 0 } );
 
         render
         .line( Vec2{ -.5, .5 }, surface.ptr_v(), render[ RENDERER2_DFT_SWEEP_GREEN ] )
@@ -51,7 +51,7 @@ int main() {
         .line( Vec2{ .5, -.5 }, surface.ptr_v(), render[ RENDERER2_DFT_SWEEP_GREEN ] )
         .line( Vec2{ -.5, -.5 }, surface.ptr_v(), render[ RENDERER2_DFT_SWEEP_GREEN ] );
 
-        render.splash();
+        render.rs2_downlink();
     } );
 
 //# Dephased sine lines via renderer.
@@ -70,7 +70,7 @@ int main() {
 
         sweep.org_at( port2.ptr_v() );
 
-        render.charge().fill( RGBA{ 0 } );
+        render.rs2_uplink().fill( RGBA{ 0 } );
 
         auto [ left_new, right_new ] = std::make_pair< Vec2, Vec2 >( 
             { -.4, ( ggfloat_t )sin( ticker.up_time() * 2 ) / 2 },
@@ -105,7 +105,7 @@ int main() {
         port2.rs2_downlink();
         port.splash_bounds();
         port.rs2_downlink();
-        render.splash();
+        render.rs2_downlink();
     } );
 
 

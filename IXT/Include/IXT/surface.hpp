@@ -1237,8 +1237,8 @@ public:
         auto [ x, y ] = SurfPtr::env_c();
 
         return { 
-            x - Env::w<2.>(), 
-            -y + Env::h<2.>()
+            x - Env::w(.5), 
+            -y + Env::h(.5)
         };
     }
 

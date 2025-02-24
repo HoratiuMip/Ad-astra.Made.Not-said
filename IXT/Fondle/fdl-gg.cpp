@@ -14,15 +14,15 @@
 using namespace IXT;
 
 int main() {
-    Surface surface{ "RenderFondle", { 0, 0 }, { Env::w<2.>(), Env::h<2.>() }, SURFACE_STYLE_LIQUID };
+    Surface surface{ "RenderFondle", { 0, 0 }, { Env::w( .5 ), Env::h( .5 ) }, SURFACE_STYLE_LIQUID };
     surface.uplink( SURFACE_THREAD_ACROSS );
 
     Renderer2 render{ surface };
 
-    Viewport2 port{ render, Crd2{ .0 }, Vec2{ .6 } };
+    Viewport2 port{ render, Crd2{ .2 }, Vec2{ .6 } };
     port.srf_uplink();
 
-    Viewport2 port2{ port, Vec2{ .1 }, Vec2{ .6 } };
+    Viewport2 port2{ port, Crd2{ .3 }, Vec2{ 1.0 } };
     port2.srf_uplink();
 
     Sprite2 rammus{ render, ASSET_PNG_RAMMUS_PATH };
@@ -43,16 +43,24 @@ int main() {
 
 //# Lines from corners of surface to pointer vie renderer.
     scenes.emplace_back( [ & ] () -> void {
-        static LnrSweep2 sweep{
+        static LnrSweep2 sweep1{
             render, { -.5, .5 }, { .5, -.5 }, {
                 sweep2_gc_node_t{ { 255, 0, 0, 255 }, 0.0 },
                 sweep2_gc_node_t{ { 255, 255, 255, 255 }, 1.0 }
-            }, 0.05
+            }, 0.02
+        };
+        static RdlSweep2 sweep2{
+            render, { .0, .0 }, { .0, .0 }, { .5, .5 }, {
+                sweep2_gc_node_t{ { 255, 0, 0, 255 }, 0.0 },
+                sweep2_gc_node_t{ { 255, 255, 255, 255 }, 1.0 }
+            }, 0.02
         };
 
         render.rs2_uplink().fill( RGBA{ 0 } );
 
-        Sweep2& crt_sweep = surface.down( SurfKey::LMB ) ? sweep : render[ RENDERER2_DFT_SWEEP_GREEN ];
+        sweep2.org_at( surface.ptr_v() );
+
+        Sweep2& crt_sweep = surface.down( SurfKey::LMB ) ? ( Sweep2& )sweep1 : ( Sweep2& )sweep2;
 
         render
         .line( Vec2{ -.5, .5 }, surface.ptr_v(), crt_sweep )
@@ -74,7 +82,7 @@ int main() {
             render, { .0, .0 }, { .0, .0 }, { .5, .5 }, {
                 sweep2_gc_node_t{ { 80, 10, 255 }, .0 },
                 sweep2_gc_node_t{ { 255, 10, 80 }, 1.0 }
-            }, 3.0 
+            }, 0.01
         };
 
         sweep.org_at( port2.ptr_v() );
@@ -85,7 +93,10 @@ int main() {
             { -.4, ( ggfloat_t )sin( ticker.up_time() * 2 ) / 2 },
             { .4, ( ggfloat_t )sin( ticker.up_time() * 3 ) / 2 }
         );
-        port.rs2_uplink();
+
+        const bool port_res = surface.down( SurfKey::RMB );
+
+        port.rs2_uplink(); if( port_res ) port.restrict();
         port2.rs2_uplink();
         port2.line( left_new, right_new, sweep );
 
@@ -113,6 +124,7 @@ int main() {
         port2.splash_bounds();
         port2.rs2_downlink();
         port.splash_bounds();
+        if( port_res ) port.lift_restrict();
         port.rs2_downlink();
         render.rs2_downlink();
     } );

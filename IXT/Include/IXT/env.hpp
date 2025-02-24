@@ -22,14 +22,8 @@ public:
         return value;
     }
 
-    template< auto mul > requires std::integral< decltype( mul ) >
-    static int w() {
+    static ggfloat_t w( ggfloat_t mul ) {
         return width() * mul;
-    }
-
-    template< auto div > requires std::floating_point< decltype( div ) >
-    static ggfloat_t w() {
-        return width() / div;
     }
 
     static int height() {
@@ -43,31 +37,19 @@ public:
         return value;
     }
 
-    template< auto mul > requires std::integral< decltype( mul ) >
-    static int h() {
+    static ggfloat_t h( ggfloat_t mul ) {
         return height() * mul;
     }
 
-    template< auto div > requires std::floating_point< decltype( div ) >
-    static ggfloat_t h() {
-        return height() / div;
-    }
-
 public:
-    static ggfloat_t diagon() {
+    static ggfloat_t diagonal() {
         static ggfloat_t value = sqrt( width() * width() + height() * height() );
 
         return value;
     }
 
-    template< auto mul > requires std::integral< decltype( mul ) >
-    static ggfloat_t d() {
-        return diagon() * mul;
-    }
-
-    template< auto div > requires std::floating_point< decltype( div ) >
-    static ggfloat_t d() {
-        return diagon() / div;
+    static ggfloat_t d( ggfloat_t mul ) {
+        return diagonal() * mul;
     }
 
 public:

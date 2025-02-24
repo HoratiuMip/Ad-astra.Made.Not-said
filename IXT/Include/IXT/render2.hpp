@@ -111,9 +111,11 @@ public:
 public:
     virtual Crd2 crd() const = 0;
 
-    virtual Vec2 org() const = 0;
+    virtual Vec2 vec() const = 0;
 
     virtual Vec2 size() const = 0;
+
+    virtual render_spec2_tmx_t tmx() const = 0;
 
 public:
     virtual DWORD deep_dive( render_spec2_tmx_t& ) const = 0;
@@ -306,7 +308,7 @@ public:
     }
 
 public:
-    Renderer2& push_tmx( const render_spec2_tmx_t& tmx, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    Renderer2& push_tmx( const render_spec2_tmx_t& tmx, bool chain, _ENGINE_COMMS_ECHO_RT_ARG ) {
         DWORD sdx = -1;
 
         if( sdx = _tmxsdx + 1; sdx == TMX_MAX_COUNT ) {
@@ -314,7 +316,7 @@ public:
             return *this;
         }
         
-        _tmxs[ sdx ] = tmx * _tmxs[ _tmxsdx ];
+        _tmxs[ sdx ] = tmx * ( chain ? _tmxs[ _tmxsdx ] : _tmxs[ 0 ] );
         _tmxsdx      = sdx;
 
         _target->SetTransform( _tmxs[ _tmxsdx ] );
@@ -343,8 +345,9 @@ public:
 
 public:
     Crd2 crd() const override { return { 0, 0 }; }
-    Vec2 org() const override { return { 0, 0 }; }
+    Vec2 vec() const override { return { .5, .5 }; }
     Vec2 size() const override { return _surface->size(); }
+    render_spec2_tmx_t tmx() const override { return render_spec2_tmx_t::Identity(); }
 
 public:
     DWORD deep_dive( render_spec2_tmx_t& tmx ) const override {
@@ -384,46 +387,44 @@ public:
 
     Viewport2(
         HVEC< RenderSpec2 >   render_spec,
-        Vec2                  org,
-        Vec2                  sz,
-        _ENGINE_COMMS_ECHO_ARG
-    )
-    : RenderSpec2{ render_spec },
-      _origin{ org }, _size{ sz }, _size2{ sz / 2 }
-    {   
-        Crd2 ref = pull_normal_axis( _origin ) - _size2;
-
-        _tmx = render_spec2_tmx_t::Scale( _size.x, _size.y ) 
-               * 
-               render_spec2_tmx_t::Translation( ref.x, ref.y );
-
-        echo( this, ECHO_LEVEL_OK ) << "Created.";
-    }
-
-    Viewport2(
-        HVEC< RenderSpec2 >   render_spec,
         Crd2                  crd,
         Vec2                  sz,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : Viewport2{ render_spec, pull_normal_axis( Crd2{ crd + sz / 2 } ), sz, echo }
-    {}
+    : RenderSpec2{ render_spec },
+      _origin{ crd }, _size{ sz }, _size2{ sz / 2 }
+    {
+        _tmx = render_spec2_tmx_t::Scale( _size.x, _size.y ) 
+               * 
+               render_spec2_tmx_t::Translation( _origin.x, _origin.y )
+               *
+               _super_spec->tmx();
 
+        echo( this, ECHO_LEVEL_OK ) << "Created.";
+    }
+
+
+    Viewport2(
+        HVEC< RenderSpec2 >   render_spec,
+        Vec2                  org,
+        Vec2                  sz,
+        _ENGINE_COMMS_ECHO_ARG
+    )
+    : Viewport2{ render_spec, pull_normal_axis( org ), sz, echo }
+    {}
 
     Viewport2( const Viewport2& ) = delete;
     Viewport2( Viewport2&& ) = delete;
 
 _ENGINE_PROTECTED:
-    Vec2                 _origin   = {};
+    Crd2                 _origin   = {};
     Vec2                 _size     = {};
     Vec2                 _size2    = {};
     render_spec2_tmx_t   _tmx      = { render_spec2_tmx_t::Identity() };
 
-    bool   _restricted   = false;
-
 public:
     virtual RenderSpec2& rs2_uplink() override {
-        return _renderer->push_tmx( _tmx );
+        return _renderer->push_tmx( _tmx, false );
     }
 
     virtual RenderSpec2& rs2_downlink() override {
@@ -443,9 +444,10 @@ public:
     }
 
 public:
-    Crd2 crd() const override { return pull_normal_axis( _origin ) - _size*.5; }
-    Vec2 org() const override { return _origin; }
+    Crd2 crd() const override { return _origin; }
+    Vec2 vec() const override { return pull_normal_axis( _origin ); }
     Vec2 size() const override { return _size; }
+    render_spec2_tmx_t tmx() const override { return _tmx; }
 
 public:
     DWORD deep_dive( render_spec2_tmx_t& tmx ) const override {
@@ -461,93 +463,28 @@ public:
     }
 
 public:
+    Viewport2& relocate( Crd2 crd ) {
+        _origin = crd;
+        return this->relocate( pull_normal_axis( crd ) );
+    }
+
     Viewport2& relocate( Vec2 vec ) {
         _origin = vec;
         return *this;
     }
 
-    Viewport2& relocate( Crd2 crd ) {
-        return this->relocate( pull_normal_axis( crd ) );
-    }
-
-public:
-    Vec2 topl_v() const {
-        return _origin + Vec2{ -_size2.x, _size2.y };
-    }
-
-    Vec2 botr_v() const {
-        return _origin + Vec2{ _size2.x, -_size2.y };
-    }
-
-    Crd2 topl_c() const {
-        return pull_normal_axis( this->topl_v() );
-    }
-
-    Crd2 botr_c() const {
-        return pull_normal_axis( this->botr_v() );
-    }
-
-public:
-    ggfloat_t east() const {
-        return _origin.x + _size2.x;
-    }
-
-    ggfloat_t west() const {
-        return _origin.x - _size2.x;
-    }
-
-    ggfloat_t north() const {
-        return _origin.y + _size2.y;
-    }
-
-    ggfloat_t south() const {
-        return _origin.y - _size2.y;
-    }
-
-public:
-    bool cages( Vec2 vec ) const {
-        Vec2 ref = this->topl_v();
-        
-        if( vec.is_further_than( ref, HEADING_NORTH ) || vec.is_further_than( ref, HEADING_WEST ) )
-            return false;
-
-        ref = this->botr_v();
-
-        if( vec.is_further_than( ref, HEADING_SOUTH ) || vec.is_further_than( ref, HEADING_EAST ) )
-            return false;
-
-        return true;
-    }
-
 public:
     Viewport2& restrict() {
-        if( _restricted ) return *this;
-
-        Crd2 tl = this->topl_c();
-        Crd2 br = this->botr_c();
-
         _renderer->target()->PushAxisAlignedClip(
-            D2D1::RectF( tl.x, tl.y, br.x, br.y ),
+            D2D1::RectF( 0.0, 0.0, 1.0, 1.0 ),
             D2D1_ANTIALIAS_MODE_PER_PRIMITIVE
         );
-
-        _restricted = true;
-
         return *this;
     }
 
     Viewport2& lift_restrict() {
-        if( !_restricted ) return *this;
-
         _renderer->target()->PopAxisAlignedClip();
-
-        _restricted = false;
-
         return *this;
-    }
-
-    bool has_restriction() const {
-        return _restricted;
     }
 
 public:
@@ -556,7 +493,7 @@ public:
         .socket_plug< SURFACE_EVENT_POINTER >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, Vec2 prev_vec, auto& trace ) -> void {
-                if( !this->cages( vec ) ) return;
+                //if( !this->cages( vec ) ) return;
 
                 _pointer      = ( vec - _origin ) / _size;
                 _prev_pointer = ( prev_vec - _origin ) / _size;
@@ -569,7 +506,7 @@ public:
         .socket_plug< SURFACE_EVENT_SCROLL >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, SURFSCROLL_DIRECTION dir, auto& trace ) -> void {
-                if( !this->cages( vec ) ) return;
+                //if( !this->cages( vec ) ) return;
 
                 this->invoke_sequence< SURFACE_EVENT_SCROLL >( trace, ( vec - _origin ) / _size, dir );
             }
@@ -648,8 +585,8 @@ public:
 public:
     Sweep2() = default;
 
-    Sweep2( float w )
-    : _width( w )
+    Sweep2( float width )
+    : _width( width )
     {}
 
     virtual ~Sweep2() {}
@@ -696,10 +633,10 @@ public:
     SldSweep2(
         Renderer2& renderer,
         RGBA       rgba     = {},
-        float      w        = 0.01,
+        float      width    = 0.01,
         Echo       echo     = {}
     )
-    : Sweep2{ w }
+    : Sweep2{ width }
     {
         if( renderer.target()->CreateSolidColorBrush( rgba, &_sweep ) != S_OK ) {
             echo( this, ECHO_LEVEL_ERROR ) << "Renderer2::target()->CreateSolidColorBrush() failure.";
@@ -773,10 +710,11 @@ public:
         Vec2                  launch,
         Vec2                  land,
         const sweep2_gc_t&    chain,
-        float                 w        = 0.01,
+        float                 width    = 0.01,
+        float                 alpha    = 1.0,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : Sweep2{ w }, _render_spec{ std::move( render_spec ) }
+    : Sweep2{ width }, _render_spec{ std::move( render_spec ) }
     {
         if(
             _render_spec->target()->CreateGradientStopCollection(
@@ -796,7 +734,7 @@ public:
                 D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES{
                     pull_normal_axis( launch ), pull_normal_axis( land )
                 },
-                D2D1_BRUSH_PROPERTIES{ w, render_spec2_tmx_t::Identity() },
+                D2D1_BRUSH_PROPERTIES{ alpha, render_spec2_tmx_t::Identity() },
                 _grads,
                 &_sweep
             ) != S_OK
@@ -863,10 +801,11 @@ public:
         Vec2                  off,
         Vec2                  rad,
         const sweep2_gc_t     chain,
-        float                 w              = 0.01,
+        float                 width     = 0.01,
+        float                 alpha     = 1.0,
         _ENGINE_COMMS_ECHO_ARG
     )
-    : Sweep2{ w }, _render_spec{ std::move( render_spec ) }
+    : Sweep2{ width }, _render_spec{ std::move( render_spec ) }
     {
         if(
             _render_spec->target()->CreateGradientStopCollection(
@@ -881,21 +820,14 @@ public:
             return;
         }
 
-        auto tmx = render_spec2_tmx_t::Identity();
-        //_render_spec->deep_dive( tmx );
-
-        Vec2 srf_sz = _render_spec->surface().size();
-
         if(
             _render_spec->target()->CreateRadialGradientBrush(
                 D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES{
-                    Crd2{ pull_normal_axis( org ) * srf_sz }, 
-                    Crd2{ srf_sz * Vec2{ off.x, -off.y } },
-                    rad.x * srf_sz.x, rad.y * srf_sz.y
+                    Crd2{ pull_normal_axis( org ) }, 
+                    Crd2{ Vec2{ off.x, -off.y } },
+                    rad.x, rad.y
                 },
-                D2D1_BRUSH_PROPERTIES{
-                    w, tmx
-                },
+                D2D1_BRUSH_PROPERTIES{ alpha, render_spec2_tmx_t::Identity() },
                 _grads,
                 &_sweep
             ) != S_OK
@@ -950,7 +882,7 @@ public:
 
 public:
     RdlSweep2& org_at( Vec2 vec ) {
-        _sweep->SetCenter( Crd2{ pull_normal_axis( vec ) * _render_spec->surface().size() });
+        _sweep->SetCenter( pull_normal_axis( vec ) );
         return *this;
     }
 

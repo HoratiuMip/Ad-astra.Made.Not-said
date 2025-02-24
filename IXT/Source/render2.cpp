@@ -91,17 +91,7 @@ Viewport2& Viewport2::splash_bounds( RENDERER2_DFT_SWEEP sweep_idx ) {
     Sweep2& sweep = _renderer->pull( sweep_idx );
     
     _renderer->target()->DrawRectangle( 
-        D2D1::RectF( 0, 0, _renderer->surface().width(), _renderer->surface().height() ), 
-        sweep, sweep.width()
-    );
-
-    return *this;
-
-    Crd2 tl = this->topl_c();
-    Crd2 br = this->botr_c();
-
-    _renderer->target()->DrawRectangle( 
-        D2D1::RectF( tl.x, tl.y, br.x, br.y ), 
+        D2D1::RectF( 0, 0, 1.0, 1.0 ), 
         sweep, sweep.width()
     );
 
@@ -117,11 +107,8 @@ RenderSpec2& Viewport2::fill( const RGBA& rgba ) {
 }
 
 RenderSpec2& Viewport2::fill( const Sweep2& brush ) { 
-    auto tl = this->topl_c();
-    auto br = this->botr_c();
-
     _renderer->target()->FillRectangle(
-        D2D1_RECT_F{ tl.x, tl.y, br.x, br.y },
+        D2D1_RECT_F{ 0.0, 0.0, 1.0, 1.0 },
         brush
     );
 
@@ -133,12 +120,6 @@ RenderSpec2& Viewport2::line(
     const Sweep2& brush
 ) { 
     return _renderer->line( c1, c2, brush );
-
-    return this->line(
-        pull_normal_axis( c1 ),
-        pull_normal_axis( c2 ),
-        brush
-    );
 }
 
 RenderSpec2& Viewport2::line(
@@ -146,14 +127,6 @@ RenderSpec2& Viewport2::line(
     const Sweep2& brush
 ) {
     return _renderer->line( v1, v2, brush );
-
-    _super_spec->line(
-        pull_normal_axis( v1 * _size + _origin ),
-        pull_normal_axis( v2 * _size + _origin ),
-        brush
-    );
-
-    return *this;
 }
 
 

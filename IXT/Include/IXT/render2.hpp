@@ -616,12 +616,12 @@ public:
 
 
 
-using Sweep2gcn_t = std::pair< RGBA, float >;
+using sweep2_gc_node_t = std::pair< RGBA, float >;
 
-struct Sweep2gc : std::vector< D2D1_GRADIENT_STOP > {
-    Sweep2gc() = default;
+struct sweep2_gc_t : std::vector< D2D1_GRADIENT_STOP > {
+    sweep2_gc_t() = default;
 
-    Sweep2gc( std::initializer_list< Sweep2gcn_t > ls ) {
+    sweep2_gc_t( std::initializer_list< sweep2_gc_node_t > ls ) {
         this->reserve( ls.size() );
 
         for( auto& l : ls )
@@ -631,7 +631,7 @@ struct Sweep2gc : std::vector< D2D1_GRADIENT_STOP > {
             } );
     }
 
-    Sweep2gc& push( Sweep2gcn_t gs_pair ) {
+    sweep2_gc_t& push( sweep2_gc_node_t gs_pair ) {
         this->emplace_back( D2D1_GRADIENT_STOP{
             position: gs_pair.second,
             color: gs_pair.first
@@ -696,7 +696,7 @@ public:
     SldSweep2(
         Renderer2& renderer,
         RGBA       rgba     = {},
-        float      w        = 1.0,
+        float      w        = 0.01,
         Echo       echo     = {}
     )
     : Sweep2{ w }
@@ -772,8 +772,8 @@ public:
         HVEC< RenderSpec2 >   render_spec,
         Vec2                  launch,
         Vec2                  land,
-        const Sweep2gc&       chain,
-        float                 w        = 1.0,
+        const sweep2_gc_t&    chain,
+        float                 w        = 0.01,
         _ENGINE_COMMS_ECHO_ARG
     )
     : Sweep2{ w }, _render_spec{ std::move( render_spec ) }
@@ -791,15 +791,12 @@ public:
             return;
         }
 
-        auto tmx = render_spec2_tmx_t::Identity();
-        _render_spec->deep_dive( tmx );
-
         if(
             _render_spec->target()->CreateLinearGradientBrush(
                 D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES{
                     pull_normal_axis( launch ), pull_normal_axis( land )
                 },
-                D2D1_BRUSH_PROPERTIES{ w, tmx },
+                D2D1_BRUSH_PROPERTIES{ w, render_spec2_tmx_t::Identity() },
                 _grads,
                 &_sweep
             ) != S_OK
@@ -865,8 +862,8 @@ public:
         Vec2                  org,
         Vec2                  off,
         Vec2                  rad,
-        const Sweep2gc        chain,
-        float                 w              = 1.0,
+        const sweep2_gc_t     chain,
+        float                 w              = 0.01,
         _ENGINE_COMMS_ECHO_ARG
     )
     : Sweep2{ w }, _render_spec{ std::move( render_spec ) }

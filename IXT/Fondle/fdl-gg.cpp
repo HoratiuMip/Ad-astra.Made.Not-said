@@ -43,13 +43,22 @@ int main() {
 
 //# Lines from corners of surface to pointer vie renderer.
     scenes.emplace_back( [ & ] () -> void {
+        static LnrSweep2 sweep{
+            render, { -.5, .5 }, { .5, -.5 }, {
+                sweep2_gc_node_t{ { 255, 0, 0, 255 }, 0.0 },
+                sweep2_gc_node_t{ { 255, 255, 255, 255 }, 1.0 }
+            }, 0.05
+        };
+
         render.rs2_uplink().fill( RGBA{ 0 } );
 
+        Sweep2& crt_sweep = surface.down( SurfKey::LMB ) ? sweep : render[ RENDERER2_DFT_SWEEP_GREEN ];
+
         render
-        .line( Vec2{ -.5, .5 }, surface.ptr_v(), render[ RENDERER2_DFT_SWEEP_GREEN ] )
-        .line( Vec2{ .5, .5 }, surface.ptr_v(), render[ RENDERER2_DFT_SWEEP_GREEN ] )
-        .line( Vec2{ .5, -.5 }, surface.ptr_v(), render[ RENDERER2_DFT_SWEEP_GREEN ] )
-        .line( Vec2{ -.5, -.5 }, surface.ptr_v(), render[ RENDERER2_DFT_SWEEP_GREEN ] );
+        .line( Vec2{ -.5, .5 }, surface.ptr_v(), crt_sweep )
+        .line( Vec2{ .5, .5 }, surface.ptr_v(), crt_sweep )
+        .line( Vec2{ .5, -.5 }, surface.ptr_v(), crt_sweep )
+        .line( Vec2{ -.5, -.5 }, surface.ptr_v(), crt_sweep );
 
         render.rs2_downlink();
     } );
@@ -63,8 +72,8 @@ int main() {
         static ggfloat_t                 a_step          = 1.0 / arr_sz;
         static RdlSweep2                 sweep           = { 
             render, { .0, .0 }, { .0, .0 }, { .5, .5 }, {
-                Sweep2gcn_t{ { 80, 10, 255 }, .0 },
-                Sweep2gcn_t{ { 255, 10, 80 }, 1.0 }
+                sweep2_gc_node_t{ { 80, 10, 255 }, .0 },
+                sweep2_gc_node_t{ { 255, 10, 80 }, 1.0 }
             }, 3.0 
         };
 

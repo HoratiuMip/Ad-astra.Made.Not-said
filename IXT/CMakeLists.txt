@@ -287,3 +287,6 @@ endforeach()
 
 # Ruptures ----------------------------------
 add_subdirectory( "Ruptures" )
+
+# Prototypes -------------------------------
+add_subdirectory( "Prototypes" )

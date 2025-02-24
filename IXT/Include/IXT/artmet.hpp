@@ -5,6 +5,7 @@ Further to be specialized depending on T, and, perhaps, using AVX.
 
 #include <IXT/descriptor.hpp>
 #include <IXT/comms.hpp>
+#include <IXT/stl_helper.hpp>
 
 namespace _ENGINE_NAMESPACE { namespace art {
 
@@ -23,7 +24,7 @@ public:
     vector() = default;
 
     vector( DWORD len ) 
-    : dat_base_t{ len, T{} } 
+    : dat_base_t( len, T{} ) /* () instead of {}, don't want initializer list constructor */
     {}
 
     vector( const vector& other )
@@ -33,6 +34,12 @@ public:
     vector( vector&& other )
     : dat_base_t{ std::move( ( dat_base_t& )other ) }
     {}
+
+public:
+    DWORD len() const { return this->size(); }
+
+public:
+    T& inv_idx( DWORD c, DWORD r ) { return ( *this )[ r ][ c ]; }
 
 public: 
 #define _ARTMET_VECTOR_SC_OP_FUNC_T_SIG( op ) template< typename T_sc > requires requires{ std::declval< T >() op##= T_sc{}; }
@@ -122,6 +129,15 @@ public:
 
     matrix() = default;
 
+    matrix( DWORD rc, DWORD cc ) {
+        this->reserve( rc );
+        for( DWORD r = 0; r < rc; ++r ) this->emplace_back().assign( cc, T{} );
+    }
+
+public:
+    DWORD r_cnt() const { return this->size(); }
+    DWORD c_cnt() const { return ( *this )[ 0 ].size(); }
+
 public:
     vector< T > vec_mul_r ( const vector< T >& vec ) const {
         if( this->size() == 0 ) {
@@ -144,6 +160,53 @@ public:
     }
 
     inline vector< T > operator * ( const vector< T > vec ) const { return this->vec_mul_r( vec ); }
+
+public:
+    template< typename T_rhs >
+    matrix& mul( const matrix< T_rhs >& rhs ) {
+        // NULL check?
+
+        if( this->c_cnt() != rhs.r_cnt() ) {
+            comms( this, ECHO_LEVEL_ERROR ) << "Mismatching sizes for matrix multiplication.";
+            return *this;
+        }
+
+        matrix res( this->r_cnt(), rhs.c_cnt() );
+
+        for( DWORD r_res = 0; r_res < res.r_cnt(); ++r_res ) {
+            for( DWORD c_res = 0; c_res < res.c_cnt(); ++c_res ) {
+
+            }
+        }
+
+        return *this;
+    }
+
+public:
+    #define _ARTMET_MATRIX_EW_OP_FUNC_T_SIG( op ) template< typename T_rhs > //requires requires{ std::declval< T >() op##= T_rhs{}; }
+    #define _ARTMET_MATRIX_EW_FUNC_NO_OP( name, op ) \
+    _ARTMET_MATRIX_EW_OP_FUNC_T_SIG( op ) \
+    inline matrix& name( const matrix< T_rhs >& rhs ) { \
+        for( DWORD row = 0; row < this->size(); ++row ) { \
+            if( row >= rhs.size() ) break; \
+            for( DWORD col = 0; col < ( *this )[ row ].size(); ++col ) { \
+                if( col >= rhs[ row ].size() ) break; \
+                ( *this )[ row ][ col ] op##= rhs[ row ][ col ]; \
+            } \
+        } \
+        return *this; \
+    } \
+    _ARTMET_MATRIX_EW_OP_FUNC_T_SIG( op ) \
+    inline matrix ct_##name( const matrix< T_rhs >& rhs ) { \
+        return matrix{ *this }.name( rhs ); \
+    }
+    #define _ARTMET_MATRIX_EW_FUNC( name, op ) \
+    _ARTMET_MATRIX_EW_FUNC_NO_OP( name, op ) \
+    _ARTMET_MATRIX_EW_OP_FUNC_T_SIG( op ) inline matrix& operator op##= ( const matrix< T_rhs >& rhs ) { return this->name< T_rhs >( rhs ); } \
+    _ARTMET_MATRIX_EW_OP_FUNC_T_SIG( op ) inline matrix operator op ( const matrix< T_rhs >& rhs ) { return this->ct_##name< T_rhs >( rhs ); }
+
+    _ARTMET_MATRIX_EW_FUNC( ew_add, + )
+    _ARTMET_MATRIX_EW_FUNC( ew_sub, - )
 
 };
 

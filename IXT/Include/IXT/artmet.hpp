@@ -5,7 +5,6 @@ Further to be specialized depending on T, and, perhaps, using AVX.
 
 #include <IXT/descriptor.hpp>
 #include <IXT/comms.hpp>
-#include <IXT/stl_helper.hpp>
 
 namespace _ENGINE_NAMESPACE { namespace art {
 

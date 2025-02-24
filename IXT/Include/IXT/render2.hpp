@@ -6,6 +6,7 @@
 #include <IXT/comms.hpp>
 #include <IXT/surface.hpp>
 #include <IXT/hyper-vector.hpp>
+#include <IXT/utility-helper.hpp>
 
 #if defined( _ENGINE_GL_DIRECT_2D1 )
 
@@ -394,11 +395,7 @@ public:
     : RenderSpec2{ render_spec },
       _origin{ crd }, _size{ sz }, _size2{ sz / 2 }
     {
-        _tmx = render_spec2_tmx_t::Scale( _size.x, _size.y ) 
-               * 
-               render_spec2_tmx_t::Translation( _origin.x, _origin.y )
-               *
-               _super_spec->tmx();
+        this->_refresh_tmxs( echo );
 
         echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
@@ -421,6 +418,7 @@ _ENGINE_PROTECTED:
     Vec2                 _size     = {};
     Vec2                 _size2    = {};
     render_spec2_tmx_t   _tmx      = { render_spec2_tmx_t::Identity() };
+    render_spec2_tmx_t   _tmx_i    = { render_spec2_tmx_t::Identity() };
 
 public:
     virtual RenderSpec2& rs2_uplink() override {
@@ -448,6 +446,17 @@ public:
     Vec2 vec() const override { return pull_normal_axis( _origin ); }
     Vec2 size() const override { return _size; }
     render_spec2_tmx_t tmx() const override { return _tmx; }
+
+_ENGINE_PROTECTED:
+    void _refresh_tmxs( _ENGINE_COMMS_ECHO_RT_ARG ) {
+        _tmx = render_spec2_tmx_t::Scale( _size.x, _size.y ) 
+               * 
+               render_spec2_tmx_t::Translation( _origin.x, _origin.y )
+               *
+               _super_spec->tmx();
+
+        if( !( _tmx_i = _tmx ).Invert() ) echo( this, ECHO_LEVEL_WARNING ) << "TMX not invertible.";
+    }
 
 public:
     DWORD deep_dive( render_spec2_tmx_t& tmx ) const override {
@@ -488,27 +497,36 @@ public:
     }
 
 public:
+    bool cages( Crd2 crd ) {
+        D2D1_POINT_2F ext = D2D1_POINT_2F{ crd.x, crd.y } * _tmx_i;
+
+        return is_between( ext.x, 0.0, 1.0 ) && is_between( ext.y, 0.0, 1.0 );
+    }
+
+    bool cages( Vec2 vec ) {
+        return this->cages( pull_normal_axis( vec ) );
+    }
+
+public:
     Viewport2& srf_uplink() {
         this->event_sentry()
         .socket_plug< SURFACE_EVENT_POINTER >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, Vec2 prev_vec, auto& trace ) -> void {
-                //if( !this->cages( vec ) ) return;
+                if( !this->cages( vec ) ) return;
 
                 _pointer      = ( vec - _origin ) / _size;
                 _prev_pointer = ( prev_vec - _origin ) / _size;
 
-                this->invoke_sequence< SURFACE_EVENT_POINTER >( 
-                    trace, _pointer, _prev_pointer
-                );
+                this->invoke_sequence< SURFACE_EVENT_POINTER >( trace, vec, prev_vec );
             }
         )
         .socket_plug< SURFACE_EVENT_SCROLL >( 
             this->xtdx(), SURFACE_SOCKET_PLUG_AT_ENTRY, 
             [ this ] ( Vec2 vec, SURFSCROLL_DIRECTION dir, auto& trace ) -> void {
-                //if( !this->cages( vec ) ) return;
+                if( !this->cages( vec ) ) return;
 
-                this->invoke_sequence< SURFACE_EVENT_SCROLL >( trace, ( vec - _origin ) / _size, dir );
+                this->invoke_sequence< SURFACE_EVENT_SCROLL >( trace, vec, dir );
             }
         )
         .socket_plug< SURFACE_EVENT_KEY >( 

@@ -1,5 +1,6 @@
 /*
 */
+#include <IXT/descriptor.hpp>
 
 #if defined( _ENGINE_GL_OPEN_GL )
 

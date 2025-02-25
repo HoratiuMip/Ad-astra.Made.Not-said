@@ -41,7 +41,7 @@ static struct _INTERNAL {
         { "--astro-ref-vernal-equinox-ts",     0b111, 1, &MAIN::_parse_proc_astro_ref_vernal_equinox_ts },
         { "--astro-ref-first-january-ts",      0b111, 1, &MAIN::_parse_proc_astro_ref_first_january_ts },
 
-        { "--spec-mod-barracuda-controller",   0b111, 0, &MAIN::_parse_proc_spec_mod_barracuda_controller }
+        { "--spec-mod-barracuda-ctrl",         0b111, 0, &MAIN::_parse_proc_spec_mod_barracuda_controller }
     };
     const int optc = sizeof( opts ) / sizeof( OPT );
 

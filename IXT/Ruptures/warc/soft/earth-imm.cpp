@@ -31,7 +31,7 @@ struct _IMM : Descriptor {
     _IMM() 
     : _impl_set{ this },
     
-        surf{ "Warc Earth Imm", Crd2{}, Vec2{ Env::w<1.>(), Env::h<1.>() }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_SOLID },
+        surf{ "Warc Earth Imm", Crd2{}, Vec2{ Env::w(1), Env::h(1) }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_SOLID },
         rend{ surf },
         lens{ glm::vec3( .0, .0, 8.2 ), glm::vec3( .0, .0, .0 ), glm::vec3( .0, 1.0, .0 ) },
 

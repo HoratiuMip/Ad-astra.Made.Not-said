@@ -211,7 +211,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    GLuint        _glidx   = NULL;
+    GLuint        _glidx   = 0;
     std::string   _name    = {};
 
 public:
@@ -333,11 +333,11 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    GLuint            _glidx          = NULL;
+    GLuint            _glidx          = 0;
     std::string       _name           = {};
 
 public: 
-    GLuint            draw_mode       = NULL;
+    GLuint            draw_mode       = 0;
 
 public:
     operator GLuint () const {

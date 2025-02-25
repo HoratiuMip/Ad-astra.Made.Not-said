@@ -155,7 +155,7 @@ project(
     LANGUAGES C CXX 
 )
 
-add_compile_options( "-O3" "-march=native" "$<$<COMPILE_LANGUAGE:CXX>:-Wno-conversion-null>" )
+add_compile_options( "-O3" "-march=native" )
 
 
 # Intrinsics pre. ----------------------------------

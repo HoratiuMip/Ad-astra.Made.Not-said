@@ -12,7 +12,7 @@ namespace _ENGINE_NAMESPACE {
 
 #define  _ENGINE_COMMS_ECHO_ARG         Echo echo = {}
 #define  _ENGINE_COMMS_ECHO_NO_DFT_ARG  Echo echo
-#define  _ENGINE_COMMS_ECHO_RT_ARG      Echo echo = NULL
+#define  _ENGINE_COMMS_ECHO_RT_ARG      Echo echo = { nullptr }
 #define  IXT_COMMS_ECHO_ARG             _ENGINE_NAMESPACE::_ENGINE_COMMS_ECHO_ARG
 #define  IXT_COMMS_ECHO_NO_DFT_ARG      _ENGINE_NAMESPACE::_ENGINE_COMMS_ECHO_NO_DFT_ARG
 #define  IXT_COMMS_ECHO_RT_ARG          _ENGINE_NAMESPACE::_ENGINE_COMMS_ECHO_RT_ARG
@@ -66,7 +66,7 @@ public:
     : _dump{ other._dump }, _depth{ other._depth + 1 }
     {}
 
-    Echo( decltype( NULL ) )
+    Echo( [[maybe_unused]]decltype( nullptr ) )
     : Echo{ nullptr, 0 }
     {}
 

@@ -2,7 +2,7 @@
 
 #include <warc-spec-mod/common.hpp>
 #include <warc/earth-imm.hpp>
-#include <IXT/SpecMod/barracuda_controller.hpp>
+#include <IXT/SpecMod/barracuda-ctrl-driver.hpp>
 
 namespace warc { namespace spec_mod {
 
@@ -42,13 +42,14 @@ public:
         _imm_idxs.lens_f = imm->ctrl().push_sink( imm::EARTH_CTRL_PARAMS::_SINK{
             name: "BARRACUDA-Controller-lens-f",
             proc: ( WARC_IMM_CTRL_SINK_PROC{
-               
+                if( !_eligible.load( std::memory_order_relaxed ) ) return 0;
+
                 imm->lens_spin( { 
-                    abs( desc.rachel.x ) > 0.1 ? desc.rachel.x * elapsed : 0.0,
-                    abs( desc.rachel.y ) > 0.1 ? desc.rachel.y * elapsed : 0.0 
+                    abs( desc.samantha.x ) > 0.1 ? desc.samantha.x * elapsed : 0.0,
+                    abs( desc.samantha.y ) > 0.1 ? desc.samantha.y * elapsed : 0.0 
                 } );
 
-                imm->lens_zoom( abs( desc.samantha.y ) > 0.1 ? desc.samantha.y * 1.6 * elapsed : 0.0 );
+                imm->lens_zoom( abs( desc.rachel.y ) > 0.1 ? desc.rachel.y * 1.6 * elapsed : 0.0 );
 
                 return 0;
             } ),
@@ -62,11 +63,13 @@ public:
             while( this->DEVICE::_engaged.load( std::memory_order_relaxed ) ) {
                 int status = this->IXT::SpecMod::BarracudaController::read_state_descriptor( &desc );
 
-                if( status < sizeof( IXT::DWORD ) || status != this->desc._size ) {
+                if( status < sizeof( IXT::DWORD ) || status != this->desc._PROTO_SIZE ) {
+                    _eligible.store( false, std::memory_order_release );
                     WARC_ECHO_RT_THIS_WARNING << "Read fault( " << status << " ), retrying in " << read_error_timeout_s << "s.";
                     std::this_thread::sleep_for( std::chrono::seconds( read_error_timeout_s ) );
                     continue;
                 }
+                _eligible.store( true, std::memory_order_release );
 
                 auto trigger = [ imm ] ( const auto& sw, const imm::EARTH_CTRL_PARAMS::DRAIN& drain ) -> void {
                     if( sw.prs ) imm->ctrl().trigger( drain );
@@ -87,14 +90,15 @@ public:
     }
 
 _WARC_PROTECTED:
-    std::thread                                             _imm_control_th        = {};
+    std::thread                    _imm_control_th        = {};
+    std::atomic_bool               _eligible              = false;
     struct _IMM_IDXS {
         imm::EARTH_CTRL_PARAMS::SINK    lens_f;
     }                                                       _imm_idxs              = {};
 
 public:
-    int                                                     read_error_timeout_s   = 5;
-    IXT::SpecMod::barracuda_controller_state_descriptor_t   desc                   = {};
+    int                            read_error_timeout_s   = 5;
+    barracuda_ctrl::state_desc_t   desc                   = {};
 
 };
 

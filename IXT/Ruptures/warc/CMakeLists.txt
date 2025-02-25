@@ -34,8 +34,9 @@ endif()
 target_compile_definitions( ${WARC_LIB} PUBLIC ${_warc_lib_compile_definitions} )
 
 
-add_executable( ${PROJECT_NAME} "soft/main.cpp" )
+add_executable( ${PROJECT_NAME} "${WINTER_ARC_SOFT_DIR}/main.cpp" )
 target_link_libraries( ${PROJECT_NAME} PUBLIC ${WARC_LIB} )
+target_link_libraries( ${PROJECT_NAME} PUBLIC "IXT" )
 
 if( WARC_INET_TLS )
     target_link_libraries( ${PROJECT_NAME} PUBLIC $CACHE{IXT_OPEN_SSL_LIBS} )

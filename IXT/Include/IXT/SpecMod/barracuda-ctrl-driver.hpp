@@ -6,6 +6,8 @@ Special module linking the IXT engine with the BARRACUDA controller, via bluetoo
 #include <IXT/descriptor.hpp>
 #include <IXT/comms.hpp>
 
+#include <IXT/SpecMod/barracuda-ctrl.hpp>
+
 #include <Ws2bth.h>
 #include <BluetoothAPIs.h>
 
@@ -18,36 +20,6 @@ enum BARRACUDA_CONTROLLER_FLAG : DWORD {
 
     _BARRACUDA_CONTROLLER_FLAG_FORCE_DWORD = 0x7F'FF'FF'FF
 };
-
-struct barracuda_controller_state_descriptor_t {
-    struct _switch_t {
-        BYTE   dwn        = 0;
-        BYTE   prs        = 0;
-        BYTE   rls        = 0;
-        BYTE   reserved   = 0;
-    };
-    static_assert( sizeof( _switch_t ) == sizeof( DWORD ) );
-
-    struct _joystick_t {
-        _switch_t   sw   = {};
-        float       x    = 0.0;
-        float       y    = 0.0;
-    };
-    static_assert( sizeof( _joystick_t ) == sizeof( _switch_t ) + 2*sizeof( float ) );
-
-    barracuda_controller_state_descriptor_t() : _size{ sizeof( barracuda_controller_state_descriptor_t ) } {}
-
-    const DWORD   _size;
-    _switch_t     sw_b, sw_r, sw_y, sw_g;
-    _joystick_t   rachel, samantha;
-};
-static_assert( sizeof( barracuda_controller_state_descriptor_t ) == 
-    sizeof( DWORD ) // Structure size for compatibility.
-    +
-    4*sizeof( barracuda_controller_state_descriptor_t::_switch_t ) // 4 switches.
-    +
-    2*sizeof( barracuda_controller_state_descriptor_t::_joystick_t ) // 2 joysticks.
-);
 
 class BarracudaController : public Descriptor {
 public:
@@ -154,22 +126,47 @@ _ENGINE_PROTECTED:
 
 public:
     DWORD read( char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        count = recv( _bt_socket, buffer, count, 0 );
-        if( count <= 0 ) { echo( this, ECHO_LEVEL_ERROR ) << "RX fault( " << count << " | " << WSAGetLastError() << " )."; return count; }
+        DWORD crt_count = 0;
+        
+        do {
+            DWORD result = recv( _bt_socket, buffer + crt_count, count - crt_count, 0 );
+            if( result <= 0 ) { 
+                echo( this, ECHO_LEVEL_ERROR ) << "RX fault( " << result << " | " << WSAGetLastError() << " )."; 
+                return result; 
+            }
+            crt_count += result;
+        } while( crt_count < count );
 
+        if( crt_count != count ) { 
+            echo( this, ECHO_LEVEL_ERROR ) << "RX fault, too many bytes read."; 
+            return -1; 
+        }
         return count;
     }
 
     DWORD write( const char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        count = send( _bt_socket, buffer, count, 0 );
-        if( count <= 0 ) { echo( this, ECHO_LEVEL_ERROR ) << "TX fault( " << count << " |" << WSAGetLastError() << " )."; return count; }
+        DWORD crt_count = 0;
+
+        do {
+            DWORD result = send( _bt_socket, buffer + crt_count, count - crt_count, 0 );
+             if( result <= 0 ) { 
+                echo( this, ECHO_LEVEL_ERROR ) << "TX fault( " << result << " |" << WSAGetLastError() << " )."; 
+                return result; 
+            }
+            crt_count += result;
+        } while( crt_count < count );
+
+        if( crt_count != count ) { 
+            echo( this, ECHO_LEVEL_ERROR ) << "TX fault, too many bytes written."; 
+            return -1; 
+        }
 
         return count;
     }
 
 public:
-    DWORD read_state_descriptor( barracuda_controller_state_descriptor_t* desc, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        return this->read( ( char* )desc, sizeof( barracuda_controller_state_descriptor_t ), echo );
+    DWORD read_state_descriptor( barracuda_ctrl::state_desc_t* desc, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        return this->read( ( char* )desc, sizeof( barracuda_ctrl::state_desc_t ), echo );
     }
 
 };

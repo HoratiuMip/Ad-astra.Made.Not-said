@@ -1,6 +1,6 @@
 #include <IXT/init.hpp>
 #include <IXT/comms.hpp>
-#include <IXT/SpecMod/barracuda_controller.hpp>
+#include <IXT/SpecMod/barracuda-ctrl.hpp>
 
 using namespace IXT;
 

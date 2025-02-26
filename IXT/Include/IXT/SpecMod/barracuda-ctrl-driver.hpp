@@ -125,7 +125,7 @@ _ENGINE_PROTECTED:
     }
 
 public:
-    DWORD read( char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD _read( char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
         DWORD crt_count = 0;
         
         do {
@@ -144,7 +144,7 @@ public:
         return count;
     }
 
-    DWORD write( const char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD _write( const char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
         DWORD crt_count = 0;
 
         do {
@@ -165,7 +165,12 @@ public:
     }
 
 public:
-    DWORD read_state_descriptor( barracuda_ctrl::state_desc_t* desc, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD listen_for_desc( barracuda_ctrl::state_desc_t* desc, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        barracuda_ctrl::proto_head_t head;
+        this->_read( ( char* )&head, sizeof( head ) ); 
+
+        
+
         return this->read( ( char* )desc, sizeof( barracuda_ctrl::state_desc_t ), echo );
     }
 

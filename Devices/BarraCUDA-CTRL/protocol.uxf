@@ -1,18 +1,18 @@
-<diagram program="umletino" version="15.1"><zoom_level>14</zoom_level><element><id>UMLNote</id><coordinates><x>143</x><y>280</y><w>392</w><h>42</h></coordinates><panel_attributes>General transmission protocol
+<diagram program="umletino" version="15.1"><zoom_level>14</zoom_level><element><id>UMLNote</id><coordinates><x>87</x><y>168</y><w>392</w><h>42</h></coordinates><panel_attributes>General transmission protocol
 fontsize=18
-bg=white</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>241</x><y>392</y><w>168</w><h>56</h></coordinates><panel_attributes>PROTO_SIG
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>241</x><y>336</y><w>56</w><h>56</h></coordinates><panel_attributes>0
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>297</x><y>336</y><w>56</w><h>56</h></coordinates><panel_attributes>1
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>353</x><y>336</y><w>56</w><h>56</h></coordinates><panel_attributes>2
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>409</x><y>336</y><w>56</w><h>56</h></coordinates><panel_attributes>3
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>143</x><y>336</y><w>98</w><h>56</h></coordinates><panel_attributes>BYTE
+bg=white</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>185</x><y>280</y><w>168</w><h>56</h></coordinates><panel_attributes>PROTO_SIG
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>185</x><y>224</y><w>56</w><h>56</h></coordinates><panel_attributes>0
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>241</x><y>224</y><w>56</w><h>56</h></coordinates><panel_attributes>1
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>297</x><y>224</y><w>56</w><h>56</h></coordinates><panel_attributes>2
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>353</x><y>224</y><w>56</w><h>56</h></coordinates><panel_attributes>3
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>87</x><y>224</y><w>98</w><h>56</h></coordinates><panel_attributes>BYTE
 bg=white
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>465</x><y>336</y><w>56</w><h>56</h></coordinates><panel_attributes>4
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>465</x><y>392</y><w>224</w><h>56</h></coordinates><panel_attributes>PACKET SIZE
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>521</x><y>336</y><w>56</w><h>56</h></coordinates><panel_attributes>5
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>577</x><y>336</y><w>56</w><h>56</h></coordinates><panel_attributes>6
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>633</x><y>336</y><w>56</w><h>56</h></coordinates><panel_attributes>7
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>409</x><y>392</y><w>56</w><h>56</h></coordinates><panel_attributes>OP
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>689</x><y>336</y><w>252</w><h>56</h></coordinates><panel_attributes>{PACKET SIZE} bytes
-valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>689</x><y>392</y><w>252</w><h>56</h></coordinates><panel_attributes>...
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>409</x><y>224</y><w>56</w><h>56</h></coordinates><panel_attributes>4
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>409</x><y>280</y><w>224</w><h>56</h></coordinates><panel_attributes>PACKET SIZE
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>465</x><y>224</y><w>56</w><h>56</h></coordinates><panel_attributes>5
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>521</x><y>224</y><w>56</w><h>56</h></coordinates><panel_attributes>6
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>577</x><y>224</y><w>56</w><h>56</h></coordinates><panel_attributes>7
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>353</x><y>280</y><w>56</w><h>56</h></coordinates><panel_attributes>OP
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>633</x><y>224</y><w>252</w><h>56</h></coordinates><panel_attributes>{PACKET SIZE} bytes
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>633</x><y>280</y><w>252</w><h>56</h></coordinates><panel_attributes>...
 valign=center</panel_attributes><additional_attributes></additional_attributes></element></diagram>

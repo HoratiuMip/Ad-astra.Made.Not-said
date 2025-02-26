@@ -74,9 +74,9 @@ public:
                 auto trigger = [ imm ] ( const auto& sw, const imm::EARTH_CTRL_PARAMS::DRAIN& drain ) -> void {
                     if( sw.prs ) imm->ctrl().trigger( drain );
                 };
-                trigger( desc.sw_b, imm->ctrl().idxs.cin_r2r );
-                trigger( desc.sw_r, imm->ctrl().idxs.cnt_2t );
-                trigger( desc.sw_y, imm->ctrl().idxs.sat_high_2t );
+                trigger( desc.giselle, imm->ctrl().idxs.cin_r2r );
+                trigger( desc.karina, imm->ctrl().idxs.cnt_2t );
+                trigger( desc.ningning, imm->ctrl().idxs.sat_high_2t );
             }
         } );
     

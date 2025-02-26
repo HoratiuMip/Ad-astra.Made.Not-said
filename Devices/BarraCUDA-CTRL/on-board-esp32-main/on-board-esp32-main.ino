@@ -7,10 +7,10 @@
 typedef   const int8_t   GPIO_pin_t;
 struct {
   struct { GPIO_pin_t sw, x, y; } rachel{ sw: 34, x: 35, y: 32 }, samantha{ sw: 33, x: 26, y: 25 };
-  /*                              |lower left                     |upper right */
+  /* JOYSTICKS                    |lower left                     |upper right */
 
   GPIO_pin_t giselle = 5, karina = 22, ningning = 19, winter = 21;
-  /*         |blue        |red         |yellow        |green */
+  /* SWS     |blue        |red         |yellow        |green */
 
   void init() {
     pinMode( rachel.sw, INPUT_PULLUP ); pinMode( rachel.x, INPUT ); pinMode( rachel.y, INPUT );
@@ -26,11 +26,13 @@ struct {
 } GPIO;
 
 
-struct Super : barracuda_ctrl::state_desc_t {
+struct Super : barracuda_ctrl::proto_head_t, barracuda_ctrl::state_desc_t {
   BluetoothSerial   blue_device;
 
   void init() {
     blue_device.begin( barracuda_ctrl::DEVICE_NAME );
+    barracuda_ctrl::proto_head_t::_dw0.op = barracuda_ctrl::PROTO_OP_CODE_DESC;
+    barracuda_ctrl::proto_head_t::_dw1 = sizeof( barracuda_ctrl::state_desc_t ); 
   }
 
   void scan() {
@@ -71,6 +73,10 @@ struct Super : barracuda_ctrl::state_desc_t {
     _resolve_switch( winter,      GPIO.winter);
   }
 
+  void blue_tx_desc() {
+    blue_device.write( ( uint8_t* ) this, sizeof( *this ) );
+  }
+
   void print_to_serial() {
     char buffer[ 256 ];
 
@@ -85,10 +91,6 @@ struct Super : barracuda_ctrl::state_desc_t {
     );
 
     Serial.println( buffer );
-  }
-
-  void send_state_to_bluetooth() {
-    blue_device.write( ( uint8_t* ) this, sizeof( *this ) );
   }
 } super;
 
@@ -105,7 +107,7 @@ void setup() {
 void loop() {
     if ( super.blue_device.available() ) {
         super.scan();
-        super.send_state_to_bluetooth();
+        super.blue_tx_desc();
         super.print_to_serial();
 
         delay(20);

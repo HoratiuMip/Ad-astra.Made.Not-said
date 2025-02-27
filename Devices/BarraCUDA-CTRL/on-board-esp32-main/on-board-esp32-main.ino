@@ -1,4 +1,5 @@
 #define BARRACUDA_CTRL_BUILD_FOR_ON_BOARD
+#define BARRACUDA_CTRL_ARCHITECTURE_LITTLE
 #include "../../../IXT/Include/IXT/SpecMod/barracuda-ctrl.hpp"
 
 #include "BluetoothSerial.h"
@@ -32,7 +33,7 @@ struct Super : barracuda_ctrl::proto_head_t, barracuda_ctrl::state_desc_t {
   void init() {
     blue_device.begin( barracuda_ctrl::DEVICE_NAME );
     barracuda_ctrl::proto_head_t::_dw0.op = barracuda_ctrl::PROTO_OP_CODE_DESC;
-    barracuda_ctrl::proto_head_t::_dw1 = sizeof( barracuda_ctrl::state_desc_t ); 
+    barracuda_ctrl::proto_head_t::_dw1    = sizeof( barracuda_ctrl::state_desc_t ); 
   }
 
   void scan() {
@@ -74,7 +75,7 @@ struct Super : barracuda_ctrl::proto_head_t, barracuda_ctrl::state_desc_t {
   }
 
   void blue_tx_desc() {
-    blue_device.write( ( uint8_t* ) this, sizeof( *this ) );
+    blue_device.write( ( uint8_t* )this, sizeof( barracuda_ctrl::proto_head_t ) + barracuda_ctrl::proto_head_t::_dw1 );
   }
 
   void print_to_serial() {
@@ -100,7 +101,8 @@ void setup() {
     super.init();
 
     Serial.begin( 115200 );
-
+    Serial.println( super.sig );
+    Serial.println( barracuda_ctrl::PROTO_SIG );
     Serial.println( "Bluetooth started. Waiting for connection..." );
 }
 
@@ -108,7 +110,7 @@ void loop() {
     if ( super.blue_device.available() ) {
         super.scan();
         super.blue_tx_desc();
-        super.print_to_serial();
+        //super.print_to_serial();
 
         delay(20);
     }

@@ -6,6 +6,8 @@ Special module linking the IXT engine with the BARRACUDA controller, via bluetoo
 #include <IXT/descriptor.hpp>
 #include <IXT/comms.hpp>
 
+#define BARRACUDA_CTRL_BUILD_DRIVER
+#define BARRACUDA_CTRL_ARCHITECTURE_LITTLE
 #include <IXT/SpecMod/barracuda-ctrl.hpp>
 
 #include <Ws2bth.h>
@@ -43,8 +45,8 @@ public:
     }
 
 public:
-    DWORD data_link( const std::wstring& name, DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        if( DWORD rez = this->_query_system_load_bt_addr( name, flags, echo ); rez != 0 ) return rez;
+    DWORD data_link( DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        if( DWORD rez = this->_query_system_load_bt_addr( barracuda_ctrl::DEVICE_NAME_W, flags, echo ); rez != 0 ) return rez;
 
         if( DWORD rez = this->_connect_load_socket( flags, echo ); rez != 0 ) return rez;
 
@@ -124,12 +126,12 @@ _ENGINE_PROTECTED:
         return 0;
     }
 
-public:
+_ENGINE_PROTECTED:
     DWORD _read( char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
         DWORD crt_count = 0;
         
         do {
-            DWORD result = recv( _bt_socket, buffer + crt_count, count - crt_count, 0 );
+            DWORD result = recv( _bt_socket, buffer + crt_count, count - crt_count, MSG_WAITALL );
             if( result <= 0 ) { 
                 echo( this, ECHO_LEVEL_ERROR ) << "RX fault( " << result << " | " << WSAGetLastError() << " )."; 
                 return result; 
@@ -156,7 +158,7 @@ public:
             crt_count += result;
         } while( crt_count < count );
 
-        if( crt_count != count ) { 
+        if( crt_count < count ) { 
             echo( this, ECHO_LEVEL_ERROR ) << "TX fault, too many bytes written."; 
             return -1; 
         }
@@ -164,14 +166,40 @@ public:
         return count;
     }
 
+_ENGINE_PROTECTED:
+    DWORD _resolve_head( barracuda_ctrl::proto_head_t* head, int8_t* op, void* arg, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        if( ( head->sig & barracuda_ctrl::PROTO_SIG_MSK ) != barracuda_ctrl::PROTO_SIG ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "Incorrrect protocol signature, aborting resolve.";
+            return -1;
+        }
+
+        *op = head->_dw0.op;
+        switch( head->_dw0.op ) {
+            case barracuda_ctrl::PROTO_OP_CODE_DESC: {
+                return this->_read( ( char* )arg, head->size, echo ) > 0 ? 0 : -1;
+            }
+
+            default: {
+                *op = barracuda_ctrl::PROTO_OP_CODE_NULL;
+                echo( this, ECHO_LEVEL_ERROR ) << "Unknown operation code ( " << ( int )head->_dw0.op << " ).";
+                return -1;
+            }
+        }
+
+        return 0;
+    }
+
 public:
     DWORD listen_for_desc( barracuda_ctrl::state_desc_t* desc, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    l_listen_begin: {
         barracuda_ctrl::proto_head_t head;
         this->_read( ( char* )&head, sizeof( head ) ); 
-
         
-
-        return this->read( ( char* )desc, sizeof( barracuda_ctrl::state_desc_t ), echo );
+        int8_t op = barracuda_ctrl::PROTO_OP_CODE_NULL;
+        if( DWORD result = this->_resolve_head( &head, &op, ( void* )desc, echo ); result != 0 ) return result;
+        if( op != barracuda_ctrl::PROTO_OP_CODE_DESC ) goto l_listen_begin;
+    }
+        return 0;
     }
 
 };

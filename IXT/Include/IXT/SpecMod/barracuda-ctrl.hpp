@@ -1,12 +1,26 @@
 #pragma once
 /*
-Define BARRACUDA_CTRL_BUILD_FOR_ON_BOARD when building for the controller.
+BARRACUDA_CTRL_BUILD_FOR_ON_BOARD
+BARRACUDA_CTRL_BUILD_FOR_DRIVER
+
+BARRACUDA_CTRL_ARCHITECTURE_LITTLE
+BARRACUDA_CTRL_ARCHITECTURE_BIG
 */
 
 namespace barracuda_ctrl {
 
-const char* const DEVICE_NAME = "BarraCUDA";
-const int32_t PROTO_SIG = 0x42'41'52'00;
+const char* const DEVICE_NAME = "BarraCUDA-CTRL";
+const wchar_t* const DEVICE_NAME_W = L"BarraCUDA-CTRL";
+#if defined( BARRACUDA_CTRL_ARCHITECTURE_BIG ) 
+    const int32_t PROTO_SIG     = 0x42'41'52'00; 
+    const int32_t PROTO_SIG_MSK = 0xff'ff'ff'00;
+#elif defined( BARRACUDA_CTRL_ARCHITECTURE_LITTLE )
+    const int32_t PROTO_SIG     = 0x00'52'41'42;
+    const int32_t PROTO_SIG_MSK = 0x00'ff'ff'ff;
+#else
+    #error "BarraCUDA-CTRL: Endianess of target architecture not specified."
+#endif
+
 enum PROTO_OP_CODE : int8_t {
     PROTO_OP_CODE_NULL = 0,
     PROTO_OP_CODE_PING = 1,
@@ -18,13 +32,13 @@ enum PROTO_OP_CODE : int8_t {
 };
 
 struct proto_head_t {
-    proto_head_t() : _dw0{ 0 }, _dw1{ 0 } {}
+    proto_head_t() : _dw0{ _b0: 0x42, _b1: 0x41, _b2: 0x52, op: 0x00 }, _dw1{ 0x0 } {}
     union {
-        const int32_t sig = PROTO_SIG;
-        struct{ const int8_t _b0, _b1, _b2; int8_t op; } _dw0;
+        int32_t sig;
+        struct{ int8_t _b0, _b1, _b2; int8_t op; } _dw0;
     };
     union {
-        int32_t   size = 0;
+        int32_t   size;
         int32_t   _dw1;
     };
 };
@@ -57,5 +71,6 @@ static_assert( sizeof( state_desc_t ) ==
     +
     2*sizeof( joystick_t )
 );
+
 
 };

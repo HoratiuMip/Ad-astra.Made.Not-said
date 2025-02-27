@@ -20,10 +20,10 @@ public:
     virtual int set( warc::MAIN& main, IXT_COMMS_ECHO_RT_ARG ) override {
         int status = 0;
 
-        status = this->IXT::SpecMod::BarracudaController::data_link( L"BARRACUDA", 0 );
+        status = this->IXT::SpecMod::BarracudaController::data_link( 0 );
         WARC_ASSERT_RT_THIS( status == 0, "Could not connect to the BARRACUDA controller.", status, status );
 
-        status = this->IXT::SpecMod::BarracudaController::write( "X", 2 );
+        status = this->IXT::SpecMod::BarracudaController::_write( "X", 2 );
         WARC_ASSERT_RT_THIS( std::exchange( status, 0 ) >= 0, "Could not TX initial byte string.", status, status );
 
         this->set_soft_params( &main.imm_earth() );
@@ -61,11 +61,11 @@ public:
 
         _imm_control_th = std::thread( [ imm, this ] () -> void { 
             while( this->DEVICE::_engaged.load( std::memory_order_relaxed ) ) {
-                int status = this->IXT::SpecMod::BarracudaController::read_state_descriptor( &desc );
+                int status = this->IXT::SpecMod::BarracudaController::listen_for_desc( &desc );
 
-                if( status < sizeof( IXT::DWORD ) || status != this->desc._PROTO_SIZE ) {
+                if( status != 0 ) {
                     _eligible.store( false, std::memory_order_release );
-                    WARC_ECHO_RT_THIS_WARNING << "Read fault( " << status << " ), retrying in " << read_error_timeout_s << "s.";
+                    WARC_ECHO_RT_THIS_WARNING << "Read fault ( " << status << " ), retrying in " << read_error_timeout_s << "s.";
                     std::this_thread::sleep_for( std::chrono::seconds( read_error_timeout_s ) );
                     continue;
                 }

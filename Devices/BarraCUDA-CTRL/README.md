@@ -1,7 +1,7 @@
 # `Barra`CUDA-CTRL
 The "How does it hold together?" makeshift game controller, an elegant mess. Dedicated to his impossible love, by its founder, the hopeless romantic, https://github.com/nyjucu.
 
-> *photo of controller*
+> ![barracuda-artistic](https://github.com/user-attachments/assets/83e3d7ba-a70b-49f7-8e5f-e265cb55fb17)
 
 ## Manual-quick
 > Power the controller by connecting the micro-USB port to a power supply, such as a computer, battery, or charger socket adapter.
@@ -12,7 +12,7 @@ The "How does it hold together?" makeshift game controller, an elegant mess. Ded
 
 ## Manual-depth
 In-depth manual of the whole controller system, covering both hardware and software components. <br>
-> Sketches made using the tool `UMLet`, hyperlink https://www.umlet.com. 
+> Sketches made using the tool `UMLet`, https://www.umlet.com. 
 
 ### Layout
 Legend
@@ -22,7 +22,7 @@ Legend
 > | `Solid line` | I/O pins connections. The line colors are the same as the wires on the controller. |
 > | `Circle` | Connection between wire and suplpy line. |
 
-> ![barracuda-layout-1](https://github.com/user-attachments/assets/bacfee16-e908-4cef-9680-623c8c9ab9d7)
+> ![barracuda-layout](https://github.com/user-attachments/assets/a0599117-44bb-4354-83ae-6f1b1343a7e7)
 
 > The supply lines are modelled for logical connection presentation only, to keep the sketch clean. On the physical controller, the supply lines are wired differently.
 

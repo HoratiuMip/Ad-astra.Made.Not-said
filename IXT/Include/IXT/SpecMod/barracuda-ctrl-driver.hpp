@@ -190,13 +190,13 @@ _ENGINE_PROTECTED:
     }
 
 public:
-    DWORD listen_for_desc( barracuda_ctrl::state_desc_t* desc, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD listen_dynamic_state( barracuda_ctrl::dynamic_state_t* dy_st, _ENGINE_COMMS_ECHO_RT_ARG ) {
     l_listen_begin: {
         barracuda_ctrl::proto_head_t head;
         this->_read( ( char* )&head, sizeof( head ) ); 
         
         int8_t op = barracuda_ctrl::PROTO_OP_CODE_NULL;
-        if( DWORD result = this->_resolve_head( &head, &op, ( void* )desc, echo ); result != 0 ) return result;
+        if( DWORD result = this->_resolve_head( &head, &op, ( void* )dy_st, echo ); result != 0 ) return result;
         if( op != barracuda_ctrl::PROTO_OP_CODE_DESC ) goto l_listen_begin;
     }
         return 0;

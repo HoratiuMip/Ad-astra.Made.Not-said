@@ -60,13 +60,13 @@ struct joystick_t {
 };
 static_assert( sizeof( joystick_t ) == sizeof( switch_t ) + 2*sizeof( float ) + sizeof( int32_t ) );
 
-struct state_desc_t {
+struct dynamic_state_t {
     joystick_t      rachel,       samantha;
     /*              |lower left   |upper right */
     switch_t        giselle, karina, ningning, winter;
     /*              |blue    |red    |yellow   |green */
 };
-static_assert( sizeof( state_desc_t ) == 
+static_assert( sizeof( dynamic_state_t ) == 
     4*sizeof( switch_t )
     +
     2*sizeof( joystick_t )

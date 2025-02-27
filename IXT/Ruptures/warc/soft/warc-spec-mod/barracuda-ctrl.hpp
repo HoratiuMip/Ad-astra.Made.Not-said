@@ -45,11 +45,11 @@ public:
                 if( !_eligible.load( std::memory_order_relaxed ) ) return 0;
 
                 imm->lens_spin( { 
-                    abs( desc.samantha.x ) > 0.1 ? desc.samantha.x * elapsed : 0.0,
-                    abs( desc.samantha.y ) > 0.1 ? desc.samantha.y * elapsed : 0.0 
+                    abs( dy_st.samantha.x ) > 0.1 ? dy_st.samantha.x * elapsed : 0.0,
+                    abs( dy_st.samantha.y ) > 0.1 ? dy_st.samantha.y * elapsed : 0.0 
                 } );
 
-                imm->lens_zoom( abs( desc.rachel.y ) > 0.1 ? desc.rachel.y * 1.6 * elapsed : 0.0 );
+                imm->lens_zoom( abs( dy_st.rachel.y ) > 0.1 ? dy_st.rachel.y * 1.6 * elapsed : 0.0 );
 
                 return 0;
             } ),
@@ -61,7 +61,7 @@ public:
 
         _imm_control_th = std::thread( [ imm, this ] () -> void { 
             while( this->DEVICE::_engaged.load( std::memory_order_relaxed ) ) {
-                int status = this->IXT::SpecMod::BarracudaController::listen_for_desc( &desc );
+                int status = this->IXT::SpecMod::BarracudaController::listen_dynamic_state( &dy_st );
 
                 if( status != 0 ) {
                     _eligible.store( false, std::memory_order_release );
@@ -74,9 +74,9 @@ public:
                 auto trigger = [ imm ] ( const auto& sw, const imm::EARTH_CTRL_PARAMS::DRAIN& drain ) -> void {
                     if( sw.prs ) imm->ctrl().trigger( drain );
                 };
-                trigger( desc.giselle, imm->ctrl().idxs.cin_r2r );
-                trigger( desc.karina, imm->ctrl().idxs.cnt_2t );
-                trigger( desc.ningning, imm->ctrl().idxs.sat_high_2t );
+                trigger( dy_st.giselle, imm->ctrl().idxs.cin_r2r );
+                trigger( dy_st.karina, imm->ctrl().idxs.cnt_2t );
+                trigger( dy_st.ningning, imm->ctrl().idxs.sat_high_2t );
             }
         } );
     
@@ -90,15 +90,15 @@ public:
     }
 
 _WARC_PROTECTED:
-    std::thread                    _imm_control_th        = {};
-    std::atomic_bool               _eligible              = false;
+    std::thread                    _imm_control_th           = {};
+    std::atomic_bool               _eligible                 = false;
     struct _IMM_IDXS {
         imm::EARTH_CTRL_PARAMS::SINK    lens_f;
     }                                                       _imm_idxs              = {};
 
 public:
-    int                            read_error_timeout_s   = 5;
-    barracuda_ctrl::state_desc_t   desc                   = {};
+    int                               read_error_timeout_s   = 5;
+    barracuda_ctrl::dynamic_state_t   dy_st                  = {};
 
 };
 

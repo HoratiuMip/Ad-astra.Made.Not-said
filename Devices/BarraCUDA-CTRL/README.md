@@ -22,7 +22,7 @@ Legend
 > | `Solid line` | I/O pins connections. The line colors are the same as the wires on the controller. |
 > | `Circle` | Connection between wire and suplpy line. |
 
-> ![barracuda-layout](https://github.com/user-attachments/assets/a0599117-44bb-4354-83ae-6f1b1343a7e7)
+> ![barracuda-layout](https://github.com/user-attachments/assets/204c6742-14a8-43ac-bdce-a970585e460a)
 
 > The supply lines are modelled for logical connection presentation only, to keep the sketch clean. On the physical controller, the supply lines are wired differently.
 

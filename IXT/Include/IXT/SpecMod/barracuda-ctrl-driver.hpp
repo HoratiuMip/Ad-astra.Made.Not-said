@@ -23,7 +23,7 @@ enum BARRACUDA_CONTROLLER_FLAG : DWORD {
     _BARRACUDA_CONTROLLER_FLAG_FORCE_DWORD = 0x7F'FF'FF'FF
 };
 
-class BarracudaController : public Descriptor {
+class BarracudaController : public Descriptor, public barracuda_ctrl::out_cache_t< 128 > {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "SpecMod::BarracudaController" );
 
@@ -49,6 +49,8 @@ public:
         if( DWORD rez = this->_query_system_load_bt_addr( barracuda_ctrl::DEVICE_NAME_W, flags, echo ); rez != 0 ) return rez;
 
         if( DWORD rez = this->_connect_load_socket( flags, echo ); rez != 0 ) return rez;
+
+        if( DWORD rez = this->ping( echo ); rez != 0 ) return rez;
 
         return 0;
     }
@@ -167,6 +169,16 @@ _ENGINE_PROTECTED:
     }
 
 _ENGINE_PROTECTED:
+    int _out_cache_write( int sz ) override {
+        return this->_write( ( char* )_out_cache, sz );
+    }
+
+    barracuda_ctrl::proto_head_t _listen_head( void ) {
+        barracuda_ctrl::proto_head_t head;
+        this->_read( ( char* )&head, sizeof( head ) ); 
+        return head;
+    }
+
     DWORD _resolve_head( barracuda_ctrl::proto_head_t* head, int8_t* op, void* arg, _ENGINE_COMMS_ECHO_RT_ARG ) {
         if( ( head->sig & barracuda_ctrl::PROTO_SIG_MSK ) != barracuda_ctrl::PROTO_SIG ) {
             echo( this, ECHO_LEVEL_ERROR ) << "Incorrrect protocol signature, aborting resolve.";
@@ -176,7 +188,7 @@ _ENGINE_PROTECTED:
         *op = head->_dw0.op;
         switch( head->_dw0.op ) {
             case barracuda_ctrl::PROTO_OP_DYNAMIC: {
-                return this->_read( ( char* )arg, head->size, echo ) > 0 ? 0 : -1;
+                return this->_read( ( char* )arg, head->_dw2.sz, echo ) > 0 ? 0 : -1;
             }
 
             default: {
@@ -190,10 +202,26 @@ _ENGINE_PROTECTED:
     }
 
 public:
+    DWORD ping( _ENGINE_COMMS_ECHO_RT_ARG ) {
+        _out_cache_head->acquire_seq();
+        _out_cache_head->_dw0.op = barracuda_ctrl::PROTO_OP_PING;
+        _out_cache_head->_dw2.sz = 0;
+
+        echo( this, ECHO_LEVEL_PENDING ) << "Pinging...";
+        this->_out_cache_write( 0 );
+
+        auto head = this->_listen_head();
+        
+        if( !head.is_signed() ) { echo( this, ECHO_LEVEL_ERROR ) << "Ping acknowledgement bad signature."; return -1; }
+        if( head._seq_cnt != _out_cache_head->_dw1.seq ) { echo( this, ECHO_LEVEL_ERROR ) << "Ping acknowledgement bad sequence."; return -1; }
+
+        echo( this, ECHO_LEVEL_OK ) << "Received ping acknowledgement.";
+        return 0;
+    }
+
     DWORD listen_dynamic_state( barracuda_ctrl::dynamic_state_t* dy_st, _ENGINE_COMMS_ECHO_RT_ARG ) {
     l_listen_begin: {
-        barracuda_ctrl::proto_head_t head;
-        this->_read( ( char* )&head, sizeof( head ) ); 
+        auto head = this->_listen_head();
         
         int8_t op = barracuda_ctrl::PROTO_OP_NULL;
         if( DWORD result = this->_resolve_head( &head, &op, ( void* )dy_st, echo ); result != 0 ) return result;

@@ -72,14 +72,14 @@ T analog_read_mean( GPIO_pin_t pin, int reads, int dt_ms ) {
 
 
 struct {
-  BluetoothSerial   blue_serial;
+  BluetoothSerial   blue;
 
   const int32_t     mpu_addr   = 0x68;
   MPU6050_WE        mpu        = MPU6050_WE( mpu_addr );
 
   int init() {
     SERIAL_LOG() << "Bluetooth serial begin... ";
-    blue_serial.begin( barracuda_ctrl::DEVICE_NAME );
+    blue.begin( barracuda_ctrl::DEVICE_NAME );
     SERIAL_LOG << "ok.\n";
 
     SERIAL_LOG() << "I^2C wire begin... ";
@@ -101,10 +101,51 @@ struct {
 } COM;
 
 
+struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
+  int init( void ) {
+    return 0;
+  }
+
+  int _out_cache_write( int sz ) override {
+    COM.blue.write( _out_cache, sizeof( *_out_cache_head ) + sz );
+
+    return 0;
+  }
+
+  int resolve_inbound_head( void ) {
+    if( COM.blue.peek() < 0 ) return 0;
+
+    barracuda_ctrl::proto_head_t in_head;
+    int idx = 0;
+
+    do {
+      ( ( uint8_t* )&in_head )[ idx ] = ( uint8_t )COM.blue.read();
+    } while( ++idx < sizeof( in_head ) );
+
+    if( ( in_head.sig & barracuda_ctrl::PROTO_SIG_MSK ) != barracuda_ctrl::PROTO_SIG ) {
+      SERIAL_LOG( LOG_ERROR ) << "Incoming byte stream is out of alignment.\n";
+      return -1;
+    }
+
+    switch( in_head._dw0.op ) {
+      case barracuda_ctrl::PROTO_OP_PING: {
+        _out_cache_head->_dw0.op = barracuda_ctrl::PROTO_OP_ACK;
+        _out_cache_head->_dw1.seq = in_head._dw1.seq;
+        _out_cache_head->_dw2.sz = 0;
+        this->_out_cache_write( 0 );
+      break; }
+    }
+
+    return 0;
+  }
+
+} PROTO;
+
+
 typedef   int8_t   LED_RGB;
 struct LED {
   inline static constexpr LED_RGB rgbs[ 8 ] = { 0b000, 0b100, 0b110, 0b010, 0b011, 0b001, 0b101, 0b111 };
-  enum IDX { BLACK, RED, YELLOW, GREEN, TURQUOISE, BLUE, PURPLE, WHITE };
+  enum IDX { BLK, RED, YLW, GRN, TRQ, BLU, PRP, WHT };
 
   LED_RGB crt;
 
@@ -121,7 +162,7 @@ struct LED {
 
   int blink( LED_RGB rgb, bool keep_state, int N, int ms_on, int ms_off ) {
     for( int n = 1; n <= N; ++n ) {
-      this->set( rgb ); delay( ms_on ); this->set( BLACK ); delay( ms_off );
+      this->set( rgb ); delay( ms_on ); this->set( BLK ); delay( ms_off );
     }
     if( keep_state ) this->set( rgb );
     return 0;
@@ -142,15 +183,15 @@ struct LED {
 } BITNA;
 
 
-struct Dynamic : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t {
+struct _DYNAMIC : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t {
   struct {
     struct { float x, y; } rachel, samantha;
   } _idle_reads;
 
-  int init() {
+  int init( void ) {
     SERIAL_LOG() << "Proto head init... ";
     barracuda_ctrl::proto_head_t::_dw0.op = barracuda_ctrl::PROTO_OP_DYNAMIC;
-    barracuda_ctrl::proto_head_t::_dw1    = sizeof( barracuda_ctrl::dynamic_state_t ); 
+    barracuda_ctrl::proto_head_t::_dw2.sz = sizeof( barracuda_ctrl::dynamic_state_t ); 
     SERIAL_LOG << "ok.\n";
 
     SERIAL_LOG() << "Joysticks calibrate... ";
@@ -167,7 +208,7 @@ struct Dynamic : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t {
     return 0;
   }
 
-  void scan() {
+  void scan( void ) {
     rachel.x = analogRead( GPIO.rachel.x ); rachel.y = analogRead( GPIO.rachel.y );
     samantha.x = analogRead( GPIO.samantha.x ); samantha.y = analogRead( GPIO.samantha.y );
 
@@ -205,11 +246,12 @@ struct Dynamic : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t {
     _resolve_switch( winter,      GPIO.winter);
   }
 
-  void blue_tx_dynamic_state() {
-    COM.blue_serial.write( ( uint8_t* )this, sizeof( barracuda_ctrl::proto_head_t ) + barracuda_ctrl::proto_head_t::_dw1 );
+  void blue_tx_dynamic_state( void ) {
+    this->acquire_seq();
+    COM.blue.write( ( uint8_t* )this, sizeof( barracuda_ctrl::proto_head_t ) + barracuda_ctrl::proto_head_t::_dw2.sz );
   }
 
-  void serial_tx_dynamic_state() {
+  void serial_tx_dynamic_state( void ) {
     char buffer[ 256 ];
 
     sprintf( buffer, 
@@ -228,7 +270,7 @@ struct Dynamic : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t {
 
 
 #define SETUP_CRITICAL_ASSERT( c ) if( !c ) { SERIAL_LOG( LOG_CRITICAL ) << "CRITICAL ASSERT ( #c ) FAILED. ENTERING UNRECOVARABLE STATE.\n"; goto l_unrecovarable_fault; }
-void setup() {
+void setup( void ) {
 {
   Serial.begin( 115200 );
 
@@ -241,17 +283,17 @@ void setup() {
   SETUP_CRITICAL_ASSERT( DYNAMIC.init() == 0 );
 
   SERIAL_LOG( LOG_OK ) << "Setup complete.\n";
-  BITNA.blink( LED::GREEN, true, 16, 25, 50 );
+  BITNA.blink( LED::GRN, true, 16, 25, 50 );
 
-  BITNA.blink( LED::TURQUOISE, true, 12, 160, 160 );
+  BITNA.blink( LED::TRQ, true, 12, 160, 160 );
   DYNAMIC.scan();
   if( DYNAMIC.giselle.dwn ) {
-    BITNA.blink( LED::TURQUOISE, true, 16, 50, 50 );
+    BITNA.blink( LED::TRQ, true, 16, 50, 50 );
     BITNA.test_rgb( 2000 );
-    BITNA.blink( LED::TURQUOISE, true, 16, 50, 50 );
+    BITNA.blink( LED::TRQ, true, 16, 50, 50 );
   }
 
-  BITNA( LED::BLUE );
+  BITNA( LED::BLU );
 } return;
 
 l_unrecovarable_fault: {
@@ -259,8 +301,8 @@ l_unrecovarable_fault: {
 } return;
 }
 
-void loop() {
-    if ( COM.blue_serial.available() ) {
+void loop( void ) {
+    if ( COM.blue.connected() ) {
         DYNAMIC.scan();
         DYNAMIC.blue_tx_dynamic_state();
         //DYNAMIC.print_to_serial();

@@ -37,17 +37,22 @@ enum PROTO_OP : int8_t {
 };
 
 struct proto_head_t {
-    proto_head_t() : _dw0{ _b0: 0x42, _b1: 0x41, _b2: 0x52, op: 0x00 }, _dw1{ 0x0 } {}
+    inline static int32_t   _seq_cnt   = 0;
+
+    proto_head_t() { _dw0._sig_b0 = 0x42; _dw0._sig_b1 = 0x41, _dw0._sig_b2 = 0x52; _dw0.op = 0; }
+
     union {
-        int32_t sig;
-        struct{ int8_t _b0, _b1, _b2; int8_t op; } _dw0;
+        struct{ int8_t _sig_b0, _sig_b1, _sig_b2; int8_t op; } _dw0;
+        int32_t                                                sig;
     };
-    union {
-        int32_t   size;
-        int32_t   _dw1;
-    };
+    struct{ int32_t seq = 0; }                                 _dw1;
+    struct { int16_t sz; int16_t _reserved; }                  _dw2;
+
+    int32_t acquire_seq( void ) { return _dw1.seq = _seq_cnt++; }
+
+    bool is_signed( void ) { return ( sig & PROTO_SIG_MSK ) == PROTO_SIG; }
 };
-static_assert( sizeof( proto_head_t ) == 2*sizeof( int32_t ) );
+static_assert( sizeof( proto_head_t ) == 3*sizeof( int32_t ) );
 
 struct switch_t {
     int8_t   dwn         = 0;
@@ -76,6 +81,18 @@ static_assert( sizeof( dynamic_state_t ) ==
     +
     2*sizeof( joystick_t )
 );
+
+
+template< int SZ >
+struct out_cache_t {
+    uint8_t               _out_cache[ SZ ];
+    proto_head_t* const   _out_cache_head    = ( proto_head_t* )_out_cache;
+    uint8_t* const        _out_cache_data    = _out_cache + sizeof( *_out_cache_head );
+    
+    out_cache_t() { *_out_cache_head = proto_head_t{}; }
+
+    virtual int _out_cache_write( int sz ) = 0;
+};
 
 
 };

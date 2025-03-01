@@ -175,12 +175,12 @@ _ENGINE_PROTECTED:
 
         *op = head->_dw0.op;
         switch( head->_dw0.op ) {
-            case barracuda_ctrl::PROTO_OP_CODE_DESC: {
+            case barracuda_ctrl::PROTO_OP_DYNAMIC: {
                 return this->_read( ( char* )arg, head->size, echo ) > 0 ? 0 : -1;
             }
 
             default: {
-                *op = barracuda_ctrl::PROTO_OP_CODE_NULL;
+                *op = barracuda_ctrl::PROTO_OP_NULL;
                 echo( this, ECHO_LEVEL_ERROR ) << "Unknown operation code ( " << ( int )head->_dw0.op << " ).";
                 return -1;
             }
@@ -195,9 +195,9 @@ public:
         barracuda_ctrl::proto_head_t head;
         this->_read( ( char* )&head, sizeof( head ) ); 
         
-        int8_t op = barracuda_ctrl::PROTO_OP_CODE_NULL;
+        int8_t op = barracuda_ctrl::PROTO_OP_NULL;
         if( DWORD result = this->_resolve_head( &head, &op, ( void* )dy_st, echo ); result != 0 ) return result;
-        if( op != barracuda_ctrl::PROTO_OP_CODE_DESC ) goto l_listen_begin;
+        if( op != barracuda_ctrl::PROTO_OP_DYNAMIC ) goto l_listen_begin;
     }
         return 0;
     }

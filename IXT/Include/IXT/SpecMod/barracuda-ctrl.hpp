@@ -21,14 +21,19 @@ const wchar_t* const DEVICE_NAME_W = L"BarraCUDA-CTRL";
     #error "BarraCUDA-CTRL: Endianess of target architecture not specified."
 #endif
 
-enum PROTO_OP_CODE : int8_t {
-    PROTO_OP_CODE_NULL = 0,
-    PROTO_OP_CODE_PING = 1,
-    PROTO_OP_CODE_SET  = 2,
-    PROTO_OP_CODE_GET  = 3,
-    PROTO_OP_CODE_DESC = 4,
+enum PROTO_OP : int8_t {
+    PROTO_OP_NULL    = 0,
 
-    _PROTO_OP_CODE_FORCE_BYTE = 0x7f
+    PROTO_OP_ACK     = 1,
+    PROTO_OP_NAK     = 2,
+
+    PROTO_OP_PING    = 11,
+    PROTO_OP_SET     = 12,
+    PROTO_OP_GET     = 13,
+
+    PROTO_OP_DYNAMIC = 101,
+
+    _PROTO_OP_FORCE_BYTE = 0x7f
 };
 
 struct proto_head_t {

@@ -23,7 +23,7 @@ public:
         status = this->IXT::SpecMod::BarracudaController::data_link( 0 );
         WARC_ASSERT_RT_THIS( status == 0, "Could not connect to the BARRACUDA controller.", status, status );
 
-        status = this->IXT::SpecMod::BarracudaController::_write( "X", 2 );
+        status = this->IXT::SpecMod::BarracudaController::_write( "ABCDEF", 2 );
         WARC_ASSERT_RT_THIS( std::exchange( status, 0 ) >= 0, "Could not TX initial byte string.", status, status );
 
         this->set_soft_params( &main.imm_earth() );

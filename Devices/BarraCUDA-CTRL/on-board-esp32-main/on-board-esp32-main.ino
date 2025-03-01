@@ -113,11 +113,11 @@ struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
   }
 
   int resolve_inbound_head( void ) {
-    if( COM.blue.peek() < 0 ) return 0;
+    if( !COM.blue.available() ) return 0;
 
     barracuda_ctrl::proto_head_t in_head;
     int idx = 0;
-
+   
     do {
       ( ( uint8_t* )&in_head )[ idx ] = ( uint8_t )COM.blue.read();
     } while( ++idx < sizeof( in_head ) );
@@ -133,7 +133,7 @@ struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
         _out_cache_head->_dw1.seq = in_head._dw1.seq;
         _out_cache_head->_dw2.sz  = 0;
 
-        SERIAL_LOG() << "Responding to ping on sequence ( " << in_head._dw1.seq << " )... ";
+        SERIAL_LOG() << "Responding to ping on sequence ( " << _out_cache_head->_dw1.seq << " )... ";
         this->_out_cache_write( 0 );
         SERIAL_LOG << " ok.\n";
       break; }
@@ -249,7 +249,7 @@ struct _DYNAMIC : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t 
     _resolve_switch( winter,      GPIO.winter);
   }
 
-  void blue_tx_dynamic_state( void ) {
+  void blue_tx( void ) {
     this->acquire_seq();
     COM.blue.write( ( uint8_t* )this, sizeof( barracuda_ctrl::proto_head_t ) + barracuda_ctrl::proto_head_t::_dw2.sz );
   }
@@ -305,14 +305,14 @@ l_unrecovarable_fault: {
 }
 
 void loop( void ) {
-    if( COM.blue.connected() ) {
-      PROTO.resolve_inbound_head();
-        DYNAMIC.scan();
-        DYNAMIC.blue_tx_dynamic_state();
-        //DYNAMIC.print_to_serial();
+  if( COM.blue.connected() ) {
+    PROTO.resolve_inbound_head();
+    
+    DYNAMIC.scan();
+    DYNAMIC.blue_tx();
 
-        delay(20);
-    }
+    delay(20);
+  }
 
     xyzFloat gValue = COM.mpu.getGValues();
   xyzFloat gyr = COM.mpu.getGyrValues();

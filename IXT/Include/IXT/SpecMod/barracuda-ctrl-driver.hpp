@@ -176,6 +176,7 @@ _ENGINE_PROTECTED:
     barracuda_ctrl::proto_head_t _listen_head( void ) {
         barracuda_ctrl::proto_head_t head;
         this->_read( ( char* )&head, sizeof( head ) ); 
+        std::cout << (char*)&head << '\n';
         return head;
     }
 

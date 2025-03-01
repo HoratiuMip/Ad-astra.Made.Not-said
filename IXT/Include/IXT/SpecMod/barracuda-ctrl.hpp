@@ -46,7 +46,7 @@ struct proto_head_t {
         int32_t                                                sig;
     };
     struct{ int32_t seq = 0; }                                 _dw1;
-    struct { int16_t sz; int16_t _reserved; }                  _dw2;
+    struct { int16_t sz = 0; int16_t _reserved = 0; }          _dw2;
 
     int32_t acquire_seq( void ) { return _dw1.seq = _seq_cnt++; }
 

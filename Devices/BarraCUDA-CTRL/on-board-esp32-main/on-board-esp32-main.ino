@@ -129,10 +129,13 @@ struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
 
     switch( in_head._dw0.op ) {
       case barracuda_ctrl::PROTO_OP_PING: {
-        _out_cache_head->_dw0.op = barracuda_ctrl::PROTO_OP_ACK;
+        _out_cache_head->_dw0.op  = barracuda_ctrl::PROTO_OP_ACK;
         _out_cache_head->_dw1.seq = in_head._dw1.seq;
-        _out_cache_head->_dw2.sz = 0;
+        _out_cache_head->_dw2.sz  = 0;
+
+        SERIAL_LOG() << "Responding to ping on sequence ( " << in_head._dw1.seq << " )... ";
         this->_out_cache_write( 0 );
+        SERIAL_LOG << " ok.\n";
       break; }
     }
 
@@ -302,7 +305,8 @@ l_unrecovarable_fault: {
 }
 
 void loop( void ) {
-    if ( COM.blue.connected() ) {
+    if( COM.blue.connected() ) {
+      PROTO.resolve_inbound_head();
         DYNAMIC.scan();
         DYNAMIC.blue_tx_dynamic_state();
         //DYNAMIC.print_to_serial();

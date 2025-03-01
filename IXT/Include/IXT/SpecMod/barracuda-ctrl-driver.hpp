@@ -154,7 +154,7 @@ _ENGINE_PROTECTED:
         do {
             DWORD result = send( _bt_socket, buffer + crt_count, count - crt_count, 0 );
              if( result <= 0 ) { 
-                echo( this, ECHO_LEVEL_ERROR ) << "TX fault( " << result << " |" << WSAGetLastError() << " )."; 
+                echo( this, ECHO_LEVEL_ERROR ) << "TX fault( " << result << " | " << WSAGetLastError() << " )."; 
                 return result; 
             }
             crt_count += result;
@@ -170,7 +170,7 @@ _ENGINE_PROTECTED:
 
 _ENGINE_PROTECTED:
     int _out_cache_write( int sz ) override {
-        return this->_write( ( char* )_out_cache, sz );
+        return this->_write( ( char* )_out_cache, sizeof( *_out_cache_head ) + sz );
     }
 
     barracuda_ctrl::proto_head_t _listen_head( void ) {
@@ -207,13 +207,13 @@ public:
         _out_cache_head->_dw0.op = barracuda_ctrl::PROTO_OP_PING;
         _out_cache_head->_dw2.sz = 0;
 
-        echo( this, ECHO_LEVEL_PENDING ) << "Pinging...";
+        echo( this, ECHO_LEVEL_PENDING ) << "Pinging on sequence ( " << _out_cache_head->_dw1.seq << " )... ";
         this->_out_cache_write( 0 );
 
         auto head = this->_listen_head();
         
         if( !head.is_signed() ) { echo( this, ECHO_LEVEL_ERROR ) << "Ping acknowledgement bad signature."; return -1; }
-        if( head._seq_cnt != _out_cache_head->_dw1.seq ) { echo( this, ECHO_LEVEL_ERROR ) << "Ping acknowledgement bad sequence."; return -1; }
+        if( head._dw1.seq != _out_cache_head->_dw1.seq ) { echo( this, ECHO_LEVEL_ERROR ) << "Ping acknowledgement bad sequence ( " << head._dw1.seq << " )."; return -1; }
 
         echo( this, ECHO_LEVEL_OK ) << "Received ping acknowledgement.";
         return 0;

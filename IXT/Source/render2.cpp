@@ -28,7 +28,8 @@ Renderer2DefaultSweeps::Renderer2DefaultSweeps( Renderer2& renderer, _ENGINE_COM
         RENDERER2_DFT_SWEEP_BLUE,
         RENDERER2_DFT_SWEEP_WHITE,
         RENDERER2_DFT_SWEEP_BLACK,
-        RENDERER2_DFT_SWEEP_MAGENTA  
+        RENDERER2_DFT_SWEEP_MAGENTA,
+        RENDERER2_DFT_SWEEP_YELLOW  
     } ) {
         uint64_t bytes = ( ( uint64_t )( enum_bytes ) & ( uint64_t )( RENDERER2_DFT_SWEEP_RGBA_MASK ) ) >> 32; 
 

@@ -324,7 +324,7 @@ fg=green
 G</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>300</x><y>95</y><w>10</w><h>10</h></coordinates><panel_attributes>halign=center
 valign=center
 fg=blue
-B</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>310</x><y>40</y><w>60</w><h>25</h></coordinates><panel_attributes>STATUS LED
+B</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>310</x><y>40</y><w>60</w><h>25</h></coordinates><panel_attributes>Status LED
 bg=black
 fontsize=18
 halign=center

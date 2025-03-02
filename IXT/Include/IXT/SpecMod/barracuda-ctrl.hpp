@@ -1,7 +1,7 @@
 #pragma once
 /*
-BARRACUDA_CTRL_BUILD_FOR_ON_BOARD
-BARRACUDA_CTRL_BUILD_FOR_DRIVER
+BARRACUDA_CTRL_BUILD_FOR_ON_BOARD_UC
+BARRACUDA_CTRL_BUILD_FOR_ENGINE_DRIVER
 
 BARRACUDA_CTRL_ARCHITECTURE_LITTLE
 BARRACUDA_CTRL_ARCHITECTURE_BIG
@@ -50,6 +50,10 @@ struct proto_head_t {
 
     int32_t acquire_seq( void ) { return _dw1.seq = _seq_cnt++; }
 
+#if defined( BARRACUDA_CTRL_BUILD_FOR_ENGINE_DRIVER )
+    int32_t atomic_acquire_seq( void ) { return _dw1.seq = std::atomic_ref< int32_t >( _seq_cnt ).fetch_add( 1, std::memory_order_relaxed ); }
+#endif
+
     bool is_signed( void ) { return ( sig & PROTO_SIG_MSK ) == PROTO_SIG; }
 };
 static_assert( sizeof( proto_head_t ) == 3*sizeof( int32_t ) );
@@ -73,13 +77,13 @@ static_assert( sizeof( joystick_t ) == sizeof( switch_t ) + 2*sizeof( float ) + 
 struct dynamic_state_t {
     joystick_t      rachel,       samantha;
     /*              |lower left   |upper right */
-    switch_t        giselle, karina, ningning, winter;
+    switch_t        giselle, karina, ningning, winter; float f;
     /*              |blue    |red    |yellow   |green */
 };
 static_assert( sizeof( dynamic_state_t ) == 
     4*sizeof( switch_t )
     +
-    2*sizeof( joystick_t )
+    2*sizeof( joystick_t ) + 4
 );
 
 
@@ -91,7 +95,7 @@ struct out_cache_t {
     
     out_cache_t() { *_out_cache_head = proto_head_t{}; }
 
-    virtual int _out_cache_write( int sz ) = 0;
+    virtual int _out_cache_write( void ) = 0;
 };
 
 

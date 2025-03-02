@@ -20,8 +20,8 @@ public:
     virtual int set( warc::MAIN& main, IXT_COMMS_ECHO_RT_ARG ) override {
         int status = 0;
 
-        status = this->IXT::SpecMod::BarracudaController::data_link( 0 );
-        WARC_ASSERT_RT_THIS( status == 0, "Could not connect to the BARRACUDA controller.", status, status );
+        status = this->IXT::SpecMod::BarracudaController::data_link( IXT::SpecMod::BARRACUDA_CTRL_FLAG_TRUST );
+        WARC_ASSERT_RT_THIS( status == 0, "Could not connect to BarraCUDA-CTRL.", status, status );
 
         this->set_soft_params( &main.imm_earth() );
 
@@ -31,7 +31,7 @@ public:
     virtual int engage( warc::MAIN& main, IXT_COMMS_ECHO_RT_ARG ) override {
         int status = 0;
 
-        WARC_ASSERT_RT_THIS( this->IXT::SpecMod::BarracudaController::uplinked(), "BARRACUDA controller not set.", -1, -1 );
+        WARC_ASSERT_RT_THIS( this->IXT::SpecMod::BarracudaController::connected(), "BarraCUDA-CTRL not connected.", -1, -1 );
 
         imm::EARTH* imm = this->soft_params< imm::EARTH >();
         WARC_ASSERT_RT_THIS( imm != nullptr, "Immersion pointer not flashed to soft parameter.", -1, -1 );
@@ -58,7 +58,7 @@ public:
 
         _imm_control_th = std::thread( [ imm, this ] () -> void { 
             while( this->DEVICE::_engaged.load( std::memory_order_relaxed ) ) {
-                int status = this->IXT::SpecMod::BarracudaController::listen_dynamic_state( &dy_st );
+                int status = this->IXT::SpecMod::BarracudaController::listen_trust( &dy_st );
 
                 if( status != 0 ) {
                     _eligible.store( false, std::memory_order_release );

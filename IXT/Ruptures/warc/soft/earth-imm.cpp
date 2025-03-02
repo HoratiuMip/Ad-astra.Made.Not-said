@@ -809,6 +809,7 @@ void EARTH::lens_zoom( float delta ) {
 }
 
 
+
 int EARTH::main( int argc, char* argv[], on_ready_callback_t on_ready_callback  ) {
     _impl_earth = this;
 

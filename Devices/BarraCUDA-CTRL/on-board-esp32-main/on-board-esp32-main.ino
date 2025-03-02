@@ -1,4 +1,4 @@
-#define BARRACUDA_CTRL_BUILD_FOR_ON_BOARD
+#define BARRACUDA_CTRL_BUILD_FOR_ON_BOARD_UC
 #define BARRACUDA_CTRL_ARCHITECTURE_LITTLE
 #include "../../../IXT/Include/IXT/SpecMod/barracuda-ctrl.hpp"
 
@@ -106,10 +106,8 @@ struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
     return 0;
   }
 
-  int _out_cache_write( int sz ) override {
-    COM.blue.write( _out_cache, sizeof( *_out_cache_head ) + sz );
-
-    return 0;
+  int _out_cache_write( void ) override {
+    return COM.blue.write( _out_cache, sizeof( *_out_cache_head ) + _out_cache_head->_dw2.sz );
   }
 
   int resolve_inbound_head( void ) {
@@ -134,8 +132,8 @@ struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
         _out_cache_head->_dw2.sz  = 0;
 
         SERIAL_LOG() << "Responding to ping on sequence ( " << _out_cache_head->_dw1.seq << " )... ";
-        this->_out_cache_write( 0 );
-        SERIAL_LOG << " ok.\n";
+        this->_out_cache_write();
+        SERIAL_LOG << "ok.\n";
       break; }
     }
 

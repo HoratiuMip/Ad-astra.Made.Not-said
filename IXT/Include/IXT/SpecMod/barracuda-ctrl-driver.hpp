@@ -6,7 +6,7 @@ Special module linking the IXT engine with the BARRACUDA controller, via bluetoo
 #include <IXT/descriptor.hpp>
 #include <IXT/comms.hpp>
 
-#define BARRACUDA_CTRL_BUILD_DRIVER
+#define BARRACUDA_CTRL_BUILD_FOR_ENGINE_DRIVER
 #define BARRACUDA_CTRL_ARCHITECTURE_LITTLE
 #include <IXT/SpecMod/barracuda-ctrl.hpp>
 
@@ -17,10 +17,11 @@ namespace _ENGINE_NAMESPACE { namespace SpecMod {
 
 
 
-enum BARRACUDA_CONTROLLER_FLAG : DWORD {
-    BARRACUDA_CONTROLLER_FLAG_NO_BLOCK = 1 << 0,
+enum BARRACUDA_CTRL_FLAG : DWORD {
+    BARRACUDA_CTRL_FLAG_NO_BLOCK = 1 << 0,
+    BARRACUDA_CTRL_FLAG_TRUST    = 1 << 1,
 
-    _BARRACUDA_CONTROLLER_FLAG_FORCE_DWORD = 0x7F'FF'FF'FF
+    _BARRACUDA_CTRL_FLAG_FORCE_DWORD = 0x7F'FF'FF'FF
 };
 
 class BarracudaController : public Descriptor, public barracuda_ctrl::out_cache_t< 128 > {
@@ -31,33 +32,52 @@ public:
     BarracudaController() = default;
 
     ~BarracudaController() {
-        if( this->uplinked() ) closesocket( std::exchange( _bt_socket, SOCKET{} ) );
+        if( this->connected() ) closesocket( std::exchange( _bt_socket, SOCKET{} ) );
     }
 
+public:
+    struct resolver_t {
+        int32_t            seq;
+        char*              dest;
+        int16_t            sz;
+        std::atomic_bool   signal;
+    };
+
 _ENGINE_PROTECTED:
-    BTH_ADDR       _on_board_uc_bt_addr   = {};
-    SOCKADDR_BTH   _bt_socket_addr        = {};
-    SOCKET         _bt_socket             = {};
+    BTH_ADDR                   _on_board_uc_bt_addr   = {};
+    SOCKADDR_BTH               _bt_socket_addr        = {};
+    SOCKET                     _bt_socket             = {};
+
+    std::mutex                 _write_mtx             = {};
+
+    std::thread                _resolver              = {};
+    bool                       _trust_ex              = false;
+    std::deque< resolver_t >   _resolvers             = {};
+    std::mutex                 _resolvers_mtx         = {}; 
 
 public:
-    bool uplinked() {
+    bool connected() {
         return _bt_socket != SOCKET{};
     }
 
 public:
     DWORD data_link( DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        _trust_ex = flags & BARRACUDA_CTRL_FLAG_TRUST;
+
         if( DWORD rez = this->_query_system_load_bt_addr( barracuda_ctrl::DEVICE_NAME_W, flags, echo ); rez != 0 ) return rez;
 
         if( DWORD rez = this->_connect_load_socket( flags, echo ); rez != 0 ) return rez;
-
-        if( DWORD rez = this->ping( echo ); rez != 0 ) return rez;
+        
+        if( !_trust_ex ) {
+            if( DWORD rez = this->ping( echo ); rez != 0 ) return rez;
+        }
 
         return 0;
     }
 
 _ENGINE_PROTECTED:
     DWORD _query_system_load_bt_addr( const std::wstring& name, DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        echo( this, ECHO_LEVEL_INTEL ) << "Pulling bluetooth address.";
+        echo( this, ECHO_LEVEL_PENDING ) << "Pulling bluetooth address...";
 
         BLUETOOTH_DEVICE_SEARCH_PARAMS bt_dev_sp = {
             dwSize:               sizeof( BLUETOOTH_DEVICE_SEARCH_PARAMS ),
@@ -115,7 +135,7 @@ _ENGINE_PROTECTED:
             return -1;
         }
 
-        if( !( flags & BARRACUDA_CONTROLLER_FLAG_NO_BLOCK ) ) goto l_skip_no_block;
+        if( !( flags & BARRACUDA_CTRL_FLAG_NO_BLOCK ) ) goto l_skip_no_block;
         {
         unsigned long no_block_mode = 1;
         if( ioctlsocket( _bt_socket, FIONBIO, ( unsigned long* )&no_block_mode ) != 0 ) {                                                                          
@@ -169,31 +189,84 @@ _ENGINE_PROTECTED:
     }
 
 _ENGINE_PROTECTED:
-    int _out_cache_write( int sz ) override {
-        return this->_write( ( char* )_out_cache, sizeof( *_out_cache_head ) + sz );
+    resolver_t& _emplace_resolver( int32_t seq, char* dest, DWORD sz ) {
+        return _resolvers.emplace_back( seq, dest, sz, false );
+    }
+
+    void _atomic_resolvers_pop_front() {
+        std::unique_lock lock{ _resolvers_mtx };
+        _resolvers.pop_front();
+    }
+
+_ENGINE_PROTECTED:
+    int _out_cache_write( void ) override {
+        return this->_write( ( char* )_out_cache, sizeof( *_out_cache_head ) + _out_cache_head->_dw2.sz );
+    }
+
+    std::atomic_bool* _emplace_resolver_and_out_cache_write( char* dest, int16_t sz, _ENGINE_COMMS_ECHO_RT_ARG  ) {
+        std::unique_lock lock{ _resolvers_mtx };
+
+        auto& resolver = this->_emplace_resolver( _out_cache_head->_dw1.seq, dest, sz );
+        
+        if( DWORD rez = this->_out_cache_write(); rez <= 0 ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "Cache write fault on sequence ( " << _out_cache_head->_dw1.seq << " ).";
+            this->_resolvers.pop_back();
+            return nullptr;
+        }
+
+        return &resolver.signal;
     }
 
     barracuda_ctrl::proto_head_t _listen_head( void ) {
         barracuda_ctrl::proto_head_t head;
         this->_read( ( char* )&head, sizeof( head ) ); 
-        std::cout << (char*)&head << '\n';
         return head;
     }
 
-    DWORD _resolve_head( barracuda_ctrl::proto_head_t* head, int8_t* op, void* arg, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        if( ( head->sig & barracuda_ctrl::PROTO_SIG_MSK ) != barracuda_ctrl::PROTO_SIG ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Incorrrect protocol signature, aborting resolve.";
-            return -1;
+    DWORD _resolve_head( barracuda_ctrl::proto_head_t* head, void* direct, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        if( !head->is_signed() ) { 
+            echo( this, ECHO_LEVEL_ERROR ) << "Bad head signature ( " << ( head->sig & barracuda_ctrl::PROTO_SIG_MSK ) << ")."; 
+            return -1; 
         }
-
-        *op = head->_dw0.op;
+    
         switch( head->_dw0.op ) {
+            case barracuda_ctrl::PROTO_OP_ACK: {
+                if( _resolvers.empty() ) {
+                    echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), but not resolver.";
+                    return -1;
+                }
+
+                auto& resolver = _resolvers.front();
+
+                if( head->_dw1.seq != resolver.seq ) {
+                    echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), but resolver expects sequence ( " << resolver.seq << " ).";
+                    return -1;
+                }
+
+                if( resolver.dest == nullptr ) goto l_signal;
+
+                if( resolver.sz != head->_dw2.sz ) {
+                    echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), reports a different size ( " << head->_dw2.sz << " ) than which the resolver expects ( " << resolver.sz << " ).";
+                    return -1;
+                }
+
+                if( this->_read( resolver.dest, resolver.sz, echo ) <= 0 ) {
+                    echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), fault on data read.";
+                    return -1;
+                }
+
+            l_signal:
+                this->_atomic_resolvers_pop_front();
+
+                resolver.signal.store( true, std::memory_order_release );
+                resolver.signal.notify_one();
+            break; }
+
             case barracuda_ctrl::PROTO_OP_DYNAMIC: {
-                return this->_read( ( char* )arg, head->_dw2.sz, echo ) > 0 ? 0 : -1;
+                return this->_read( ( char* )direct, head->_dw2.sz, echo ) > 0 ? 0 : -1;
             }
 
             default: {
-                *op = barracuda_ctrl::PROTO_OP_NULL;
                 echo( this, ECHO_LEVEL_ERROR ) << "Unknown operation code ( " << ( int )head->_dw0.op << " ).";
                 return -1;
             }
@@ -204,29 +277,25 @@ _ENGINE_PROTECTED:
 
 public:
     DWORD ping( _ENGINE_COMMS_ECHO_RT_ARG ) {
-        _out_cache_head->acquire_seq();
+        _out_cache_head->atomic_acquire_seq();
         _out_cache_head->_dw0.op = barracuda_ctrl::PROTO_OP_PING;
         _out_cache_head->_dw2.sz = 0;
 
         echo( this, ECHO_LEVEL_PENDING ) << "Pinging on sequence ( " << _out_cache_head->_dw1.seq << " )... ";
-        this->_out_cache_write( 0 );
 
-        auto head = this->_listen_head();
+        this->_emplace_resolver_and_out_cache_write( nullptr, 0, echo )->wait( false );
         
-        if( !head.is_signed() ) { echo( this, ECHO_LEVEL_ERROR ) << "Ping acknowledgement bad signature."; return -1; }
-        if( head._dw1.seq != _out_cache_head->_dw1.seq ) { echo( this, ECHO_LEVEL_ERROR ) << "Ping acknowledgement bad sequence ( " << head._dw1.seq << " )."; return -1; }
-
         echo( this, ECHO_LEVEL_OK ) << "Received ping acknowledgement.";
         return 0;
     }
 
-    DWORD listen_dynamic_state( barracuda_ctrl::dynamic_state_t* dy_st, _ENGINE_COMMS_ECHO_RT_ARG ) {
+public: 
+    DWORD listen_trust( barracuda_ctrl::dynamic_state_t* dy_st, _ENGINE_COMMS_ECHO_RT_ARG ) {
     l_listen_begin: {
         auto head = this->_listen_head();
         
-        int8_t op = barracuda_ctrl::PROTO_OP_NULL;
-        if( DWORD result = this->_resolve_head( &head, &op, ( void* )dy_st, echo ); result != 0 ) return result;
-        if( op != barracuda_ctrl::PROTO_OP_DYNAMIC ) goto l_listen_begin;
+        if( DWORD result = this->_resolve_head( &head, ( void* )dy_st, echo ); result != 0 ) return result;
+        if( head._dw0.op != barracuda_ctrl::PROTO_OP_DYNAMIC ) goto l_listen_begin;
     }
         return 0;
     }

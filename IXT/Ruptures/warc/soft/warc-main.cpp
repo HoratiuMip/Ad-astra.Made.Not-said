@@ -320,11 +320,11 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_first_january_ts ) {
     return 0;
 }
 
-
+inline static spec_mod::BARRACUDA_CONTROLLER* ptrr = nullptr;
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_spec_mod_barracuda_controller ) {
     _WARC_IXT_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_spec_mod_barracuda_controller()" );
-
-    int status = spec_mod::push_device( "BARRACUDA-Controller", IXT::HVEC< spec_mod::BARRACUDA_CONTROLLER >::allocc() );
+   
+    int status = spec_mod::push_device( barracuda_ctrl::DEVICE_NAME, IXT::HVEC< spec_mod::BARRACUDA_CONTROLLER >::allocc() );
     WARC_ASSERT_RT( status == 0, "Could not push the device in the special module reservation station.", status, status );
 
     _ixt_init_flags |= IXT::INIT_FLAG_UPLINK_NETWORK | IXT::INIT_FLAG_UPLINK_NETWORK_CONTINUE_IF_FAULT;
@@ -526,7 +526,7 @@ int MAIN::main( int argc, char* argv[] ) {
 
             return imm::EARTH_SAT_UPDATE_RESULT_OK;
         } );
-
+        
         this->_earth->main( argc, argv, [ & ] () -> int {
             spec_mod::engage_devices( *this );
             return 0;

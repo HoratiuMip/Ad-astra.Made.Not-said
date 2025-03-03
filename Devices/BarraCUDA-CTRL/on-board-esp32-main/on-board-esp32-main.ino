@@ -7,6 +7,8 @@
 #include <MPU6050_WE.h>
 #include <Wire.h>
 
+#include <functional>
+
 
 enum LOG_LEVEL {
   LOG_OK, LOG_WARNING, LOG_ERROR, LOG_CRITICAL, LOG_INFO
@@ -28,6 +30,23 @@ struct _SERIAL_LOG {
 
 
 typedef   const int8_t   GPIO_pin_t;
+typedef   int8_t   LED_RGB;
+
+
+struct _PARAMS {
+  void reset() {
+    SERIAL_LOG( LOG_INFO ) << "Resetting parameters... ";
+    *this = _PARAMS{};
+    SERIAL_LOG << " ok.\n";
+  }
+
+  bool      _conn_rst         = true;
+
+  int32_t   main_loop_delay   = 20;
+
+} PARAMS;
+
+
 struct { 
   struct { GPIO_pin_t sw, x, y; } rachel{ sw: 27, x: 35, y: 32 }, samantha{ sw: 33, x: 26, y: 25 };
   /* JOYSTICKS                    |lower left                     |upper right */
@@ -57,7 +76,6 @@ struct {
 
 } GPIO;
 
-
 template< typename T >
 T analog_read_mean( GPIO_pin_t pin, int reads, int dt_ms ) {
   int acc = 0;
@@ -74,9 +92,6 @@ T analog_read_mean( GPIO_pin_t pin, int reads, int dt_ms ) {
 struct {
   BluetoothSerial   blue;
 
-  const int32_t     mpu_addr   = 0x68;
-  MPU6050_WE        mpu        = MPU6050_WE( mpu_addr );
-
   int init() {
     SERIAL_LOG() << "Bluetooth serial begin... ";
     blue.begin( barracuda_ctrl::DEVICE_NAME );
@@ -85,90 +100,70 @@ struct {
     SERIAL_LOG() << "I^2C wire begin... ";
     Wire.begin();
     SERIAL_LOG << "ok.\n";
-
-    SERIAL_LOG() << "MPU66050 init... ";
-    if( !mpu.init() ) {
-      SERIAL_LOG << "fault.\n";
-      return -1;
-    }
-    else {
-      SERIAL_LOG << "ok.\n";
-    }
     
     return 0;
+  }
+
+  int blue_read( void* ptr, int sz ) {
+    int count = 0;
+   
+    do {
+      ( ( uint8_t* )ptr )[ count ] = ( uint8_t )blue.read();
+    } while( ++count < sz );
+
+    return sz;
   }
 
 } COM;
 
 
-struct _PARAMS {
-  void reset() {
-    SERIAL_LOG( LOG_INFO ) << "Resetting parameters... ";
-    *this = _PARAMS{};
-    SERIAL_LOG << " ok.\n";
-  }
-
-  bool      _conn_rst         = true;
-
-  int32_t   main_loop_delay   = 20;
-
-} PARAMS;
-
-
-struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
+struct _GRAN : public MPU6050_WE {
   int init( void ) {
-    return 0;
-  }
-
-  int _out_cache_write( void ) override {
-    return COM.blue.write( _out_cache, sizeof( *_out_cache_head ) + _out_cache_head->_dw2.sz );
-  }
-
-  int resolve_inbound_head( void ) {
-    if( !COM.blue.available() ) return 0;
-
-    barracuda_ctrl::proto_head_t in_head;
-    int idx = 0;
-   
-    do {
-      ( ( uint8_t* )&in_head )[ idx ] = ( uint8_t )COM.blue.read();
-    } while( ++idx < sizeof( in_head ) );
-
-    if( ( in_head.sig & barracuda_ctrl::PROTO_SIG_MSK ) != barracuda_ctrl::PROTO_SIG ) {
-      SERIAL_LOG( LOG_ERROR ) << "Incoming byte stream is out of alignment.\n";
+    SERIAL_LOG() << "MPU6050 init... ";
+    if( !this->MPU6050_WE::init() ) {
+      SERIAL_LOG << "fault.\n";
       return -1;
     }
+    SERIAL_LOG << "ok.\n";
 
-    switch( in_head._dw0.op ) {
-      case barracuda_ctrl::PROTO_OP_PING: {
-        _out_cache_head->_dw0.op  = barracuda_ctrl::PROTO_OP_ACK;
-        _out_cache_head->_dw1.seq = in_head._dw1.seq;
-        _out_cache_head->_dw2.sz  = 0;
-
-        SERIAL_LOG() << "Responding to ping on sequence ( " << _out_cache_head->_dw1.seq << " )... ";
-        this->_out_cache_write();
-        SERIAL_LOG << "ok.\n";
-      break; }
-    }
+    SERIAL_LOG() << "MPU6050 calibrate... ";
+    this->MPU6050_WE::autoOffsets();
+    this->MPU6050_WE::setAccRange( _acc_range );
+    this->MPU6050_WE::setGyrRange( _gyr_range );
+    SERIAL_LOG << "ok.\n";
 
     return 0;
   }
 
-} PROTO;
+  bool set_acc_range( MPU9250_accRange range ) {
+    if( range < MPU6050_ACC_RANGE_2G || range > MPU6050_ACC_RANGE_16G ) return false;
+    this->MPU6050_WE::setAccRange( _acc_range = range );
+    return true;
+  }
+
+  bool set_gyr_range( MPU9250_gyroRange range ) {
+    if( range < MPU6050_GYRO_RANGE_250 || range > MPU6050_GYRO_RANGE_2000 ) return false;
+    this->MPU6050_WE::setGyrRange( _gyr_range = range );
+    return true;
+  }
+
+  MPU9250_accRange    _acc_range   = MPU6050_ACC_RANGE_2G;          
+  MPU9250_gyroRange   _gyr_range   = MPU6050_GYRO_RANGE_250;  
+
+} GRAN{ MPU6050_WE::WHO_AM_I_CODE };
 
 
-typedef   int8_t   LED_RGB;
 struct LED {
   inline static constexpr LED_RGB rgbs[ 8 ] = { 0b000, 0b100, 0b110, 0b010, 0b011, 0b001, 0b101, 0b111 };
   enum IDX { BLK, RED, YLW, GRN, TRQ, BLU, PRP, WHT };
 
-  LED_RGB crt;
+  LED_RGB _crt;
 
   int set( LED_RGB rgb ) {
     digitalWrite( GPIO.bitna.r, ( rgb >> 2 ) & 1 );
     digitalWrite( GPIO.bitna.g, ( rgb >> 1 ) & 1 );
     digitalWrite( GPIO.bitna.b, ( rgb ) & 1 );
-    crt = rgb;
+    _crt = rgb;
     return 0;
   }
   int set( IDX idx ) { return this->set( rgbs[ idx ] ); }
@@ -186,7 +181,7 @@ struct LED {
   int blink( IDX idx, const Args&... args ) { return this->blink( rgbs[ idx ], args... ); } 
 
   void test_rgb( int ms ) {
-    LED_RGB prev = crt;
+    LED_RGB prev = _crt;
 
     for( int8_t rgb : rgbs ) {
       this->set( rgb ); delay( ms );
@@ -214,13 +209,7 @@ struct _DYNAMIC : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t 
     _idle_reads.samantha.x = analog_read_mean< float >( GPIO.samantha.x, 10, 1 ); _idle_reads.samantha.y = analog_read_mean< float >( GPIO.samantha.y, 10, 1 );
     SERIAL_LOG << "ok.\n";
 
-    SERIAL_LOG() << "MPU6050 calibrate... ";
-    COM.mpu.autoOffsets();
-    COM.mpu.setGyrRange( MPU6050_GYRO_RANGE_250 );
-    COM.mpu.setAccRange( MPU6050_ACC_RANGE_2G );
-    SERIAL_LOG << "ok.\n";
-
-    return 0;
+    return GRAN.init();
   }
 
   void scan_main_sws( void ) {
@@ -265,10 +254,10 @@ struct _DYNAMIC : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t 
     _resolve_switch( winter,      GPIO.winter);
 
 
-    xyzFloat tacc_read = COM.mpu.getGValues();
-    gran.tacc = { x: tacc_read.x, y: tacc_read.y, z: tacc_read.z };
-    xyzFloat racc_read = COM.mpu.getGyrValues();
-    gran.racc = { x: racc_read.x, y: racc_read.y, z: racc_read.z };
+    xyzFloat acc_read = GRAN.getGValues();
+    gran.acc = { x: acc_read.y, y: -acc_read.x, z: acc_read.z };
+    xyzFloat gyr_read = GRAN.getGyrValues();
+    gran.gyr = { x: gyr_read.y, y: -gyr_read.x, z: gyr_read.z };
   }
 
   void blue_tx( void ) {
@@ -292,6 +281,112 @@ struct _DYNAMIC : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t 
   }
 
 } DYNAMIC;
+
+
+#define READ_WRITE 0
+#define READ_ONLY  1
+#define GET_CB     [] ( void* ptr ) -> bool
+#define SET_CB     [] ( void* ptr ) -> bool
+struct _PROTO_GET_SET_TBL_ENTRY {
+  const char* const                str_id;
+  void* const                      ptr;
+  const int16_t                    sz;
+  const bool                       read_only;    
+  std::function< bool( void* ) >   get_cb;
+  std::function< bool( void* ) >   set_cb;         
+};
+
+struct _PROTO_GET_SET_TBL {
+  _PROTO_GET_SET_TBL_ENTRY   entries[ 2 ]   = {
+    { str_id: "BITNA_CRT", ptr: &BITNA._crt, sz: 1, READ_ONLY, nullptr, nullptr },
+
+    { str_id: "GRAN_ACC_RANGE", ptr: &GRAN._acc_range, sz: 1, READ_WRITE, nullptr, SET_CB{ return GRAN.set_acc_range( *( MPU9250_accRange* )ptr ); } }
+  };
+
+  _PROTO_GET_SET_TBL_ENTRY* search( const char* str_id ) {
+    for( auto& entry : entries ) {
+      if( strcmp( entry.str_id, str_id ) == 0 ) return &entry;
+    }
+    return nullptr;
+  }
+
+} PROTO_GET_SET_TBL;
+
+struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
+  int init( void ) {
+    return 0;
+  }
+
+  int _out_cache_write( void ) override {
+    return COM.blue.write( _out_cache, sizeof( *_out_cache_head ) + _out_cache_head->_dw2.sz );
+  }
+
+  int resolve_inbound_head( void ) {
+    if( !COM.blue.available() ) return 0;
+
+    barracuda_ctrl::proto_head_t in_head;
+    COM.blue_read( &in_head, sizeof( in_head ) );
+
+    if( !in_head.is_signed() ) {
+      SERIAL_LOG( LOG_ERROR ) << "Incoming byte stream is out of alignment.\n";
+      return -1;
+    }
+
+    switch( in_head._dw0.op ) {
+      case barracuda_ctrl::PROTO_OP_PING: {
+        _out_cache_head->_dw0.op  = barracuda_ctrl::PROTO_OP_ACK;
+        _out_cache_head->_dw1.seq = in_head._dw1.seq;
+        _out_cache_head->_dw2.sz  = 0;
+
+        SERIAL_LOG() << "Responding to ping on sequence ( " << _out_cache_head->_dw1.seq << " )... ";
+        this->_out_cache_write();
+        SERIAL_LOG << "ok.\n";
+      break; }
+    
+      case barracuda_ctrl::PROTO_OP_GET: {
+        _out_cache_head->_dw1.seq = in_head._dw1.seq;
+
+        char buffer[ in_head._dw2.sz ]; COM.blue_read( buffer, in_head._dw2.sz );
+
+        char* delim = buffer; while( *++delim != '\0' ) {
+          if( delim - buffer >= in_head._dw2.sz - 1 ) goto l_get_nak;
+        }
+        /* This allows extra, unusable data, but does not affect the GET. NAK if present? */
+      
+      {
+        _PROTO_GET_SET_TBL_ENTRY* req = PROTO_GET_SET_TBL.search( buffer );
+        if( req == nullptr ) goto l_get_nak;
+
+        _out_cache_head->_dw0.op = barracuda_ctrl::PROTO_OP_ACK;
+        _out_cache_head->_dw2.sz = req->sz;
+
+        if( req->ptr ) {
+          memcpy( _out_cache_data, req->ptr, req->sz );
+        } else if( req->get_cb ) {
+          req->get_cb( _out_cache_data );
+        } else {
+          SERIAL_LOG( LOG_ERROR ) << "No GET methods for \"" << req->str_id << "\".\n";
+          return -1;
+        }
+
+        goto l_get_respond;
+      }    
+      l_get_nak:
+        SERIAL_LOG( LOG_WARNING ) << "Responding to GET with NAK on sequence ( " << in_head._dw1.seq << " ).\n"; 
+        _out_cache_head->_dw0.op = barracuda_ctrl::PROTO_OP_NAK;
+        _out_cache_head->_dw2.sz = 0;
+      
+      l_get_respond:
+        this->_out_cache_write();
+
+      break; }
+
+    }
+
+    return 0;
+  }
+
+} PROTO;
 
 
 void _dead( void ) {

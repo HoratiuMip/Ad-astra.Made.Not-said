@@ -2,7 +2,7 @@
 #include <IXT/comms.hpp>
 #include <IXT/hyper-vector.hpp>
 #include <IXT/render2.hpp>
-#include <IXT/SpecMod/barracuda-ctrl-driver.hpp>
+#include <IXT/SpecMod/barracuda-ctrl-nln-driver.hpp>
 
 #include <conio.h>
 
@@ -18,7 +18,7 @@ struct _VISUAL {
 
     void init( void ) {
         ggfloat_t surf_size = std::min( Env::width(), Env::height() ) * 0.8;
-        surf.vector( HVEC< Surface >::allocc( "BarraCUDA-CTRL Tester", Crd2{ 10 }, Vec2{ surf_size }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_LIQUID ) );
+        surf.vector( HVEC< Surface >::allocc( "BarraCUDA-CTRL Tester", Crd2{ 10 }, Vec2{ surf_size * 1.25f, surf_size }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_LIQUID ) );
 
         render.vector( HVEC< Renderer2 >::allocc( *surf ) );
     }  
@@ -31,7 +31,7 @@ dynamic_state_t       DYNAMIC;
 
 struct BOARD {
     BOARD( int gi, int gj ) 
-    : view{ VISUAL.render, Crd2{ 0.25f * gi, 0.25f * gj }, Vec2{ 0.25 } }
+    : view{ VISUAL.render, Crd2{ 0.25f * 0.8f * gi, 0.25f * gj }, Vec2{ 0.25f * 0.8f, 0.25f } }
     {}
 
     virtual ~BOARD() {}
@@ -62,8 +62,7 @@ struct JOYSTICK_BOARD : BOARD {
         this->_begin();
 
         if( dat->sw.dwn ) {
-            view.line( Vec2{ -0.5, 0.5 }, Vec2{ 0.5, -0.5 }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_WHITE ) );
-            view.line( Vec2{ -0.5, -0.5 }, Vec2{ 0.5, 0.5 }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_WHITE ) );
+            view.line( Vec2{ 0.0, -0.5 }, Vec2{ 0.0, 0.5 }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_WHITE ) );
         }
 
         view.line( Vec2{ 0, 0 }, Vec2{ dat->x / 2, dat->y / 2  }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_MAGENTA ) );
@@ -112,19 +111,12 @@ struct GYRO_TRANSLATION_ACC_BOARD : BOARD {
     virtual void frame( void ) override {
         this->_begin();
 
-        struct _BATCH {
-            float&      val;
-            ggfloat_t   x;
-            Sweep2&     sweep;
-        } batches[] = {
-            { val: dat->tacc.x, x: -0.25f, sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_RED ) },
-            { val: dat->tacc.y, x: 0.0f,   sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_GREEN ) },
-            { val: dat->tacc.z, x: 0.25f,  sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_BLUE ) }
-        };
+        float mul = 1.0 / 4.0;
 
-        for( auto& batch : batches ) {
-            view.line( Vec2{ batch.x, 0.0 }, Vec2{ batch.x, batch.val }, batch.sweep );
-        }
+        view.line( Vec2{ 0.0, 0.0 }, Vec2{ dat->acc.x * mul, dat->acc.y * mul }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_MAGENTA ) );
+        view.line( Vec2{ 0.0, 0.0 }, Vec2{ dat->acc.x * mul, 0.0 }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_RED ) );
+        view.line( Vec2{ 0.0, 0.0 }, Vec2{ 0.0, dat->acc.y * mul }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_BLUE ) );
+        view.line( Vec2{ -0.3, 0.0 }, Vec2{ -0.3, dat->acc.z * mul }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_GREEN ) );
 
         this->_end();
     }
@@ -140,19 +132,12 @@ struct GYRO_ROTATION_ACC_BOARD : BOARD {
     virtual void frame( void ) override {
         this->_begin();
 
-        struct _BATCH {
-            float&      val;
-            ggfloat_t   x;
-            Sweep2&     sweep;
-        } batches[] = {
-            { val: dat->racc.x, x: -0.25f, sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_RED ) },
-            { val: dat->racc.y, x: 0.0f,   sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_GREEN ) },
-            { val: dat->racc.z, x: 0.25f,  sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_BLUE ) }
-        };
+        float mul = 1.0 / 500.0;
 
-        for( auto& batch : batches ) {
-            view.line( Vec2{ batch.x, 0.0 }, Vec2{ batch.x, batch.val / 90.0 }, batch.sweep );
-        }
+        view.line( Vec2{ 0.0, 0.0 }, Vec2{ dat->gyr.x * mul, dat->gyr.y * mul }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_MAGENTA ) );
+        view.line( Vec2{ 0.0, 0.0 }, Vec2{ dat->gyr.x * mul, 0.0 }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_RED ) );
+        view.line( Vec2{ 0.0, 0.0 }, Vec2{ 0.0, dat->gyr.y * mul }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_BLUE ) );
+        view.line( Vec2{ -0.3, 0.0 }, Vec2{ -0.3, dat->gyr.z * mul }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_GREEN ) );
 
         this->_end();
     }
@@ -192,7 +177,7 @@ struct _DASHBOARD {
 struct _COMMAND {
     bool exec( std::string& cmd ) {
         const char* cmds[] = {
-            "none", "exit", "ping"
+            "none", "exit", "ping", "get-led"
         };
 
         ptrdiff_t idx = std::find_if( cmds, cmds + std::size( cmds ), [ &cmd ] ( const char* entry ) -> bool {
@@ -205,6 +190,11 @@ struct _COMMAND {
             case 1: { STATUS = EXIT; break; }
 
             case 2: { CTRL.ping(); break; }
+
+            case 3: {
+                char rgb; CTRL.get( "BITNA_CRT", &rgb, 1 );
+                comms() << "Current status led R ( " << ( ( rgb >> 2 ) & 1 ) << " ), G ( " << ( ( rgb >> 1 ) & 1 ) << " ), B ( " << ( rgb & 1 ) << " ).";
+            break; }
 
             default: return false;
         }

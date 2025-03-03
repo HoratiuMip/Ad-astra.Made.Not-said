@@ -38,7 +38,7 @@ public:
 public:
     struct resolver_t {
         int32_t            seq;
-        char*              dest;
+        void*              dest;
         int16_t            sz;
         std::atomic_bool   signal;
     };
@@ -189,7 +189,7 @@ _ENGINE_PROTECTED:
     }
 
 _ENGINE_PROTECTED:
-    resolver_t& _emplace_resolver( int32_t seq, char* dest, DWORD sz ) {
+    resolver_t& _emplace_resolver( int32_t seq, void* dest, DWORD sz ) {
         return _resolvers.emplace_back( seq, dest, sz, false );
     }
 
@@ -203,7 +203,7 @@ _ENGINE_PROTECTED:
         return this->_write( ( char* )_out_cache, sizeof( *_out_cache_head ) + _out_cache_head->_dw2.sz );
     }
 
-    std::atomic_bool* _emplace_resolver_and_out_cache_write( char* dest, int16_t sz, _ENGINE_COMMS_ECHO_RT_ARG  ) {
+    std::atomic_bool* _emplace_resolver_and_out_cache_write( void* dest, int16_t sz, _ENGINE_COMMS_ECHO_RT_ARG  ) {
         std::unique_lock lock{ _resolvers_mtx };
 
         auto& resolver = this->_emplace_resolver( _out_cache_head->_dw1.seq, dest, sz );
@@ -234,7 +234,7 @@ _ENGINE_PROTECTED:
     
         switch( head->_dw0.op ) {
             case barracuda_ctrl::PROTO_OP_NULL: {
-                echo( this, ECHO_LEVEL_ERROR ) << "Cannot resolve head with NULL operatrion code.";
+                echo( this, ECHO_LEVEL_ERROR ) << "Cannot resolve head with NULL operation code.";
                 return -1;
             }
 
@@ -254,11 +254,11 @@ _ENGINE_PROTECTED:
                 if( resolver.dest == nullptr ) goto l_signal;
 
                 if( resolver.sz != head->_dw2.sz ) {
-                    echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), reports a different size ( " << head->_dw2.sz << " ) than which the resolver expects ( " << resolver.sz << " ).";
+                    echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), reports a different size ( " << head->_dw2.sz << " ) compared to the one the resolver expects ( " << resolver.sz << " ).";
                     return -1;
                 }
 
-                if( this->_read( resolver.dest, resolver.sz, echo ) <= 0 ) {
+                if( this->_read( ( char* )resolver.dest, resolver.sz, echo ) <= 0 ) {
                     echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), fault on data read.";
                     return -1;
                 }
@@ -294,6 +294,18 @@ public:
         this->_emplace_resolver_and_out_cache_write( nullptr, 0, echo )->wait( false );
         
         echo( this, ECHO_LEVEL_OK ) << "Received ping acknowledgement.";
+        return 0;
+    }
+
+    DWORD get( std::string_view str_id, void* dest, int16_t sz, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        _out_cache_head->atomic_acquire_seq();
+        _out_cache_head->_dw0.op = barracuda_ctrl::PROTO_OP_GET;
+        _out_cache_head->_dw2.sz = str_id.length() + 1;
+
+        strcpy( ( char* )_out_cache_data, str_id.data() );
+
+        this->_emplace_resolver_and_out_cache_write( dest, sz, echo )->wait( false );
+
         return 0;
     }
 

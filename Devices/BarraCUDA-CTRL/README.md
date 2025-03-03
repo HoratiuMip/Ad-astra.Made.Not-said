@@ -13,7 +13,7 @@ Power on.
 
 > When the status led stop blinking and stays blue, the connection is successful.
 
-> All set! Now you may either use the controller for an application, or build you own one! You may write your own driver for the controller's `BARK` protocol, or use the `IXT` engine's one, found [here](https://github.com/HoratiuMip/Ad-astra.Made.Not-said/blob/main/IXT/Include/IXT/SpecMod/barracuda-ctrl-driver.hpp).
+> All set! Now you may either use the controller for an application, or build you own one! You may write your own driver for the controller's `BARK` protocol, or use the `IXT` engine's one, found [here](https://github.com/HoratiuMip/Ad-astra.Made.Not-said/blob/main/IXT/Include/IXT/SpecMod/barracuda-ctrl-nln-driver.hpp).
 
 Tester.
 > The tester program developed with the `IXT` engine provides a full interface with the controller, offering the posibility to see the state, and send commands to the controller.

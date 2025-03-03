@@ -2,7 +2,7 @@
 
 #include <warc-spec-mod/common.hpp>
 #include <warc/earth-imm.hpp>
-#include <IXT/SpecMod/barracuda-ctrl-driver.hpp>
+#include <IXT/SpecMod/barracuda-ctrl-nln-driver.hpp>
 
 namespace warc { namespace spec_mod {
 

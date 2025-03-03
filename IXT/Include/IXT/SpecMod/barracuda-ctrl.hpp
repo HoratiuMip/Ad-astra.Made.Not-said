@@ -75,8 +75,8 @@ struct joystick_t {
 static_assert( sizeof( joystick_t ) == sizeof( switch_t ) + 2*sizeof( float ) + sizeof( int32_t ) );
 
 struct gyro_t {
-    struct { float x, y, z; }   tacc        = { 0, 0, 0 };
-    struct { float x, y, z; }   racc        = { 0, 0, 0 };
+    struct { float x, y, z; }   acc        = { 0, 0, 0 };
+    struct { float x, y, z; }   gyr        = { 0, 0, 0 };
     int32_t                     _reserved   = 0;
 };
 static_assert( sizeof( gyro_t ) == 6*sizeof( float ) + sizeof( int32_t ) );
@@ -102,7 +102,7 @@ template< int SZ >
 struct out_cache_t {
     uint8_t               _out_cache[ SZ ];
     proto_head_t* const   _out_cache_head    = ( proto_head_t* )_out_cache;
-    uint8_t* const        _out_cache_data    = _out_cache + sizeof( *_out_cache_head );
+    void* const           _out_cache_data    = _out_cache + sizeof( *_out_cache_head );
     
     out_cache_t() { *_out_cache_head = proto_head_t{}; }
 

@@ -39,7 +39,7 @@ enum PROTO_OP : int8_t {
 struct proto_head_t {
     inline static int32_t   _seq_cnt   = 0;
 
-    proto_head_t() { _dw0._sig_b0 = 0x42; _dw0._sig_b1 = 0x41, _dw0._sig_b2 = 0x52; _dw0.op = 0; }
+    proto_head_t() { _dw0._sig_b0 = 0x42; _dw0._sig_b1 = 0x41, _dw0._sig_b2 = 0x52; _dw0.op = PROTO_OP_NULL; }
 
     union {
         struct{ int8_t _sig_b0, _sig_b1, _sig_b2; int8_t op; } _dw0;

@@ -4,6 +4,8 @@
 #include <IXT/render2.hpp>
 #include <IXT/SpecMod/barracuda-ctrl-driver.hpp>
 
+#include <conio.h>
+
 
 using namespace barracuda_ctrl;
 using namespace IXT;
@@ -101,6 +103,11 @@ struct MAIN_SWITCHES_BOARD : BOARD {
 };
 
 
+enum {
+    READY, RESET, EXIT
+} STATUS;
+
+
 struct _DASHBOARD {
     std::thread                             th;
     std::atomic_bool                        ready;
@@ -113,14 +120,14 @@ struct _DASHBOARD {
     }
 
     void loop( void ) {
-        while( ready.load( std::memory_order_relaxed ) ) {
+        while( STATUS == READY ) {
             VISUAL.render->rs2_uplink().fill( RGBA{ 0.1, 0.1, 0.1 } );
 
             for( auto& board : boards ) board->frame();
 
             VISUAL.render->rs2_downlink();
 
-            CTRL.listen_trust( &DYNAMIC );
+            if( CTRL.listen_trust( &DYNAMIC ) != 0 ) STATUS = RESET;
         }
     }
 } DASHBOARD;
@@ -129,7 +136,7 @@ struct _DASHBOARD {
 struct _COMMAND {
     bool exec( std::string& cmd ) {
         const char* cmds[] = {
-            "none", "ping"
+            "none", "exit", "ping"
         };
 
         ptrdiff_t idx = std::find_if( cmds, cmds + std::size( cmds ), [ &cmd ] ( const char* entry ) -> bool {
@@ -139,9 +146,9 @@ struct _COMMAND {
         switch( idx ) {
             case 0: return true;
 
-            case 1: {
-                CTRL.ping();
-            break; }
+            case 1: { STATUS = EXIT; break; }
+
+            case 2: { CTRL.ping(); break; }
 
             default: return false;
         }
@@ -172,14 +179,30 @@ l_attempt_connect:
 
     DASHBOARD.begin();
     
-    while( true || !VISUAL.surf->down( SurfKey::ESC ) ) {
+    STATUS = READY;
+    do {
         comms( ECHO_LEVEL_INPUT ) << "Command: ";
+
+        while( !kbhit() ) { 
+            std::this_thread::sleep_for( std::chrono::milliseconds{ 100 } );
+            if( STATUS != READY ) goto l_main_loop_break;
+        }
+
+        std::unique_lock lock{ comms.mtx() };
         std::string cmd; std::cin >> cmd;
+        lock.unlock();
+
+        if( STATUS != READY ) goto l_main_loop_break;
+
         if( COMMAND.exec( cmd ) ) 
             comms( ECHO_LEVEL_OK ) << "Command \"" << cmd << "\" executed.\n";
         else
             comms( ECHO_LEVEL_ERROR ) << "Invalid command \"" << cmd << "\".\n";
-    }
+
+    } while( STATUS == READY );
+l_main_loop_break:
+
+    //if( STATUS == RESET ) goto l_attempt_connect;
 
     DASHBOARD.ready.store( false, std::memory_order_relaxed );
     DASHBOARD.th.join();

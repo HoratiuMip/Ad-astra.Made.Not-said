@@ -217,9 +217,12 @@ _ENGINE_PROTECTED:
         return &resolver.signal;
     }
 
-    barracuda_ctrl::proto_head_t _listen_head( void ) {
+    barracuda_ctrl::proto_head_t _listen_head( _ENGINE_COMMS_ECHO_RT_ARG ) {
         barracuda_ctrl::proto_head_t head;
-        this->_read( ( char* )&head, sizeof( head ) ); 
+        if( this->_read( ( char* )&head, sizeof( head ) ) <= 0 ) {
+            echo( this, ECHO_LEVEL_ERROR ) << "Head read fault.";
+            return barracuda_ctrl::proto_head_t{};
+        } 
         return head;
     }
 
@@ -230,6 +233,11 @@ _ENGINE_PROTECTED:
         }
     
         switch( head->_dw0.op ) {
+            case barracuda_ctrl::PROTO_OP_NULL: {
+                echo( this, ECHO_LEVEL_ERROR ) << "Cannot resolve head with NULL operatrion code.";
+                return -1;
+            }
+
             case barracuda_ctrl::PROTO_OP_ACK: {
                 if( _resolvers.empty() ) {
                     echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), but not resolver.";
@@ -292,7 +300,7 @@ public:
 public: 
     DWORD listen_trust( barracuda_ctrl::dynamic_state_t* dy_st, _ENGINE_COMMS_ECHO_RT_ARG ) {
     l_listen_begin: {
-        auto head = this->_listen_head();
+        auto head = this->_listen_head( echo );
         
         if( DWORD result = this->_resolve_head( &head, ( void* )dy_st, echo ); result != 0 ) return result;
         if( head._dw0.op != barracuda_ctrl::PROTO_OP_DYNAMIC ) goto l_listen_begin;

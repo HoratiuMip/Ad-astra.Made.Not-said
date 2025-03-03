@@ -28,8 +28,8 @@ struct _SERIAL_LOG {
 
 
 typedef   const int8_t   GPIO_pin_t;
-struct {
-  struct { GPIO_pin_t sw, x, y; } rachel{ sw: 34, x: 35, y: 32 }, samantha{ sw: 33, x: 26, y: 25 };
+struct { 
+  struct { GPIO_pin_t sw, x, y; } rachel{ sw: 27, x: 35, y: 32 }, samantha{ sw: 33, x: 26, y: 25 };
   /* JOYSTICKS                    |lower left                     |upper right */
 
   GPIO_pin_t giselle = 5, karina = 18, ningning = 19, winter = 23;
@@ -99,6 +99,20 @@ struct {
   }
 
 } COM;
+
+
+struct _PARAMS {
+  void reset() {
+    SERIAL_LOG( LOG_INFO ) << "Resetting parameters... ";
+    *this = _PARAMS{};
+    SERIAL_LOG << " ok.\n";
+  }
+
+  bool      _conn_rst         = true;
+
+  int32_t   main_loop_delay   = 20;
+
+} PARAMS;
 
 
 struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
@@ -209,6 +223,10 @@ struct _DYNAMIC : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t 
     return 0;
   }
 
+  void scan_main_sws( void ) {
+
+  }
+
   void scan( void ) {
     rachel.x = analogRead( GPIO.rachel.x ); rachel.y = analogRead( GPIO.rachel.y );
     samantha.x = analogRead( GPIO.samantha.x ); samantha.y = analogRead( GPIO.samantha.y );
@@ -270,52 +288,112 @@ struct _DYNAMIC : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t 
 } DYNAMIC;
 
 
-#define SETUP_CRITICAL_ASSERT( c ) if( !c ) { SERIAL_LOG( LOG_CRITICAL ) << "CRITICAL ASSERT ( #c ) FAILED. ENTERING UNRECOVARABLE STATE.\n"; goto l_unrecovarable_fault; }
+void _dead( void ) {
+  while( 1 ) BITNA.blink( LED::RED, false, 1, 1000, 1000 );
+}
+
+
+int do_tests( void ) {
+  SERIAL_LOG( LOG_INFO ) << "Beginning tests.\n";
+
+  const auto _get_test = [] () -> int8_t {
+    DYNAMIC.scan();
+    return ( DYNAMIC.giselle.dwn << 3 ) | ( DYNAMIC.karina.dwn << 2 ) | ( DYNAMIC.ningning.dwn << 1 ) | DYNAMIC.winter.dwn;
+  };
+
+  const auto _begin = [] ( const char* test_name ) -> void {
+    SERIAL_LOG( LOG_INFO ) << "Acknowledged test [ " << test_name << " ]... ";
+    BITNA.blink( LED::TRQ, true, 10, 50, 50 );
+  };
+  const auto _end = [] () -> void {
+    BITNA.blink( LED::TRQ, true, 10, 50, 50 );
+    SERIAL_LOG << "ok.\n";
+  };
+
+  int test_count = 0;
+
+l_test_begin: {
+    BITNA.blink( LED::TRQ, false, 1, 100, 500 );
+    int8_t test = _get_test();
+
+    switch( test ) {
+      case 0b0000: goto l_test_begin;
+      case 0b1001: goto l_test_end;
+
+      case 0b0100: {
+        _begin( "STATUS-LED" ); BITNA.test_rgb( 2000 ); _end();
+      break; }
+
+      default: goto l_test_begin;
+    }
+
+    ++test_count;
+    goto l_test_begin;
+}
+l_test_end:
+  SERIAL_LOG( LOG_INFO ) << "Tests ended. Completed ( " << test_count << " ) tests.\n";
+  return test_count;
+}
+
+
+#define SETUP_CRITICAL_ASSERT( c ) if( !c ) { SERIAL_LOG( LOG_CRITICAL ) << "CRITICAL ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n"; _dead(); }
 void setup( void ) {
-{
   Serial.begin( 115200 );
 
   SETUP_CRITICAL_ASSERT( GPIO.init() == 0 );
   
-  BITNA.blink( LED::RED, true, 16, 25, 50 );
+  BITNA.blink( LED::RED, true, 10, 50, 50 );
 
   SETUP_CRITICAL_ASSERT( COM.init() == 0 );
 
   SETUP_CRITICAL_ASSERT( DYNAMIC.init() == 0 );
 
-  SERIAL_LOG( LOG_OK ) << "Setup complete.\n";
-  BITNA.blink( LED::GRN, true, 16, 25, 50 );
+  PARAMS.reset();
 
-  BITNA.blink( LED::TRQ, true, 12, 160, 160 );
+  SERIAL_LOG( LOG_OK ) << "Setup complete.\n";
+  BITNA.blink( LED::GRN, true, 10, 50, 50 );
+
+  SERIAL_LOG( LOG_INFO ) << "Scanning for tests request.\n";
   DYNAMIC.scan();
   if( DYNAMIC.giselle.dwn ) {
-    BITNA.blink( LED::TRQ, true, 16, 50, 50 );
-    BITNA.test_rgb( 2000 );
-    BITNA.blink( LED::TRQ, true, 16, 50, 50 );
+    do_tests();
+  } else {
+    SERIAL_LOG( LOG_INFO ) << "No tests request.\n";
   }
 
-  BITNA( LED::BLU );
-} return;
+  SERIAL_LOG( LOG_OK ) << "Ready to work.\n";
 
-l_unrecovarable_fault: {
-  while( 1 ) BITNA.blink( LED::RED, false, 1, 2000, 1000 );
-} return;
+  BITNA( LED::BLU );
 }
 
 void loop( void ) {
   if( COM.blue.connected() ) {
+    if( PARAMS._conn_rst ) {
+      PARAMS._conn_rst = false;
+      SERIAL_LOG( LOG_INFO ) << "Connected to device.\n";
+      BITNA.blink( LED::BLU, true, 10, 50, 50 );
+    }
+
     PROTO.resolve_inbound_head();
     
     DYNAMIC.scan();
     DYNAMIC.blue_tx();
 
-    delay(20);
+    delay( PARAMS.main_loop_delay );
+
+  } else {
+    if( !PARAMS._conn_rst ) {
+      SERIAL_LOG( LOG_INFO ) << "Disconnected from device.\n";
+      PARAMS.reset();
+      BITNA.blink( LED::BLU, true, 10, 50, 50 );
+    }
+    BITNA.blink( LED::BLU, 1, true, 500, 500 );
   }
 
-    xyzFloat gValue = COM.mpu.getGValues();
-  xyzFloat gyr = COM.mpu.getGyrValues();
-  float temp = COM.mpu.getTemperature();
-  float resultantG = COM.mpu.getResultantG(gValue);
+  //   xyzFloat gValue = COM.mpu.getGValues();
+  // xyzFloat gyr = COM.mpu.getGyrValues();
+  // float temp = COM.mpu.getTemperature();
+  // float resultantG = COM.mpu.getResultantG(gValue);
 
   // Serial.println("Acceleration in g (x,y,z):");
   // Serial.print(gValue.x);

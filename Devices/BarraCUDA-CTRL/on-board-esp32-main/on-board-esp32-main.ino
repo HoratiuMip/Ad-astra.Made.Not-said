@@ -263,6 +263,12 @@ struct _DYNAMIC : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t 
     _resolve_switch( karina,      GPIO.karina );
     _resolve_switch( ningning,    GPIO.ningning );
     _resolve_switch( winter,      GPIO.winter);
+
+
+    xyzFloat tacc_read = COM.mpu.getGValues();
+    gran.tacc = { x: tacc_read.x, y: tacc_read.y, z: tacc_read.z };
+    xyzFloat racc_read = COM.mpu.getGyrValues();
+    gran.racc = { x: racc_read.x, y: racc_read.y, z: racc_read.z };
   }
 
   void blue_tx( void ) {
@@ -389,30 +395,4 @@ void loop( void ) {
     }
     BITNA.blink( LED::BLU, 1, true, 500, 500 );
   }
-
-  //   xyzFloat gValue = COM.mpu.getGValues();
-  // xyzFloat gyr = COM.mpu.getGyrValues();
-  // float temp = COM.mpu.getTemperature();
-  // float resultantG = COM.mpu.getResultantG(gValue);
-
-  // Serial.println("Acceleration in g (x,y,z):");
-  // Serial.print(gValue.x);
-  // Serial.print("   ");
-  // Serial.print(gValue.y);
-  // Serial.print("   ");
-  // Serial.println(gValue.z);
-  // Serial.print("Resultant g: ");
-  // Serial.println(resultantG);
-
-  // Serial.println("Gyroscope data in degrees/s: ");
-  // Serial.print(gyr.x);
-  // Serial.print("   ");
-  // Serial.print(gyr.y);
-  // Serial.print("   ");
-  // Serial.println(gyr.z);
-
-  // Serial.print("Integrated sensor temperature read: ");
-  // Serial.print(temp);
-  // Serial.println( "°C" );
-
 }

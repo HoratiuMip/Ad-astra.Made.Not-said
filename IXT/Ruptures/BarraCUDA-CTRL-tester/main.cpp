@@ -102,6 +102,62 @@ struct MAIN_SWITCHES_BOARD : BOARD {
     }
 };
 
+struct GYRO_TRANSLATION_ACC_BOARD : BOARD {
+    GYRO_TRANSLATION_ACC_BOARD( int gi, int gj, gyro_t* ptr )
+    : BOARD{ gi, gj }, dat{ ptr }
+    {}
+
+    gyro_t*   dat;
+
+    virtual void frame( void ) override {
+        this->_begin();
+
+        struct _BATCH {
+            float&      val;
+            ggfloat_t   x;
+            Sweep2&     sweep;
+        } batches[] = {
+            { val: dat->tacc.x, x: -0.25f, sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_RED ) },
+            { val: dat->tacc.y, x: 0.0f,   sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_GREEN ) },
+            { val: dat->tacc.z, x: 0.25f,  sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_BLUE ) }
+        };
+
+        for( auto& batch : batches ) {
+            view.line( Vec2{ batch.x, 0.0 }, Vec2{ batch.x, batch.val }, batch.sweep );
+        }
+
+        this->_end();
+    }
+};
+
+struct GYRO_ROTATION_ACC_BOARD : BOARD {
+    GYRO_ROTATION_ACC_BOARD( int gi, int gj, gyro_t* ptr )
+    : BOARD{ gi, gj }, dat{ ptr }
+    {}
+
+    gyro_t*   dat;
+
+    virtual void frame( void ) override {
+        this->_begin();
+
+        struct _BATCH {
+            float&      val;
+            ggfloat_t   x;
+            Sweep2&     sweep;
+        } batches[] = {
+            { val: dat->racc.x, x: -0.25f, sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_RED ) },
+            { val: dat->racc.y, x: 0.0f,   sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_GREEN ) },
+            { val: dat->racc.z, x: 0.25f,  sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_BLUE ) }
+        };
+
+        for( auto& batch : batches ) {
+            view.line( Vec2{ batch.x, 0.0 }, Vec2{ batch.x, batch.val / 90.0 }, batch.sweep );
+        }
+
+        this->_end();
+    }
+};
+
 
 enum {
     READY, RESET, EXIT
@@ -176,6 +232,8 @@ l_attempt_connect:
     DASHBOARD.boards.emplace_back( new JOYSTICK_BOARD{ 1, 2, &DYNAMIC.rachel } );
     DASHBOARD.boards.emplace_back( new JOYSTICK_BOARD{ 3, 1, &DYNAMIC.samantha } );
     DASHBOARD.boards.emplace_back( new MAIN_SWITCHES_BOARD{ 3, 2 } );
+    DASHBOARD.boards.emplace_back( new GYRO_TRANSLATION_ACC_BOARD{ 1, 1, &DYNAMIC.gran } );
+    DASHBOARD.boards.emplace_back( new GYRO_ROTATION_ACC_BOARD{ 2, 1, &DYNAMIC.gran } );
 
     DASHBOARD.begin();
     

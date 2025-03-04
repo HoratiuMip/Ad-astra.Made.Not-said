@@ -1,6 +1,6 @@
 #define BARRACUDA_CTRL_BUILD_FOR_ON_BOARD_UC
 #define BARRACUDA_CTRL_ARCHITECTURE_LITTLE
-#include "../../../IXT/Include/IXT/SpecMod/barracuda-ctrl.hpp"
+#include "../barracuda-ctrl.hpp"
 
 #include "BluetoothSerial.h"
 
@@ -94,7 +94,7 @@ struct {
 
   int init() {
     SERIAL_LOG() << "Bluetooth serial begin... ";
-    blue.begin( barracuda_ctrl::DEVICE_NAME );
+    blue.begin( bar_ctrl::DEVICE_NAME );
     SERIAL_LOG << "ok.\n";
 
     SERIAL_LOG() << "I^2C wire begin... ";
@@ -193,15 +193,15 @@ struct LED {
 } BITNA;
 
 
-struct _DYNAMIC : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t {
+struct _DYNAMIC : bar_ctrl::proto_head_t, bar_ctrl::dynamic_state_t {
   struct {
     struct { float x, y; } rachel, samantha;
   } _idle_reads;
 
   int init( void ) {
     SERIAL_LOG() << "Proto head init... ";
-    barracuda_ctrl::proto_head_t::_dw0.op = barracuda_ctrl::PROTO_OP_DYNAMIC;
-    barracuda_ctrl::proto_head_t::_dw2.sz = sizeof( barracuda_ctrl::dynamic_state_t ); 
+    bar_ctrl::proto_head_t::_dw0.op = bar_ctrl::PROTO_OP_DYNAMIC;
+    bar_ctrl::proto_head_t::_dw2.sz = sizeof( bar_ctrl::dynamic_state_t ); 
     SERIAL_LOG << "ok.\n";
 
     SERIAL_LOG() << "Joysticks calibrate... ";
@@ -233,7 +233,7 @@ struct _DYNAMIC : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t 
     samantha.y *= -1.0;
     
 
-    const auto _resolve_switch = [] ( barracuda_ctrl::switch_t& sw, GPIO_pin_t pin ) -> void {
+    const auto _resolve_switch = [] ( bar_ctrl::switch_t& sw, GPIO_pin_t pin ) -> void {
       int is_dwn = !digitalRead( pin );
 
       switch( ( sw.dwn << 1 ) | is_dwn ) {
@@ -262,7 +262,7 @@ struct _DYNAMIC : barracuda_ctrl::proto_head_t, barracuda_ctrl::dynamic_state_t 
 
   void blue_tx( void ) {
     this->acquire_seq();
-    COM.blue.write( ( uint8_t* )this, sizeof( barracuda_ctrl::proto_head_t ) + barracuda_ctrl::proto_head_t::_dw2.sz );
+    COM.blue.write( ( uint8_t* )this, sizeof( bar_ctrl::proto_head_t ) + bar_ctrl::proto_head_t::_dw2.sz );
   }
 
   void serial_tx_dynamic_state( void ) {
@@ -312,7 +312,7 @@ struct _PROTO_GET_SET_TBL {
 
 } PROTO_GET_SET_TBL;
 
-struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
+struct _PROTO : bar_ctrl::out_cache_t< 128 > {
   int init( void ) {
     return 0;
   }
@@ -324,7 +324,7 @@ struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
   int resolve_inbound_head( void ) {
     if( !COM.blue.available() ) return 0;
 
-    barracuda_ctrl::proto_head_t in_head;
+    bar_ctrl::proto_head_t in_head;
     COM.blue_read( &in_head, sizeof( in_head ) );
 
     if( !in_head.is_signed() ) {
@@ -333,8 +333,8 @@ struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
     }
 
     switch( in_head._dw0.op ) {
-      case barracuda_ctrl::PROTO_OP_PING: {
-        _out_cache_head->_dw0.op  = barracuda_ctrl::PROTO_OP_ACK;
+      case bar_ctrl::PROTO_OP_PING: {
+        _out_cache_head->_dw0.op  = bar_ctrl::PROTO_OP_ACK;
         _out_cache_head->_dw1.seq = in_head._dw1.seq;
         _out_cache_head->_dw2.sz  = 0;
 
@@ -343,7 +343,7 @@ struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
         SERIAL_LOG << "ok.\n";
       break; }
     
-      case barracuda_ctrl::PROTO_OP_GET: {
+      case bar_ctrl::PROTO_OP_GET: {
         _out_cache_head->_dw1.seq = in_head._dw1.seq;
 
         char buffer[ in_head._dw2.sz ]; COM.blue_read( buffer, in_head._dw2.sz );
@@ -357,7 +357,7 @@ struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
         _PROTO_GET_SET_TBL_ENTRY* req = PROTO_GET_SET_TBL.search( buffer );
         if( req == nullptr ) goto l_get_nak;
 
-        _out_cache_head->_dw0.op = barracuda_ctrl::PROTO_OP_ACK;
+        _out_cache_head->_dw0.op = bar_ctrl::PROTO_OP_ACK;
         _out_cache_head->_dw2.sz = req->sz;
 
         if( req->ptr ) {
@@ -373,7 +373,7 @@ struct _PROTO : barracuda_ctrl::out_cache_t< 128 > {
       }    
       l_get_nak:
         SERIAL_LOG( LOG_WARNING ) << "Responding to GET with NAK on sequence ( " << in_head._dw1.seq << " ).\n"; 
-        _out_cache_head->_dw0.op = barracuda_ctrl::PROTO_OP_NAK;
+        _out_cache_head->_dw0.op = bar_ctrl::PROTO_OP_NAK;
         _out_cache_head->_dw2.sz = 0;
       
       l_get_respond:

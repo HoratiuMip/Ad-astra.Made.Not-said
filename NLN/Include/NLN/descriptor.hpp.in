@@ -148,6 +148,10 @@
     #include <winsock2.h>
     #include <windows.h>
     #include <wincodec.h>
+    #include <Ws2bth.h>
+    #include <BluetoothAPIs.h>
+#elif defined( _ENGINE_OS_LINUX )
+   
 #endif
 
 #if defined( _ENGINE_GL_DIRECT_2D1 )

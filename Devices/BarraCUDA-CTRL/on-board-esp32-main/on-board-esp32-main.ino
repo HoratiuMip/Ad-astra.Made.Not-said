@@ -37,7 +37,7 @@ struct _PARAMS {
   void reset() {
     SERIAL_LOG( LOG_INFO ) << "Resetting parameters... ";
     *this = _PARAMS{};
-    SERIAL_LOG << " ok.\n";
+    SERIAL_LOG << "ok.\n";
   }
 
   bool      _conn_rst         = true;

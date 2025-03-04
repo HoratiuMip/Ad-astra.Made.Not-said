@@ -13,7 +13,7 @@ Quick power on.
 
 > When the status led stop blinking and stays blue, the connection is successful.
 
-> All set! Now you may either use the controller for an application, or build you own one! You may write your own driver for the controller's `BARK` protocol, or use the `NLN` engine's one, found [here](https://github.com/HoratiuMip/Ad-astra.Made.Not-said/blob/main/NLN/Include/NLN/SpecMod/barracuda-ctrl-nln-driver.hpp).
+> All set! Now you may either use the controller for an application, or build you own one! You may write your own driver for the controller's `BARK` protocol, or use the `NLN` engine's one, found [here](https://github.com/HoratiuMip/Ad-astra.Made.Not-said/blob/main/NLN/Include/NLN/Device/barracuda-ctrl-nln-driver.hpp).
 
 Status LED.
 > | Pattern | Description |

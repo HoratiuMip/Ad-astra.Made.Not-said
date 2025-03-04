@@ -177,7 +177,7 @@ struct _DASHBOARD {
 struct _COMMAND {
     bool exec( std::string& cmd ) {
         const char* cmds[] = {
-            "none", "exit", "ping", "get-led"
+            "none", "exit", "ping", "get-byte"
         };
 
         ptrdiff_t idx = std::find_if( cmds, cmds + std::size( cmds ), [ &cmd ] ( const char* entry ) -> bool {
@@ -192,8 +192,13 @@ struct _COMMAND {
             case 2: { CTRL.ping(); break; }
 
             case 3: {
-                char rgb; CTRL.get( "BITNA_CRT", &rgb, 1 );
-                comms() << "Current status led R ( " << ( ( rgb >> 2 ) & 1 ) << " ), G ( " << ( ( rgb >> 1 ) & 1 ) << " ), B ( " << ( rgb & 1 ) << " ).";
+                std::string str_id; std::cin >> str_id;
+                char data; 
+                if( CTRL.get( str_id, &data, 1 ) == 0 ) {
+                    comms( ECHO_LEVEL_OK ) << "\"" << str_id << "\" = " << std::hex << ( int )data << std::dec << ".";
+                } else {
+                    comms( ECHO_LEVEL_WARNING ) << "\"" << str_id << "\" NAK'd.";
+                }
             break; }
 
             default: return false;
@@ -206,7 +211,7 @@ struct _COMMAND {
 
 
 int main( int argc, char* argv[] ) {
-    initial_uplink( argc, argv, INIT_FLAG_UPLINK_NETWORK, nullptr, nullptr );
+    if( NLN::begin_runtime( argc, argv, BEGIN_RUNTIME_FLAG_INIT_NETWORK, nullptr, nullptr ) != 0 ) goto l_main_loop_break;
 
 l_attempt_connect:
     comms( ECHO_LEVEL_PENDING ) << "Waiting for connection...";
@@ -250,10 +255,8 @@ l_attempt_connect:
     } while( STATUS == READY );
 l_main_loop_break:
 
-    //if( STATUS == RESET ) goto l_attempt_connect;
-
     DASHBOARD.ready.store( false, std::memory_order_relaxed );
-    DASHBOARD.th.join();
+    if( DASHBOARD.th.joinable() ) DASHBOARD.th.join();
 
-    final_downlink( argc, argv, 0, nullptr, nullptr );
+    return NLN::end_runtime( argc, argv, 0, nullptr, nullptr );
 }

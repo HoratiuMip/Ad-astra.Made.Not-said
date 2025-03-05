@@ -10,9 +10,9 @@
 #include <NLN/network.hpp>
 
 
-#define BARRACUDA_CTRL_BUILD_FOR_ENGINE_DRIVER
-#define BARRACUDA_CTRL_ARCHITECTURE_LITTLE
 #include "../../../../Devices/BarraCUDA-CTRL/barracuda-ctrl.hpp"
+#define BAR_PROTO_ARCHITECTURE_LITTLE
+#include "../../../../Devices/BarraCUDA-CTRL/bar-proto.hpp"
 
 
 
@@ -21,22 +21,14 @@ namespace _ENGINE_NAMESPACE { namespace _ENGINE_DEVICE_NAMESPACE {
 
 
 enum BARRACUDA_CTRL_FLAG : DWORD {
-    BARRACUDA_CTRL_FLAG_NO_BLOCK = 1 << 0,
-    BARRACUDA_CTRL_FLAG_TRUST    = 1 << 1,
+    BARRACUDA_CTRL_FLAG_TRUST_INVOKER = 1 << 0,
 
-    _BARRACUDA_CTRL_FLAG_FORCE_DWORD = 0x7F'FF'FF'FF
+    _BARRACUDA_CTRL_FLAG_FORCE_DWORD = 0x7f'ff'ff'ff
 };
 
-class BarracudaController : public BTH_SOCKET, public bar_ctrl::out_cache_t< 128 > {
+class BARRACUDA_CTRL : public BTH_SOCKET, public bar_cache_t< 128 > {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "BarracudaController" );
-
-public:
-    BarracudaController() = default;
-
-    ~BarracudaController() {
-        if( this->connected() ) closesocket( std::exchange( _bt_socket, ::SOCKET{} ) );
-    }
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "BARRACUDA_CTRL" );
 
 public:
     struct resolver_t {
@@ -47,72 +39,20 @@ public:
     };
 
 _ENGINE_PROTECTED:
-    BTH_ADDR                   _on_board_uc_bt_addr   = {};
-    ::SOCKET                   _bt_socket             = {};
-
-    std::mutex                 _write_mtx             = {};
-
     std::thread                _resolver              = {};
-    bool                       _trust_ex              = false;
+    bool                       _trust_invk            = false;
     std::deque< resolver_t >   _resolvers             = {};
     std::mutex                 _resolvers_mtx         = {}; 
+    std::atomic_int32_t        _seq                   = { 0 };
 
 public:
-    bool connected() {
-        return _bt_socket != ::SOCKET{};
-    }
+    DWORD connect( DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        _trust_invk = flags & BARRACUDA_CTRL_FLAG_TRUST_INVOKER;
 
-public:
-    DWORD data_link( DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        _trust_ex = flags & BARRACUDA_CTRL_FLAG_TRUST;
-
-        if( DWORD ret = this->BTH_SOCKET::connect( bar_ctrl::DEVICE_NAME_W ); ret != 0 ) return ret;
+        DWORD ret = this->BTH_SOCKET::connect( bar_ctrl::DEVICE_NAME_W );
+        NLN_ASSERT( ret == 0, ret );
         
-        if( !_trust_ex ) {
-            if( DWORD rez = this->ping( echo ); rez != 0 ) return rez;
-        }
-
         return 0;
-    }
-
-_ENGINE_PROTECTED:
-    DWORD _read( char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        DWORD crt_count = 0;
-        
-        do {
-            DWORD result = recv( BTH_SOCKET::_socket, buffer + crt_count, count - crt_count, MSG_WAITALL );
-            if( result <= 0 ) { 
-                echo( this, ECHO_LEVEL_ERROR ) << "RX fault( " << result << " | " << WSAGetLastError() << " )."; 
-                return result; 
-            }
-            crt_count += result;
-        } while( crt_count < count );
-
-        if( crt_count != count ) { 
-            echo( this, ECHO_LEVEL_ERROR ) << "RX fault, too many bytes read."; 
-            return -1; 
-        }
-        return count;
-    }
-
-    DWORD _write( const char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        DWORD crt_count = 0;
-
-        do {
-            DWORD result = send( BTH_SOCKET::_socket, buffer + crt_count, count - crt_count, 0 );
-             if( result <= 0 ) { 
-                echo( this, ECHO_LEVEL_ERROR ) << "TX fault( " << result << " | " << WSAGetLastError() << " )."; 
-                return result; 
-            }
-            crt_count += result;
-        } while( crt_count < count );
-
-        if( crt_count < count ) { 
-            echo( this, ECHO_LEVEL_ERROR ) << "TX fault, too many bytes written."; 
-            return -1; 
-        }
-
-        return count;
     }
 
 _ENGINE_PROTECTED:
@@ -126,17 +66,22 @@ _ENGINE_PROTECTED:
     }
 
 _ENGINE_PROTECTED:
-    int _out_cache_write( void ) override {
-        return this->_write( ( char* )_out_cache, sizeof( *_out_cache_head ) + _out_cache_head->_dw2.sz );
+    void atomic_acquire_seq( void ) {
+        head->_dw1.seq = _seq.fetch_add( 1, std::memory_order_release );
+    }
+
+_ENGINE_PROTECTED:
+    int _out_cache_write( void ) {
+        return this->BTH_SOCKET::itr_send( _buffer, sizeof( *head ) + head->_dw2.sz );
     }
 
     std::atomic_bool* _emplace_resolver_and_out_cache_write( void* dest, int16_t sz, _ENGINE_COMMS_ECHO_RT_ARG  ) {
         std::unique_lock lock{ _resolvers_mtx };
 
-        auto& resolver = this->_emplace_resolver( _out_cache_head->_dw1.seq, dest, sz );
+        auto& resolver = this->_emplace_resolver( head->_dw1.seq, dest, sz );
         
         if( DWORD rez = this->_out_cache_write(); rez <= 0 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Cache write fault on sequence ( " << _out_cache_head->_dw1.seq << " ).";
+            echo( this, ECHO_LEVEL_ERROR ) << "Cache write fault on sequence ( " << head->_dw1.seq << " ).";
             this->_resolvers.pop_back();
             return nullptr;
         }
@@ -144,28 +89,28 @@ _ENGINE_PROTECTED:
         return &resolver.signal;
     }
 
-    bar_ctrl::proto_head_t _listen_head( _ENGINE_COMMS_ECHO_RT_ARG ) {
-        bar_ctrl::proto_head_t head;
-        if( this->_read( ( char* )&head, sizeof( head ) ) <= 0 ) {
+    bar_proto_head_t _listen_head( _ENGINE_COMMS_ECHO_RT_ARG ) {
+        bar_proto_head_t head;
+        if( this->BTH_SOCKET::itr_recv( ( char* )&head, sizeof( head ) ) <= 0 ) {
             echo( this, ECHO_LEVEL_ERROR ) << "Head read fault.";
-            return bar_ctrl::proto_head_t{};
+            return bar_proto_head_t{};
         } 
         return head;
     }
 
-    DWORD _resolve_head( bar_ctrl::proto_head_t* head, void* direct, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD _resolve_head( bar_proto_head_t* head, void* direct, _ENGINE_COMMS_ECHO_RT_ARG ) {
         if( !head->is_signed() ) { 
-            echo( this, ECHO_LEVEL_ERROR ) << "Bad head signature ( " << ( head->sig & bar_ctrl::PROTO_SIG_MSK ) << ")."; 
+            echo( this, ECHO_LEVEL_ERROR ) << "Bad head signature ( " << ( head->sig & BAR_PROTO_SIG_MSK ) << ")."; 
             return -1; 
         }
     
         switch( head->_dw0.op ) {
-            case bar_ctrl::PROTO_OP_NULL: {
+            case BAR_PROTO_OP_NULL: {
                 echo( this, ECHO_LEVEL_ERROR ) << "Cannot resolve head with NULL operation code.";
                 return -1;
             }
 
-            case bar_ctrl::PROTO_OP_ACK: {
+            case BAR_PROTO_OP_ACK: {
                 if( _resolvers.empty() ) {
                     echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), but not resolver.";
                     return -1;
@@ -185,7 +130,7 @@ _ENGINE_PROTECTED:
                     return -1;
                 }
 
-                if( this->_read( ( char* )resolver.dest, resolver.sz, echo ) <= 0 ) {
+                if( this->BTH_SOCKET::itr_recv( ( char* )resolver.dest, resolver.sz, echo ) <= 0 ) {
                     echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), fault on data read.";
                     return -1;
                 }
@@ -197,7 +142,7 @@ _ENGINE_PROTECTED:
                 resolver.signal.notify_one();
             break; }
 
-            case bar_ctrl::PROTO_OP_NAK: {
+            case BAR_PROTO_OP_NAK: {
                 if( _resolvers.empty() ) {
                     echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), but not resolver.";
                     return -1;
@@ -218,8 +163,8 @@ _ENGINE_PROTECTED:
                 return -1;
             break; }
 
-            case bar_ctrl::PROTO_OP_DYNAMIC: {
-                return this->_read( ( char* )direct, head->_dw2.sz, echo ) > 0 ? 0 : -1;
+            case BAR_PROTO_OP_BURST: {
+                return this->BTH_SOCKET::itr_recv( ( char* )direct, head->_dw2.sz, echo ) > 0 ? 0 : -1;
             }
 
             default: {
@@ -233,11 +178,11 @@ _ENGINE_PROTECTED:
 
 public:
     DWORD ping( _ENGINE_COMMS_ECHO_RT_ARG ) {
-        _out_cache_head->atomic_acquire_seq();
-        _out_cache_head->_dw0.op = bar_ctrl::PROTO_OP_PING;
-        _out_cache_head->_dw2.sz = 0;
+        this->atomic_acquire_seq();
+        head->_dw0.op = BAR_PROTO_OP_PING;
+        head->_dw2.sz = 0;
 
-        echo( this, ECHO_LEVEL_PENDING ) << "Pinging on sequence ( " << _out_cache_head->_dw1.seq << " )... ";
+        echo( this, ECHO_LEVEL_PENDING ) << "Pinging on sequence ( " << head->_dw1.seq << " )... ";
 
         this->_emplace_resolver_and_out_cache_write( nullptr, 0, echo )->wait( false );
         
@@ -246,11 +191,11 @@ public:
     }
 
     DWORD get( std::string_view str_id, void* dest, int16_t sz, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        _out_cache_head->atomic_acquire_seq();
-        _out_cache_head->_dw0.op = bar_ctrl::PROTO_OP_GET;
-        _out_cache_head->_dw2.sz = str_id.length() + 1;
+        this->atomic_acquire_seq();
+        head->_dw0.op = BAR_PROTO_OP_GET;
+        head->_dw2.sz = str_id.length() + 1;
 
-        strcpy( ( char* )_out_cache_data, str_id.data() );
+        strcpy( ( char* )data, str_id.data() );
 
         this->_emplace_resolver_and_out_cache_write( dest, sz, echo )->wait( false );
 
@@ -263,7 +208,7 @@ public:
         auto head = this->_listen_head( echo );
         
         if( DWORD result = this->_resolve_head( &head, ( void* )dy_st, echo ); result != 0 ) return result;
-        if( head._dw0.op != bar_ctrl::PROTO_OP_DYNAMIC ) goto l_listen_begin;
+        if( head._dw0.op != BAR_PROTO_OP_BURST ) goto l_listen_begin;
     }
         return 0;
     }

@@ -7,6 +7,7 @@
 
 #include <NLN/descriptor.hpp>
 #include <NLN/comms.hpp>
+#include <NLN/assert.hpp>
 
 namespace _ENGINE_NAMESPACE {
 
@@ -36,7 +37,31 @@ _ENGINE_PROTECTED:
     socket_t   _socket   = {};
 
 public:
-   
+    DWORD itr_recv( char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        DWORD crt = 0;
+        
+        do {
+            DWORD ret = recv( this->_socket, buffer + crt, count - crt, MSG_WAITALL );
+            NLN_ASSERT_ET( ret > 0, ret, "Recv fault. WSA code ( " << WSAGetLastError() << " )." );
+            crt += ret;
+        } while( crt < count );
+
+        NLN_ASSERT_ET( crt == count, -1, "Recv overflow." ); /* This should never happen. */
+        return crt;
+    }
+
+    DWORD itr_send( const char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        DWORD crt = 0;
+
+        do {
+            DWORD ret = send( this->_socket, buffer + crt, count - crt, 0 );
+            NLN_ASSERT_ET( ret > 0, ret, "Send fault. WSA code ( " << WSAGetLastError() << ")." );
+            crt += ret;
+        } while( crt < count );
+
+        NLN_ASSERT_ET( crt == count, -1, "Send overflow." ); /* This should never happen. */
+        return count;
+    }
 
 };
 
@@ -58,13 +83,10 @@ public:
     struct addr_str_t { char buf[ sizeof( BTH_ADDR ) * 3 ] = { '\0' }; /* 3 chars per byte ( 4 high bits, 4 low bits, : ), NULL terminator */ };
 
 public:
-    BTH_SOCKET() = default;
-
-public:
     addr_str_t   addr_str   = {};
 
 /*=== ADDR UTILS ===*/ public:
-    void addr2str( addr_str_t* dst, BTH_ADDR addr ) {
+    addr_str_t* addr2str( addr_str_t* dst, BTH_ADDR addr ) {
         DWORD buf_idx = -1;
         for( DWORD b_idx = sizeof( addr ) - 1; b_idx > 0; --b_idx ) { /* little endian assumed */
             UBYTE& b = ( ( UBYTE* )&addr )[ b_idx ];
@@ -74,12 +96,13 @@ public:
             dst->buf[ ++buf_idx ] = ':';
         }
         dst->buf[ buf_idx ] = '\0';
+        return dst;
     }
     inline addr_str_t addr2str( BTH_ADDR addr ) {
         addr_str_t ret = {}; this->addr2str( &ret, addr ); return ret;
     }
 
-    DWORD dev_name2addr( BTH_ADDR* addr, std::wstring_view name, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD dev_name2addr( BTH_ADDR* addr, std::wstring_view name, addr_str_t* out_addr_str, _ENGINE_COMMS_ECHO_RT_ARG ) {
         BLUETOOTH_DEVICE_SEARCH_PARAMS bt_dev_sp = {
             dwSize:               sizeof( BLUETOOTH_DEVICE_SEARCH_PARAMS ),
             fReturnAuthenticated: true,
@@ -97,17 +120,14 @@ public:
         };
 
         HBLUETOOTH_DEVICE_FIND bt_dev_find = BluetoothFindFirstDevice( &bt_dev_sp, &bt_dev_info );
-        if( bt_dev_find == NULL ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "No bluetooth devices connected to this machine. Check bluetooth status.";
-            return -1;
-        }
+        NLN_ASSERT_ET( bt_dev_find != NULL, -1, "No bluetooth devices paired to this machine." );
 
         do {
             if( name != bt_dev_info.szName ) continue;
             
             *addr = bt_dev_info.Address.ullLong;
 
-            echo( this, ECHO_LEVEL_OK ) << "Bluetooth device \"" << std::string{ name.begin(), name.end() } << "\" found at " << this->addr2str( *addr ).buf << "."; 
+            echo( this, ECHO_LEVEL_OK ) << "Bluetooth device \"" << std::string{ name.begin(), name.end() } << "\" found at " << ( ( out_addr_str != nullptr ) ? *this->addr2str( out_addr_str, *addr ) : this->addr2str( *addr ) ).buf << "."; 
             return 0;
 
         } while( BluetoothFindNextDevice( bt_dev_find, &bt_dev_info ) );
@@ -115,14 +135,14 @@ public:
         echo( this, ECHO_LEVEL_ERROR ) << "Bluetooth device \"" << std::string{ name.begin(), name.end() } << "\" is not paired with this machine.";
         return -1;
     }
-    inline BTH_ADDR dev_name2addr( std::wstring_view name, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        BTH_ADDR ret = {}; this->dev_name2addr( &ret, name, echo ); return ret;
+    inline BTH_ADDR dev_name2addr( std::wstring_view name, addr_str_t* addr_str, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        BTH_ADDR ret = {}; this->dev_name2addr( &ret, name, addr_str, echo ); return ret;
     }
 
 /*=== CONNECT ===*/ public:
 #if defined( _ENGINE_OS_WINDOWS )
     DWORD connect( BTH_ADDR addr, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        this->addr2str( &addr_str, addr );
+        this->addr2str( &this->addr_str, addr );
 
         SOCKET::_socket = socket( AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM );
 
@@ -133,31 +153,29 @@ public:
         sock_addr.port           = 0;
         sock_addr.btAddr         = addr;
        
-        echo( this, ECHO_LEVEL_PENDING ) << "Attempting to connect to " << addr_str.buf << ".";
-        if( DWORD ret = ::connect( SOCKET::_socket, ( SOCKADDR* )&sock_addr, sizeof( sock_addr ) ); ret != 0 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Fault connecting to " << addr_str.buf << ". Returned (" << ret << "), WSA code (" << WSAGetLastError() << ").";
-            return ret;
-        }
-
-        echo( this, ECHO_LEVEL_OK ) << "Connected to " << addr_str.buf << ".";
+        echo( this, ECHO_LEVEL_PENDING ) << "Attempting to connect to " << this->addr_str.buf << ".";
+        DWORD ret = ::connect( SOCKET::_socket, ( SOCKADDR* )&sock_addr, sizeof( sock_addr ) );
+        NLN_ASSERT_ET( ret == 0, ret, "Fault connecting to " << this->addr_str.buf << ". WSA code (" << WSAGetLastError() << ")." );
+            
+        echo( this, ECHO_LEVEL_OK ) << "Connected to " << this->addr_str.buf << ".";
         return 0;
     }
     inline DWORD connect( std::wstring_view name, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        BTH_ADDR addr; if( DWORD ret = this->dev_name2addr( &addr, name, echo ); ret != 0 ) return ret;
+        BTH_ADDR addr; 
+
+        DWORD ret = this->dev_name2addr( &addr, name, &this->addr_str, echo );
+        NLN_ASSERT( ret == 0, ret );
+
         return this->connect( addr, echo );
     }
 
     DWORD disconnect( _ENGINE_COMMS_ECHO_RT_ARG ) {
-        if( SOCKET::_socket == socket_t{} ) return 0;
-        
-        if( DWORD ret = closesocket( SOCKET::_socket ); ret != 0 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Fault disconnecting from " << addr_str.buf << ". Returned (" << ret << "), WSA code (" << WSAGetLastError() << ").";
-            return ret;
-        }
+        DWORD ret = closesocket( std::exchange( SOCKET::_socket, socket_t{} ) );
+        NLN_ASSERT_ET( ret == 0, ret, "Fault disconnecting from " << this->addr_str.buf << ". WSA ( " << WSAGetLastError() << ")." );
 
-        echo( this, ECHO_LEVEL_OK ) << "Disconnected from " << addr_str.buf << ".";
-
+        echo( this, ECHO_LEVEL_OK ) << "Disconnected from " << this->addr_str.buf << ".";
         addr_str.buf[ 0 ] = '\0';
+
         return 0;
     }
 #endif

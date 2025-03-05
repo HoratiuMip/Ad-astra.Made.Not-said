@@ -1,6 +1,6 @@
-#define BARRACUDA_CTRL_BUILD_FOR_ON_BOARD_UC
-#define BARRACUDA_CTRL_ARCHITECTURE_LITTLE
 #include "../barracuda-ctrl.hpp"
+#define BAR_PROTO_ARCHITECTURE_LITTLE
+#include "../bar-proto.hpp"
 
 #include "BluetoothSerial.h"
 
@@ -29,7 +29,7 @@ struct _SERIAL_LOG {
 } SERIAL_LOG;
 
 
-typedef   const int8_t   GPIO_pin_t;
+typedef   int8_t   GPIO_pin_t;
 typedef   int8_t   LED_RGB;
 
 
@@ -41,6 +41,7 @@ struct _PARAMS {
   }
 
   bool      _conn_rst         = true;
+  int32_t   _bar_proto_seq    = 0;
 
   int32_t   main_loop_delay   = 20;
 
@@ -48,13 +49,13 @@ struct _PARAMS {
 
 
 struct { 
-  struct { GPIO_pin_t sw, x, y; } rachel{ sw: 27, x: 35, y: 32 }, samantha{ sw: 33, x: 26, y: 25 };
-  /* JOYSTICKS                    |lower left                     |upper right */
+  struct { const GPIO_pin_t sw, x, y; } rachel{ sw: 27, x: 35, y: 32 }, samantha{ sw: 33, x: 26, y: 25 };
+  /*       JOYSTICKS                    |lower left                     |upper right */
 
-  GPIO_pin_t giselle = 5, karina = 18, ningning = 19, winter = 23;
-  /* SWS     |blue        |red         |yellow        |green */
+  const GPIO_pin_t giselle = 5, karina = 18, ningning = 19, winter = 23;
+  /*      SWS     |blue        |red         |yellow        |green */
 
-  struct { GPIO_pin_t r, g, b; } bitna{ r: 13, g: 12, b: 14 };
+  struct { const GPIO_pin_t r, g, b; } bitna{ r: 13, g: 12, b: 14 };
 
   int init() {
     SERIAL_LOG() << "Configuring pin modes... ";
@@ -193,15 +194,15 @@ struct LED {
 } BITNA;
 
 
-struct _DYNAMIC : bar_ctrl::proto_head_t, bar_ctrl::dynamic_state_t {
+struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_state_t {
   struct {
     struct { float x, y; } rachel, samantha;
   } _idle_reads;
 
   int init( void ) {
     SERIAL_LOG() << "Proto head init... ";
-    bar_ctrl::proto_head_t::_dw0.op = bar_ctrl::PROTO_OP_DYNAMIC;
-    bar_ctrl::proto_head_t::_dw2.sz = sizeof( bar_ctrl::dynamic_state_t ); 
+    bar_proto_head_t::_dw0.op = BAR_PROTO_OP_BURST;
+    bar_proto_head_t::_dw2.sz = sizeof( bar_ctrl::dynamic_state_t ); 
     SERIAL_LOG << "ok.\n";
 
     SERIAL_LOG() << "Joysticks calibrate... ";
@@ -210,10 +211,6 @@ struct _DYNAMIC : bar_ctrl::proto_head_t, bar_ctrl::dynamic_state_t {
     SERIAL_LOG << "ok.\n";
 
     return GRAN.init();
-  }
-
-  void scan_main_sws( void ) {
-
   }
 
   void scan( void ) {
@@ -261,8 +258,8 @@ struct _DYNAMIC : bar_ctrl::proto_head_t, bar_ctrl::dynamic_state_t {
   }
 
   void blue_tx( void ) {
-    this->acquire_seq();
-    COM.blue.write( ( uint8_t* )this, sizeof( bar_ctrl::proto_head_t ) + bar_ctrl::proto_head_t::_dw2.sz );
+    bar_proto_head_t::_dw1.seq = PARAMS._bar_proto_seq++;
+    COM.blue.write( ( uint8_t* )this, sizeof( bar_proto_head_t ) + bar_proto_head_t::_dw2.sz );
   }
 
   void serial_tx_dynamic_state( void ) {
@@ -283,48 +280,27 @@ struct _DYNAMIC : bar_ctrl::proto_head_t, bar_ctrl::dynamic_state_t {
 } DYNAMIC;
 
 
-#define READ_WRITE 0
-#define READ_ONLY  1
-#define GET_CB     [] ( void* ptr ) -> bool
-#define SET_CB     [] ( void* ptr ) -> bool
-struct _PROTO_GET_SET_TBL_ENTRY {
-  const char* const                str_id;
-  void* const                      ptr;
-  const int16_t                    sz;
-  const bool                       read_only;    
-  std::function< bool( void* ) >   get_cb;
-  std::function< bool( void* ) >   set_cb;         
+BAR_PROTO_GSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 2 ]   = {
+  { str_id: "BITNA_CRT", src: &BITNA._crt, sz: 1, BAR_PROTO_GSTBL_READ_ONLY, fnc_get: nullptr, fnc_set: nullptr },
+
+  { str_id: "GRAN_ACC_RANGE", src: &GRAN._acc_range, sz: 1, BAR_PROTO_GSTBL_READ_WRITE, fnc_get: nullptr, fnc_set: BAR_PROTO_GSTBL_SET_FUNC{ return GRAN.set_acc_range( *( MPU9250_accRange* )src ); } }
 };
-
-struct _PROTO_GET_SET_TBL {
-  _PROTO_GET_SET_TBL_ENTRY   entries[ 2 ]   = {
-    { str_id: "BITNA_CRT", ptr: &BITNA._crt, sz: 1, READ_ONLY, nullptr, nullptr },
-
-    { str_id: "GRAN_ACC_RANGE", ptr: &GRAN._acc_range, sz: 1, READ_WRITE, nullptr, SET_CB{ return GRAN.set_acc_range( *( MPU9250_accRange* )ptr ); } }
-  };
-
-  _PROTO_GET_SET_TBL_ENTRY* search( const char* str_id ) {
-    for( auto& entry : entries ) {
-      if( strcmp( entry.str_id, str_id ) == 0 ) return &entry;
-    }
-    return nullptr;
-  }
-
-} PROTO_GET_SET_TBL;
-
-struct _PROTO : bar_ctrl::out_cache_t< 128 > {
+struct _PROTO : bar_cache_t< 128 > {
   int init( void ) {
+    stream.gstbl.entries = PROTO_GSTBL_ENTRIES;
+    stream.gstbl.size = sizeof( PROTO_GSTBL_ENTRIES ) / sizeof( BAR_PROTO_GSTBL_ENTRY );
+
     return 0;
   }
 
-  int _out_cache_write( void ) override {
-    return COM.blue.write( _out_cache, sizeof( *_out_cache_head ) + _out_cache_head->_dw2.sz );
+  int _out_cache_write( void ) {
+    return COM.blue.write( (uint8_t*)_buffer, sizeof( *head ) + head->_dw2.sz );
   }
 
   int resolve_inbound_head( void ) {
     if( !COM.blue.available() ) return 0;
 
-    bar_ctrl::proto_head_t in_head;
+    bar_proto_head_t in_head;
     COM.blue_read( &in_head, sizeof( in_head ) );
 
     if( !in_head.is_signed() ) {
@@ -333,18 +309,18 @@ struct _PROTO : bar_ctrl::out_cache_t< 128 > {
     }
 
     switch( in_head._dw0.op ) {
-      case bar_ctrl::PROTO_OP_PING: {
-        _out_cache_head->_dw0.op  = bar_ctrl::PROTO_OP_ACK;
-        _out_cache_head->_dw1.seq = in_head._dw1.seq;
-        _out_cache_head->_dw2.sz  = 0;
+      case BAR_PROTO_OP_PING: {
+        head->_dw0.op  = BAR_PROTO_OP_ACK;
+        head->_dw1.seq = in_head._dw1.seq;
+        head->_dw2.sz  = 0;
 
-        SERIAL_LOG() << "Responding to ping on sequence ( " << _out_cache_head->_dw1.seq << " )... ";
+        SERIAL_LOG() << "Responding to ping on sequence ( " << head->_dw1.seq << " )... ";
         this->_out_cache_write();
         SERIAL_LOG << "ok.\n";
       break; }
     
-      case bar_ctrl::PROTO_OP_GET: {
-        _out_cache_head->_dw1.seq = in_head._dw1.seq;
+      case BAR_PROTO_OP_GET: {
+        head->_dw1.seq = in_head._dw1.seq;
 
         char buffer[ in_head._dw2.sz ]; COM.blue_read( buffer, in_head._dw2.sz );
 
@@ -354,16 +330,16 @@ struct _PROTO : bar_ctrl::out_cache_t< 128 > {
         /* This allows extra, unusable data, but does not affect the GET. NAK if present? */
       
       {
-        _PROTO_GET_SET_TBL_ENTRY* req = PROTO_GET_SET_TBL.search( buffer );
+        BAR_PROTO_GSTBL_ENTRY* req = stream.gstbl.search( buffer );
         if( req == nullptr ) goto l_get_nak;
 
-        _out_cache_head->_dw0.op = bar_ctrl::PROTO_OP_ACK;
-        _out_cache_head->_dw2.sz = req->sz;
+        head->_dw0.op = BAR_PROTO_OP_ACK;
+        head->_dw2.sz = req->sz;
 
-        if( req->ptr ) {
-          memcpy( _out_cache_data, req->ptr, req->sz );
-        } else if( req->get_cb ) {
-          req->get_cb( _out_cache_data );
+        if( req->src ) {
+          memcpy( data, req->src, req->sz );
+        } else if( req->fnc_get ) {
+          req->fnc_get( data );
         } else {
           SERIAL_LOG( LOG_ERROR ) << "No GET methods for \"" << req->str_id << "\".\n";
           return -1;
@@ -373,8 +349,8 @@ struct _PROTO : bar_ctrl::out_cache_t< 128 > {
       }    
       l_get_nak:
         SERIAL_LOG( LOG_WARNING ) << "Responding to GET with NAK on sequence ( " << in_head._dw1.seq << " ).\n"; 
-        _out_cache_head->_dw0.op = bar_ctrl::PROTO_OP_NAK;
-        _out_cache_head->_dw2.sz = 0;
+        head->_dw0.op = BAR_PROTO_OP_NAK;
+        head->_dw2.sz = 0;
       
       l_get_respond:
         this->_out_cache_write();
@@ -385,6 +361,8 @@ struct _PROTO : bar_ctrl::out_cache_t< 128 > {
 
     return 0;
   }
+
+  BAR_PROTO_STREAM   stream;
 
 } PROTO;
 
@@ -450,6 +428,7 @@ void setup( void ) {
   SETUP_CRITICAL_ASSERT( DYNAMIC.init() == 0 );
 
   PARAMS.reset();
+  PROTO.init();
 
   SERIAL_LOG( LOG_OK ) << "Setup complete.\n";
   BITNA.blink( LED::GRN, true, 10, 50, 50 );

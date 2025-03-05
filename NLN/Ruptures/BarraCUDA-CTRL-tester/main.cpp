@@ -25,8 +25,8 @@ struct _VISUAL {
 } VISUAL;
 
 
-BarracudaController   CTRL;
-dynamic_state_t       DYNAMIC;
+BARRACUDA_CTRL    CTRL;
+dynamic_state_t   DYNAMIC;
 
 
 struct BOARD {
@@ -215,7 +215,7 @@ int main( int argc, char* argv[] ) {
 
 l_attempt_connect:
     comms( ECHO_LEVEL_PENDING ) << "Waiting for connection...";
-    if( CTRL.data_link( BARRACUDA_CTRL_FLAG_TRUST ) != 0 ) {
+    if( CTRL.connect( BARRACUDA_CTRL_FLAG_TRUST_INVOKER ) != 0 ) {
         comms() << "Could not connect to the controller. Retrying in 3s...\n";
         std::this_thread::sleep_for( std::chrono::seconds{ 3 } );
         goto l_attempt_connect;

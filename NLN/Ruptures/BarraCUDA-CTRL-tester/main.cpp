@@ -177,7 +177,7 @@ struct _DASHBOARD {
 struct _COMMAND {
     bool exec( std::string& cmd ) {
         const char* cmds[] = {
-            "none", "exit", "ping", "get-byte"
+            "none", "exit", "ping", "get-byte", "set-byte"
         };
 
         ptrdiff_t idx = std::find_if( cmds, cmds + std::size( cmds ), [ &cmd ] ( const char* entry ) -> bool {
@@ -199,6 +199,12 @@ struct _COMMAND {
                 } else {
                     comms( ECHO_LEVEL_WARNING ) << "\"" << str_id << "\" NAK'd.";
                 }
+            break; }
+
+            case 4: {
+                std::string str_id; std::cin >> str_id;
+                char data; int n; std::cin >> n; data = ( char )n; comms( ECHO_LEVEL_INTEL ) << "Setting " << str_id << " to " << n << ".";
+                CTRL.set( str_id, &data, 1 );
             break; }
 
             default: return false;

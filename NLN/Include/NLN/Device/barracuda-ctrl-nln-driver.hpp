@@ -130,7 +130,7 @@ _ENGINE_PROTECTED:
                     return -1;
                 }
 
-                if( this->BTH_SOCKET::itr_recv( ( char* )resolver.dest, resolver.sz, echo ) <= 0 ) {
+                if( this->BTH_SOCKET::itr_recv( ( char* )resolver.dest, head->_dw2.sz, echo ) <= 0 ) {
                     echo( this, ECHO_LEVEL_ERROR ) << "Inbound ACK on sequence ( " << head->_dw1.seq << " ), fault on data read.";
                     return -1;
                 }
@@ -198,6 +198,19 @@ public:
         strcpy( ( char* )data, str_id.data() );
 
         this->_emplace_resolver_and_out_cache_write( dest, sz, echo )->wait( false );
+
+        return 0;
+    }
+
+    DWORD set( std::string_view str_id, void* src, int16_t sz, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        this->atomic_acquire_seq();
+        head->_dw0.op = BAR_PROTO_OP_SET;
+        head->_dw2.sz = str_id.length() + 1 + sz;
+
+        strcpy( ( char* )data, str_id.data() );
+        memcpy( ( char* )data + str_id.length() + 1, src, sz );
+
+        this->_emplace_resolver_and_out_cache_write( nullptr, 0, echo )->wait( false );
 
         return 0;
     }

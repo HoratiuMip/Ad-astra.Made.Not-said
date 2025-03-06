@@ -1,15 +1,13 @@
-#include "../barracuda-ctrl.hpp"
-#define BAR_PROTO_ARCHITECTURE_LITTLE
-#include "../bar-proto.hpp"
-
 #include "BluetoothSerial.h"
 
 #include <MPU6050_WE.h>
 #include <Wire.h>
 
-#include <functional>
+#include "../barracuda-ctrl.hpp"
+#define BAR_PROTO_ARCHITECTURE_LITTLE
+#include "../bar-proto.hpp"
 
-
+#include <atomic>
 enum LOG_LEVEL {
   LOG_OK, LOG_WARNING, LOG_ERROR, LOG_CRITICAL, LOG_INFO
 };
@@ -105,14 +103,25 @@ struct {
     return 0;
   }
 
-  int blue_read( void* ptr, int sz ) {
+  int blue_itr_recv( void* ptr, int sz ) {
     int count = 0;
    
     do {
       ( ( uint8_t* )ptr )[ count ] = ( uint8_t )blue.read();
     } while( ++count < sz );
 
-    return sz;
+    return count;
+  }
+
+  int blue_itr_send( void* ptr, int sz ) {
+    int count = 0;
+   
+    do {
+      int ret = blue.write( ( uint8_t* )ptr + count, sz - count );
+      count += ret;
+    } while( count < sz );
+
+    return count;
   }
 
 } COM;
@@ -280,89 +289,81 @@ struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_state_t {
 } DYNAMIC;
 
 
-BAR_PROTO_GSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 2 ]   = {
-  { str_id: "BITNA_CRT", src: &BITNA._crt, sz: 1, BAR_PROTO_GSTBL_READ_ONLY, fnc_get: nullptr, fnc_set: nullptr },
-
-  { str_id: "GRAN_ACC_RANGE", src: &GRAN._acc_range, sz: 1, BAR_PROTO_GSTBL_READ_WRITE, fnc_get: nullptr, fnc_set: BAR_PROTO_GSTBL_SET_FUNC{ return GRAN.set_acc_range( *( MPU9250_accRange* )src ); } }
+BAR_PROTO_GSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
+  { 
+    str_id: "BITNA_CRT", 
+    src: &BITNA._crt, 
+    sz: 1, 
+    BAR_PROTO_GSTBL_READ_ONLY, 
+    get: nullptr, 
+    set: nullptr 
+  },
+  { 
+    str_id: "GRAN_ACC_RANGE", 
+    src: &GRAN._acc_range, 
+    sz: 1, 
+    BAR_PROTO_GSTBL_READ_WRITE, 
+    get: nullptr, 
+    set: [] ( void* src, [[maybe_unused]]int16_t sz ) -> const char* { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )src ) ? nullptr : "GRAN_ACC_INVALID_RANGE"; } 
+  },
+  { 
+    str_id: "GRAN_GYR_RANGE", 
+    src: &GRAN._gyr_range, 
+    sz: 1, 
+    BAR_PROTO_GSTBL_READ_WRITE, 
+    get: nullptr, 
+    set: [] ( void* src, [[maybe_unused]]int16_t sz ) -> const char* { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )src ) ? nullptr : "GRAN_GYR_INVALID_RANGE"; } 
+  }
 };
 struct _PROTO : bar_cache_t< 128 > {
   int init( void ) {
-    stream.gstbl.entries = PROTO_GSTBL_ENTRIES;
-    stream.gstbl.size = sizeof( PROTO_GSTBL_ENTRIES ) / sizeof( BAR_PROTO_GSTBL_ENTRY );
+    stream.bind( BAR_PROTO_GSTBL{ 
+      entries: PROTO_GSTBL_ENTRIES, 
+      size: sizeof( PROTO_GSTBL_ENTRIES ) / sizeof( BAR_PROTO_GSTBL_ENTRY ) 
+    } );
+
+    stream.bind( BAR_PROTO_SRWRAP{
+      send: [] BAR_PROTO_STREAM_SEND_LAMBDA {
+        return COM.blue_itr_send( src, sz );
+      },
+      recv: [] BAR_PROTO_STREAM_RECV_LAMBDA {
+        return COM.blue_itr_recv( src, sz );
+      } 
+    } );
+
+    stream.bind( [] ( void ) -> int32_t { return PARAMS._bar_proto_seq; } );
 
     return 0;
   }
 
   int _out_cache_write( void ) {
-    return COM.blue.write( (uint8_t*)_buffer, sizeof( *head ) + head->_dw2.sz );
+    return COM.blue_itr_send( (uint8_t*)_buffer, sizeof( *head ) + head->_dw2.sz );
   }
 
-  int resolve_inbound_head( void ) {
-    if( !COM.blue.available() ) return 0;
+  BAR_PROTO_STREAM< 256 >   stream;
 
-    bar_proto_head_t in_head;
-    COM.blue_read( &in_head, sizeof( in_head ) );
+  int loop( void ) {
+    if( COM.blue.available() ) {
+      BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
+      if( int ret = stream.resolve_recv( &info ); ret != 0 ) {
+        SERIAL_LOG( LOG_ERROR ) << "Protocol fault " << BAR_PROTO_STREAM_ERR_STR[ info.err ] << ".\n";
+        return ret;
+      }
 
-    if( !in_head.is_signed() ) {
-      SERIAL_LOG( LOG_ERROR ) << "Incoming byte stream is out of alignment.\n";
-      return -1;
-    }
+      if( info.nak_reason != nullptr ) {
+        SERIAL_LOG() << "Responded with NAK on seuqence ( " << info.recv_head._dw1.seq << " ), operation ( " << ( int )info.recv_head._dw0.op << " ). Reason: " << info.nak_reason << ".\n";
+        return 0;
+      }
 
-    switch( in_head._dw0.op ) {
-      case BAR_PROTO_OP_PING: {
-        head->_dw0.op  = BAR_PROTO_OP_ACK;
-        head->_dw1.seq = in_head._dw1.seq;
-        head->_dw2.sz  = 0;
-
-        SERIAL_LOG() << "Responding to ping on sequence ( " << head->_dw1.seq << " )... ";
-        this->_out_cache_write();
-        SERIAL_LOG << "ok.\n";
-      break; }
-    
-      case BAR_PROTO_OP_GET: {
-        head->_dw1.seq = in_head._dw1.seq;
-
-        char buffer[ in_head._dw2.sz ]; COM.blue_read( buffer, in_head._dw2.sz );
-
-        char* delim = buffer; while( *++delim != '\0' ) {
-          if( delim - buffer >= in_head._dw2.sz - 1 ) goto l_get_nak;
-        }
-        /* This allows extra, unusable data, but does not affect the GET. NAK if present? */
-      
-      {
-        BAR_PROTO_GSTBL_ENTRY* req = stream.gstbl.search( buffer );
-        if( req == nullptr ) goto l_get_nak;
-
-        head->_dw0.op = BAR_PROTO_OP_ACK;
-        head->_dw2.sz = req->sz;
-
-        if( req->src ) {
-          memcpy( data, req->src, req->sz );
-        } else if( req->fnc_get ) {
-          req->fnc_get( data );
-        } else {
-          SERIAL_LOG( LOG_ERROR ) << "No GET methods for \"" << req->str_id << "\".\n";
-          return -1;
-        }
-
-        goto l_get_respond;
-      }    
-      l_get_nak:
-        SERIAL_LOG( LOG_WARNING ) << "Responding to GET with NAK on sequence ( " << in_head._dw1.seq << " ).\n"; 
-        head->_dw0.op = BAR_PROTO_OP_NAK;
-        head->_dw2.sz = 0;
-      
-      l_get_respond:
-        this->_out_cache_write();
-
-      break; }
-
+      switch( info.recv_head._dw0.op ) {
+        case BAR_PROTO_OP_PING: {
+          SERIAL_LOG() << "Ping'd back on sequence ( " << info.recv_head._dw1.seq << " ).\n";
+        break; }
+      }
     }
 
     return 0;
   }
-
-  BAR_PROTO_STREAM   stream;
 
 } PROTO;
 
@@ -454,7 +455,7 @@ void loop( void ) {
       BITNA.blink( LED::BLU, true, 10, 50, 50 );
     }
 
-    PROTO.resolve_inbound_head();
+    PROTO.loop();
     
     DYNAMIC.scan();
     DYNAMIC.blue_tx();

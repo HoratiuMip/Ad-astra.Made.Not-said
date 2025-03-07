@@ -113,7 +113,7 @@ struct {
     return count;
   }
 
-  int blue_itr_send( void* ptr, int sz ) {
+  int blue_itr_send( const void* ptr, int sz ) {
     int count = 0;
    
     do {
@@ -295,7 +295,6 @@ BAR_PROTO_GSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
     src: &BITNA._crt, 
     sz: 1, 
     BAR_PROTO_GSTBL_READ_ONLY, 
-    get: nullptr, 
     set: nullptr 
   },
   { 
@@ -303,7 +302,6 @@ BAR_PROTO_GSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
     src: &GRAN._acc_range, 
     sz: 1, 
     BAR_PROTO_GSTBL_READ_WRITE, 
-    get: nullptr, 
     set: [] ( void* src, [[maybe_unused]]int16_t sz ) -> const char* { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )src ) ? nullptr : "GRAN_ACC_INVALID_RANGE"; } 
   },
   { 
@@ -311,7 +309,6 @@ BAR_PROTO_GSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
     src: &GRAN._gyr_range, 
     sz: 1, 
     BAR_PROTO_GSTBL_READ_WRITE, 
-    get: nullptr, 
     set: [] ( void* src, [[maybe_unused]]int16_t sz ) -> const char* { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )src ) ? nullptr : "GRAN_GYR_INVALID_RANGE"; } 
   }
 };
@@ -343,6 +340,7 @@ struct _PROTO : bar_cache_t< 128 > {
       BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
       if( int ret = stream.resolve_recv( &info ); ret != 0 ) {
         SERIAL_LOG( LOG_ERROR ) << "Protocol fault " << BAR_PROTO_STREAM_ERR_STR[ info.err ] << ".\n";
+        BITNA.blink( LED::RED, false, 9, 100, 500 );
         return ret;
       }
 
@@ -451,7 +449,10 @@ void loop( void ) {
       BITNA.blink( LED::BLU, true, 10, 50, 50 );
     }
 
-    PROTO.loop();
+    if( PROTO.loop() != 0 ) {
+      COM.blue.disconnect();
+      return;
+    }
     
     DYNAMIC.scan();
     //DYNAMIC.blue_tx();

@@ -52,6 +52,7 @@ static_assert( sizeof( bar_proto_head_t ) == 3*sizeof( int32_t ) );
 
 template< int16_t BUF_SZ >
 struct bar_cache_t {
+    std::mutex                mtx;
     char                      _buffer[ BUF_SZ ];
     bar_proto_head_t* const   head                = ( bar_proto_head_t* )_buffer;
     void* const               data                = _buffer + sizeof( *head );
@@ -65,13 +66,11 @@ typedef   std::function< const char*( void* ) >            bar_proto_gstbl_get_f
 typedef   std::function< const char*( void*, int16_t ) >   bar_proto_gstbl_set_func_t;
 #define BAR_PROTO_GSTBL_READ_WRITE    0
 #define BAR_PROTO_GSTBL_READ_ONLY     1
-#define BAR_PROTO_GSTBL_VARIABLE_SIZE -1
 struct BAR_PROTO_GSTBL_ENTRY {
   const char* const            str_id;
   void* const                  src;
   const int16_t                sz;
   const bool                   read_only;    
-  bar_proto_gstbl_get_func_t   get;
   bar_proto_gstbl_set_func_t   set;         
 };
 struct BAR_PROTO_GSTBL {
@@ -96,6 +95,12 @@ struct BAR_PROTO_SRWRAP {
     bar_proto_stream_recv_func_t   recv    = nullptr;
 };
 
+enum BAR_PROTO_STREAM_SEND_METHOD {
+    BAR_PROTO_STREAM_SEND_METHOD_DIRECT,
+    BAR_PROTO_STREAM_SEND_METHOD_COPY_TO_CACHE,
+    BAR_PROTO_STREAM_SEND_METHOD_COPY_ON_STACK,
+    BAR_PROTO_STREAM_SEND_METHOD_AUTO
+};
 enum BAR_PROTO_STREAM_ERR : int {
     BAR_PROTO_STREAM_ERR_NONE        = 0,
     BAR_PROTO_STREAM_ERR_NOT_SIGNED  = 1,
@@ -120,20 +125,20 @@ struct BAR_PROTO_STREAM_RESOLVE_RECV_INFO {
     const char*            nak_reason   = nullptr;
 };
 struct BAR_PROTO_STREAM_WAIT_BACK_INFO {
-    std::atomic_bool       sig   = { false };
-    int16_t                sz    = 0;
-    BAR_PROTO_STREAM_ERR   err   = BAR_PROTO_STREAM_ERR_NONE;
+    std::atomic_bool       sig    = { false };
+    int16_t                sz     = 0;
+    bool                   ackd   = false;
+    BAR_PROTO_STREAM_ERR   err    = BAR_PROTO_STREAM_ERR_NONE;
 };
 struct _BAR_PROTO_STREAM_RESOLVER {
-    int32_t                            _seq   = 0;
-    void*                              _dst   = nullptr;
-    int16_t                            _sz    = 0;
+    int32_t                            _seq    = 0;
+    void*                              _dst    = nullptr;
+    int16_t                            _sz     = 0;
     BAR_PROTO_STREAM_WAIT_BACK_INFO*   _info   = nullptr;
 };
 typedef   std::function< int32_t( void ) >   bar_proto_stream_seq_acq_func_t;
-#define BAR_PROTO_STREAM_DONT_USE_CACHE 0
-#define bAR_PROTO_STREAM_USE_CACHE      1
-#define _BAR_PROTO_STREAM_ASSERT( c, e ) if( !( c ) ) { info->err = e; return -1; }
+#define _BAR_PROTO_STREAM_INFO_ASSERT( c, e ) if( !( c ) ) { info->err = e; return -1; }
+#define _BAR_PROTO_STREAM_INFO_NAK_IF( c, r ) if( c ) { info->nak_reason = "BAR_PROTO_NAKR_" r; goto l_nak; }
 template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
     BAR_PROTO_GSTBL                            _gstbl       = {};
     BAR_PROTO_SRWRAP                           _srwrap      = {};
@@ -146,64 +151,108 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
     void bind_srwrap( const BAR_PROTO_SRWRAP& srwrap ) { _srwrap = srwrap; }
     void bind_seq_acq( const bar_proto_stream_seq_acq_func_t& seq_acq ) { _seq_acq = seq_acq; }
 
-    bool _cache_send( void ) {
-        int16_t sz = sizeof( bar_proto_head_t ) + _cache.head->_dw2.sz; 
-        return _srwrap.send( &_cache._buffer, sz, 0 ) == sz;
+    bool _send( const void* src, int16_t sz, BAR_PROTO_OP op, int32_t seq, int flags, BAR_PROTO_STREAM_SEND_METHOD method ) {
+        switch( method ) {
+        l_direct:
+            case BAR_PROTO_STREAM_SEND_METHOD_DIRECT: {
+                bar_proto_head_t head;
+                head._dw0.op  = op;
+                head._dw1.seq = seq;
+                head._dw2.sz  = sz;
+                if( _srwrap.send( &head, sizeof( head ), flags ) != sizeof( head ) ) 
+                    return false;
+                if( src != nullptr && _srwrap.send( src, sz, flags ) != sz ) 
+                    return false;
+            break; }
+        
+        l_copy_to_cache:
+            case BAR_PROTO_STREAM_SEND_METHOD_COPY_TO_CACHE: {
+                std::unique_lock< decltype( _cache.mtx ) > lock{ _cache.mtx };
+                _cache.head->_dw0.op  = op;
+                _cache.head->_dw1.seq = seq;
+                _cache.head->_dw2.sz  = sz;
+                if( src != nullptr )
+                    memcpy( _cache.data, src, sz );
+                int16_t tot_sz = sizeof( bar_proto_head_t ) + sz;
+                if( _srwrap.send( _cache._buffer, tot_sz, flags ) != tot_sz ) 
+                    return false;
+            break; }
+
+        l_copy_on_stack:
+            case BAR_PROTO_STREAM_SEND_METHOD_COPY_ON_STACK: {
+                int16_t tot_sz = sizeof( bar_proto_head_t ) + sz;
+                char buffer[ tot_sz ];
+                *( bar_proto_head_t* )buffer = bar_proto_head_t{};
+                if( src != nullptr )
+                    memcpy( buffer + sizeof( bar_proto_head_t ), src, sz );
+                ( ( bar_proto_head_t* )buffer )->_dw0.op  = op;
+                ( ( bar_proto_head_t* )buffer )->_dw1.seq = seq;
+                ( ( bar_proto_head_t* )buffer )->_dw2.sz  = sz;
+                   
+                if( _srwrap.send( buffer, tot_sz, flags ) != tot_sz ) 
+                    return false;
+            break; }
+
+            case BAR_PROTO_STREAM_SEND_METHOD_AUTO: {
+                if( src == nullptr )
+                    goto l_direct;
+                else if( sz + sizeof( bar_proto_head_t ) <= 64  )
+                    goto l_copy_on_stack;
+                else if( sz + sizeof( bar_proto_head_t ) <= _CACHE_BUF_SZ )
+                    goto l_copy_to_cache;
+                else 
+                    goto l_direct;
+            break; }
+        }
+
+        return true;
     }
 
     int resolve_recv( BAR_PROTO_STREAM_RESOLVE_RECV_INFO* info ) {
-        if( int ret = _srwrap.recv( &info->recv_head, sizeof( info->recv_head ), 0 ); ret != sizeof( info->recv_head ) ) {
+        if( int ret = _srwrap.recv( &info->recv_head, sizeof( info->recv_head ), 0 ); ret != sizeof( bar_proto_head_t ) ) {
             info->err = BAR_PROTO_STREAM_ERR_RECV;
             return ret;
         }
 
-        _BAR_PROTO_STREAM_ASSERT( info->recv_head.is_signed(), BAR_PROTO_STREAM_ERR_NOT_SIGNED );
+        _BAR_PROTO_STREAM_INFO_ASSERT( info->recv_head.is_signed(), BAR_PROTO_STREAM_ERR_NOT_SIGNED );
 
         switch( info->recv_head._dw0.op ) {
             case BAR_PROTO_OP_PING: {
-                _cache.head->_dw0.op  = BAR_PROTO_OP_ACK;
-                _cache.head->_dw1.seq = info->recv_head._dw1.seq;
-                _cache.head->_dw2.sz  = 0;
-
-                _BAR_PROTO_STREAM_ASSERT( _cache_send(), BAR_PROTO_STREAM_ERR_SEND );
+                _BAR_PROTO_STREAM_INFO_ASSERT( 
+                    _send( nullptr, 0, BAR_PROTO_OP_ACK, info->recv_head._dw1.seq, 0, BAR_PROTO_STREAM_SEND_METHOD_DIRECT ), 
+                    BAR_PROTO_STREAM_ERR_SEND 
+                );
             break; }
 
             case BAR_PROTO_OP_GET: [[fallthrough]];
             case BAR_PROTO_OP_SET: {
-                _cache.head->_dw1.seq = info->recv_head._dw1.seq;
-
-                if( info->recv_head._dw2.sz <= 0 ) { info->nak_reason = "BAR_PROTO_NAKR_BAD_FORMAT"; goto l_nak; }
+                _BAR_PROTO_STREAM_INFO_NAK_IF( info->recv_head._dw2.sz <= 0, "BAD_SIZE" );
                 char buffer[ info->recv_head._dw2.sz ];
-                _BAR_PROTO_STREAM_ASSERT( _srwrap.recv( buffer, info->recv_head._dw2.sz, 0 ) == info->recv_head._dw2.sz, BAR_PROTO_STREAM_ERR_RECV );
+                _BAR_PROTO_STREAM_INFO_ASSERT( _srwrap.recv( buffer, info->recv_head._dw2.sz, 0 ) == info->recv_head._dw2.sz, BAR_PROTO_STREAM_ERR_RECV );
 
                 char* delim = buffer - 1; while( *++delim != '\0' ) {
-                    if( delim - buffer >= info->recv_head._dw2.sz - 1 ) { info->nak_reason = "BAR_PROTO_NAKR_BAD_FORMAT"; goto l_nak; }
+                    _BAR_PROTO_STREAM_INFO_NAK_IF( delim - buffer >= info->recv_head._dw2.sz - 1, "BAD_FORMAT" );
                 }
 
                 BAR_PROTO_GSTBL_ENTRY* entry = _gstbl.search( buffer );
-                if( entry == nullptr ) { info->nak_reason = "BAR_PROTO_NAKR_NO_ENTRY"; goto l_nak; }
+                _BAR_PROTO_STREAM_INFO_NAK_IF( entry == nullptr, "NO_ENTRY" );
 
                 if( info->recv_head._dw0.op == BAR_PROTO_OP_SET ) goto l_set;
             l_get:
-                if( entry->get != nullptr ) {
-                    if( const char* nak_reason = entry->get( _cache.data ); nak_reason != nullptr ) { 
-                        info->nak_reason = nak_reason; goto l_nak; 
-                    }
-                } else if( entry->src != nullptr ) {
-                    memcpy( _cache.data, entry->src, entry->sz );
+                if( entry->src != nullptr ) {
+                    _BAR_PROTO_STREAM_INFO_ASSERT( 
+                        _send( entry->src, entry->sz, BAR_PROTO_OP_ACK, info->recv_head._dw1.seq, 0, BAR_PROTO_STREAM_SEND_METHOD_AUTO ),
+                        BAR_PROTO_STREAM_ERR_SEND
+                    );
                 } else {
-                    info->nak_reason = "BAR_PROTO_NAKR_NO_PROCEDURE"; goto l_nak;
+                    _BAR_PROTO_STREAM_INFO_NAK_IF( true, "NO_PROCEDRE" );
                 }
-                _cache.head->_dw2.sz = entry->sz;
-                goto l_ack;
-
+            break;
             l_set:
-                if( entry->read_only ) { info->nak_reason = "BAR_PROTO_NAKR_READ_ONLY"; goto l_nak; }
+                _BAR_PROTO_STREAM_INFO_NAK_IF( entry->read_only, "READ_ONLY" );
 
                 int16_t sz = info->recv_head._dw2.sz - ( delim - buffer + 1 );
-                if( entry->sz != BAR_PROTO_GSTBL_VARIABLE_SIZE && entry->sz != sz ) { 
-                    info->nak_reason = "BAR_PROTO_NAKR_SIZE_MISMATCH"; goto l_nak; 
-                }
+                _BAR_PROTO_STREAM_INFO_NAK_IF( entry->sz != sz, "SIZE_MISMATCH" );
 
                 if( entry->set != nullptr ) {
                     if( const char* nak_reason = entry->set( delim + 1, sz ); nak_reason != nullptr ) {
@@ -212,43 +261,33 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
                 } else if( entry->src != nullptr ) {
                     memcpy( entry->src, delim + 1, sz );
                 } else {
-                    info->nak_reason = "BAR_PROTO_NAKR_NO_PROCEDURE"; goto l_nak;
+                    _BAR_PROTO_STREAM_INFO_NAK_IF( true, "NO_PROCEDRE" );
                 }
-                _cache.head->_dw2.sz = 0;
-                goto l_ack;
-
-            break; }
-
-            l_ack: {
-                _cache.head->_dw0.op = BAR_PROTO_OP_ACK;
-                _BAR_PROTO_STREAM_ASSERT( _cache_send(), BAR_PROTO_STREAM_ERR_SEND );
+                _BAR_PROTO_STREAM_INFO_ASSERT( 
+                    _send( nullptr, 0, BAR_PROTO_OP_ACK, info->recv_head._dw1.seq, 0, BAR_PROTO_STREAM_SEND_METHOD_DIRECT ),
+                    BAR_PROTO_STREAM_ERR_SEND
+                );
             break; }
 
             l_nak: {
-                _cache.head->_dw0.op = BAR_PROTO_OP_NAK;
-                
-                if( info->nak_reason != nullptr ) {
-                    _cache.head->_dw2.sz = strlen( strcpy( ( char* )_cache.data, info->nak_reason ) );
-                } else {
-                    _cache.head->_dw2.sz = 0;
-                }
-
-                _BAR_PROTO_STREAM_ASSERT( _cache_send(), BAR_PROTO_STREAM_ERR_SEND );
-
+                _BAR_PROTO_STREAM_INFO_ASSERT(
+                    _send( info->nak_reason, info->nak_reason ? strlen( info->nak_reason ) + 1 : 0, BAR_PROTO_OP_NAK, info->recv_head._dw1.seq, 0, BAR_PROTO_STREAM_SEND_METHOD_COPY_ON_STACK ),
+                    BAR_PROTO_STREAM_ERR_SEND 
+                );
             break; }
 
             case BAR_PROTO_OP_ACK: {
-                _BAR_PROTO_STREAM_ASSERT( !_resolvers.empty(), BAR_PROTO_STREAM_ERR_NO_RESOLVER );
+                _BAR_PROTO_STREAM_INFO_ASSERT( !_resolvers.empty(), BAR_PROTO_STREAM_ERR_NO_RESOLVER );
 
                 _BAR_PROTO_STREAM_RESOLVER& resolver = _resolvers.front();
 
-                _BAR_PROTO_STREAM_ASSERT( info->recv_head._dw1.seq == resolver._seq, BAR_PROTO_STREAM_ERR_SEQUENCE );
+                _BAR_PROTO_STREAM_INFO_ASSERT( info->recv_head._dw1.seq == resolver._seq, BAR_PROTO_STREAM_ERR_SEQUENCE );
 
                 if( resolver._dst == nullptr ) goto l_resolver_sig;
 
-                _BAR_PROTO_STREAM_ASSERT( resolver._sz >= info->recv_head._dw2.sz, BAR_PROTO_STREAM_ERR_SIZE );
+                _BAR_PROTO_STREAM_INFO_ASSERT( resolver._sz >= info->recv_head._dw2.sz, BAR_PROTO_STREAM_ERR_SIZE );
 
-                _BAR_PROTO_STREAM_ASSERT( _srwrap.recv( resolver._dst, info->recv_head._dw2.sz, 0 ) == info->recv_head._dw2.sz, BAR_PROTO_STREAM_ERR_RECV );
+                _BAR_PROTO_STREAM_INFO_ASSERT( _srwrap.recv( resolver._dst, info->recv_head._dw2.sz, 0 ) == info->recv_head._dw2.sz, BAR_PROTO_STREAM_ERR_RECV );
 
                 resolver._info->sz = info->recv_head._dw2.sz;
 
@@ -258,12 +297,11 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
                 std::unique_lock< std::mutex > lock{ _resmtx };
                 _resolvers.pop_front();
                 lock.unlock();
-
+                
                 wb_info->sig.store( true, std::memory_order_release );
             #if defined( BAR_PROTO_NOTIFIABLE_ATOMICS )
                 wb_info->sig.notify_one();
             #endif
-
             break; }
 
         }
@@ -276,7 +314,7 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
         BAR_PROTO_OP op, 
         const void* src, int16_t src_sz, 
         void* dst, int16_t dst_sz,
-        bool use_cache 
+        BAR_PROTO_STREAM_SEND_METHOD method
     ) {
         std::unique_lock< std::mutex > lock{ _resmtx };
         _BAR_PROTO_STREAM_RESOLVER& resolver = _resolvers.emplace_back( _BAR_PROTO_STREAM_RESOLVER{
@@ -287,23 +325,10 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
         } );
         lock.unlock();
 
-        if( use_cache ) {
-            _cache.head->_dw0.op  = op;
-            _cache.head->_dw1.seq = resolver._seq;
-            _cache.head->_dw2.sz  = src_sz;
-
-            memcpy( _cache.data, src, src_sz );
-
-            _BAR_PROTO_STREAM_ASSERT( _cache_send(), BAR_PROTO_STREAM_ERR_SEND );
-        } else {
-            bar_proto_head_t out_head;
-            out_head._dw0.op  = op;
-            out_head._dw1.seq = resolver._seq;
-            out_head._dw2.sz  = src_sz;
-
-            _BAR_PROTO_STREAM_ASSERT( _srwrap.send( &out_head, sizeof( out_head ), 0 ) == sizeof( out_head ), BAR_PROTO_STREAM_ERR_SEND );
-            _BAR_PROTO_STREAM_ASSERT( _srwrap.send( src, src_sz, 0 ) == src_sz, BAR_PROTO_STREAM_ERR_SEND );
-        }
+        _BAR_PROTO_STREAM_INFO_ASSERT(
+            _send( src, src_sz, op, resolver._seq, 0, method ),
+            BAR_PROTO_STREAM_ERR_SEND 
+        );
 
         return 0;
     }

@@ -57,7 +57,7 @@ public:
         echo( this, ECHO_LEVEL_PENDING ) << "Pinging...";
 
         BAR_PROTO_STREAM_WAIT_BACK_INFO info;
-        this->wait_back( &info, BAR_PROTO_OP_PING, nullptr, 0, nullptr, 0, bAR_PROTO_STREAM_USE_CACHE );
+        this->wait_back( &info, BAR_PROTO_OP_PING, nullptr, 0, nullptr, 0, BAR_PROTO_STREAM_SEND_METHOD_DIRECT );
         info.sig.wait( false );
         
         echo( this, ECHO_LEVEL_OK ) << "Received ping acknowledgement.";
@@ -66,7 +66,7 @@ public:
 
     DWORD get( std::string_view str_id, void* dest, int16_t sz, _ENGINE_COMMS_ECHO_RT_ARG ) {
         BAR_PROTO_STREAM_WAIT_BACK_INFO info;
-        this->BAR_PROTO_STREAM::wait_back( &info, BAR_PROTO_OP_GET, str_id.data(), str_id.length() + 1, dest, sz, 1 );
+        this->BAR_PROTO_STREAM::wait_back( &info, BAR_PROTO_OP_GET, str_id.data(), str_id.length() + 1, dest, sz, BAR_PROTO_STREAM_SEND_METHOD_COPY_ON_STACK );
         info.sig.wait( false );
         return 0;
     }

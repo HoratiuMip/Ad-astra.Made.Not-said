@@ -317,21 +317,17 @@ BAR_PROTO_GSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
 };
 struct _PROTO : bar_cache_t< 128 > {
   int init( void ) {
-    stream.bind( BAR_PROTO_GSTBL{ 
+    stream.bind_gstbl( BAR_PROTO_GSTBL{ 
       entries: PROTO_GSTBL_ENTRIES, 
       size: sizeof( PROTO_GSTBL_ENTRIES ) / sizeof( BAR_PROTO_GSTBL_ENTRY ) 
     } );
 
-    stream.bind( BAR_PROTO_SRWRAP{
-      send: [] BAR_PROTO_STREAM_SEND_LAMBDA {
-        return COM.blue_itr_send( src, sz );
-      },
-      recv: [] BAR_PROTO_STREAM_RECV_LAMBDA {
-        return COM.blue_itr_recv( src, sz );
-      } 
+    stream.bind_srwrap( BAR_PROTO_SRWRAP{
+      send: [] BAR_PROTO_STREAM_SEND_LAMBDA { return COM.blue_itr_send( src, sz ); },
+      recv: [] BAR_PROTO_STREAM_RECV_LAMBDA { return COM.blue_itr_recv( dst, sz ); } 
     } );
 
-    stream.bind( [] ( void ) -> int32_t { return PARAMS._bar_proto_seq; } );
+    stream.bind_seq_acq( [] ( void ) -> int32_t { return PARAMS._bar_proto_seq; } );
 
     return 0;
   }
@@ -458,7 +454,7 @@ void loop( void ) {
     PROTO.loop();
     
     DYNAMIC.scan();
-    DYNAMIC.blue_tx();
+    //DYNAMIC.blue_tx();
 
     delay( PARAMS.main_loop_delay );
 

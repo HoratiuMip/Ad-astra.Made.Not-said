@@ -37,11 +37,11 @@ _ENGINE_PROTECTED:
     socket_t   _socket   = {};
 
 public:
-    DWORD itr_recv( char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD itr_recv( void* buffer, DWORD count, DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
         DWORD crt = 0;
         
         do {
-            DWORD ret = recv( this->_socket, buffer + crt, count - crt, MSG_WAITALL );
+            DWORD ret = recv( this->_socket, ( char* )buffer + crt, count - crt, flags | MSG_WAITALL );
             NLN_ASSERT_ET( ret > 0, ret, "Recv fault. WSA code ( " << WSAGetLastError() << " )." );
             crt += ret;
         } while( crt < count );
@@ -50,11 +50,11 @@ public:
         return crt;
     }
 
-    DWORD itr_send( const char* buffer, DWORD count, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD itr_send( const void* buffer, DWORD count, DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
         DWORD crt = 0;
 
         do {
-            DWORD ret = send( this->_socket, buffer + crt, count - crt, 0 );
+            DWORD ret = send( this->_socket, ( char* )buffer + crt, count - crt, flags );
             NLN_ASSERT_ET( ret > 0, ret, "Send fault. WSA code ( " << WSAGetLastError() << ")." );
             crt += ret;
         } while( crt < count );

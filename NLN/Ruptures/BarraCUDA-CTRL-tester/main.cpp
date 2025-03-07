@@ -25,7 +25,7 @@ struct _VISUAL {
 } VISUAL;
 
 
-BARRACUDA_CTRL    CTRL;
+BarracudaCTRL     CTRL;
 dynamic_state_t   DYNAMIC;
 
 

@@ -25,8 +25,7 @@ struct _VISUAL {
 } VISUAL;
 
 
-BarracudaCTRL     CTRL;
-dynamic_state_t   DYNAMIC;
+BarracudaCTRL CTRL;
 
 
 struct BOARD {
@@ -86,10 +85,10 @@ struct MAIN_SWITCHES_BOARD : BOARD {
             ggfloat_t   x;
             Sweep2&     sweep;
         } batches[] = {
-            { sw: DYNAMIC.giselle,  x: -0.3f, sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_BLUE ) },
-            { sw: DYNAMIC.karina ,  x: -0.1f, sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_RED ) },
-            { sw: DYNAMIC.ningning, x: 0.1f,  sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_YELLOW ) },
-            { sw: DYNAMIC.winter,   x: 0.3f,  sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_GREEN ) }
+            { sw: CTRL.dynamic.giselle,  x: -0.3f, sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_BLUE ) },
+            { sw: CTRL.dynamic.karina ,  x: -0.1f, sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_RED ) },
+            { sw: CTRL.dynamic.ningning, x: 0.1f,  sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_YELLOW ) },
+            { sw: CTRL.dynamic.winter,   x: 0.3f,  sweep: VISUAL.render->pull( RENDERER2_DFT_SWEEP_GREEN ) }
         };
 
         for( auto& batch : batches ) {
@@ -151,12 +150,9 @@ enum {
 
 struct _DASHBOARD {
     std::thread                             th;
-    std::atomic_bool                        ready;
-
     std::list< std::unique_ptr< BOARD > >   boards;
 
     void begin( void ) {
-        ready.store( true, std::memory_order_relaxed );
         th = std::thread{ [ & ] () -> void { this->loop(); } };
     }
 
@@ -168,7 +164,8 @@ struct _DASHBOARD {
 
             VISUAL.render->rs2_downlink();
 
-            if( CTRL.listen_trust( &DYNAMIC ) != 0 ) STATUS = RESET;
+            BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
+            if( CTRL.trust_resolve_recv( &info ) < 0 ) STATUS = RESET;
         }
     }
 } DASHBOARD;
@@ -219,6 +216,14 @@ struct _COMMAND {
 int main( int argc, char* argv[] ) {
     if( NLN::begin_runtime( argc, argv, BEGIN_RUNTIME_FLAG_INIT_NETWORK, nullptr, nullptr ) != 0 ) goto l_main_loop_break;
 
+    VISUAL.init();
+
+    DASHBOARD.boards.emplace_back( new JOYSTICK_BOARD{ 1, 2, &CTRL.dynamic.rachel } );
+    DASHBOARD.boards.emplace_back( new JOYSTICK_BOARD{ 3, 1, &CTRL.dynamic.samantha } );
+    DASHBOARD.boards.emplace_back( new MAIN_SWITCHES_BOARD{ 3, 2 } );
+    DASHBOARD.boards.emplace_back( new GYRO_TRANSLATION_ACC_BOARD{ 1, 1, &CTRL.dynamic.gran } );
+    DASHBOARD.boards.emplace_back( new GYRO_ROTATION_ACC_BOARD{ 2, 1, &CTRL.dynamic.gran } );
+
 l_attempt_connect:
     comms( ECHO_LEVEL_PENDING ) << "Waiting for connection...";
     if( CTRL.connect( BARRACUDA_CTRL_FLAG_TRUST_INVOKER ) != 0 ) {
@@ -227,18 +232,10 @@ l_attempt_connect:
         goto l_attempt_connect;
     }
     comms() << "Connected to the controller.\n";
-
-    VISUAL.init();
-
-    DASHBOARD.boards.emplace_back( new JOYSTICK_BOARD{ 1, 2, &DYNAMIC.rachel } );
-    DASHBOARD.boards.emplace_back( new JOYSTICK_BOARD{ 3, 1, &DYNAMIC.samantha } );
-    DASHBOARD.boards.emplace_back( new MAIN_SWITCHES_BOARD{ 3, 2 } );
-    DASHBOARD.boards.emplace_back( new GYRO_TRANSLATION_ACC_BOARD{ 1, 1, &DYNAMIC.gran } );
-    DASHBOARD.boards.emplace_back( new GYRO_ROTATION_ACC_BOARD{ 2, 1, &DYNAMIC.gran } );
-
-    DASHBOARD.begin();
     
     STATUS = READY;
+    DASHBOARD.begin();
+
     do {
         comms( ECHO_LEVEL_INPUT ) << "Command: ";
 
@@ -260,9 +257,12 @@ l_attempt_connect:
 
     } while( STATUS == READY );
 l_main_loop_break:
-
-    DASHBOARD.ready.store( false, std::memory_order_relaxed );
+    CTRL.disconnect( 0 );
     if( DASHBOARD.th.joinable() ) DASHBOARD.th.join();
+
+    if( STATUS == RESET ) {
+        goto l_attempt_connect;
+    }
 
     return NLN::end_runtime( argc, argv, 0, nullptr, nullptr );
 }

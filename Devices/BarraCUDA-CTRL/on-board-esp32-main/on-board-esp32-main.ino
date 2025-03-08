@@ -39,7 +39,7 @@ struct _PARAMS {
   }
 
   bool      _conn_rst         = true;
-  int32_t   _bar_proto_seq    = 0;
+  int16_t   _bar_proto_seq    = 0;
 
   int32_t   main_loop_delay   = 20;
 
@@ -203,7 +203,7 @@ struct LED {
 } BITNA;
 
 
-struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_state_t {
+struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_t {
   struct {
     struct { float x, y; } rachel, samantha;
   } _idle_reads;
@@ -211,7 +211,7 @@ struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_state_t {
   int init( void ) {
     SERIAL_LOG() << "Proto head init... ";
     bar_proto_head_t::_dw0.op = BAR_PROTO_OP_BURST;
-    bar_proto_head_t::_dw2.sz = sizeof( bar_ctrl::dynamic_state_t ); 
+    bar_proto_head_t::_dw2.sz = sizeof( bar_ctrl::dynamic_t ); 
     SERIAL_LOG << "ok.\n";
 
     SERIAL_LOG() << "Joysticks calibrate... ";
@@ -266,10 +266,7 @@ struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_state_t {
     gran.gyr = { x: gyr_read.y, y: -gyr_read.x, z: gyr_read.z };
   }
 
-  void blue_tx( void ) {
-    bar_proto_head_t::_dw1.seq = PARAMS._bar_proto_seq++;
-    COM.blue.write( ( uint8_t* )this, sizeof( bar_proto_head_t ) + bar_proto_head_t::_dw2.sz );
-  }
+  int blue_tx( void );
 
   void serial_tx_dynamic_state( void ) {
     char buffer[ 256 ];
@@ -324,7 +321,7 @@ struct _PROTO : bar_cache_t< 128 > {
       recv: [] BAR_PROTO_STREAM_RECV_LAMBDA { return COM.blue_itr_recv( dst, sz ); } 
     } );
 
-    stream.bind_seq_acq( [] ( void ) -> int32_t { return PARAMS._bar_proto_seq; } );
+    stream.bind_seq_acq( [] ( void ) -> int16_t { return PARAMS._bar_proto_seq; } );
 
     return 0;
   }
@@ -338,14 +335,14 @@ struct _PROTO : bar_cache_t< 128 > {
   int loop( void ) {
     if( COM.blue.available() ) {
       BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
-      if( int ret = stream.resolve_recv( &info ); ret != 0 ) {
+      if( int ret = stream.resolve_recv( &info ); ret < 0 ) {
         SERIAL_LOG( LOG_ERROR ) << "Protocol fault " << BAR_PROTO_STREAM_ERR_STR[ info.err ] << ".\n";
         BITNA.blink( LED::RED, false, 9, 100, 500 );
         return ret;
       }
 
-      if( info.nak_reason != nullptr ) {
-        SERIAL_LOG() << "Responded with NAK on seuqence ( " << info.recv_head._dw1.seq << " ), operation ( " << ( int )info.recv_head._dw0.op << " ). Reason: " << info.nak_reason << ".\n";
+      if( info.nakr != nullptr ) {
+        SERIAL_LOG() << "Responded with NAK on seuqence ( " << info.recv_head._dw1.seq << " ), operation ( " << ( int )info.recv_head._dw0.op << " ). Reason: " << info.nakr << ".\n";
         return 0;
       }
 
@@ -455,16 +452,24 @@ void loop( void ) {
     }
     
     DYNAMIC.scan();
-    //DYNAMIC.blue_tx();
+    DYNAMIC.blue_tx();
 
     delay( PARAMS.main_loop_delay );
 
   } else {
     if( !PARAMS._conn_rst ) {
+      COM.blue.end();
       SERIAL_LOG( LOG_INFO ) << "Disconnected from device.\n";
       PARAMS.reset();
+      COM.blue.begin( bar_ctrl::DEVICE_NAME );
       BITNA.blink( LED::BLU, true, 10, 50, 50 );
     }
     BITNA.blink( LED::BLU, 1, true, 500, 500 );
   }
 }
+
+
+int _DYNAMIC::blue_tx( void ) {
+    bar_proto_head_t::_dw1.seq = PROTO.stream._seq_acq();
+    return PROTO.stream.trust_burst( this, sizeof( bar_proto_head_t ) + bar_proto_head_t::_dw2.sz, 0 );
+  }

@@ -34,7 +34,10 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "SOCKET" );
 
 _ENGINE_PROTECTED:
-    socket_t   _socket   = {};
+    socket_t   _socket   = socket_t{};
+
+public:
+    bool connected() const { return _socket != socket_t{}; }
 
 public:
     DWORD itr_recv( void* buffer, DWORD count, DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {

@@ -36,7 +36,7 @@ struct gyro_t {
 };
 static_assert( sizeof( gyro_t ) == 6*sizeof( float ) + sizeof( int32_t ) );
 
-struct dynamic_state_t {
+struct dynamic_t {
     joystick_t   rachel,       samantha;
     /*           |lower left   |upper right */
     switch_t     giselle, karina, ningning, winter;
@@ -44,7 +44,7 @@ struct dynamic_state_t {
 
     gyro_t       gran;
 };
-static_assert( sizeof( dynamic_state_t ) == 
+static_assert( sizeof( dynamic_t ) == 
     4*sizeof( switch_t )
     +
     2*sizeof( joystick_t )

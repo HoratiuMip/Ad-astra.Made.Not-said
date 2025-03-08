@@ -31,25 +31,39 @@ class BarracudaCTRL : public BTH_SOCKET, public BAR_PROTO_STREAM< 256 > {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "BarracudaCTRL" );
 
+public:
+     bar_ctrl::dynamic_t     dynamic         = {};
+
 _ENGINE_PROTECTED:
-    bool                       _trust_invk   = false;
-  
-    std::atomic_int32_t        _bar_seq      = { 0 };
+    bool                     _trust_invk     = false;
+    std::atomic_int16_t      _bar_seq        = { 0 };
+    BAR_PROTO_BRSTBL_ENTRY   _brstbl_entry   = { dst: &dynamic, sz: sizeof( dynamic ) };
 
 public:
     DWORD connect( DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
         _trust_invk = flags & BARRACUDA_CTRL_FLAG_TRUST_INVOKER;
 
+        _bar_seq.store( 0, std::memory_order_relaxed );
+
         DWORD ret = this->BTH_SOCKET::connect( bar_ctrl::DEVICE_NAME_W );
         NLN_ASSERT( ret == 0, ret );
         
+        this->BAR_PROTO_STREAM::bind_brstbl( BAR_PROTO_BRSTBL{
+            entries: &_brstbl_entry,
+            size: 1
+        } );
+
         this->BAR_PROTO_STREAM::bind_srwrap( BAR_PROTO_SRWRAP{
             send: [ this ] BAR_PROTO_STREAM_SEND_LAMBDA { return this->BTH_SOCKET::itr_send( src, sz, flags ); },
             recv: [ this ] BAR_PROTO_STREAM_RECV_LAMBDA { return this->BTH_SOCKET::itr_recv( dst, sz, flags ); }
         } );
-        this->BAR_PROTO_STREAM::bind_seq_acq( [ this ] () -> int32_t { return _bar_seq.fetch_add( 1, std::memory_order_relaxed ); } );
+        this->BAR_PROTO_STREAM::bind_seq_acq( [ this ] () -> int16_t { return _bar_seq.fetch_add( 1, std::memory_order_relaxed ); } );
         
         return 0;
+    }
+
+    DWORD disconnect( DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        return this->BTH_SOCKET::disconnect();
     }
 
 public:
@@ -64,34 +78,53 @@ public:
         return 0;
     }
 
-    DWORD get( std::string_view str_id, void* dest, int16_t sz, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD get( std::string_view str_id, void* dest, int32_t sz, _ENGINE_COMMS_ECHO_RT_ARG ) {
         BAR_PROTO_STREAM_WAIT_BACK_INFO info;
-        this->BAR_PROTO_STREAM::wait_back( &info, BAR_PROTO_OP_GET, str_id.data(), str_id.length() + 1, dest, sz, BAR_PROTO_STREAM_SEND_METHOD_COPY_ON_STACK );
+
+        DWORD ret = this->BAR_PROTO_STREAM::wait_back( 
+            &info, BAR_PROTO_OP_GET, 
+            str_id.data(), str_id.length() + 1, 
+            dest, sz,
+            BAR_PROTO_STREAM_SEND_METHOD_COPY_ON_STACK 
+        );
+        NLN_ASSERT_ET( ret == 0, ret, BAR_PROTO_STREAM_ERR_STR[ info.err ] );
+
         info.sig.wait( false );
+
+        NLN_ASSERT_ET( info.ackd, -1, info.nakr );
         return 0;
     }
 
-    DWORD set( std::string_view str_id, void* src, int16_t sz, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        // this->atomic_acquire_seq();
-        // head->_dw0.op = BAR_PROTO_OP_SET;
-        // head->_dw2.sz = str_id.length() + 1 + sz;
+    DWORD set( std::string_view str_id, void* src, int32_t sz, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        char buffer[ str_id.length() + 1 + sz ];
+        strcpy( buffer, str_id.data() );
+        memcpy( buffer + str_id.length() + 1, src, sz );
 
-        // strcpy( ( char* )data, str_id.data() );
-        // memcpy( ( char* )data + str_id.length() + 1, src, sz );
+        BAR_PROTO_STREAM_WAIT_BACK_INFO info;
 
-        // this->_emplace_resolver_and_out_cache_write( nullptr, 0, echo )->wait( false );
+        DWORD ret = this->BAR_PROTO_STREAM::wait_back( 
+            &info, BAR_PROTO_OP_SET, 
+            buffer, str_id.length() + 1 + sz, 
+            nullptr, 0,
+            BAR_PROTO_STREAM_SEND_METHOD_DIRECT
+        );
+        NLN_ASSERT_ET( ret == 0, ret, BAR_PROTO_STREAM_ERR_STR[ info.err ] );
 
-        // return 0;
+        info.sig.wait( false );
+
+        NLN_ASSERT_ET( info.ackd, -1, info.nakr );
+        return 0;
     }
 
 public: 
-    DWORD listen_trust( bar_ctrl::dynamic_state_t* dy_st, _ENGINE_COMMS_ECHO_RT_ARG ) {
-    l_listen_begin: {
-        BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
-        std::cout << this->resolve_recv( &info ) << '\n';
+    DWORD trust_resolve_recv( BAR_PROTO_STREAM_RESOLVE_RECV_INFO* info, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        DWORD ret = this->resolve_recv( info );
+        NLN_ASSERT_ET( ret > 0, ret, BAR_PROTO_STREAM_ERR_STR[ info->err ] );
 
-        if( info.recv_head._dw0.op != BAR_PROTO_OP_BURST ) goto l_listen_begin;
-    }
+        if( info->nakr ) {
+            echo( this, ECHO_LEVEL_WARNING ) << "Responded with NAK on sequence ( " << info->recv_head._dw1.seq << " ). Reason: " << info->nakr << ".";
+        }
+
         return 0;
     }
 

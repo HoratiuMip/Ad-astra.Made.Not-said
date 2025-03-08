@@ -43,6 +43,9 @@ struct dynamic_t {
     /*           |blue    |red    |yellow   |green */
 
     gyro_t       gran;
+
+    float        naksu;
+    /*           |light sensor */ 
 };
 static_assert( sizeof( dynamic_t ) == 
     4*sizeof( switch_t )
@@ -50,6 +53,8 @@ static_assert( sizeof( dynamic_t ) ==
     2*sizeof( joystick_t )
     +
     sizeof( gyro_t )
+    +
+    sizeof( float )
 );
 
 

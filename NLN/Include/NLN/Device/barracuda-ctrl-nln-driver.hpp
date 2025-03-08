@@ -125,7 +125,7 @@ public:
             echo( this, ECHO_LEVEL_WARNING ) << "Responded with NAK on sequence ( " << info->recv_head._dw1.seq << " ). Reason: " << info->nakr << ".";
         }
 
-        return 0;
+        return ret;
     }
 
 };

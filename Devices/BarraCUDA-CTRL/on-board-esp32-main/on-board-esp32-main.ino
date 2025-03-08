@@ -47,11 +47,17 @@ struct _PARAMS {
 
 
 struct { 
+  const int   ADC_nmax = 4095;
+  const float ADC_fmax = 4095.0f;
+
   struct { const GPIO_pin_t sw, x, y; } rachel{ sw: 27, x: 35, y: 32 }, samantha{ sw: 33, x: 26, y: 25 };
   /*       JOYSTICKS                    |lower left                     |upper right */
 
   const GPIO_pin_t giselle = 5, karina = 18, ningning = 19, winter = 23;
   /*      SWS     |blue        |red         |yellow        |green */
+
+  const GPIO_pin_t naksu = 4;
+  /*               |light sensor */
 
   struct { const GPIO_pin_t r, g, b; } bitna{ r: 13, g: 12, b: 14 };
 
@@ -210,8 +216,9 @@ struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_t {
 
   int init( void ) {
     SERIAL_LOG() << "Proto head init... ";
-    bar_proto_head_t::_dw0.op = BAR_PROTO_OP_BURST;
-    bar_proto_head_t::_dw2.sz = sizeof( bar_ctrl::dynamic_t ); 
+    bar_proto_head_t::_dw0.op  = BAR_PROTO_OP_BURST;
+    bar_proto_head_t::_dw1.seq = 1;
+    bar_proto_head_t::_dw2.sz  = sizeof( bar_ctrl::dynamic_t ); 
     SERIAL_LOG << "ok.\n";
 
     SERIAL_LOG() << "Joysticks calibrate... ";
@@ -264,6 +271,9 @@ struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_t {
     gran.acc = { x: acc_read.y, y: -acc_read.x, z: acc_read.z };
     xyzFloat gyr_read = GRAN.getGyrValues();
     gran.gyr = { x: gyr_read.y, y: -gyr_read.x, z: gyr_read.z };
+
+    naksu = 1.0 - sqrt( analogRead( GPIO.naksu ) / GPIO.ADC_fmax );
+
   }
 
   int blue_tx( void );
@@ -288,7 +298,7 @@ struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_t {
 
 BAR_PROTO_GSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
   { 
-    str_id: "BITNA_CRT", 
+    str_id: "BITNA", 
     src: &BITNA._crt, 
     sz: 1, 
     BAR_PROTO_GSTBL_READ_ONLY, 
@@ -309,7 +319,7 @@ BAR_PROTO_GSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
     set: [] ( void* src, [[maybe_unused]]int16_t sz ) -> const char* { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )src ) ? nullptr : "GRAN_GYR_INVALID_RANGE"; } 
   }
 };
-struct _PROTO : bar_cache_t< 128 > {
+struct _PROTO {
   int init( void ) {
     stream.bind_gstbl( BAR_PROTO_GSTBL{ 
       entries: PROTO_GSTBL_ENTRIES, 
@@ -326,16 +336,12 @@ struct _PROTO : bar_cache_t< 128 > {
     return 0;
   }
 
-  int _out_cache_write( void ) {
-    return COM.blue_itr_send( (uint8_t*)_buffer, sizeof( *head ) + head->_dw2.sz );
-  }
-
   BAR_PROTO_STREAM< 256 >   stream;
 
   int loop( void ) {
     if( COM.blue.available() ) {
       BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
-      if( int ret = stream.resolve_recv( &info ); ret < 0 ) {
+      if( int ret = stream.resolve_recv( &info ); ret <= 0 ) {
         SERIAL_LOG( LOG_ERROR ) << "Protocol fault " << BAR_PROTO_STREAM_ERR_STR[ info.err ] << ".\n";
         BITNA.blink( LED::RED, false, 9, 100, 500 );
         return ret;
@@ -458,10 +464,8 @@ void loop( void ) {
 
   } else {
     if( !PARAMS._conn_rst ) {
-      COM.blue.end();
       SERIAL_LOG( LOG_INFO ) << "Disconnected from device.\n";
       PARAMS.reset();
-      COM.blue.begin( bar_ctrl::DEVICE_NAME );
       BITNA.blink( LED::BLU, true, 10, 50, 50 );
     }
     BITNA.blink( LED::BLU, 1, true, 500, 500 );
@@ -470,6 +474,5 @@ void loop( void ) {
 
 
 int _DYNAMIC::blue_tx( void ) {
-    bar_proto_head_t::_dw1.seq = PROTO.stream._seq_acq();
     return PROTO.stream.trust_burst( this, sizeof( bar_proto_head_t ) + bar_proto_head_t::_dw2.sz, 0 );
   }

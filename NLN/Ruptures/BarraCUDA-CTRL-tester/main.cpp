@@ -142,6 +142,26 @@ struct GYRO_ROTATION_ACC_BOARD : BOARD {
     }
 };
 
+struct LIGHT_SENSOR_BOARD : BOARD {
+    LIGHT_SENSOR_BOARD( int gi, int gj, float* ptr )
+    : BOARD{ gi, gj }, dat{ ptr }
+    {}
+
+    float*   dat;
+
+    virtual void frame( void ) override {
+        this->_begin();
+
+    
+        view.line( Vec2{ -0.25, -0.5f }, Vec2{ -0.25, *dat - 0.5f }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_WHITE ) );
+        view.line( Vec2{ 0, -0.5f }, Vec2{ 0.0, *dat - 0.5f }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_WHITE ) );
+        view.line( Vec2{ 0.25, -0.5f }, Vec2{ 0.25, *dat - 0.5f }, VISUAL.render->pull( RENDERER2_DFT_SWEEP_WHITE ) );
+
+        this->_end();
+    }
+};
+
+
 
 enum {
     READY, RESET, EXIT
@@ -165,7 +185,7 @@ struct _DASHBOARD {
             VISUAL.render->rs2_downlink();
 
             BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
-            if( CTRL.trust_resolve_recv( &info ) < 0 ) STATUS = RESET;
+            if( CTRL.trust_resolve_recv( &info ) <= 0 ) STATUS = RESET;
         }
     }
 } DASHBOARD;
@@ -174,7 +194,7 @@ struct _DASHBOARD {
 struct _COMMAND {
     bool exec( std::string& cmd ) {
         const char* cmds[] = {
-            "none", "exit", "ping", "get-byte", "set-byte"
+            "none", "exit", "ping", "get-byte", "set-byte", "proto-breach"
         };
 
         ptrdiff_t idx = std::find_if( cmds, cmds + std::size( cmds ), [ &cmd ] ( const char* entry ) -> bool {
@@ -204,6 +224,11 @@ struct _COMMAND {
                 CTRL.set( str_id, &data, 1 );
             break; }
 
+            case 5: {
+                int x = 1;
+                CTRL.trust_burst( &x, 4, 0 );
+            break; }
+
             default: return false;
         }
 
@@ -223,6 +248,7 @@ int main( int argc, char* argv[] ) {
     DASHBOARD.boards.emplace_back( new MAIN_SWITCHES_BOARD{ 3, 2 } );
     DASHBOARD.boards.emplace_back( new GYRO_TRANSLATION_ACC_BOARD{ 1, 1, &CTRL.dynamic.gran } );
     DASHBOARD.boards.emplace_back( new GYRO_ROTATION_ACC_BOARD{ 2, 1, &CTRL.dynamic.gran } );
+    DASHBOARD.boards.emplace_back( new LIGHT_SENSOR_BOARD{ 1, 0, &CTRL.dynamic.naksu } );
 
 l_attempt_connect:
     comms( ECHO_LEVEL_PENDING ) << "Waiting for connection...";

@@ -93,8 +93,8 @@ struct BAR_PROTO_BRSTBL {
     int                       size      = 0;
 
     BAR_PROTO_BRSTBL_ENTRY* operator [] ( int idx ) {
-        if( idx > size || idx < 0 ) return nullptr;
-        return &entries[ idx ];
+        if( idx > size || idx <= 0 ) return nullptr;
+        return &entries[ idx - 1 ];
     }
 };
 

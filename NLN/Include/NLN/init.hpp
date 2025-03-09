@@ -53,7 +53,7 @@ DWORD begin_runtime( int argc, char* argv[], DWORD flags, void* in, void** out )
     comms( ECHO_LEVEL_OK ) << "OpenGL GLFW init complete.";
 #endif
 
-    comms( fault_ctr == 0 ? ECHO_LEVEL_OK : ECHO_LEVEL_WARNING ) << _ENGINE_STR " engine runtime being complete with ( " << fault_ctr << " ) faults.\n";
+    comms( fault_ctr == 0 ? ECHO_LEVEL_OK : ECHO_LEVEL_WARNING ) << _ENGINE_STR " engine runtime begin complete with ( " << fault_ctr << " ) faults.\n";
     return 0;
 
 } l_begin_abort:

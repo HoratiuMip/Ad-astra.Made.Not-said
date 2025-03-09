@@ -324,7 +324,7 @@ inline static spec_mod::BARRACUDA_CONTROLLER* ptrr = nullptr;
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_spec_mod_barracuda_controller ) {
     _WARC_NLN_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_spec_mod_barracuda_controller()" );
    
-    int status = spec_mod::push_device( bar_ctrl::DEVICE_NAME, NLN::HVEC< spec_mod::BARRACUDA_CONTROLLER >::allocc() );
+    int status = spec_mod::push_device( barcud_ctrl::DEVICE_NAME, NLN::HVEC< spec_mod::BARRACUDA_CONTROLLER >::allocc() );
     WARC_ASSERT_RT( status == 0, "Could not push the device in the special module reservation station.", status, status );
 
     _ixt_init_flags |= NLN::INIT_FLAG_UPLINK_NETWORK | NLN::INIT_FLAG_UPLINK_NETWORK_CONTINUE_IF_FAULT;

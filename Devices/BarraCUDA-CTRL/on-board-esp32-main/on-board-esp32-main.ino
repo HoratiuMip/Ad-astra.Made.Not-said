@@ -41,7 +41,7 @@ struct _PARAMS {
   bool      _conn_rst         = true;
   int16_t   _bar_proto_seq    = 0;
 
-  int32_t   main_loop_delay   = 20;
+  int32_t   main_loop_delay   = 10;
 
 } PARAMS;
 
@@ -99,7 +99,7 @@ struct {
 
   int init() {
     SERIAL_LOG() << "Bluetooth serial begin... ";
-    blue.begin( bar_ctrl::DEVICE_NAME );
+    blue.begin( barcud_ctrl::DEVICE_NAME );
     SERIAL_LOG << "ok.\n";
 
     SERIAL_LOG() << "I^2C wire begin... ";
@@ -209,7 +209,7 @@ struct LED {
 } BITNA;
 
 
-struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_t {
+struct _DYNAMIC : bar_proto_head_t, barcud_ctrl::dynamic_t {
   struct {
     struct { float x, y; } rachel, samantha;
   } _idle_reads;
@@ -218,7 +218,7 @@ struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_t {
     SERIAL_LOG() << "Proto head init... ";
     bar_proto_head_t::_dw0.op  = BAR_PROTO_OP_BURST;
     bar_proto_head_t::_dw1.seq = 1;
-    bar_proto_head_t::_dw2.sz  = sizeof( bar_ctrl::dynamic_t ); 
+    bar_proto_head_t::_dw2.sz  = sizeof( barcud_ctrl::dynamic_t ); 
     SERIAL_LOG << "ok.\n";
 
     SERIAL_LOG() << "Joysticks calibrate... ";
@@ -246,7 +246,7 @@ struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_t {
     samantha.y *= -1.0;
     
 
-    const auto _resolve_switch = [] ( bar_ctrl::switch_t& sw, GPIO_pin_t pin ) -> void {
+    const auto _resolve_switch = [] ( barcud_ctrl::switch_t& sw, GPIO_pin_t pin ) -> void {
       int is_dwn = !digitalRead( pin );
 
       switch( ( sw.dwn << 1 ) | is_dwn ) {
@@ -272,7 +272,7 @@ struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_t {
     xyzFloat gyr_read = GRAN.getGyrValues();
     gran.gyr = { x: gyr_read.y, y: -gyr_read.x, z: gyr_read.z };
 
-    naksu = 1.0 - sqrt( analogRead( GPIO.naksu ) / GPIO.ADC_fmax );
+    naksu.val = 1.0 - sqrt( analogRead( GPIO.naksu ) / GPIO.ADC_fmax );
 
   }
 
@@ -298,7 +298,7 @@ struct _DYNAMIC : bar_proto_head_t, bar_ctrl::dynamic_t {
 
 BAR_PROTO_GSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
   { 
-    str_id: "BITNA", 
+    str_id: "BITNA_CRT", 
     src: &BITNA._crt, 
     sz: 1, 
     BAR_PROTO_GSTBL_READ_ONLY, 

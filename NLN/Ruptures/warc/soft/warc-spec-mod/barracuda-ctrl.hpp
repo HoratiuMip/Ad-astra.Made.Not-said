@@ -99,7 +99,7 @@ _WARC_PROTECTED:
 
 public:
     int                               read_error_timeout_s   = 5;
-    bar_ctrl::dynamic_state_t   dy_st                  = {};
+    barcud_ctrl::dynamic_state_t   dy_st                  = {};
 
 };
 

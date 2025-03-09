@@ -960,9 +960,9 @@ public:
 public:
     Render3() = default;
     
-    Render3( HVEC< Surface > surface, _ENGINE_COMMS_ECHO_ARG )
-    : _surface{ std::move( surface ) } {
-        _surface->uplink_context_on_this_thread( echo );
+    Render3( GLFWwindow* glfwnd, _ENGINE_COMMS_ECHO_RT_ARG )
+    : _glfwnd{ glfwnd } {
+        glfwMakeContextCurrent( _glfwnd );
 
         _rend_str = ( const char* )glGetString( GL_RENDERER ); 
         _gl_str   = ( const char* )glGetString( GL_VERSION );
@@ -981,23 +981,30 @@ public:
         glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
         glEnable( GL_BLEND );
 
-        glPatchParameteri( GL_PATCH_VERTICES, 3 );
-
-        glViewport( 0, 0, ( int )_surface->width(), ( int )_surface->height() );
+        int wnd_w, wnd_h;
+        glfwGetFramebufferSize( _glfwnd, &wnd_w, &wnd_h );
+        glViewport( 0, 0, wnd_w, wnd_h );
 
         stbi_set_flip_vertically_on_load( true );
 
         echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
 
+    // explicit Render3( HVEC< Surface > surf, _ENGINE_COMMS_ECHO_RT_ARG ) {
+        // comms( this, ECHO_LEVEL_ERROR ) << "This constructor is no longer supported.";
+    // }
+
     Render3( const Render3& ) = delete;
     Render3( Render3&& ) = delete;
 
 _ENGINE_PROTECTED:
-    HVEC< Surface >   _surface    = NULL;
+    GLFWwindow*   _glfwnd    = NULL;
 
-    const char*       _rend_str   = NULL;     
-    const char*       _gl_str     = NULL;    
+    const char*   _rend_str   = NULL;     
+    const char*   _gl_str     = NULL;   
+
+public:
+    GLFWwindow* handle() { return _glfwnd; }
 
 public:
     Render3& clear( glm::vec4 c = { .0, .0, .0, 1.0 } ) {
@@ -1007,7 +1014,7 @@ public:
     }
 
     Render3& swap() {
-        glfwSwapBuffers( _surface->handle() );
+        glfwSwapBuffers( _glfwnd );
         return *this;
     }
 

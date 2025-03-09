@@ -32,7 +32,7 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "BarracudaCTRL" );
 
 public:
-     bar_ctrl::dynamic_t     dynamic         = {};
+     barcud_ctrl::dynamic_t     dynamic         = {};
 
 _ENGINE_PROTECTED:
     bool                     _trust_invk     = false;
@@ -45,7 +45,7 @@ public:
 
         _bar_seq.store( 0, std::memory_order_relaxed );
 
-        DWORD ret = this->BTH_SOCKET::connect( bar_ctrl::DEVICE_NAME_W );
+        DWORD ret = this->BTH_SOCKET::connect( barcud_ctrl::DEVICE_NAME_W );
         NLN_ASSERT( ret == 0, ret );
         
         this->BAR_PROTO_STREAM::bind_brstbl( BAR_PROTO_BRSTBL{

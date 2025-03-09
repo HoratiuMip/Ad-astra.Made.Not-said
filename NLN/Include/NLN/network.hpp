@@ -147,7 +147,7 @@ public:
     DWORD connect( BTH_ADDR addr, _ENGINE_COMMS_ECHO_RT_ARG ) {
         this->addr2str( &this->addr_str, addr );
 
-        SOCKET::_socket = socket( AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM );
+        socket_t temp_socket = ::socket( AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM );
 
         SOCKADDR_BTH sock_addr;
         memset( &sock_addr, 0, sizeof( sock_addr ) );
@@ -157,9 +157,10 @@ public:
         sock_addr.btAddr         = addr;
        
         echo( this, ECHO_LEVEL_PENDING ) << "Attempting to connect to " << this->addr_str.buf << ".";
-        DWORD ret = ::connect( SOCKET::_socket, ( SOCKADDR* )&sock_addr, sizeof( sock_addr ) );
+        DWORD ret = ::connect( temp_socket, ( SOCKADDR* )&sock_addr, sizeof( sock_addr ) );
         NLN_ASSERT_ET( ret == 0, ret, "Fault connecting to " << this->addr_str.buf << ". WSA code (" << WSAGetLastError() << ")." );
-            
+        
+        SOCKET::_socket = temp_socket;
         echo( this, ECHO_LEVEL_OK ) << "Connected to " << this->addr_str.buf << ".";
         return 0;
     }
@@ -173,7 +174,7 @@ public:
     }
 
     DWORD disconnect( _ENGINE_COMMS_ECHO_RT_ARG ) {
-        DWORD ret = closesocket( std::exchange( SOCKET::_socket, socket_t{} ) );
+        DWORD ret = ::closesocket( std::exchange( SOCKET::_socket, socket_t{} ) );
         NLN_ASSERT_ET( ret == 0, ret, "Fault disconnecting from " << this->addr_str.buf << ". WSA ( " << WSAGetLastError() << ")." );
 
         echo( this, ECHO_LEVEL_OK ) << "Disconnected from " << this->addr_str.buf << ".";

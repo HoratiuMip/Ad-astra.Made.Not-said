@@ -7,7 +7,7 @@ BARRACUDA_CTRL_ARCHITECTURE_LITTLE
 BARRACUDA_CTRL_ARCHITECTURE_BIG
 */
 
-namespace bar_ctrl {
+namespace barcud_ctrl {
 
 const char* const DEVICE_NAME = "BarraCUDA-CTRL";
 const wchar_t* const DEVICE_NAME_W = L"BarraCUDA-CTRL";
@@ -36,16 +36,20 @@ struct gyro_t {
 };
 static_assert( sizeof( gyro_t ) == 6*sizeof( float ) + sizeof( int32_t ) );
 
+struct light_sensor_t {
+    float   val;
+};
+static_assert( sizeof( light_sensor_t ) == sizeof( float ) );
+
 struct dynamic_t {
-    joystick_t   rachel,       samantha;
-    /*           |lower left   |upper right */
-    switch_t     giselle, karina, ningning, winter;
-    /*           |blue    |red    |yellow   |green */
+    joystick_t       rachel,       samantha;
+    /*               |lower left   |upper right */
+    switch_t         giselle, karina, ningning, winter;
+    /*               |blue    |red    |yellow   |green */
 
-    gyro_t       gran;
+    gyro_t           gran;
 
-    float        naksu;
-    /*           |light sensor */ 
+    light_sensor_t   naksu;
 };
 static_assert( sizeof( dynamic_t ) == 
     4*sizeof( switch_t )
@@ -54,7 +58,7 @@ static_assert( sizeof( dynamic_t ) ==
     +
     sizeof( gyro_t )
     +
-    sizeof( float )
+    sizeof( light_sensor_t )
 );
 
 

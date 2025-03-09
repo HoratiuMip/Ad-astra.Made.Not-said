@@ -30,6 +30,10 @@ option( NLN_BOOST "NLN_BOOST" OFF )
 option( NLN_OPEN_SSL "NLN_OPEN_SSL" OFF )
 
 
+# ImGUI filter. ----------------------------------
+option( NLN_IMGUI "NLN_IMGUI" OFF )
+
+
 # Quintessentials. ----------------------------------
 set( NLN_LIB_NAME "NLN" )
 set( NLN_VERSION "v1.0.0" )
@@ -187,10 +191,31 @@ if( NLN_BOOST )
     link_libraries( "${NLN_EXCOM_ROOT_DIR}/Boost/stage/lib/libboost_json-mgw11-mt-x64-1_86.a" )
 endif()
 
+
+# ImGUI pre. ----------------------------------
+if( NLN_IMGUI ) 
+    set( _imgui_source_files "" )
+    file( GLOB files_paths "${NLN_EXCOM_ROOT_DIR}/ImGUI/*" )
+    
+    foreach( file_path ${files_paths} )
+        string( REGEX MATCH "[a-zA-Z_0-9]+\.cpp$" file_path ${file_path} )
+        
+        if( file_path )
+            message( STATUS "Detected ImGUI source file: ${file_path}" )
+            list( APPEND _imgui_source_files "${NLN_EXCOM_ROOT_DIR}/ImGUI/${file_path}" )
+        endif()
+    endforeach()
+
+    message( STATUS "Creating the ImGUI library..." )
+    include_directories( "${NLN_EXCOM_ROOT_DIR}/ImGUI/" )
+    include_directories( "${NLN_EXCOM_ROOT_DIR}/ImGUI/backends/" )
+    add_library( "ImGUI" STATIC ${_imgui_source_files} )
+endif()
+
+
 # Set those folders' paths into variables. ----------------------------------
 set( NLN_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/Include" )
 set( NLN_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/Source" )
-
 
 # NLN include and source directories. ----------------------------------
 add_subdirectory( "Source" )
@@ -212,6 +237,21 @@ endif()
 # OpenSSL post. ----------------------------------
 if( NLN_OPEN_SSL )
     target_link_libraries( ${NLN_LIB_NAME} PUBLIC ${_nln_open_ssl_libs} )
+endif()
+
+
+# ImGUI post. ----------------------------------
+if( NLN_IMGUI )
+    if( NLN_GL_OPEN_GL ) 
+        target_link_libraries( "ImGUI" PUBLIC glm )
+        target_link_libraries( "ImGUI" PUBLIC glfw )
+        target_link_libraries( "ImGUI" PUBLIC glew_s )   
+        target_link_libraries( "ImGUI" PUBLIC globj )
+        
+        target_include_directories( "ImGUI" PUBLIC "${NLN_EXCOM_ROOT_DIR}/OpenGL/glm" )
+        target_include_directories( "ImGUI" PUBLIC "${NLN_EXCOM_ROOT_DIR}/OpenGL/glfw/include" )
+        target_include_directories( "ImGUI" PUBLIC "${NLN_EXCOM_ROOT_DIR}/OpenGL/glew/include" )
+    endif()
 endif()
 
 

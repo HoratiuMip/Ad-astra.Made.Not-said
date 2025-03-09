@@ -1,7 +1,6 @@
 # `Barra`CUDA-CTRL
 The "How does it hold together?" makeshift joystick controller, with only one question yet to be answered: "Does it feel better or worse than it looks?". Try not to drop the chonky battery on your toes.
-
-> ![barracuda-artistic](https://github.com/user-attachments/assets/fbdbcb51-6fd0-449a-890b-1a8cb49b5d47)
+> ![barracuda-artistic-2](https://github.com/user-attachments/assets/70c06b52-5cce-49a4-8159-9010b21ce0b9)
 
 Dedicated to his impossible love, by its founder, the hopeless romantic, https://github.com/nyjucu.
 
@@ -19,6 +18,7 @@ Status LED.
 > | Pattern | Description |
 > | :------ | :---------- |
 > | `blink quick red` | The controller has successfully set the I/O pins and will continue the initialization procedure. |
+> | `blink pulse red` | A protocol breach occured. The controller shall reset the bluetooth connection. |
 > | `blink red slow` | The controller has entered a dead state. A hard reset is required. |
 > | `blink quick green` | The controller initialized successfully. |
 > | `blink pulse turquoise` | The controller is in testing mode. |
@@ -51,52 +51,11 @@ Legend.
 > | `Solid line` | I/O pins connections. The line colors are the same as the wires on the controller. |
 > | `Circle` | Connection between wire and suplpy line. |
 
-> ![barracuda-layout](https://github.com/user-attachments/assets/e80234c7-e637-4f68-9bb4-be34e6b94ccf)
+> ![barracuda-layout](https://github.com/user-attachments/assets/c65797ff-83c2-476d-b6dd-b8a89acdfb4b)
 
-### The `BAR STREAM` protocol 
-This is an `ISO/OSI PRESENTATION LAYER ( STACK LAYER 6 )` protocol which describes and assures the correct interpretation of the incoming byte stream, via a stream channel.
+### Protocol
+The controller uses the `BAR STREAM/BURST` protocol for data transmission. 
 
-Each transmitted packet begins with the following `12 byte` header.
-> ![barracuda-protocol](https://github.com/user-attachments/assets/9f8ac5d4-d58e-4072-bab2-7ab045a06dc5)
 
-> - `PROTO-SIG` - the first `3 bytes` of the head - contains the sequence '`B`' '`A`' '`R`'. This signature is used to assure the alignment of the read data.
-> - `OP` - the next `1 byte` - the code of the operation. Each operation, along with its code, is described below.
-> - `SEQUENCE` - the next `4 bytes` - sort of an unique identifier of each transmission. 
-> - `PCK-SIZE` - the next `2 bytes` - the size of the transmitted packet, NOT including the size of the head.
-> - `RESERVED` - last `2 bytes` of the head - reserved for possible future use.
-
-Quick sample #1 - `PING`.
-> ![bark-ping](https://github.com/user-attachments/assets/7c659a77-a590-4b4e-ab1d-318f4d78de79)
-
-Quick sample #2 - `GET` - the status LED RGB.
-> ![bark-get](https://github.com/user-attachments/assets/f0d3cdc8-9708-4603-9901-0d1b3136401c)
-
-Operations come in two categories.
-> - `WAIT ACK` - after a packet is transmitted, the sender expects a returning acknowledgement packet.
-> - `BURST` - the sender does not expect a feedback.
-
-#### Operations
-> `PING` - `WAIT ACK` - Proceeds to execute the complex exchange: "Hello there." <-> "General Kenobi". Never transmitted from the controller.
-
-> `SET`/`GET` - `WAIT ACK` - Exchange of parameters between the controller and the endpoint. The first bytes after a `SET`/`GET` header represent a NULL-terminated string identifying the data.
-> - `SET` - The bytes following the NULL-terminated identifying string represent the value of the data to be set. The receiver must respond with either an `ACK` or a `NAK`.
-> - `GET` - The receiver must respond with either an `ACK`, followed by the value of the requested data, or a `NAK`.
-
-> `BURST` - `BURST` - This operation arrives in packets when the endpoint informed the controller to send its state as fast as possible. The endpoint guarantees in this case that it is able to process the packets quick enough.
-
-#### Setting up
-Everything needed to use the protocol is inside the `BAR_PROTO_STREAM` strucure.
-> `gstbl` field - get/set table containing `entries`, a pointer to a `BAR_PROTO_GSTBL_ENTRY`, and `size`, the number of entries in the table - these need to be set manually. An entry consists of the following fields:
-> - `str_id` - string identifier of the entry,
-> - `src` - pointer to the data to be read/written. If checks need to be done before getting/setting, leave this field `NULL`. and check `fnc_get` and `fnc_set`.
-> - `sz` - size of the data pointed to by `src`.
-> - `read_only` - only `GET` operations are appliable to this data.
-> - `fnc_get` / `fnc_set` - functions to be called on `GET`/`SET` operations.
-
-### The `BAR BURST` protocol
-This is a derived version of the `BAR STREAM` protocol with the difference that it uses a datagram instead of a stream channel. The idea of this approach is to separate `WAIT ACK` and `BURST` packets through the lower levels of the `ISO/OSI` stack. 
-> In a nutshell, the `BAR STREAM`'s `BURST` operations do not wait for an `ACK` on the `PRESENTATION` layer, but still the underlying protocol waits for acknowledgements on the `TRANSPORT` layer. Thus, `BAR BURST` aims to use the small packet, unreliable transmission protocol to win time on the `BURST` operations.
-
-> However, this implies an additional implementation for the `WAIT ACK` operation.
 
 

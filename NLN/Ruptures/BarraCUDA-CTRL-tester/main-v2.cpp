@@ -250,9 +250,72 @@ protected:
 public:
     virtual void frame( void ) override {
         ImGui::SetNextWindowSize( { 0, 0 }, ImGuiCond_Once );
-        ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_NoResize );
+        ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_None );
 
-        
+        static int         op_sel      = 0;
+        const char*        ops[]       = { "GET", "SET" };
+        const BAR_PROTO_OP ops_codes[] = { BAR_PROTO_OP_GET, BAR_PROTO_OP_SET };
+
+        static int  str_id_sel = 0; 
+        const char* str_ids[]  = { "BITNA_CRT", "GRAN_ACC_RANGE", "GRAN_GYR_RANGE" };
+
+        static char args[ 32 ] = { '\0' }; 
+
+        static std::deque< std::pair< bool, std::string > > prev_cmds;
+
+        ImGui::SeparatorText( "Operation." );
+        if( ImGui::BeginCombo( "##1.", ops[ op_sel ], ImGuiComboFlags_None ) ) {
+            for( int n = 0; n < IM_ARRAYSIZE( ops ); ++n ) {
+                const bool is_sel = ( op_sel == n );
+                if( ImGui::Selectable( ops[ n ], is_sel, ImGuiSelectableFlags_None ) )
+                    op_sel = n;
+            }
+
+            ImGui::EndCombo();
+        }
+
+        ImGui::SeparatorText( "String Id." );
+        if( ImGui::BeginCombo( "##2", str_ids[ str_id_sel ], ImGuiComboFlags_None ) ) {
+            for( int n = 0; n < IM_ARRAYSIZE( str_ids ); ++n ) {
+                const bool is_sel = ( str_id_sel == n );
+                if( ImGui::Selectable( str_ids[ n ], is_sel, ImGuiSelectableFlags_None ) )
+                    str_id_sel = n;
+            }
+
+            ImGui::EndCombo();
+        }
+
+        ImGui::SeparatorText( "Arguments." );
+        ImGui::InputText( "##3", args, IM_ARRAYSIZE( args ), ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_CharsUppercase );
+
+        ImGui::Separator();
+        if( ImGui::Button( "SEND" ) ) {
+            char buffer[ 128 ];
+            int offset = strlen( strcpy( buffer, str_ids[ str_id_sel ] ) ) + 1;
+
+            if( args[ 0 ] != '\0' ) buffer[ offset ] = args[ 0 ] - '0';
+
+            char byte;
+            BAR_PROTO_STREAM_WAIT_BACK_INFO info;
+            int ret = BARCUD.wait_back( &info, ops_codes[ op_sel ], buffer, offset + 1, &byte, 1, BAR_PROTO_STREAM_SEND_METHOD_AUTO );
+
+            STATS.add_sent( ret );
+            info.sig.wait( false );
+            STATS.add_recv( info.sz );
+            
+            if( !info.ackd ) {
+                prev_cmds.emplace_front( false, "" ).second += info.nakr;
+            } else {
+                prev_cmds.emplace_front( true, "" ).second += std::to_string( ( int )byte );
+            }
+        }
+
+        ImGui::SeparatorText( "Previous commands." );
+        for( auto& cmd : prev_cmds ) {
+            ImGui::TextColored( cmd.first ? ImVec4{ 0, 1, 0, 1 } : ImVec4{ 1, 0, 0, 1 }, cmd.first ? "ACK'd: " : "NAK'd: " );
+            ImGui::SameLine();
+            ImGui::Text( "%s.", cmd.second.c_str() );
+        }
      
         ImGui::End();
     }
@@ -332,8 +395,8 @@ int main( int argc, char** argv ) {
         "Command - Selector"
     } );
 
-    float ax = 0.0;
-    std::thread burst_th{ [ &ax ] () -> void {
+    
+    std::thread burst_th{ [] () -> void {
     l_attempt_connect: {
         if( !is_running() )
             goto l_burst_th_end;
@@ -347,15 +410,12 @@ int main( int argc, char** argv ) {
         STATS.reset_session();
         NLN::comms() << "Connected to the controller.\n";
 
-        NLN::Ticker tkr;
         BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
         while( is_running() ) {
             int ret = BARCUD.trust_resolve_recv( &info );
             if( ret <= 0 ) break;
             STATS.add_recv( ret );
             STATS.add_sent( info.sent );
-
-            ax += BARCUD.dynamic.gran.gyr.z / std::numeric_limits< int16_t >::max() * 250.0 * tkr.lap();
         }
 
         BARCUD.disconnect( 0 );
@@ -379,7 +439,7 @@ int main( int argc, char** argv ) {
     proj.uplink_b();
     render.uplink_wireframe();
 
-    while( is_running() ) { mesh.model.uplink_bv( glm::rotate( glm::mat4{ 1.0 }, ax, glm::vec3( 0, 0, 1 ) ) );
+    while( is_running() ) { mesh.model.uplink_bv( glm::rotate( glm::mat4{ 1.0 }, glm::radians( 30.0f * ( float )ImGui::GetTime() ), glm::vec3( 1, 1, 0 ) ) );
         glfwPollEvents();
 
         if( glfwGetWindowAttrib( render.handle(), GLFW_ICONIFIED ) != 0 ) {

@@ -337,9 +337,11 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
                     _srwrap.recv( resolver._dst, info->recv_head._dw2.sz, 0 ), info->recv_head._dw2.sz, BAR_PROTO_STREAM_ERR_RECV
                 );
 
-                wb_info->sz = info->recv_head._dw2.sz;
+                wb_info->sz += info->recv_head._dw2.sz;
 
             l_resolver_sig:
+                wb_info->sz += sizeof( bar_proto_head_t );
+                
                 std::unique_lock< std::mutex > lock{ _resmtx };
                 _resolvers.pop_front();
                 lock.unlock();

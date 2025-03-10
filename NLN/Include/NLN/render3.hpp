@@ -669,7 +669,8 @@ public:
 
 public:
     Mesh3( const std::filesystem::path& root_dir, std::string_view prefix, DWORD flags, _ENGINE_COMMS_ECHO_ARG ) 
-    : model{ "model", glm::mat4{ 1.0 }, echo }
+    : model{ "model", glm::mat4{ 1.0 }, echo },
+      Kd{ "Kd", glm::vec3{}, echo }
     {
         DWORD                              status;
 		tinyobj::attrib_t                  attrib;
@@ -704,7 +705,7 @@ public:
             _Mtl& mtl = _mtls.emplace_back(); 
     
             mtl.data = std::move( mtl_base ); 
-            
+
             GLuint tex_unit = 0;
 
             struct _GENERAL_TEX {
@@ -849,8 +850,9 @@ _ENGINE_PROTECTED:
 
 public:
     Uniform3< glm::mat4 >     model;
+    Uniform3< glm::vec3 >     Kd;
 
-    HVEC< ShaderPipe3 >      pipe;
+    HVEC< ShaderPipe3 >       pipe;
 
 _ENGINE_PROTECTED:
     DWORD _push_tex( 
@@ -912,6 +914,8 @@ public:
 
         this->model.push( *this->pipe );
 
+        Kd.push( *this->pipe );
+
         for( auto& tex : _texs )
             tex.ufrm.push( *this->pipe );
 
@@ -931,6 +935,9 @@ public:
             glBindVertexArray( sub.VAO );
 
             for( auto& burst : sub.bursts ) {
+                float* diffuse = _mtls[ burst.mtl_idx ].data.diffuse;
+                Kd.uplink_bv( glm::vec3{ diffuse[ 0 ], diffuse[ 1 ], diffuse[ 2 ] } );
+
                 for( size_t tex_idx : _mtls[ burst.mtl_idx ].tex_idxs ) {
                     if( tex_idx == -1 ) continue;
 
@@ -987,6 +994,9 @@ public:
 
         stbi_set_flip_vertically_on_load( true );
 
+        glewExperimental = GL_TRUE; 
+        glewInit();
+
         echo( this, ECHO_LEVEL_OK ) << "Created.";
     }
 
@@ -1042,6 +1052,13 @@ public:
     Render3& uplink_points() {
         glPolygonMode( GL_FRONT_AND_BACK, GL_POINT );
         return *this;
+    }
+
+public:
+    float aspect() const {
+        int wnd_w, wnd_h;
+        glfwGetFramebufferSize( _glfwnd, &wnd_w, &wnd_h );
+        return ( float )wnd_w / ( float )wnd_h;
     }
 
 };

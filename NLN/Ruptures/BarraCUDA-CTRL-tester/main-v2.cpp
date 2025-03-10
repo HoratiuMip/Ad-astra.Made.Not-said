@@ -12,7 +12,7 @@
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl2.h>
+#include <imgui_impl_opengl3.h>
 #include <implot.h>
 
 #include <NLN/Device/barracuda-ctrl-nln-driver.hpp>
@@ -100,7 +100,9 @@ public:
         }
         
         ImGui::TextColored( { 0, 1, 0, 1 }, "Connected." );
-        ImGui::SameLine( 0, 30 ); 
+        
+        ImGui::SeparatorText( "Quick commands." );
+
         if( ImGui::Button( "PING" ) ) {
             if( int ret = BARCUD.ping(); ret > 0 ) {
                 STATS.add_sent( ret );
@@ -270,8 +272,13 @@ int main( int argc, char** argv ) {
     if( int ret = NLN::begin_runtime( argc, argv, NLN::BEGIN_RUNTIME_FLAG_INIT_NETWORK, nullptr, nullptr ); ret != 0 ) return ret;
    
 /* GLFW window */
+    glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 4 );
+    glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 1 );
+    glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );
+    glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
     GLFWwindow* window = glfwCreateWindow( NLN::Env::w(.72), NLN::Env::h(.72) , "BarraCUDA-CTRL Tester V2", nullptr, nullptr);
     NLN_ASSERT( window != nullptr, -1 );
+    glfwMakeContextCurrent( window );
     NLN::Render3 render( window );
 
     is_running = [ &render ] () -> bool { return !glfwWindowShouldClose( render.handle() ); };
@@ -294,7 +301,7 @@ int main( int argc, char** argv ) {
     ImGui::StyleColorsDark();
 
     ImGui_ImplGlfw_InitForOpenGL( render.handle(), true );
-    ImGui_ImplOpenGL2_Init();
+    ImGui_ImplOpenGL3_Init();
 
 
     DASHBOARD.emplace_back( new STATS_BOARD{
@@ -325,8 +332,8 @@ int main( int argc, char** argv ) {
         "Command - Selector"
     } );
 
-
-    std::thread burst_th{ [] () -> void {
+    float ax = 0.0;
+    std::thread burst_th{ [ &ax ] () -> void {
     l_attempt_connect: {
         if( !is_running() )
             goto l_burst_th_end;
@@ -340,12 +347,15 @@ int main( int argc, char** argv ) {
         STATS.reset_session();
         NLN::comms() << "Connected to the controller.\n";
 
+        NLN::Ticker tkr;
         BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
         while( is_running() ) {
             int ret = BARCUD.trust_resolve_recv( &info );
             if( ret <= 0 ) break;
             STATS.add_recv( ret );
             STATS.add_sent( info.sent );
+
+            ax += BARCUD.dynamic.gran.gyr.z / std::numeric_limits< int16_t >::max() * 250.0 * tkr.lap();
         }
 
         BARCUD.disconnect( 0 );
@@ -357,7 +367,19 @@ int main( int argc, char** argv ) {
     } };
     
 
-    while( is_running() ) {
+    NLN::Lens3 lens{ { 0, 0, 20 }, { 0, 0, 0 }, { 0, 1, 0 } };
+    NLN::Mesh3 mesh{ std::filesystem::path{ argv[ 1 ] } / "Mesh/", "BarraCUDA", NLN::MESH3_FLAG_MAKE_PIPES };
+    mesh.model.uplink_bv( glm::mat4{ 1 } );
+
+    NLN::Uniform3< glm::mat4 > view{ "view", lens.view() };
+    NLN::Uniform3< glm::mat4 > proj{ "proj", glm::perspective( glm::radians( 72.0f ), render.aspect(), 0.1f, 1000.0f ) };
+
+    mesh.pipe->pull( view, proj );
+    view.uplink_bv( lens.view() );
+    proj.uplink_b();
+    render.uplink_wireframe();
+
+    while( is_running() ) { mesh.model.uplink_bv( glm::rotate( glm::mat4{ 1.0 }, ax, glm::vec3( 0, 0, 1 ) ) );
         glfwPollEvents();
 
         if( glfwGetWindowAttrib( render.handle(), GLFW_ICONIFIED ) != 0 ) {
@@ -365,7 +387,7 @@ int main( int argc, char** argv ) {
             continue;
         }
 
-        ImGui_ImplOpenGL2_NewFrame();
+        ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
@@ -374,15 +396,11 @@ int main( int argc, char** argv ) {
         ImGui::ShowDemoWindow();
 
         ImGui::Render();
-        render.clear( { 0.0, 0.0, 0.0, 1.0 } );
 
-        // If you are using this code with non-legacy OpenGL header/contexts (which you should not, prefer using imgui_impl_opengl3.cpp!!),
-        // you may need to backup/reset/restore other state, e.g. for current shader using the commented lines below.
-        //GLint last_program;
-        //glGetIntegerv(GL_CURRENT_PROGRAM, &last_program);
-        //glUseProgram(0);
-        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
-        //glUseProgram(last_program);
+        render.clear( { 0.0, 0.0, 0.0, 1.0 } );
+        mesh.splash();
+
+        ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
 
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
@@ -393,7 +411,7 @@ int main( int argc, char** argv ) {
 
     if( burst_th.joinable() ) burst_th.join();
 
-    ImGui_ImplOpenGL2_Shutdown();
+    ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImPlot::DestroyContext();
     ImGui::DestroyContext();

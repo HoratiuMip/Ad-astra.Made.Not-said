@@ -168,6 +168,7 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
     BAR_PROTO_GSTBL                            _gstbl       = {};
     BAR_PROTO_BRSTBL                           _brstbl      = {};
     BAR_PROTO_SRWRAP                           _srwrap      = {};
+    std::mutex                                 _smtx        = {};
     bar_proto_stream_seq_acq_func_t            _seq_acq     = nullptr;
     std::deque< _BAR_PROTO_STREAM_RESOLVER >   _resolvers   = {};
     std::mutex                                 _resmtx      = {};
@@ -188,6 +189,8 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
                 head._dw0.op  = op;
                 head._dw1.seq = seq;
                 head._dw2.sz  = sz;
+
+                std::unique_lock< std::mutex > lock{ _smtx };
                 _BAR_PROTO_STREAM__SEND_ASSERT_RET( _srwrap.send( &head, sizeof( head ), flags ), sizeof( head ) );
                 
                 if( src != nullptr )
@@ -196,13 +199,15 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
         
         l_copy_to_cache:
             case BAR_PROTO_STREAM_SEND_METHOD_COPY_TO_CACHE: {
-                std::unique_lock< decltype( _cache.mtx ) > lock{ _cache.mtx };
+                std::unique_lock< decltype( _cache.mtx ) > lock_c{ _cache.mtx };
                 _cache.head->_dw0.op  = op;
                 _cache.head->_dw1.seq = seq;
                 _cache.head->_dw2.sz  = sz;
                 if( src != nullptr )
                     memcpy( _cache.data, src, sz );
                 int32_t tot_sz = sizeof( bar_proto_head_t ) + sz;
+
+                std::unique_lock< std::mutex > lock_s{ _smtx };
                 _BAR_PROTO_STREAM__SEND_ASSERT_RET( _srwrap.send( _cache._buffer, tot_sz, flags ), tot_sz );
             break; }
 
@@ -216,7 +221,8 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
                 ( ( bar_proto_head_t* )buffer )->_dw0.op  = op;
                 ( ( bar_proto_head_t* )buffer )->_dw1.seq = seq;
                 ( ( bar_proto_head_t* )buffer )->_dw2.sz  = sz;
-                   
+                
+                std::unique_lock< std::mutex > lock{ _smtx };
                 _BAR_PROTO_STREAM__SEND_ASSERT_RET( _srwrap.send( buffer, tot_sz, flags ), tot_sz );
             break; }
 
@@ -376,12 +382,16 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO_STREAM {
         } );
         lock.unlock();
 
-        _BAR_PROTO_STREAM_INFO__SEND_ASSERT_NO_ADD(
-            _send( src, src_sz, op, resolver._seq, 0, method ),
-            BAR_PROTO_STREAM_ERR_SEND 
-        );
+        int ret = _send( src, src_sz, op, resolver._seq, 0, method );
+        _BAR_PROTO_STREAM_INFO__SEND_ASSERT_NO_ADD( ret, BAR_PROTO_STREAM_ERR_SEND );
 
-        return 0;
+        return ret;
+    }
+
+    bool breach( void ) {
+        int n = 0x45'45'45'45;
+        std::unique_lock< std::mutex > lock{ _smtx };
+        return _srwrap.send( &n, sizeof( n ), 0 ) == sizeof( n );
     }
 
     int trust_burst( const void* src, int32_t sz, int flags ) {

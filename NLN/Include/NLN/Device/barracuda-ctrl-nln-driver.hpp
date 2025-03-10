@@ -71,11 +71,11 @@ public:
         echo( this, ECHO_LEVEL_PENDING ) << "Pinging...";
 
         BAR_PROTO_STREAM_WAIT_BACK_INFO info;
-        this->wait_back( &info, BAR_PROTO_OP_PING, nullptr, 0, nullptr, 0, BAR_PROTO_STREAM_SEND_METHOD_DIRECT );
+        int ret = this->wait_back( &info, BAR_PROTO_OP_PING, nullptr, 0, nullptr, 0, BAR_PROTO_STREAM_SEND_METHOD_DIRECT );
         info.sig.wait( false );
         
         echo( this, ECHO_LEVEL_OK ) << "Received ping acknowledgement.";
-        return 0;
+        return ret;
     }
 
     DWORD get( std::string_view str_id, void* dest, int32_t sz, _ENGINE_COMMS_ECHO_RT_ARG ) {

@@ -41,7 +41,7 @@ struct _PARAMS {
   bool      _conn_rst         = true;
   int16_t   _bar_proto_seq    = 0;
 
-  int32_t   main_loop_delay   = 10;
+  int32_t   main_loop_delay   = 20;
 
 } PARAMS;
 
@@ -343,7 +343,6 @@ struct _PROTO {
       BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
       if( int ret = stream.resolve_recv( &info ); ret <= 0 ) {
         SERIAL_LOG( LOG_ERROR ) << "Protocol fault " << BAR_PROTO_STREAM_ERR_STR[ info.err ] << ".\n";
-        BITNA.blink( LED::RED, false, 9, 100, 500 );
         return ret;
       }
 
@@ -449,10 +448,12 @@ void loop( void ) {
     if( PARAMS._conn_rst ) {
       PARAMS._conn_rst = false;
       SERIAL_LOG( LOG_INFO ) << "Connected to device.\n";
-      BITNA.blink( LED::BLU, true, 10, 50, 50 );
+      BITNA.blink( LED::BLU, false, 10, 50, 50 );
+      BITNA( LED::BLU );
     }
 
     if( PROTO.loop() != 0 ) {
+      BITNA.blink( LED::RED, false, 9, 100, 500 );
       COM.blue.disconnect();
       return;
     }

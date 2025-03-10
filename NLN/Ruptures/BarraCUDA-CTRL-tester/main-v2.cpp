@@ -19,6 +19,10 @@
 
 
 
+std::function< bool() >   is_running; 
+
+
+
 NLN::DEV::BarracudaCTRL   BARCUD;
 struct {
     NLN::Ticker                                     tkr;
@@ -78,6 +82,10 @@ public:
     : _BOARD{ name }
     {}
 
+protected:
+    NLN::Ticker   _tkr_ping       = { NLN::ticker_lap_epoch_init_t{} };
+    bool          _last_ping_ok   = false;
+
 public:
     virtual void frame( void ) override {
         ImGui::SetNextWindowSize( { 0, 0 }, ImGuiCond_Once );
@@ -92,23 +100,47 @@ public:
         }
         
         ImGui::TextColored( { 0, 1, 0, 1 }, "Connected." );
-        ImGui::SameLine( 0.0, 30 ); 
+        ImGui::SameLine( 0, 30 ); 
+        if( ImGui::Button( "PING" ) ) {
+            if( int ret = BARCUD.ping(); ret > 0 ) {
+                STATS.add_sent( ret );
+                _last_ping_ok = true;
+                _tkr_ping.lap();
+            } else {
+                _last_ping_ok = false;
+            }
+        }
+        if( _tkr_ping.peek_lap() < 3.6 ) {
+            ImGui::SameLine();
+            if( _last_ping_ok )
+                ImGui::TextColored( { 0, 1, 0, 1 }, "ACK'd." );
+            else 
+                ImGui::TextColored( { 1, 0, 0, 1 }, "ERROR." );
+            ImGui::SetItemTooltip( "Will disappear in %.1fs.", 3.6 - _tkr_ping.peek_lap() );
+        }
+
+        ImGui::SameLine( 0, 30 ); 
         if( ImGui::Button( "RESET" ) ) {
             BARCUD.disconnect( 0 );
         }
 
+        ImGui::SameLine( 0, 30 );
+        if( ImGui::Button( "BREACH PROTOCOL" ) ) {
+            BARCUD.breach();
+        }
+
         ImGui::SeparatorText( "This controller session." );
 
-        ImGui::BulletText( "Up time: %.2fs.", STATS.tkr.peek_lap() );
-        ImGui::BulletText( "Sent: %d bytes.", STATS.tot_sent.first.load( std::memory_order_relaxed ) );
-        ImGui::BulletText( "Received: %d bytes.", STATS.tot_recv.first.load( std::memory_order_relaxed ) );
+        ImGui::BulletText( "Up time: %.1fs.", STATS.tkr.peek_lap() );
+        ImGui::BulletText( "Sent: %.1f kBytes.", STATS.tot_sent.first.load( std::memory_order_relaxed ) / 1000.0f );
+        ImGui::BulletText( "Received: %.1f kBytes.", STATS.tot_recv.first.load( std::memory_order_relaxed ) / 1000.0f );
     
     l_tester_session:
         ImGui::SeparatorText( "This tester session." );
 
-        ImGui::BulletText( "Up time: %.2fs.", STATS.tkr.up_time() );
-        ImGui::BulletText( "Sent: %d bytes.", STATS.tot_sent.second.load( std::memory_order_relaxed ) );
-        ImGui::BulletText( "Received: %d bytes.", STATS.tot_recv.second.load( std::memory_order_relaxed ) );
+        ImGui::BulletText( "Up time: %.1fs.", STATS.tkr.up_time() );
+        ImGui::BulletText( "Sent: %.1f kBytes.", STATS.tot_sent.second.load( std::memory_order_relaxed ) / 1000.0f );
+        ImGui::BulletText( "Received: %.1f kBytes.", STATS.tot_recv.second.load( std::memory_order_relaxed ) / 1000.0f );
         
         ImGui::End();
     }
@@ -198,12 +230,34 @@ public:
         ImGui::SetNextWindowSize( { 0, 0 }, ImGuiCond_Once );
         ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_NoResize );
 
-        ImGui::VSliderFloat( "##1", { 100, 300 }, &_ls->val, 0.0, 1.0, "", ImGuiSliderFlags_NoInput );
+        ImGui::VSliderFloat( "##1", { 100, 300 }, &_ls->val, 0.0, 1.0, "%.3f", ImGuiSliderFlags_NoInput );
      
         ImGui::End();
     }
 
 };
+
+class COMMAND_BOARD : public _BOARD {
+public:
+    COMMAND_BOARD( const std::string& name )
+    : _BOARD{ name }
+    {}
+
+protected:
+
+public:
+    virtual void frame( void ) override {
+        ImGui::SetNextWindowSize( { 0, 0 }, ImGuiCond_Once );
+        ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_NoResize );
+
+        
+     
+        ImGui::End();
+    }
+
+};
+
+
 
 
 
@@ -219,6 +273,8 @@ int main( int argc, char** argv ) {
     GLFWwindow* window = glfwCreateWindow( NLN::Env::w(.72), NLN::Env::h(.72) , "BarraCUDA-CTRL Tester V2", nullptr, nullptr);
     NLN_ASSERT( window != nullptr, -1 );
     NLN::Render3 render( window );
+
+    is_running = [ &render ] () -> bool { return !glfwWindowShouldClose( render.handle() ); };
 
 /* ImGui */
     IMGUI_CHECKVERSION();
@@ -265,10 +321,16 @@ int main( int argc, char** argv ) {
     DASHBOARD.emplace_back( new LIGHT_SENSOR_BOARD{
         "Naksu - Light Sensor", &BARCUD.dynamic.naksu
     } );
+    DASHBOARD.emplace_back( new COMMAND_BOARD{
+        "Command - Selector"
+    } );
 
 
     std::thread burst_th{ [] () -> void {
-    l_attempt_connect:
+    l_attempt_connect: {
+        if( !is_running() )
+            goto l_burst_th_end;
+
         NLN::comms( NLN::ECHO_LEVEL_PENDING ) << "Attempting connection to the controller...";
         if( BARCUD.connect( NLN::DEV::BARRACUDA_CTRL_FLAG_TRUST_INVOKER ) != 0 ) {
             NLN::comms() << "Could not connect to the controller. Retrying in 3s...\n";
@@ -279,19 +341,23 @@ int main( int argc, char** argv ) {
         NLN::comms() << "Connected to the controller.\n";
 
         BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
-        while( true ) {
+        while( is_running() ) {
             int ret = BARCUD.trust_resolve_recv( &info );
             if( ret <= 0 ) break;
             STATS.add_recv( ret );
-            STATS.add_sent( ret );
+            STATS.add_sent( info.sent );
         }
 
         BARCUD.disconnect( 0 );
-        goto l_attempt_connect;
+        if( is_running() )
+            goto l_attempt_connect;
+    } 
+    l_burst_th_end:
+        return;
     } };
     
 
-    while( !glfwWindowShouldClose( render.handle() ) ) {
+    while( is_running() ) {
         glfwPollEvents();
 
         if( glfwGetWindowAttrib( render.handle(), GLFW_ICONIFIED ) != 0 ) {

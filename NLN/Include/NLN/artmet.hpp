@@ -162,7 +162,7 @@ public:
 
 public:
     template< typename T_rhs >
-    matrix& mul( const matrix< T_rhs >& rhs ) {
+    matrix ct_mul( const matrix< T_rhs >& rhs ) const {
         // NULL check?
 
         if( this->c_cnt() != rhs.r_cnt() ) {
@@ -174,11 +174,19 @@ public:
 
         for( DWORD r_res = 0; r_res < res.r_cnt(); ++r_res ) {
             for( DWORD c_res = 0; c_res < res.c_cnt(); ++c_res ) {
-
+                T acc = {};
+                for( DWORD idx = 0; idx < this->c_cnt(); ++idx ) {
+                    acc += ( *this )[ r_res ][ idx ] * rhs[ idx ][ c_res ];
+                }
+                res[ r_res ][ c_res ] = acc;
             }
         }
 
-        return *this;
+        return res;
+    }
+    template< typename T_rhs >
+    inline matrix operator * ( const matrix< T_rhs >& rhs ) const {
+        return this->ct_mul( rhs );
     }
 
 public:

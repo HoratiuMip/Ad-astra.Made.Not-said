@@ -24,6 +24,7 @@ int main( int argc, char* argv[] ) {
 
     comms() << "mat1 + mat2, " << ( mat1 + mat2 );
     comms() << "mat1 - mat2, " << ( mat1 - mat2 );
+    comms() << "mat1 * mat2, " << ( mat1 * mat2 );
 }
 
     if( argc > 1 ) return 0;

@@ -9,8 +9,8 @@ in VS_OUT {
 
 out vec4 final;
 
-uniform vec3 Kd;
+uniform sampler2D map_Kd;
 
 void main() {
-    final = vec4( 1.0 );
+    final = texture( map_Kd, vs_out.tex_crd );
 }

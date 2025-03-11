@@ -19,7 +19,8 @@
 
 
 
-std::function< bool() >   is_running; 
+std::function< bool() >   G_is_running; 
+std::filesystem::path     G_root_dir;
 
 
 
@@ -239,6 +240,46 @@ public:
 
 };
 
+class ACCEL_GYRO_BOARD : public _BOARD {
+public:
+    ACCEL_GYRO_BOARD( const std::string& name, barcud_ctrl::gyro_t* gr )
+    : _BOARD{ name }, _gr{ gr }
+    {}
+
+protected:
+    barcud_ctrl::gyro_t*   _gr;
+
+public:
+    virtual void frame( void ) override {
+        ImGui::SetNextWindowSize( { 540, 100 }, ImGuiCond_Once );
+        ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_None );
+
+        static constexpr int arr_size = 3'000;
+        static std::array< float, arr_size > values[ 6 ];
+        static int at = 0;
+
+        int next_at = at + 1; if( next_at >= arr_size ) next_at = 0;
+        auto update = [ &next_at, this ] ( decltype( values[ 0 ] )& arr, float& v, const char* title, float lower, float upper ) -> void {
+            arr[ at ] =  v;
+            ImGui::PlotLines( title, arr.data(), arr.size(), next_at, std::to_string( arr[ at ] ).c_str(), lower, upper, { -60, 80 } );
+        };
+
+        ImGui::SeparatorText( "Linear acceleration" );
+        update( values[ 0 ], BARCUD.dynamic.gran.acc.x, "X[g]", -2.0f, 2.0f );
+        update( values[ 1 ], BARCUD.dynamic.gran.acc.y, "Y[g]", -2.0f, 2.0f );
+        update( values[ 2 ], BARCUD.dynamic.gran.acc.z, "Z[g]", -2.0f, 2.0f );
+        ImGui::SeparatorText( "Angular velocity" );
+        update( values[ 3 ], BARCUD.dynamic.gran.gyr.x, "X[rad/s]", -250.0f, 250.0f );
+        update( values[ 4 ], BARCUD.dynamic.gran.gyr.y, "Y[rad/s]", -250.0f, 250.0f );
+        update( values[ 5 ], BARCUD.dynamic.gran.gyr.z, "Z[rad/s]", -250.0f, 250.0f );
+
+        ++at; if( at >= arr_size ) at = 0;
+     
+        ImGui::End();
+    }
+
+};
+
 class COMMAND_BOARD : public _BOARD {
 public:
     COMMAND_BOARD( const std::string& name )
@@ -322,11 +363,88 @@ public:
 
 };
 
+class RENDER_BOARD : public _BOARD {
+public:
+    RENDER_BOARD( const std::string& name, NLN::Render3* rnd )
+    : _BOARD{ name }, 
+      _rnd{ rnd },
+      lens{ { 0, 0, 20 }, { 0, 0, 0 }, { 0, 1, 0 } },
+      mesh{ G_root_dir / "Mesh/", "BarraCUDA", NLN::MESH3_FLAG_MAKE_PIPES },
+      view{ "view", lens.view() },
+      proj{ "proj", glm::perspective( glm::radians( 72.0f ), _rnd->aspect(), 0.1f, 1000.0f ) }
+    {
+        mesh.model.uplink_bv( glm::mat4{ 1 } );
+        mesh.pipe->pull( view, proj );
+        view.uplink_bv( lens.view() );
+        proj.uplink_b();
+    }
 
+protected:
+    NLN::Render3*                _rnd   = nullptr;
+
+public:
+    NLN::Lens3                   lens;
+    NLN::Mesh3                   mesh;
+
+    NLN::Uniform3< glm::mat4 >   view;
+    NLN::Uniform3< glm::mat4 >   proj;
+
+public:
+    virtual void frame( void ) override {
+        ImGui::SetNextWindowSize( { 0, 0 }, ImGuiCond_Once );
+        ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_None );
+
+        ImGui::SeparatorText( "Render mode" );
+
+        static int render_mode = 0;
+        bool render_mode_changed = false;
+        render_mode_changed |= ImGui::RadioButton( "Fill", &render_mode, 0 ); 
+        ImGui::SameLine( 0, 30 );
+        render_mode_changed |= ImGui::RadioButton( "Wireframe", &render_mode, 1 ); 
+        ImGui::SameLine( 0, 30 );
+        render_mode_changed |= ImGui::RadioButton( "Pointe", &render_mode, 2 );
+        
+        if( render_mode_changed ) {
+            switch( render_mode ) {
+                case 0: _rnd->uplink_fill(); break;
+                case 1: _rnd->uplink_wireframe(); break;
+                case 2: _rnd->uplink_points(); break;
+            }
+        }
+
+        ImGui::SeparatorText( "Motion mode" );
+
+        static int motion_mode = 0;
+        render_mode_changed |= ImGui::RadioButton( "Feedback", &motion_mode, 0 ); 
+        ImGui::SameLine( 0, 30 );
+        render_mode_changed |= ImGui::RadioButton( "Auto", &motion_mode, 1 ); 
+
+        _rnd->clear( { 0.0, 0.0, 0.0, 1.0 } );
+        
+        if( motion_mode == 1 ) {
+            mesh.model.uplink_bv( glm::rotate( glm::mat4{ 1.0 }, glm::radians( 18.0f * ( float )ImGui::GetTime() ), glm::vec3{ 1, 1, 0 } ) );
+        } else {
+            glm::mat4 mr{ 1.0 };
+            mr = glm::rotate( mr, glm::radians( BARCUD.dynamic.gran.gyr.x ) / 12.0f, glm::vec3{ 1, 0, 0 } );
+            mr = glm::rotate( mr, glm::radians( BARCUD.dynamic.gran.gyr.y ) / 12.0f, glm::vec3{ 0, 1, 0 } );
+            mr = glm::rotate( mr, glm::radians( BARCUD.dynamic.gran.gyr.z ) / 12.0f, glm::vec3{ 0, 0, 1 } );
+            mesh.model.uplink_bv( mr * glm::translate( 
+                glm::mat4{ 1.0 }, { BARCUD.dynamic.gran.acc.x * 3.0, BARCUD.dynamic.gran.acc.y * 3.0, BARCUD.dynamic.gran.acc.z * 3.0 }
+            ) );
+        }
+
+        mesh.splash();
+     
+        ImGui::End();
+    }
+
+};
 
 
 
 int main( int argc, char** argv ) {
+    G_root_dir = std::filesystem::path{ ( argc >= 2 ) ?  argv[ 1 ] : "." };
+
 /* Setup */
     glfwSetErrorCallback( [] ( int err, const char* desc ) -> void {
         NLN::comms( NLN::ECHO_LEVEL_ERROR ) << "GLFW error code ( " << err << " ): " << desc << ".";
@@ -339,12 +457,13 @@ int main( int argc, char** argv ) {
     glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 1 );
     glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );
     glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
-    GLFWwindow* window = glfwCreateWindow( NLN::Env::w(.72), NLN::Env::h(.72) , "BarraCUDA-CTRL Tester V2", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow( NLN::Env::w(.82), NLN::Env::h(.82) , "BarraCUDA-CTRL Tester V2", nullptr, nullptr);
+    glfwSetWindowPos( window, 50, 50 );
     NLN_ASSERT( window != nullptr, -1 );
     glfwMakeContextCurrent( window );
     NLN::Render3 render( window );
 
-    is_running = [ &render ] () -> bool { return !glfwWindowShouldClose( render.handle() ); };
+    G_is_running = [ &render ] () -> bool { return !glfwWindowShouldClose( render.handle() ); };
 
 /* ImGui */
     IMGUI_CHECKVERSION();
@@ -391,14 +510,20 @@ int main( int argc, char** argv ) {
     DASHBOARD.emplace_back( new LIGHT_SENSOR_BOARD{
         "Naksu - Light Sensor", &BARCUD.dynamic.naksu
     } );
+    DASHBOARD.emplace_back( new ACCEL_GYRO_BOARD{
+        "Gran - Accel & Gyro", &BARCUD.dynamic.gran
+    } );
     DASHBOARD.emplace_back( new COMMAND_BOARD{
         "Command - Selector"
+    } );
+    DASHBOARD.emplace_back( new RENDER_BOARD{
+        "Render - Options", &render
     } );
 
     
     std::thread burst_th{ [] () -> void {
     l_attempt_connect: {
-        if( !is_running() )
+        if( !G_is_running() )
             goto l_burst_th_end;
 
         NLN::comms( NLN::ECHO_LEVEL_PENDING ) << "Attempting connection to the controller...";
@@ -411,7 +536,7 @@ int main( int argc, char** argv ) {
         NLN::comms() << "Connected to the controller.\n";
 
         BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
-        while( is_running() ) {
+        while( G_is_running() ) {
             int ret = BARCUD.trust_resolve_recv( &info );
             if( ret <= 0 ) break;
             STATS.add_recv( ret );
@@ -419,7 +544,7 @@ int main( int argc, char** argv ) {
         }
 
         BARCUD.disconnect( 0 );
-        if( is_running() )
+        if( G_is_running() )
             goto l_attempt_connect;
     } 
     l_burst_th_end:
@@ -427,19 +552,7 @@ int main( int argc, char** argv ) {
     } };
     
 
-    NLN::Lens3 lens{ { 0, 0, 20 }, { 0, 0, 0 }, { 0, 1, 0 } };
-    NLN::Mesh3 mesh{ std::filesystem::path{ argv[ 1 ] } / "Mesh/", "BarraCUDA", NLN::MESH3_FLAG_MAKE_PIPES };
-    mesh.model.uplink_bv( glm::mat4{ 1 } );
-
-    NLN::Uniform3< glm::mat4 > view{ "view", lens.view() };
-    NLN::Uniform3< glm::mat4 > proj{ "proj", glm::perspective( glm::radians( 72.0f ), render.aspect(), 0.1f, 1000.0f ) };
-
-    mesh.pipe->pull( view, proj );
-    view.uplink_bv( lens.view() );
-    proj.uplink_b();
-    render.uplink_wireframe();
-
-    while( is_running() ) { mesh.model.uplink_bv( glm::rotate( glm::mat4{ 1.0 }, glm::radians( 30.0f * ( float )ImGui::GetTime() ), glm::vec3( 1, 1, 0 ) ) );
+    while( G_is_running() ) {
         glfwPollEvents();
 
         if( glfwGetWindowAttrib( render.handle(), GLFW_ICONIFIED ) != 0 ) {
@@ -456,9 +569,6 @@ int main( int argc, char** argv ) {
         ImGui::ShowDemoWindow();
 
         ImGui::Render();
-
-        render.clear( { 0.0, 0.0, 0.0, 1.0 } );
-        mesh.splash();
 
         ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
 

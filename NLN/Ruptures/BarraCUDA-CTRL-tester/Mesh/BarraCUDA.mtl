@@ -4,12 +4,11 @@
 newmtl Joystick_Text
 Ns 0.000000
 Ka 1.000000 1.000000 1.000000
-Kd 0.5 0.5 0.5
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 illum 2
-map_Kd esp32.jpg
+map_Kd joystick.png
 
 newmtl LETRAS_PRETO
 Ns 159.999985
@@ -20,7 +19,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg
 
 newmtl MAT_Black
 Ns 0.000000
@@ -31,7 +29,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd dark_gray.png
 
 newmtl MAT_Blue
 Ns 250.000000
@@ -42,7 +39,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd blue.png
 
 newmtl MAT_Dark_Gray
 Ns 108.682518
@@ -53,18 +49,16 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd dark_gray.png
 
 newmtl MAT_Gray
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
-Kd 0.498190 0.498190 0.498190
+Kd 0.198190 0.198190 0.198190
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd light_gray.png
 
 newmtl MAT_Green
 Ns 250.000000
@@ -75,7 +69,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd green.png
 
 newmtl MAT_Led
 Ns 250.000000
@@ -86,7 +79,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg
 
 newmtl MAT_Light_Blue
 Ns 159.999985
@@ -97,7 +89,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg
 
 newmtl MAT_Red
 Ns 250.000000
@@ -108,7 +99,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd bright_red.png
 
 newmtl MAT_White
 Ns 250.000000
@@ -119,7 +109,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg
 
 newmtl MAT_Yellow
 Ns 250.000000
@@ -130,12 +119,10 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd yellow.png
 
 newmtl MIP_Board
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
-Kd 0.72 0.72 0.72
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000
@@ -146,34 +133,11 @@ map_Kd breadboard.png
 newmtl Material.011
 Ns 250.000000
 Ka 1.000000 1.000000 1.000000
-Kd 0.4 0.4 0.4
 Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg
-
-newmtl Metal.011
-Ns 859.834778
-Ka 0.686364 0.686364 0.686364
-Kd 0.800000 0.800000 0.800000
-Ks 0.431818 0.431818 0.431818
-Ke 0.000000 0.000000 0.000000
-Ni 1.500000
-d 1.000000
-illum 3
-map_Kd esp32.jpg
-
-newmtl Metal.012
-Ns 859.834778
-Ka 0.686364 0.686364 0.686364
-Kd 0.800000 0.800000 0.800000
-Ks 0.431818 0.431818 0.431818
-Ke 0.000000 0.000000 0.000000
-Ni 1.500000
-d 1.000000
-illum 3
 map_Kd esp32.jpg
 
 newmtl RESISTOR_MARRON
@@ -185,7 +149,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg
 
 newmtl chip_preto
 Ns 159.999985
@@ -196,7 +159,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg
 
 newmtl material
 Ns 159.999985
@@ -207,18 +169,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg
-
-newmtl material_0.001
-Ns 159.999985
-Ka 1.000000 1.000000 1.000000
-Kd 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
-Ni 1.500000
-d 1.000000
-illum 2
-map_Kd esp32.jpg
 
 newmtl metal
 Ns 159.999985
@@ -229,7 +179,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg
 
 newmtl metal_parafuso
 Ns 159.999985
@@ -240,7 +189,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg
 
 newmtl metal_parafuso.004
 Ns 159.999985
@@ -251,7 +199,6 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg
 
 newmtl plastico_preto.002
 Ns 159.999985
@@ -262,4 +209,3 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd esp32.jpg

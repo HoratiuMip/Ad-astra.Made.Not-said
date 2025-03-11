@@ -337,8 +337,8 @@ public:
             if( args[ 0 ] != '\0' ) buffer[ offset ] = args[ 0 ] - '0';
 
             char byte;
-            BAR_PROTO_STREAM_WAIT_BACK_INFO info;
-            int ret = BARCUD.wait_back( &info, ops_codes[ op_sel ], buffer, offset + 1, &byte, 1, BAR_PROTO_STREAM_SEND_METHOD_AUTO );
+            BAR_PROTO_WAIT_BACK_INFO info;
+            int ret = BARCUD.wait_back( &info, ops_codes[ op_sel ], buffer, offset + 1, &byte, 1, BAR_PROTO_SEND_METHOD_AUTO );
 
             STATS.add_sent( ret );
             info.sig.wait( false );
@@ -371,12 +371,14 @@ public:
       lens{ { 0, 0, 20 }, { 0, 0, 0 }, { 0, 1, 0 } },
       mesh{ G_root_dir / "Mesh/", "BarraCUDA", NLN::MESH3_FLAG_MAKE_PIPES },
       view{ "view", lens.view() },
-      proj{ "proj", glm::perspective( glm::radians( 72.0f ), _rnd->aspect(), 0.1f, 1000.0f ) }
+      proj{ "proj", glm::perspective( glm::radians( 72.0f ), _rnd->aspect(), 0.1f, 1000.0f ) },
+      lens_pos{ "lens_pos", lens.pos }
     {
         mesh.model.uplink_bv( glm::mat4{ 1 } );
-        mesh.pipe->pull( view, proj );
-        view.uplink_bv( lens.view() );
+        mesh.pipe->pull( view, proj, lens_pos );
+        view.uplink_b();
         proj.uplink_b();
+        lens_pos.uplink_b();
     }
 
 protected:
@@ -388,6 +390,7 @@ public:
 
     NLN::Uniform3< glm::mat4 >   view;
     NLN::Uniform3< glm::mat4 >   proj;
+    NLN::Uniform3< glm::vec3 >   lens_pos;
 
 public:
     virtual void frame( void ) override {
@@ -520,22 +523,23 @@ int main( int argc, char** argv ) {
         "Render - Options", &render
     } );
 
+    BARCUD.bind();
     
     std::thread burst_th{ [] () -> void {
     l_attempt_connect: {
         if( !G_is_running() )
             goto l_burst_th_end;
-
         NLN::comms( NLN::ECHO_LEVEL_PENDING ) << "Attempting connection to the controller...";
         if( BARCUD.connect( NLN::DEV::BARRACUDA_CTRL_FLAG_TRUST_INVOKER ) != 0 ) {
             NLN::comms() << "Could not connect to the controller. Retrying in 3s...\n";
+            BARCUD.force_waiting_resolvers();
             std::this_thread::sleep_for( std::chrono::seconds{ 3 } );
             goto l_attempt_connect;
         }
         STATS.reset_session();
         NLN::comms() << "Connected to the controller.\n";
 
-        BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
+        BAR_PROTO_RESOLVE_RECV_INFO info;
         while( G_is_running() ) {
             int ret = BARCUD.trust_resolve_recv( &info );
             if( ret <= 0 ) break;
@@ -544,6 +548,7 @@ int main( int argc, char** argv ) {
         }
 
         BARCUD.disconnect( 0 );
+        BARCUD.force_waiting_resolvers();
         if( G_is_running() )
             goto l_attempt_connect;
     } 

@@ -18,7 +18,7 @@ uniform vec3 lens_pos;
 
 void main() {
     vs_out.tex_crd   = tex_crd;
-    vs_out.nrm       = nrm;
+    vs_out.nrm       = ( model * vec4( nrm, 0.0 ) ).xyz;
 
     gl_Position = model * vec4( vrtx, 1.0 );
 

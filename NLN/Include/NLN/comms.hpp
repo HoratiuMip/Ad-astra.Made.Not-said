@@ -23,38 +23,29 @@ namespace _ENGINE_NAMESPACE {
 #define  NLN_COMMS_ECHO_RT_ARG          _ENGINE_NAMESPACE::_ENGINE_COMMS_ECHO_RT_ARG
 
 
-class Echo; class Comms;
 
-enum ECHO_MODE {
-    ECHO_MODE_RT, ECHO_MODE_ACC
+enum EchoLevel_  : char {
+    EchoLevel_Input = 0,
+    EchoLevel_Trace,
+    EchoLevel_Debug,
+    EchoLevel_Error,
+    EchoLevel_Warning,
+    EchoLevel_Pending,
+    EchoLevel_Ok,
+    EchoLevel_Info
 };
 
-enum ECHO_LEVEL {
-    ECHO_LEVEL_OK      = 0,
-    ECHO_LEVEL_WARNING = 1,
-    ECHO_LEVEL_ERROR   = 2,
-    ECHO_LEVEL_INTEL   = 3,
-    ECHO_LEVEL_PENDING = 4,
-    ECHO_LEVEL_INPUT   = 5,
-    ECHO_LEVEL_DEBUG   = 6
+class Echo;
+
+struct _BackwardCompatibility_EchoOneLiner {
+    _BackwardCompatibility_EchoOneLiner( Echo* echo, const Descriptor& invoker, EchoLevel_ level, bool is_critical = false );
+    ~_BackwardCompatibility_EchoOneLiner();
+
+    Echo*   _echo;
+
+    template< typename T > _BackwardCompatibility_EchoOneLiner& operator << ( T&& frag );
 };
 
-struct _RtEchoOneLiner {
-    _RtEchoOneLiner( Comms& c, Echo& e, const Descriptor* that, bool lock, ECHO_LEVEL level );
-
-    ~_RtEchoOneLiner();
-
-    Comms&   comms;
-    Echo&    echo;
-    bool     locked;
-
-    template< typename T >
-    requires is_std_ostringstream_pushable< std::decay_t< T > >
-    Echo& operator << ( T&& frag );
-};
-
-// template< ECHO_MODE MODE >
-// requires ( MODE == ECHO_MODE_RT || MODE == ECHO_MODE_ACC )
 class Echo {
 public:
     friend class Comms;
@@ -62,320 +53,196 @@ public:
 public:
     using out_stream_t = std::ostream;
 
-    using descriptor_t = char;
-
-    using Dump = std::tuple< std::ostringstream, std::vector< descriptor_t > >;
-
-public:
-    static constexpr descriptor_t   desc_color_mask   = 0b1111;
-    static constexpr char           desc_switch       = '$';
-
 _ENGINE_PROTECTED:
-    inline static OS::CONSOLE_CLR _status_colors[] = {
-        OS::CONSOLE_CLR_GREEN, OS::CONSOLE_CLR_YELLOW, OS::CONSOLE_CLR_RED, OS::CONSOLE_CLR_TURQ, OS::CONSOLE_CLR_BLUE, OS::CONSOLE_CLR_PINK, OS::CONSOLE_CLR_GRAY
+    inline static OS::CONSOLE_CLR _level_colors[] = {
+        OS::CONSOLE_CLR_PINK,   /* EchoLevel_Input */ 
+        OS::CONSOLE_CLR_PINK,   /* EchoLevel_Trace */
+        OS::CONSOLE_CLR_GRAY,   /* EchoLevel_Debug */
+        OS::CONSOLE_CLR_RED,    /* EchoLevel_Error */
+        OS::CONSOLE_CLR_YELLOW, /* EchoLevel_Warning */
+        OS::CONSOLE_CLR_BLUE,   /* EchoLevel_Pending */
+        OS::CONSOLE_CLR_GREEN,  /* EchoLevel_Ok */
+        OS::CONSOLE_CLR_TURQ,   /* EchoLevel_Info */
     };
 
-    inline static const char* _status_strs[] = {
-        "OK", "WARNING", "ERROR", "INTEL", "PENDING", "INPUT", "DEBUG"
+    inline static const char* _level_strings[] = {
+        "Input", "Trace", "Debug", "Error", "Warning", "Pending", "Ok", "Info"
     };
 
 public:
-    Echo();
+    Echo() = default;
 
     Echo( const Echo& other )
-    : _dump{ other._dump }, _depth{ other._depth + 1 }
-    {}
-
-    Echo( [[maybe_unused]]decltype( nullptr ) )
-    : Echo{ nullptr, 0 }
+    : _depth{ other._depth + 1 }
     {}
 
 _ENGINE_PROTECTED:
-    Echo( Dump* dump, int64_t depth )
-    : _dump{ dump }, _depth{ depth }
-    {}
-
-public:
-    virtual ~Echo();
-
-_ENGINE_PROTECTED:
-    enum _DUMP_ACCESS_IDX {
-        _STR, _DESCS
-    };
-
-    Dump*     _dump    = nullptr;
-    int64_t   _depth   = 0;
-
-_ENGINE_PROTECTED:
-    auto& _acc_str() {
-        return std::get< _STR >( *_dump );
-    }
-
-    const auto& _acc_str() const {
-        return std::get< _STR >( *_dump );
-    }
-
-    out_stream_t& _any_str();
-
-    auto& _descs() {
-        return std::get< _DESCS >( *_dump );
-    }
-
-    const auto& _descs() const {
-        return std::get< _DESCS >( *_dump );
-    }
-
-public:
-    template< typename T >
-    requires is_std_ostringstream_pushable< std::decay_t< T > >
-    Echo& operator << ( T&& frag ) {
-        this->_any_str() << std::forward< T >( frag );
-
-        return *this;
-    }
-
-public:
-    Echo& push_desc( descriptor_t desc );
-
-    Echo& push_color( OS::CONSOLE_CLR color ) {
-        return this->push_desc( color & desc_color_mask );    
-    }
-
-    Echo& gray()   { return this->push_color( OS::CONSOLE_CLR_GRAY ); }
-    Echo& blue()   { return this->push_color( OS::CONSOLE_CLR_BLUE ); }
-    Echo& green()  { return this->push_color( OS::CONSOLE_CLR_GREEN ); }
-    Echo& red()    { return this->push_color( OS::CONSOLE_CLR_RED ); }
-    Echo& pink()   { return this->push_color( OS::CONSOLE_CLR_TURQ ); }
-    Echo& yellow() { return this->push_color( OS::CONSOLE_CLR_YELLOW ); }
-    Echo& white()  { return this->push_color( OS::CONSOLE_CLR_WHITE ); }
+    int   _depth   = 0;
 
 _ENGINE_PROTECTED:
     inline static struct _UnknownInvoker : public Descriptor {
-        _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Echo::Unknwn" );
+        _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "?" );
     } _unknown_invoker_placeholder;
 
+/* VVV === For backward compatibility. === VVV */
 public:
-    _RtEchoOneLiner operator () ( const Descriptor& invoker, ECHO_LEVEL status );
+    Echo( decltype( nullptr ) ) {};
 
-    _RtEchoOneLiner operator() ( const Descriptor* invoker, ECHO_LEVEL status ) {
-        return this->operator()( *invoker, status );
+public:
+    _BackwardCompatibility_EchoOneLiner operator () ( const Descriptor& desc, EchoLevel_ level ) {
+        return { this, desc, level };
     }
 
-    template< typename T >
-    requires( !is_descriptor_tolerant< T > )
-    _RtEchoOneLiner operator() ( const T& invoker, ECHO_LEVEL status ) {
-        return this->operator()( _unknown_invoker_placeholder, status );
+    _BackwardCompatibility_EchoOneLiner operator() ( const Descriptor* desc, EchoLevel_ level ) {
+        return ( *this )( *desc, level );
     }
 
-    template< typename T >
-    requires( !is_descriptor_tolerant< T > )
-    _RtEchoOneLiner operator() ( const T* invoker, ECHO_LEVEL status ) {
-        return this->operator()( *invoker, status );
+    template< typename T > requires( !is_descriptor_derived< T > )
+    _BackwardCompatibility_EchoOneLiner operator() ( const T& invoker, EchoLevel_ level ) {
+        return ( *this )( _unknown_invoker_placeholder, level );
     }
 
-    Echo& operator [] ( const Descriptor& invoker ) {
-        this->operator<<( '\n' );
-        
-        const char* struct_name = invoker.struct_name();
-
-        return this->white()
-        .operator<<( "[ " )
-        .red()
-        .operator<<( struct_name ? struct_name : "NULL" )
-        .white()
-        .operator<<( " ][ " )
-        .red()
-        .operator<<( invoker.xtdx() )
-        .white()
-        .operator<<( " ]" )
-        .red()
-        .operator<<( " -> " )
-        .white();
+    template< typename T > requires( !is_descriptor_derived< T > )
+    _BackwardCompatibility_EchoOneLiner operator() ( const T* invoker, EchoLevel_ level ) {
+        return ( *this )( *invoker, level );
     }
 
-    Echo& operator[] ( const Descriptor* invoker ) {
-        return this->operator[]( *invoker );
-    }
+public:
+    template< typename T > Echo& operator << ( T&& frag );
 
 };
 
 
 
-class Comms : public Descriptor {
+class Comms : public Descriptor, public std::mutex {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Comms" );
 
 public:
     friend class Echo;
+    friend struct _BackwardCompatibility_EchoOneLiner;
 
 public:
     using out_stream_t = Echo::out_stream_t;
 
 public:
-    using desc_proc_key_t   = std::reference_wrapper< const std::type_info >;
-    using desc_proc_value_t = std::function< void( Echo::descriptor_t ) >;
+    Comms() : Comms{ std::cout } {}
 
-public:
-    Comms()
-    : Comms{ std::cout }
-    {}
-
-    template< typename T >
-    requires std::is_base_of_v< out_stream_t, T >
+    template< typename T > requires std::is_base_of_v< out_stream_t, T > 
     Comms( T& stream ) {
-        _desc_procs.emplace( typeid( nullptr ), [] ( [[ maybe_unused ]] Echo::descriptor_t ) -> void {} );
-
-        _desc_procs.emplace( typeid( std::cout ), [] ( Echo::descriptor_t desc ) -> void {
-            OS::console.clr_with( static_cast< OS::CONSOLE_CLR >( desc & Echo::desc_color_mask ) );
-        } );
-
         this->stream_to< T >( stream );
-
-
-        OS::sig_interceptor.push_on_external_exception( this->xtdx(), _flush );
     }
 
 _ENGINE_PROTECTED:
-    struct _DescProcHasher {
-        size_t operator () ( desc_proc_key_t key ) const {
-            return key.get().hash_code();
-        }
-    };
-
-    struct _DescProcEqualer {
-        bool operator () ( desc_proc_key_t lhs, desc_proc_key_t rhs ) const {
-            return lhs.get() == rhs.get();
-        }
-    };
-
-    std::unordered_map< desc_proc_key_t, desc_proc_value_t, _DescProcHasher, _DescProcEqualer >   _desc_procs   = {};
-
-_ENGINE_PROTECTED:
     out_stream_t*             _stream       = nullptr;
-    desc_proc_value_t         _desc_proc    = {};
-
-    std::mutex                _out_mtx      = {};
-
-    std::set< Echo::Dump* >   _supervisor   = {};
-
-    Echo                      _rt_echo      = { nullptr, 0 };
-
-_ENGINE_PROTECTED:
-    friend class Echo;
-    friend struct _RtEchoOneLiner;
+    bool                      _do_color     = false;
+    Echo                      _echo         = {};
 
 public:
-    template< typename T >
-    requires std::is_base_of_v< out_stream_t, T >
+    template< typename T > requires std::is_base_of_v< out_stream_t, T >
     void stream_to( T& stream ) {
-        _stream = static_cast< out_stream_t* >( &stream );
-
-        this->set_desc_proc< T >();
+        _stream = ( out_stream_t* )&stream;
+        _do_color = dynamic_cast< decltype( std::cout )* >( _stream ) != nullptr;
     }
 
     out_stream_t& stream() {
         return *_stream;
     }
 
-    template< typename T >
-    void set_desc_proc() {
-        auto itr = _desc_procs.find( typeid( T ) );
-
-        if( itr == _desc_procs.end() ) {
-            _desc_proc = _desc_procs.at( typeid( nullptr ) );
-
-            return;
-        }
-
-        _desc_proc = itr->second;
-    }
-
-public:
-    void out( const Echo& echo ) {
-        auto        view    = echo._acc_str().view();
-        const char* p       = view.data();
-        size_t      at_desc = 0;
-        size_t      pos     = 0;
-
-
-        std::unique_lock lock{ _out_mtx };
-
-        while( true ) {
-            pos = view.find_first_of( Echo::desc_switch, pos );
-
-            if( pos == decltype( view )::npos ) {
-                ( *_stream ) << p;
-                break;
-            }
-
-            const char* q = view.data() + pos++;
-
-            *const_cast< char* >( q ) = '\0';
-            ( *_stream ) << p;
-            *const_cast< char* >( q ) = Echo::desc_switch;
-
-            std::invoke( _desc_proc, echo._descs().at( at_desc++ ) );
-
-            p = q + 1;
-        }
-
-        ( *_stream ) << "\n";
-    }
-
-    void raw( const Echo& echo ) {
-        std::unique_lock lock{ _out_mtx }; 
-
-        ( *_stream ) << echo._acc_str().view() << std::endl;
-    }
-
-public:
-    inline _RtEchoOneLiner operator () ( ECHO_LEVEL level = ECHO_LEVEL_INTEL ) {
-        return { *this, _rt_echo, this, true, level };
-    }
-
-    inline _RtEchoOneLiner operator () ( auto* that, ECHO_LEVEL level = ECHO_LEVEL_INTEL ) {
-        return { *this, _rt_echo, that, true, level };
-    }
-
-public:
-    [[ nodiscard ]] Echo::Dump* new_echo_dump() {
-        Echo::Dump* dump = new Echo::Dump{};
-
-        if( dump == nullptr ) {
-            throw std::runtime_error{ 
-                std::string{ _ENGINE_STR } + "::" + __func__ + ": Echo::Dump bad alloc."
-            };
-
-            return nullptr;
-        }
-
-        return *_supervisor.emplace( dump ).first;
-    }
-
-    void delete_echo_dump( Echo::Dump* dump ) {
-        delete dump;
-        _supervisor.erase( dump );
-    }
-
 _ENGINE_PROTECTED:
-    static void _flush( OS::sig_t code );
+    void _color( OS::CONSOLE_CLR clr ) { if( _do_color ) OS::console.clr_with( clr ); }
+
+    void _pink()   { if( _do_color ) OS::console.clr_with( OS::CONSOLE_CLR_PINK ); }
+    void _gray()   { if( _do_color ) OS::console.clr_with( OS::CONSOLE_CLR_GRAY ); }
+    void _red()    { if( _do_color ) OS::console.clr_with( OS::CONSOLE_CLR_RED ); }
+    void _yellow() { if( _do_color ) OS::console.clr_with( OS::CONSOLE_CLR_YELLOW ); }
+    void _blue()   { if( _do_color ) OS::console.clr_with( OS::CONSOLE_CLR_BLUE ); }
+    void _green()  { if( _do_color ) OS::console.clr_with( OS::CONSOLE_CLR_GREEN ); }
+    void _turq()   { if( _do_color ) OS::console.clr_with( OS::CONSOLE_CLR_TURQ ); }
+    void _white()  { if( _do_color ) OS::console.clr_with( OS::CONSOLE_CLR_WHITE ); }
 
 public:
-    decltype( _out_mtx )& mtx() {
-        return _out_mtx;
+    void splash( const Descriptor& desc, EchoLevel_ level, Echo* echo ) {
+        ( *_stream ) << '\n';
+        this->_white();
+        ( *_stream ) << "[ ";
+        this->_color( Echo::_level_colors[ level ] ); ( *_stream ) << Echo::_level_strings[ level ];
+        this->_white();
+        ( *_stream ) <<  " ]   \t";
+        this->_white();
+        ( *_stream ) << "[ ";
+        this->_gray();
+        ( *_stream ) << time( nullptr );
+        this->_white();
+        ( *_stream ) << " ]";
+        this->_blue();
+        if( echo != nullptr ) ( *_stream ) << echo->_depth << '>';
+        this->_white();
+        ( *_stream ) <<  "[ ";
+        this->_gray();
+        const char* struct_name = desc.struct_name(); ( *_stream ) << struct_name ? struct_name : "?Null";
+        this->_white();
+        ( *_stream ) <<  " ][ ";
+        this->_gray();
+        ( *_stream ) << desc.xtdx();
+        this->_white();
+        ( *_stream ) <<  " ]";
+        this->_blue();
+        ( *_stream ) <<  " -> ";
+        this->_white();
     }
 
-    operator decltype( _out_mtx )& () {
-        return this->mtx();
+    void splash_critical( const Descriptor& desc ) {
+        ( *_stream ) << '\n';
+        this->_white();
+        ( *_stream ) << "[ ";
+        this->_red();
+        const char* struct_name = desc.struct_name(); ( *_stream ) << struct_name ? struct_name : "?Null";
+        this->_white();
+        ( *_stream ) << " ][ ";
+        this->_red();
+        ( *_stream ) << desc.xtdx();
+        this->_white();
+        ( *_stream ) << " ]";
+        this->_red();
+        ( *_stream ) << " -> ";
+        this->_white();
+    }
+
+/* VVV === For backward compatibility. === VVV */
+public:
+    _BackwardCompatibility_EchoOneLiner operator () ( EchoLevel_ level = EchoLevel_Info ) {
+        return { nullptr, *this, level };
+    }
+
+    _BackwardCompatibility_EchoOneLiner operator () ( const Descriptor& desc, EchoLevel_ level = EchoLevel_Info ) {
+        return { nullptr, desc, level };
+    }
+
+    _BackwardCompatibility_EchoOneLiner operator () ( const Descriptor* desc, EchoLevel_ level = EchoLevel_Info ) {
+        return { nullptr, *desc, level };
+    }
+
+    _BackwardCompatibility_EchoOneLiner operator [] ( const Descriptor& desc ) {
+        return { nullptr, desc, EchoLevel_Trace, true };
+    }
+
+    _BackwardCompatibility_EchoOneLiner operator [] ( const Descriptor* desc ) {
+        return { nullptr, *desc, EchoLevel_Trace, true };
     }
 
 }; inline Comms comms;
 
 
 
-template< typename T >
-requires is_std_ostringstream_pushable< std::decay_t< T > >
-Echo& _RtEchoOneLiner::operator << ( T&& frag ) { return echo.operator<<( std::forward< T >( frag ) ); }
+template< typename T > Echo& Echo::operator << ( T&& frag ) {
+    ( *comms._stream ) << std::forward< T >( frag ); 
+    return *this;
+}
+template< typename T > _BackwardCompatibility_EchoOneLiner& _BackwardCompatibility_EchoOneLiner::operator << ( T&& frag ) {
+    ( *comms._stream ) << std::forward< T >( frag ); 
+    return *this;
+}
 
 
 

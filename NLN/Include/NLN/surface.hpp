@@ -421,7 +421,7 @@ public:
     )
     : _title{ title.data() }, _position( pos ), _size( size ), _style{ style }
     {
-        echo( this, ECHO_LEVEL_OK ) << "Set.";
+        echo( this, EchoLevel_Ok ) << "Set.";
     }
 
     Surface(
@@ -435,9 +435,9 @@ public:
     : Surface{ title, pos, size, style, echo }
     {
         if( this->uplink( th_mode, echo ) ) 
-            echo( this, ECHO_LEVEL_OK ) << "Uplinked.";
+            echo( this, EchoLevel_Ok ) << "Uplinked.";
         else
-            echo( this, ECHO_LEVEL_ERROR ) << "Failure during uplink procedure.";
+            echo( this, EchoLevel_Error ) << "Failure during uplink procedure.";
     }
 
 
@@ -492,7 +492,7 @@ _ENGINE_PROTECTED:
 
     #if defined( _ENGINE_SURFACE_WIN32 )
         if( !RegisterClassEx( &_wnd_class ) ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Bad window class registration.";
+            echo( this, EchoLevel_Error ) << "Bad window class registration.";
             return;
         }
 
@@ -500,7 +500,7 @@ _ENGINE_PROTECTED:
         Vec2 adjusted = this->_adjust_size_for( _style );
 
         if( adjusted == Vec2::O() )
-            echo( this, ECHO_LEVEL_WARNING ) << "Bad window size adjustment.";
+            echo( this, EchoLevel_Warning ) << "Bad window size adjustment.";
 
 
         _hwnd = CreateWindowEx(
@@ -514,7 +514,7 @@ _ENGINE_PROTECTED:
         );
 
         if( !_hwnd ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Bad window handle.";
+            echo( this, EchoLevel_Error ) << "Bad window handle.";
             return;
         }
 
@@ -535,7 +535,7 @@ _ENGINE_PROTECTED:
         _glfwnd = glfwCreateWindow( ( int )_size.x, ( int )_size.y, _title.c_str(), nullptr, nullptr );
 
         if( _glfwnd == nullptr ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Bad window handle.";
+            echo( this, EchoLevel_Error ) << "Bad window handle.";
             return;
         }
 
@@ -552,7 +552,7 @@ _ENGINE_PROTECTED:
 
         glewExperimental = GL_TRUE;
         if( glewInit() != GLEW_OK ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "OpenGL GLEW init fault.";
+            echo( this, EchoLevel_Error ) << "OpenGL GLEW init fault.";
             return;
         }
 
@@ -564,7 +564,7 @@ _ENGINE_PROTECTED:
 
     #endif
 
-        echo( this, ECHO_LEVEL_OK ) << ( sync ? "Created across." : "Created through." );
+        echo( this, EchoLevel_Ok ) << ( sync ? "Created across." : "Created through." );
 
         sync_auto_release.proc();
 
@@ -902,7 +902,7 @@ public:
 
             case SURFACE_THREAD_ACROSS: goto l_thread_across;
 
-            default: echo( this, ECHO_LEVEL_ERROR ) << "Bad thread mode argument."; return false;
+            default: echo( this, EchoLevel_Error ) << "Bad thread mode argument."; return false;
         }
 
 l_thread_through: 
@@ -916,11 +916,11 @@ l_thread_across:
         _thread = std::thread( _main, this, &sync, echo );
 
         if( _thread.joinable() ) {
-            echo( this, ECHO_LEVEL_PENDING ) << "Waiting for across window creation...";
+            echo( this, EchoLevel_Pending ) << "Waiting for across window creation...";
 
             sync.acquire();
         } else {
-            echo( this, ECHO_LEVEL_ERROR ) << "Main thread bad invoke.";
+            echo( this, EchoLevel_Error ) << "Main thread bad invoke.";
             return false;
         }
 } 
@@ -932,7 +932,7 @@ l_thread_across:
         SendMessage( _hwnd, _SURFACE_EVENT_DESTROY, WPARAM{}, LPARAM{} );
 
         if( !UnregisterClassA( _wnd_class.lpszClassName, GetModuleHandle( NULL ) ) )
-            echo( this, ECHO_LEVEL_ERROR ) << "Bad window class unregistration.";
+            echo( this, EchoLevel_Error ) << "Bad window class unregistration.";
     #endif
     #if defined( _ENGINE_SURFACE_GLFW )
         glfwSetWindowShouldClose( _glfwnd, GL_TRUE );
@@ -955,9 +955,9 @@ public:
 
         if( false == _thread_uplnk.compare_exchange_strong( cmp_hs, this_hs, std::memory_order_relaxed ) ) {
             if( cmp_hs == this_hs )
-                echo( this, ECHO_LEVEL_WARNING ) << "Context uplink multiple times on thread \"" << this_id << "\". Ignored.";
+                echo( this, EchoLevel_Warning ) << "Context uplink multiple times on thread \"" << this_id << "\". Ignored.";
             else
-                echo( this, ECHO_LEVEL_ERROR ) << "Context uplink on thread \"" << this_id << "\", while another thread holds this surface's context.";
+                echo( this, EchoLevel_Error ) << "Context uplink on thread \"" << this_id << "\", while another thread holds this surface's context.";
             return -1;
         }
 
@@ -965,7 +965,7 @@ public:
         glfwMakeContextCurrent( _glfwnd );
     #endif
 
-        echo( this, ECHO_LEVEL_OK ) << "Context uplink on thread \"" << this_id << "\".";
+        echo( this, EchoLevel_Ok ) << "Context uplink on thread \"" << this_id << "\".";
 
         return 0;
     }
@@ -980,13 +980,13 @@ public:
 
         if( false == _thread_uplnk.compare_exchange_strong( cmp_hs, 0, std::memory_order_relaxed ) ) {
             if( cmp_hs == 0 )
-                echo( this, ECHO_LEVEL_WARNING ) << "Context donwlink multile times on thread \"" << cmp_id << "\". Ignored.";
+                echo( this, EchoLevel_Warning ) << "Context donwlink multile times on thread \"" << cmp_id << "\". Ignored.";
             else
-                echo( this, ECHO_LEVEL_ERROR ) << "Context downlink on thread " << cmp_id << ", while another thread holds this surface's context.";
+                echo( this, EchoLevel_Error ) << "Context downlink on thread " << cmp_id << ", while another thread holds this surface's context.";
             return -1;
         }
 
-        echo( this, ECHO_LEVEL_OK ) << "Context downlink on thread \"" << cmp_id << "\".";
+        echo( this, EchoLevel_Ok ) << "Context downlink on thread \"" << cmp_id << "\".";
 
         return 0;
     }

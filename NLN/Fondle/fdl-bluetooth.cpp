@@ -19,13 +19,13 @@ int main() {
         NLN::DWORD count = bc.read( buffer, 512 );
 
         if( count < 0 ) {
-            comms( &bc, ECHO_LEVEL_ERROR ) << "Read fault, breaking from main loop.";
+            comms( &bc, EchoLevel_Error ) << "Read fault, breaking from main loop.";
             break;
         }
 
         buffer[ count ] = 0;
 
-        comms( &bc, ECHO_LEVEL_INTEL ) << "RX'd:\n" << buffer;
+        comms( &bc, EchoLevel_Info ) << "RX'd:\n" << buffer;
     }
     
     return 0;

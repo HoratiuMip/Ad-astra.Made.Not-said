@@ -130,12 +130,12 @@ public:
             
             *addr = bt_dev_info.Address.ullLong;
 
-            echo( this, ECHO_LEVEL_OK ) << "Bluetooth device \"" << std::string{ name.begin(), name.end() } << "\" found at " << ( ( out_addr_str != nullptr ) ? *this->addr2str( out_addr_str, *addr ) : this->addr2str( *addr ) ).buf << "."; 
+            echo( this, EchoLevel_Ok ) << "Bluetooth device \"" << std::string{ name.begin(), name.end() } << "\" found at " << ( ( out_addr_str != nullptr ) ? *this->addr2str( out_addr_str, *addr ) : this->addr2str( *addr ) ).buf << "."; 
             return 0;
 
         } while( BluetoothFindNextDevice( bt_dev_find, &bt_dev_info ) );
 
-        echo( this, ECHO_LEVEL_ERROR ) << "Bluetooth device \"" << std::string{ name.begin(), name.end() } << "\" is not paired with this machine.";
+        echo( this, EchoLevel_Error ) << "Bluetooth device \"" << std::string{ name.begin(), name.end() } << "\" is not paired with this machine.";
         return -1;
     }
     inline BTH_ADDR dev_name2addr( std::wstring_view name, addr_str_t* addr_str, _ENGINE_COMMS_ECHO_RT_ARG ) {
@@ -156,12 +156,12 @@ public:
         sock_addr.port           = 0;
         sock_addr.btAddr         = addr;
        
-        echo( this, ECHO_LEVEL_PENDING ) << "Attempting to connect to " << this->addr_str.buf << ".";
+        echo( this, EchoLevel_Pending ) << "Attempting to connect to " << this->addr_str.buf << ".";
         DWORD ret = ::connect( temp_socket, ( SOCKADDR* )&sock_addr, sizeof( sock_addr ) );
         NLN_ASSERT_ET( ret == 0, ret, "Fault connecting to " << this->addr_str.buf << ". WSA code (" << WSAGetLastError() << ")." );
         
         SOCKET::_socket = temp_socket;
-        echo( this, ECHO_LEVEL_OK ) << "Connected to " << this->addr_str.buf << ".";
+        echo( this, EchoLevel_Ok ) << "Connected to " << this->addr_str.buf << ".";
         return 0;
     }
     inline DWORD connect( std::wstring_view name, _ENGINE_COMMS_ECHO_RT_ARG ) {
@@ -177,7 +177,7 @@ public:
         DWORD ret = ::closesocket( std::exchange( SOCKET::_socket, socket_t{} ) );
         NLN_ASSERT_ET( ret == 0, ret, "Fault disconnecting from " << this->addr_str.buf << ". WSA ( " << WSAGetLastError() << ")." );
 
-        echo( this, ECHO_LEVEL_OK ) << "Disconnected from " << this->addr_str.buf << ".";
+        echo( this, EchoLevel_Ok ) << "Disconnected from " << this->addr_str.buf << ".";
         addr_str.buf[ 0 ] = '\0';
 
         return 0;

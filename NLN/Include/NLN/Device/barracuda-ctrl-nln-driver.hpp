@@ -70,13 +70,13 @@ public:
 
 public:
     DWORD ping( _ENGINE_COMMS_ECHO_RT_ARG ) {
-        echo( this, ECHO_LEVEL_PENDING ) << "Pinging...";
+        echo( this, EchoLevel_Pending ) << "Pinging...";
 
         BAR_PROTO_WAIT_BACK_INFO info;
         int ret = this->wait_back( &info, BAR_PROTO_OP_PING, nullptr, 0, nullptr, 0, BAR_PROTO_SEND_METHOD_DIRECT );
         info.sig.wait( false );
         
-        echo( this, ECHO_LEVEL_OK ) << "Received ping acknowledgement.";
+        echo( this, EchoLevel_Ok ) << "Received ping acknowledgement.";
         return ret;
     }
 
@@ -124,7 +124,7 @@ public:
         NLN_ASSERT_ET( ret > 0, ret, BAR_PROTO_ERR_STR[ info->err ] );
 
         if( info->nakr ) {
-            echo( this, ECHO_LEVEL_WARNING ) << "Responded with NAK on sequence ( " << info->recv_head._dw1.seq << " ). Reason: " << info->nakr << ".";
+            echo( this, EchoLevel_Warning ) << "Responded with NAK on sequence ( " << info->recv_head._dw1.seq << " ). Reason: " << info->nakr << ".";
         }
 
         return ret;

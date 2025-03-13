@@ -71,7 +71,7 @@ public:
 public:
     T dot( const vector& other ) {
         if( this->size() != other.size() ) {
-            comms( this, ECHO_LEVEL_ERROR ) << "Dot multiplication of different length vectors, this ( " << this->size() << " ), other ( " << other.size() << " ).";
+            comms( this, EchoLevel_Error ) << "Dot multiplication of different length vectors, this ( " << this->size() << " ), other ( " << other.size() << " ).";
             return T{};
         }
 
@@ -90,7 +90,7 @@ public:
 public:
     vector& ew_mul( const vector& other ) {
         if( this->size() != other.size() ) {
-            comms( this, ECHO_LEVEL_ERROR ) << "Element-wise multiplication of different length vectors, this ( " << this->size() << " ), other ( " << other.size() << " ).";
+            comms( this, EchoLevel_Error ) << "Element-wise multiplication of different length vectors, this ( " << this->size() << " ), other ( " << other.size() << " ).";
             return *this;
         }
 
@@ -140,12 +140,12 @@ public:
 public:
     vector< T > vec_mul_r ( const vector< T >& vec ) const {
         if( this->size() == 0 ) {
-            comms( this, ECHO_LEVEL_ERROR ) << "Vector multiplication to the right, this NULL.";
+            comms( this, EchoLevel_Error ) << "Vector multiplication to the right, this NULL.";
             return {};
         }
 
         if( this->front().size() != vec.size() ) {
-            comms( this, ECHO_LEVEL_ERROR ) << "Vector multiplication to the right lengths mismatch, this ( " << this->front().size() << " ), vector ( " << vec.size() << ").";
+            comms( this, EchoLevel_Error ) << "Vector multiplication to the right lengths mismatch, this ( " << this->front().size() << " ), vector ( " << vec.size() << ").";
             return {};
         }
 
@@ -166,7 +166,7 @@ public:
         // NULL check?
 
         if( this->c_cnt() != rhs.r_cnt() ) {
-            comms( this, ECHO_LEVEL_ERROR ) << "Mismatching sizes for matrix multiplication.";
+            comms( this, EchoLevel_Error ) << "Mismatching sizes for matrix multiplication.";
             return *this;
         }
 

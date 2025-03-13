@@ -14,8 +14,8 @@ namespace _ENGINE_NAMESPACE {
 #define NLN_ASSERT( c, r ) if( !( c ) ) return r;
 
 
-#define _NLN_ASSERT_ON_COMM( comm, c, r, m ) if( !( c ) ) { comm( ECHO_LEVEL_ERROR ) << "Assert ( " #c << " ) failed with return ( " << r << " ): " << m; return r; }
-#define _NLN_ASSERT_ON_COMM_THIS( comm, c, r, m ) if( !( c ) ) { comm( this, ECHO_LEVEL_ERROR ) << "Assert ( " #c << " ) failed with return ( " << r << " ): " << m; return r; }
+#define _NLN_ASSERT_ON_COMM( comm, c, r, m ) if( !( c ) ) { comm( EchoLevel_Error ) << "Assert ( " #c << " ) failed with return ( " << r << " ): " << m; return r; }
+#define _NLN_ASSERT_ON_COMM_THIS( comm, c, r, m ) if( !( c ) ) { comm( this, EchoLevel_Error ) << "Assert ( " #c << " ) failed with return ( " << r << " ): " << m; return r; }
 
 #define NLN_ASSERT_C( c, r, m ) _NLN_ASSERT_ON_COMM( comms, c, r, m )
 #define NLN_ASSERT_CT( c, r, m ) _NLN_ASSERT_ON_COMM_THIS( comms, c, r, m ) 

@@ -39,7 +39,7 @@ struct CmdArgs : Descriptor {
         for( int arg_idx = 1; arg_idx < argc; ++arg_idx ) {
             if( !std::string_view{ argv[ arg_idx ] }.starts_with( "--" ) ) {
                 ins.emplace_back( argv[ arg_idx ] );
-                echo( this, ECHO_LEVEL_OK ) << "Detected cvt regex: \"" << ins.back() << "\".";
+                echo( this, EchoLevel_Ok ) << "Detected cvt regex: \"" << ins.back() << "\".";
                 continue;
             }
 
@@ -48,31 +48,31 @@ struct CmdArgs : Descriptor {
                     continue;
 
                 if( arg_idx + opt.arg == argc ) {
-                    echo( this, ECHO_LEVEL_ERROR ) << "No arg: " << opt.name << ".";
+                    echo( this, EchoLevel_Error ) << "No arg: " << opt.name << ".";
                     return;
                 }
 
                 switch( opt.c ) {
                     case Opt::C_SRC_DIR: {
                         src_dir = argv[ arg_idx + 1 ];
-                        echo( this, ECHO_LEVEL_OK ) << "Detected source dir: \"" << src_dir << "\".";
+                        echo( this, EchoLevel_Ok ) << "Detected source dir: \"" << src_dir << "\".";
                     break; }
 
                     case Opt::C_OUT_DIR: {
                         out_dir = argv[ arg_idx + 1 ];
-                        echo( this, ECHO_LEVEL_OK ) << "Detected output dir: \"" << out_dir << "\".";
+                        echo( this, EchoLevel_Ok ) << "Detected output dir: \"" << out_dir << "\".";
                     break; }
 
                     case Opt::C_MODE: {
                         char* end_ptr = nullptr;
                         mode = strtol( argv[ arg_idx + 1 ], &end_ptr, 0xA );
 
-                        echo( this, ECHO_LEVEL_OK ) << "Detected cvt mode: " << ( int )mode << ".";
+                        echo( this, EchoLevel_Ok ) << "Detected cvt mode: " << ( int )mode << ".";
                     break; }
 
                     case Opt::C_NORM: {
                         norm = true;
-                        echo( this, ECHO_LEVEL_OK ) << "Detected normalization request.";
+                        echo( this, EchoLevel_Ok ) << "Detected normalization request.";
                     break; }
                 }
 
@@ -83,17 +83,17 @@ struct CmdArgs : Descriptor {
         }
 
         if( ins.empty() ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "No cvt candidates.";
+            echo( this, EchoLevel_Error ) << "No cvt candidates.";
             return;
         }
 
         if( NLN::UBYTE sit = ( src_dir.empty() << 1 ) | out_dir.empty(); sit != 0b00 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "No " << ( ( ( sit >> 1 ) & 1 ) ? "source dir." : "output dir." );
+            echo( this, EchoLevel_Error ) << "No " << ( ( ( sit >> 1 ) & 1 ) ? "source dir." : "output dir." );
             return;
         }
 
         if( mode < 0 || mode > 2 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "No/Ill-formed cvt mode: " << ( int )mode << ".";
+            echo( this, EchoLevel_Error ) << "No/Ill-formed cvt mode: " << ( int )mode << ".";
             return;
         }
 
@@ -118,12 +118,12 @@ NLN::DWORD cvt_path(
     File::for_each_in_dir_matching( src_dir.c_str(), rel.c_str(), [ & ] ( std::string_view mch ) -> NLN::DWORD {
         auto abs_path = src_dir + '/' + mch.data();
         
-        comms( ECHO_LEVEL_PENDING ) << "Matched: \"" << abs_path.c_str() << "\".";
+        comms( EchoLevel_Pending ) << "Matched: \"" << abs_path.c_str() << "\".";
 
         std::ifstream in_file{ abs_path };
 
         if( !in_file ) {
-            comms( ECHO_LEVEL_WARNING ) << "Fault opening for read. Proceeding.";
+            comms( EchoLevel_Warning ) << "Fault opening for read. Proceeding.";
             goto l_end;
         }
     {
@@ -144,7 +144,7 @@ NLN::DWORD cvt_path(
         in_file.close();
 
         if( vrtxs.size() & 0x1 ) {
-            comms( ECHO_LEVEL_WARNING ) << "Odd vertex count in source ( " << vrtxs.size() << " ). Check the file. Proceeding.";
+            comms( EchoLevel_Warning ) << "Odd vertex count in source ( " << vrtxs.size() << " ). Check the file. Proceeding.";
             goto l_end;
         }
 
@@ -164,7 +164,7 @@ NLN::DWORD cvt_path(
         std::ofstream out_file{ abs_path.c_str() };
 
         if( !out_file ) {
-            comms( ECHO_LEVEL_WARNING ) << "Fault opening for write: \"" << abs_path.c_str() << "\". Proceeding";
+            comms( EchoLevel_Warning ) << "Fault opening for write: \"" << abs_path.c_str() << "\". Proceeding";
             goto l_end;
         }
 
@@ -196,7 +196,7 @@ NLN::DWORD cvt_path(
 
 int main( int argc, char* argv[] ) {
     if( argc < 2 ) {
-        comms( ECHO_LEVEL_ERROR ) << "No input. Aborted.\n";
+        comms( EchoLevel_Error ) << "No input. Aborted.\n";
         return 1;
     }
 
@@ -205,7 +205,7 @@ int main( int argc, char* argv[] ) {
     CmdArgs cmd_args{ argc, argv, &result };
     
     if( result != 0 ) {
-        comms( ECHO_LEVEL_ERROR ) << "Cmd line args ill-formed. Aborted.\n";
+        comms( EchoLevel_Error ) << "Cmd line args ill-formed. Aborted.\n";
         return 1;
     }
 

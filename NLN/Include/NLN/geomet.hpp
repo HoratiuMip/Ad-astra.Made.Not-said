@@ -590,7 +590,7 @@ public:
         std::ifstream file{ path.data() };
 
         if( !file ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.data() << "\".";
+            echo( this, EchoLevel_Error ) << "Could NOT open file: \"" << path.data() << "\".";
             return;
         }
 
@@ -614,7 +614,7 @@ public:
         } meta{ file, echo };
 
         if( meta.xtfdx != FDX_CLUST2 ) 
-            echo( this, ECHO_LEVEL_WARNING ) << "XtFdx of file: \"" << path.data() << "\" does not match this structure's XtFdx.";
+            echo( this, EchoLevel_Warning ) << "XtFdx of file: \"" << path.data() << "\" does not match this structure's XtFdx.";
 
         _vrtx.reserve( meta.count );
 
@@ -643,10 +643,10 @@ l_read_vrtx:
                 goto l_read_vrtx;
 l_end:
                 if( ( read_count >> 1 ) != meta.count )
-                    echo( this, ECHO_LEVEL_WARNING ) << "Read vertex count ( " << ( read_count >> 1 ) << " ) is different from in-file reported vertex count ( " << meta.count << " ).";
+                    echo( this, EchoLevel_Warning ) << "Read vertex count ( " << ( read_count >> 1 ) << " ) is different from in-file reported vertex count ( " << meta.count << " ).";
 
                 if( read_count & 1 )
-                    echo( this, ECHO_LEVEL_WARNING ) << "Read vertex count is odd, meaning there is a missing Y or an extra X.";
+                    echo( this, EchoLevel_Warning ) << "Read vertex count is odd, meaning there is a missing Y or an extra X.";
 
                 
             break; }
@@ -654,7 +654,7 @@ l_end:
 
         file.close();
 
-        echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.data() << "\".";
+        echo( this, EchoLevel_Ok ) << "Created from: \"" << path.data() << "\".";
     }
 
 public:

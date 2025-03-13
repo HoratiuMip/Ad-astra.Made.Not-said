@@ -23,7 +23,7 @@ struct SquareRacersImGui {
     int main( int argc, char* argv[] ) {
     /* Setup */
         glfwSetErrorCallback( [] ( int err, const char* desc ) -> void {
-            NLN::comms( NLN::ECHO_LEVEL_ERROR ) << "GLFW error code ( " << err << " ): " << desc << ".";
+            NLN::comms( NLN::EchoLevel_Error ) << "GLFW error code ( " << err << " ): " << desc << ".";
         } );
 
         if( int ret = NLN::begin_runtime( argc, argv, 0, nullptr, nullptr ); ret != 0 ) return ret;

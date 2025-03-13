@@ -7,7 +7,7 @@ using namespace NLN;
 
 int main( int argc, char* argv[] ) {
     if( argc != 5 ) {
-        comms( ECHO_LEVEL_ERROR ) << "Wrong number of arguments.";
+        comms( EchoLevel_Error ) << "Wrong number of arguments.";
         return -1;
     }
 
@@ -17,13 +17,13 @@ int main( int argc, char* argv[] ) {
 
     Endec::Bmp g{ argv[ 2 ] };
     if( g.width != w || g.height != h ) {
-        comms( ECHO_LEVEL_ERROR ) << "Bitmaps ( R, G ) widths and heights don't match.";
+        comms( EchoLevel_Error ) << "Bitmaps ( R, G ) widths and heights don't match.";
         return -1;
     }
 
     Endec::Bmp b{ argv[ 3 ] };
     if( b.width != w || b.height != h ) {
-        comms( ECHO_LEVEL_ERROR ) << "Bitmaps ( R, B ) widths and heights don't match.";
+        comms( EchoLevel_Error ) << "Bitmaps ( R, B ) widths and heights don't match.";
         return -1;
     }
 
@@ -45,7 +45,7 @@ int main( int argc, char* argv[] ) {
 
     r.write_file( argv[ 4 ] );
 
-    comms( ECHO_LEVEL_OK ) << "Done.";
+    comms( EchoLevel_Ok ) << "Done.";
 
     return 0;
 }

@@ -101,7 +101,7 @@ public:
             std::ifstream file{ path, std::ios_base::binary };
 
             if( !file ) {
-                echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.string().c_str() << "\".";
+                echo( this, EchoLevel_Error ) << "Could NOT open file: \"" << path.string().c_str() << "\".";
                 status = -1;
                 return;
             }
@@ -124,7 +124,7 @@ public:
                     size_t q2 = line.find_last_of( '>' );
 
                     if( q1 == std::string::npos && q2 == std::string::npos ) {
-                        echo( this, ECHO_LEVEL_ERROR ) << "Directive argument must be quoted between \"<>\".";
+                        echo( this, EchoLevel_Error ) << "Directive argument must be quoted between \"<>\".";
                         status = -1;
                         return;
                     }
@@ -141,7 +141,7 @@ public:
             
             l_directive_name:
                 if( !_name.empty() ) {
-                    echo( this, ECHO_LEVEL_ERROR ) << "Multiple names given. Initial name \"" << _name << "\", conflicting with \"" << arg << "\".";
+                    echo( this, EchoLevel_Error ) << "Multiple names given. Initial name \"" << _name << "\", conflicting with \"" << arg << "\".";
                     status = -1;
                     return;
                 }
@@ -158,7 +158,7 @@ public:
         accumulate_glsl( path );
         
         if( status != 0 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "General failure during reading and generating source.";
+            echo( this, EchoLevel_Error ) << "General failure during reading and generating source.";
             return;
         }
 
@@ -172,7 +172,7 @@ public:
         {
         GLuint glidx = glCreateShader( phase );
         if( glidx == 0 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "OpenGL returned NULL shader.";
+            echo( this, EchoLevel_Error ) << "OpenGL returned NULL shader.";
             return;
         }
 
@@ -186,16 +186,16 @@ public:
             GLchar log_buf[ 512 ];
             glGetShaderInfoLog( glidx, sizeof( log_buf ), NULL, log_buf );
             
-            echo( this, ECHO_LEVEL_ERROR ) << "Fault compiling: \"" << log_buf << "\", from: \"" << path.string().c_str() << "\".";
+            echo( this, EchoLevel_Error ) << "Fault compiling: \"" << log_buf << "\", from: \"" << path.string().c_str() << "\".";
             return;
         }
 
         _glidx = glidx;
-        echo( this, ECHO_LEVEL_OK ) << "Created as \"" << _name << "\"( " << _glidx << " ), from \"" << path.string().c_str() << "\".";
+        echo( this, EchoLevel_Ok ) << "Created as \"" << _name << "\"( " << _glidx << " ), from \"" << path.string().c_str() << "\".";
         return;
         }
     l_gl_shader_create_skip:
-        echo( this, ECHO_LEVEL_OK ) << "Created as \"" << _name << "\", without compiling source ( " << directive_cb_status << " ).";
+        echo( this, EchoLevel_Ok ) << "Created as \"" << _name << "\", without compiling source ( " << directive_cb_status << " ).";
         return;
     }
 
@@ -278,7 +278,7 @@ public:
         _ENGINE_SHADER_PIPE3_EXEC_ATTR_CALLBACK( attr_cb, SHADER_PIPE3_ATTR_NAME, _name, nullptr );
 
         if( pretty.starts_with( '>' ) || pretty.ends_with( '-' ) ) {
-            echo( this, ECHO_LEVEL_WARNING ) << "Shader stages ill-arranged.";
+            echo( this, EchoLevel_Warning ) << "Shader stages ill-arranged.";
         }
 
         if( shaders[ 1 ] == nullptr && shaders[ 2 ] == nullptr )
@@ -290,7 +290,7 @@ public:
         {
         GLuint glidx = glCreateProgram();
         if( glidx == 0 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "OpenGL returned NULL shader program.";
+            echo( this, EchoLevel_Error ) << "OpenGL returned NULL shader program.";
             return;
         }
 
@@ -308,16 +308,16 @@ public:
             GLchar log_buf[ 512 ]; memset( log_buf, sizeof( log_buf ), 0 );
             glGetProgramInfoLog( glidx, sizeof( log_buf ), NULL, log_buf );
             
-            echo( this, ECHO_LEVEL_ERROR ) << "Fault attaching shaders: \"" << log_buf << "\".";
+            echo( this, EchoLevel_Error ) << "Fault attaching shaders: \"" << log_buf << "\".";
             return;
         }
 
         _glidx = glidx;
-        echo( this, ECHO_LEVEL_OK ) << "Created as \"" << _name << "\"( " << _glidx << " ) | " << pretty << " |.";
+        echo( this, EchoLevel_Ok ) << "Created as \"" << _name << "\"( " << _glidx << " ) | " << pretty << " |.";
         return;
         }
     l_program_create_skip:
-        echo( this, ECHO_LEVEL_OK ) << "Created as \"" << _name << "\", without creating program ( " << attr_cb_status << " ).";
+        echo( this, EchoLevel_Ok ) << "Created as \"" << _name << "\", without creating program ( " << attr_cb_status << " ).";
         return;
     }
 
@@ -379,7 +379,7 @@ public:
     ) 
     : _anchor{ anchor }
     {
-        echo( this, ECHO_LEVEL_OK ) << "Created. Ready to dock \"" << anchor << "\".";
+        echo( this, EchoLevel_Ok ) << "Created. Ready to dock \"" << anchor << "\".";
     }
 
     Uniform3Impl( 
@@ -410,7 +410,7 @@ public:
         GLuint loc = glGetUniformLocation( pipe, _anchor.c_str() );
 
         if( loc == -1 ) {
-            echo( this, ECHO_LEVEL_WARNING ) << "Shading pipe( " << pipe.glidx() << " ) has no uniform \"" << _anchor << "\".";
+            echo( this, EchoLevel_Warning ) << "Shading pipe( " << pipe.glidx() << " ) has no uniform \"" << _anchor << "\".";
             return -1;
         }
 
@@ -682,7 +682,7 @@ public:
         std::filesystem::path root_dir_p = root_dir / prefix.data();
         std::filesystem::path obj_path   = root_dir_p; obj_path += ".obj";
 
-        echo( this, ECHO_LEVEL_INTEL ) << "Compiling the object: \"" << obj_path.string().c_str() << "\".";
+        echo( this, EchoLevel_Info ) << "Compiling the object: \"" << obj_path.string().c_str() << "\".";
 
 		status = tinyobj::LoadObj( 
             &attrib, &meshes, &materials, &error_str, 
@@ -691,14 +691,14 @@ public:
         );
 
 		if( !error_str.empty() )
-            echo( this, ECHO_LEVEL_WARNING ) << "TinyObj says: \"" << error_str << "\".";
+            echo( this, EchoLevel_Warning ) << "TinyObj says: \"" << error_str << "\".";
 
 		if( status == 0 ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Failed to compile the object.";
+            echo( this, EchoLevel_Error ) << "Failed to compile the object.";
             return;
 		}
 
-		echo( this, ECHO_LEVEL_OK ) << "Compiled " << materials.size() << " materials over " << meshes.size() << " meshes."; 
+		echo( this, EchoLevel_Ok ) << "Compiled " << materials.size() << " materials over " << meshes.size() << " meshes."; 
 
         _mtls.reserve( materials.size() );
         for( tinyobj::material_t& mtl_base : materials ) { 
@@ -729,7 +729,7 @@ public:
         
             for( auto& [ key, value ] : mtl.data.unknown_parameter ) {
                 if( !key.starts_with( "NLN" ) ) {
-                    echo( this, ECHO_LEVEL_WARNING ) << "Unrecognized general parameter \"" << key << "\".";
+                    echo( this, EchoLevel_Warning ) << "Unrecognized general parameter \"" << key << "\".";
                     continue;
                 }
 
@@ -742,7 +742,7 @@ public:
                 }
 
                 if( !resolved ) 
-                    echo( this, ECHO_LEVEL_WARNING ) << "Unrecognized NLN parameter \"" << key << "\".";
+                    echo( this, EchoLevel_Warning ) << "Unrecognized NLN parameter \"" << key << "\".";
             }
         }
 
@@ -867,7 +867,7 @@ _ENGINE_PROTECTED:
         UBYTE* img_buf = stbi_load( path.string().c_str(), &x, &y, &n, 4 );
 
         if( img_buf == nullptr ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Failed to load texture data from: \"" << path.string().c_str() << "\".";
+            echo( this, EchoLevel_Error ) << "Failed to load texture data from: \"" << path.string().c_str() << "\".";
             return -1;
         }
 
@@ -900,14 +900,14 @@ _ENGINE_PROTECTED:
             ufrm: {}
         } );
 
-        echo( this, ECHO_LEVEL_OK ) << "Pushed texture from: \"" << path.string().c_str() << "\", on pipe unit: " << pipe_unit << ".";
+        echo( this, EchoLevel_Ok ) << "Pushed texture from: \"" << path.string().c_str() << "\", on pipe unit: " << pipe_unit << ".";
         return 0;
     }
 
 public:
     Mesh3& dock_in( HVEC< ShaderPipe3 > other_pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
         if( other_pipe.get() == this->pipe.get() ) {
-            echo( this, ECHO_LEVEL_WARNING ) << "Multiple docks on same pipe( " << this->pipe->glidx() << " ) detected.";
+            echo( this, EchoLevel_Warning ) << "Multiple docks on same pipe( " << this->pipe->glidx() << " ) detected.";
         }
 
         if( other_pipe != nullptr ) this->pipe.vector( std::move( other_pipe ) );
@@ -974,8 +974,8 @@ public:
         _rend_str = ( const char* )glGetString( GL_RENDERER ); 
         _gl_str   = ( const char* )glGetString( GL_VERSION );
 
-        echo( this, ECHO_LEVEL_INTEL ) << "Docked on \"" << _rend_str << "\".";
-        echo( this, ECHO_LEVEL_INTEL ) << "OpenGL on \"" << _gl_str << "\".";
+        echo( this, EchoLevel_Info ) << "Docked on \"" << _rend_str << "\".";
+        echo( this, EchoLevel_Info ) << "OpenGL on \"" << _gl_str << "\".";
 
         glDepthFunc( GL_LESS );
         glEnable( GL_DEPTH_TEST );
@@ -997,11 +997,11 @@ public:
         glewExperimental = GL_TRUE; 
         glewInit();
 
-        echo( this, ECHO_LEVEL_OK ) << "Created.";
+        echo( this, EchoLevel_Ok ) << "Created.";
     }
 
     // explicit Render3( HVEC< Surface > surf, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        // comms( this, ECHO_LEVEL_ERROR ) << "This constructor is no longer supported.";
+        // comms( this, EchoLevel_Error ) << "This constructor is no longer supported.";
     // }
 
     Render3( const Render3& ) = delete;

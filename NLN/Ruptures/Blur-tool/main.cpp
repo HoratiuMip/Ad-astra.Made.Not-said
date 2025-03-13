@@ -100,7 +100,7 @@ int main( int argc, char* argv[] ) {
                 dword_t result = blur_bmp_main_proc( bmp, regz );
                 double elapsed = tick.lap();
 
-                Echo{}( nullptr, ECHO_LEVEL_INTEL ) << "Blurring took: " << elapsed << "s.";
+                Echo{}( nullptr, EchoLevel_Info ) << "Blurring took: " << elapsed << "s.";
 
                 switch( result ) {
                     case BLUR_BMP_RESULT_OK: {

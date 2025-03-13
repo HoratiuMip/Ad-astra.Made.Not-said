@@ -459,7 +459,7 @@ int main( int argc, char** argv ) {
 
 /* Setup */
     glfwSetErrorCallback( [] ( int err, const char* desc ) -> void {
-        NLN::comms( NLN::ECHO_LEVEL_ERROR ) << "GLFW error code ( " << err << " ): " << desc << ".";
+        NLN::comms( NLN::EchoLevel_Error ) << "GLFW error code ( " << err << " ): " << desc << ".";
     } );
 
     if( int ret = NLN::begin_runtime( argc, argv, NLN::BEGIN_RUNTIME_FLAG_INIT_NETWORK, nullptr, nullptr ); ret != 0 ) return ret;
@@ -538,7 +538,7 @@ int main( int argc, char** argv ) {
     l_attempt_connect: {
         if( !G_is_running() )
             goto l_burst_th_end;
-        NLN::comms( NLN::ECHO_LEVEL_PENDING ) << "Attempting connection to the controller...";
+        NLN::comms( NLN::EchoLevel_Pending ) << "Attempting connection to the controller...";
         if( BARCUD.connect( NLN::DEV::BARRACUDA_CTRL_FLAG_TRUST_INVOKER ) != 0 ) {
             NLN::comms() << "Could not connect to the controller. Retrying in 3s...\n";
             BARCUD.force_waiting_resolvers();

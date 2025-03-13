@@ -17,10 +17,10 @@ DWORD RenderCluster3::func_name( HVEC< type > rezervation, bool owr, _ENGINE_COM
     lock.unlock(); \
     if( record != nullptr ) { \
         if( !owr ) { \
-            echo( this, ECHO_LEVEL_ERROR ) << "Pushing rezervation \"" << record->name_field << "\" overwrites existing one. Aborted."; \
+            echo( this, EchoLevel_Error ) << "Pushing rezervation \"" << record->name_field << "\" overwrites existing one. Aborted."; \
             return -1; \
         } \
-        echo( this, ECHO_LEVEL_INTEL ) << "Overwriting rezervation \"" << record->name_field << "\"."; \
+        echo( this, EchoLevel_Info ) << "Overwriting rezervation \"" << record->name_field << "\"."; \
     } \
     record.vector( std::move( rezervation ) ); \
     return 0; \
@@ -108,7 +108,7 @@ HVEC< Shader3 > RenderCluster3::make_or_pull_shader_from_path( const std::filesy
 
                 case SHADER3_DIRECTIVE_INCLUDE: break;
 
-                default: echo( this, ECHO_LEVEL_WARNING ) << "No support for directive ( " << directive << " ), of argument \"" << arg << "\".";
+                default: echo( this, EchoLevel_Warning ) << "No support for directive ( " << directive << " ), of argument \"" << arg << "\".";
             }
             return 0;
         }, echo 
@@ -131,7 +131,7 @@ HVEC< ShaderPipe3 > RenderCluster3::make_or_pull_pipe_from_ptr_arr( Shader3* sha
                     if( ret->glidx() != 0 ) return -1;
                 break; }
 
-                default: echo( this, ECHO_LEVEL_WARNING ) << "No support for attribute ( " << attr << " ), of argument \"" << arg << "\".";
+                default: echo( this, EchoLevel_Warning ) << "No support for attribute ( " << attr << " ), of argument \"" << arg << "\".";
             }
             return 0;
         }, echo 

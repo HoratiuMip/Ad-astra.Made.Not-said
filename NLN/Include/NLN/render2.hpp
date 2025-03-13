@@ -207,7 +207,7 @@ public:
     : RenderSpec2{ *this }, _surface{ std::move( surface ) }
     {
         if( CoInitialize( nullptr ) != S_OK ) { 
-            echo( this, ECHO_LEVEL_ERROR ) << "CoInitialize() failure.";
+            echo( this, EchoLevel_Error ) << "CoInitialize() failure.";
             return;
         }    
 
@@ -220,7 +220,7 @@ public:
                 ( void** )&_wic_factory
             ) != S_OK 
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "CoCreateInstance() failure.";
+            echo( this, EchoLevel_Error ) << "CoCreateInstance() failure.";
             return;
         }
 
@@ -230,7 +230,7 @@ public:
                 &_factory
             ) != S_OK 
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "D2D1CreateFactory() failure.";
+            echo( this, EchoLevel_Error ) << "D2D1CreateFactory() failure.";
             return;
         }
 
@@ -245,7 +245,7 @@ public:
                 &_target
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "ID2D1Factory::CreateHwndRenderTarget() failure.";
+            echo( this, EchoLevel_Error ) << "ID2D1Factory::CreateHwndRenderTarget() failure.";
             return;
         }
 
@@ -257,7 +257,7 @@ public:
         *( Renderer2DefaultSweeps* )( this ) = Renderer2DefaultSweeps{ *this, echo };
 
 
-        echo( this, ECHO_LEVEL_OK ) << "Created.";
+        echo( this, EchoLevel_Ok ) << "Created.";
     }
 
 
@@ -314,7 +314,7 @@ public:
         DWORD sdx = -1;
 
         if( sdx = _tmxsdx + 1; sdx == TMX_MAX_COUNT ) {
-            echo( this, ECHO_LEVEL_WARNING ) << "Pushing TMX to stack would cause overflow. Aborted.";
+            echo( this, EchoLevel_Warning ) << "Pushing TMX to stack would cause overflow. Aborted.";
             return *this;
         }
         
@@ -330,7 +330,7 @@ public:
         DWORD sdx = -1;
 
         if( sdx = _tmxsdx - 1; sdx < 0 ) {
-            echo( this, ECHO_LEVEL_WARNING ) << "Popping TMX would cause underflow. Aborted.";
+            echo( this, EchoLevel_Warning ) << "Popping TMX would cause underflow. Aborted.";
             return *this;
         }
 
@@ -398,7 +398,7 @@ public:
     {
         this->_refresh_tmxs( echo );
 
-        echo( this, ECHO_LEVEL_OK ) << "Created.";
+        echo( this, EchoLevel_Ok ) << "Created.";
     }
 
 
@@ -456,7 +456,7 @@ _ENGINE_PROTECTED:
                *
                _super_spec->tmx();
 
-        if( !( _tmx_i = _tmx ).Invert() ) echo( this, ECHO_LEVEL_WARNING ) << "TMX not invertible.";
+        if( !( _tmx_i = _tmx ).Invert() ) echo( this, EchoLevel_Warning ) << "TMX not invertible.";
     }
 
 public:
@@ -658,11 +658,11 @@ public:
     : Sweep2{ width }
     {
         if( renderer.target()->CreateSolidColorBrush( rgba, &_sweep ) != S_OK ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "Renderer2::target()->CreateSolidColorBrush() failure.";
+            echo( this, EchoLevel_Error ) << "Renderer2::target()->CreateSolidColorBrush() failure.";
             return;
         }
 
-        echo( this, ECHO_LEVEL_OK ) << "Created.";
+        echo( this, EchoLevel_Ok ) << "Created.";
     }
 
 public:
@@ -744,7 +744,7 @@ public:
                 &_grads
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "_render_spec->target()->CreateGradientStopCollection() failure.";
+            echo( this, EchoLevel_Error ) << "_render_spec->target()->CreateGradientStopCollection() failure.";
             return;
         }
 
@@ -758,11 +758,11 @@ public:
                 &_sweep
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "_render_spec->target()->CreateLinearGradientBrush() failure.";
+            echo( this, EchoLevel_Error ) << "_render_spec->target()->CreateLinearGradientBrush() failure.";
             return;
         }
 
-        echo( this, ECHO_LEVEL_OK ) << "Created.";
+        echo( this, EchoLevel_Ok ) << "Created.";
     }
 
 public:
@@ -835,7 +835,7 @@ public:
                 &_grads
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "_render_spec->target()->CreateGradientStopCollection failure.";
+            echo( this, EchoLevel_Error ) << "_render_spec->target()->CreateGradientStopCollection failure.";
             return;
         }
 
@@ -851,11 +851,11 @@ public:
                 &_sweep
             ) != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "_render_spec->target()->CreateRadialGradientBrush failure.";
+            echo( this, EchoLevel_Error ) << "_render_spec->target()->CreateRadialGradientBrush failure.";
             return;
         }
 
-        echo( this, ECHO_LEVEL_OK ) << "Created.";
+        echo( this, EchoLevel_Ok ) << "Created.";
     }
 
 public:
@@ -967,17 +967,17 @@ public:
                 &tools.wic_decoder
             ); res != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "render_spec->renderer().wic_factory()->CreateDecoderFromFilename failure: #" << res << " on: \"" << _path << "\".";
+            echo( this, EchoLevel_Error ) << "render_spec->renderer().wic_factory()->CreateDecoderFromFilename failure: #" << res << " on: \"" << _path << "\".";
             return;
         }
 
         if( UDWORD res = tools.wic_decoder->GetFrame( 0, &tools.wic_frame ); res != S_OK ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "tools.wic_decoder->GetFrame failure: #" << res << ".";
+            echo( this, EchoLevel_Error ) << "tools.wic_decoder->GetFrame failure: #" << res << ".";
             return;
         }
 
         if( UDWORD res = render_spec->renderer().wic_factory()->CreateFormatConverter( &tools.wic_converter ); res != S_OK ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "render_spec->renderer().wic_factory()->CreateFormatConverter failure: #" << res << ".";
+            echo( this, EchoLevel_Error ) << "render_spec->renderer().wic_factory()->CreateFormatConverter failure: #" << res << ".";
             return;
         }
 
@@ -991,7 +991,7 @@ public:
                 WICBitmapPaletteTypeCustom
             ); res != S_OK
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "tools.wic_converter->Initialize failure: #" << res << ".";
+            echo( this, EchoLevel_Error ) << "tools.wic_converter->Initialize failure: #" << res << ".";
             return;
         }
 
@@ -1004,7 +1004,7 @@ public:
                 &tmp_bmp
             )
         ) {
-            echo( this, ECHO_LEVEL_ERROR ) << "render_spec->renderer().target()->CreateBitmapFromWicBitmap failure: #" << res << ".";
+            echo( this, EchoLevel_Error ) << "render_spec->renderer().target()->CreateBitmapFromWicBitmap failure: #" << res << ".";
             return;
         }
 
@@ -1017,9 +1017,9 @@ public:
         tools.wic_frame->GetSize( &w, &h );
 
         if( w == 0 || h == 0 || w >= 10'000 || h >= 10'000 )
-            echo( this, ECHO_LEVEL_WARNING ) << "Abnormal dimensions: w: " << w << ", h: " << h << ".";
+            echo( this, EchoLevel_Warning ) << "Abnormal dimensions: w: " << w << ", h: " << h << ".";
 
-        echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << _path << "\".";
+        echo( this, EchoLevel_Ok ) << "Created from: \"" << _path << "\".";
     }
 
 public:

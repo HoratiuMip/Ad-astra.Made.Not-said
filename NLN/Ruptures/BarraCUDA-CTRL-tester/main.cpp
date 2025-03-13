@@ -212,15 +212,15 @@ struct _COMMAND {
                 std::string str_id; std::cin >> str_id;
                 char data; 
                 if( CTRL.get( str_id, &data, 1 ) == 0 ) {
-                    comms( ECHO_LEVEL_OK ) << "\"" << str_id << "\" = " << std::hex << ( int )data << std::dec << ".";
+                    comms( EchoLevel_Ok ) << "\"" << str_id << "\" = " << std::hex << ( int )data << std::dec << ".";
                 } else {
-                    comms( ECHO_LEVEL_WARNING ) << "\"" << str_id << "\" NAK'd.";
+                    comms( EchoLevel_Warning ) << "\"" << str_id << "\" NAK'd.";
                 }
             break; }
 
             case 4: {
                 std::string str_id; std::cin >> str_id;
-                char data; int n; std::cin >> n; data = ( char )n; comms( ECHO_LEVEL_INTEL ) << "Setting " << str_id << " to " << n << ".";
+                char data; int n; std::cin >> n; data = ( char )n; comms( EchoLevel_Info ) << "Setting " << str_id << " to " << n << ".";
                 CTRL.set( str_id, &data, 1 );
             break; }
 
@@ -251,7 +251,7 @@ int main( int argc, char* argv[] ) {
     DASHBOARD.boards.emplace_back( new LIGHT_SENSOR_BOARD{ 1, 0, &CTRL.dynamic.naksu } );
 
 l_attempt_connect:
-    comms( ECHO_LEVEL_PENDING ) << "Waiting for connection...";
+    comms( EchoLevel_Pending ) << "Waiting for connection...";
     if( CTRL.connect( BARRACUDA_CTRL_FLAG_TRUST_INVOKER ) != 0 ) {
         comms() << "Could not connect to the controller. Retrying in 3s...\n";
         std::this_thread::sleep_for( std::chrono::seconds{ 3 } );
@@ -263,7 +263,7 @@ l_attempt_connect:
     DASHBOARD.begin();
 
     do {
-        comms( ECHO_LEVEL_INPUT ) << "Command: ";
+        comms( EchoLevel_Input ) << "Command: ";
 
         while( !kbhit() ) { 
             std::this_thread::sleep_for( std::chrono::milliseconds{ 100 } );
@@ -277,9 +277,9 @@ l_attempt_connect:
         if( STATUS != READY ) goto l_main_loop_break;
 
         if( COMMAND.exec( cmd ) ) 
-            comms( ECHO_LEVEL_OK ) << "Command \"" << cmd << "\" executed.\n";
+            comms( EchoLevel_Ok ) << "Command \"" << cmd << "\" executed.\n";
         else
-            comms( ECHO_LEVEL_ERROR ) << "Invalid command \"" << cmd << "\".\n";
+            comms( EchoLevel_Error ) << "Invalid command \"" << cmd << "\".\n";
 
     } while( STATUS == READY );
 l_main_loop_break:

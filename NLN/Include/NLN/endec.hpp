@@ -46,7 +46,7 @@ public:
             std::ifstream file{ path.data(), std::ios_base::binary };
 
             if( !file ) {
-                echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.data() << "\".";
+                echo( this, EchoLevel_Error ) << "Could NOT open file: \"" << path.data() << "\".";
                 return;
             }
         
@@ -57,7 +57,7 @@ public:
 
 
             if( !raw_stream ) {
-                echo( this, ECHO_LEVEL_ERROR ) << "Bad alloc for file read buffer.";
+                echo( this, EchoLevel_Error ) << "Bad alloc for file read buffer.";
                 return;
             }
 
@@ -79,7 +79,7 @@ public:
             stream.vector( ( T* )malloc( sample_count * sizeof( T ) ) );
 
             if( !stream ) {
-                echo( this, ECHO_LEVEL_ERROR ) << "Bad alloc for stream buffer.";
+                echo( this, EchoLevel_Error ) << "Bad alloc for stream buffer.";
                 return;
             }
 
@@ -99,13 +99,13 @@ public:
 
 
             if( sample_count % tunnel_count != 0 )
-                echo( this, ECHO_LEVEL_WARNING ) << "Sample count does not distribute evenly on channel count.";
+                echo( this, EchoLevel_Warning ) << "Sample count does not distribute evenly on channel count.";
 
             
             sample_count /= tunnel_count;
 
 
-            echo( this, ECHO_LEVEL_OK ) << "Created from: \"" << path.data() << "\".";
+            echo( this, EchoLevel_Ok ) << "Created from: \"" << path.data() << "\".";
         }
 
     
@@ -147,7 +147,7 @@ public:
             std::ifstream file{ path.data(), std::ios_base::binary };
 
             if( !file ) {
-                echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file: \"" << path.data() << "\".";
+                echo( this, EchoLevel_Error ) << "Could NOT open file: \"" << path.data() << "\".";
                 return;
             }
         
@@ -160,7 +160,7 @@ public:
             udword_t in_file_reported_file_size = Bytes::as< udword_t, BMP_FMT_FILE_SIZE_SZ, BIT_END_LITTLE >( ( char* )&buffer[ BMP_FMT_FILE_SIZE_OFS ] );
 
             if( in_file_reported_file_size != buf_size )
-                echo( this, ECHO_LEVEL_WARNING ) << "Actual file size ( " << buf_size << " ), is different from in-file reported file size ( " << in_file_reported_file_size << " ). The file may be either an unsupported format, or has been tampered with.";
+                echo( this, EchoLevel_Warning ) << "Actual file size ( " << buf_size << " ), is different from in-file reported file size ( " << in_file_reported_file_size << " ). The file may be either an unsupported format, or has been tampered with.";
 
             data_ofs = Bytes::as< udword_t, BMP_FMT_DATA_OFS_SZ, BIT_END_LITTLE >( ( char* )&buffer[ BMP_FMT_DATA_OFS_OFS ] );
             width    = Bytes::as< uint32_t, BMP_FMT_WIDTH_SZ, BIT_END_LITTLE >( ( char* )&buffer[ BMP_FMT_WIDTH_OFS ] );
@@ -171,7 +171,7 @@ public:
             char mod = ( width * bytes_ps ) % 4;
             padding = ( 4 - mod ) * ( mod != 0 );
 
-            echo( this, ECHO_LEVEL_OK ) 
+            echo( this, EchoLevel_Ok ) 
             << "Created | W( " << width 
             << " ) | H( " << height
             << " ) | BPS( " << bytes_ps 
@@ -206,19 +206,19 @@ public:
             std::ofstream file{ path.data(), std::ios_base::binary };
 
             if( !file ) {
-                echo( this, ECHO_LEVEL_ERROR ) << "Could NOT open file for write: \"" << path.data() << "\".";
+                echo( this, EchoLevel_Error ) << "Could NOT open file for write: \"" << path.data() << "\".";
                 return 0;
             }
 
             file.write( ( char* )buffer.get(), buf_size );
 
             if( file.badbit ) {
-                echo( this, ECHO_LEVEL_WARNING ) << "Bad bit set during write to: \"" << path.data() << "\".";
+                echo( this, EchoLevel_Warning ) << "Bad bit set during write to: \"" << path.data() << "\".";
             }
 
             file.close();
 
-            echo( this, ECHO_LEVEL_OK ) << "Wrote to: \"" << path.data() << "\".";
+            echo( this, EchoLevel_Ok ) << "Wrote to: \"" << path.data() << "\".";
 
             return 0;
         }

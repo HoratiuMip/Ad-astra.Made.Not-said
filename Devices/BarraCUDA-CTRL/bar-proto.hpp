@@ -63,8 +63,8 @@ struct bar_cache_t {
 
 
 typedef   std::function< const char*( void*, int32_t ) >   bar_proto_gstbl_set_func_t;
-#define BAR_PROTO_GSTBL_READ_WRITE    0
-#define BAR_PROTO_GSTBL_READ_ONLY     1
+#define BAR_PROTO_GSTBL_READ_WRITE 0
+#define BAR_PROTO_GSTBL_READ_ONLY  1
 struct BAR_PROTO_GSTBL_ENTRY {
   const char* const            str_id;
   void* const                  src;
@@ -107,10 +107,11 @@ struct BAR_PROTO_SRWRAP {
     bar_proto_recv_func_t   recv    = nullptr;
 };
 
+#define BAR_PROTO_NO_HEAD  0
+#define BAR_PROTO_HAS_HEAD 1
 enum BAR_PROTO_SEND_METHOD {
     BAR_PROTO_SEND_METHOD_DIRECT,
-    BAR_PROTO_SEND_METHOD_COPY_TO_CACHE,
-    BAR_PROTO_SEND_METHOD_COPY_ON_STACK,
+    BAR_PROTO_SEND_METHOD_STACK,
     BAR_PROTO_SEND_METHOD_AUTO
 };
 enum BAR_PROTO_ERR : int {
@@ -153,6 +154,10 @@ struct BAR_PROTO_WAIT_BACK_INFO {
     BAR_PROTO_ERR          err                                   = BAR_PROTO_ERR_NONE;
     char                   nakr[ BAR_PROTO_NAKR_MAX_SIZE + 1 ]   = { '\0' };
 };
+struct BAR_PROTO_SEND_N_DESC {
+    const void*   src;
+    int32_t       sz;
+};
 struct _BAR_PROTO_RESOLVER {
     int16_t                            _seq    = 0;
     void*                              _dst    = nullptr;
@@ -160,13 +165,14 @@ struct _BAR_PROTO_RESOLVER {
     BAR_PROTO_WAIT_BACK_INFO*   _info   = nullptr;
 };
 typedef   std::function< int16_t( void ) >   bar_proto_seq_acq_func_t;
+#define _BAR_PROTO_ASSERT( c, r ) if( !( c ) ) return ( r );
 #define _BAR_PROTO_INFO_ASSERT( c, e ) if( !( c ) ) { info->err = e; return -1; }
 #define _BAR_PROTO_INFO__SEND_ASSERT( s, e ) { int _sret = ( s ); if( _sret <= 0 ) { info->err = ( _sret == 0 ) ? BAR_PROTO_ERR_CONN_RESET : e; return _sret; } info->sent += _sret; }
 #define _BAR_PROTO_INFO__SEND_ASSERT_NO_ADD( s, e ) { int _sret = ( s ); if( _sret <= 0 ) { info->err = ( _sret == 0 ) ? BAR_PROTO_ERR_CONN_RESET : e; return _sret; } }
 #define _BAR_PROTO_INFO_NAK_IF( c, r ) if( c ) { info->nakr = "BAR_PROTO_NAKR_" r; goto l_gs_nak; }
 #define _BAR_PROTO_INFO_RECV_ASSERT( r, t, e ) { int _rret = ( r ); if( _rret <= 0 ) { info->err = ( _rret == 0 ) ? BAR_PROTO_ERR_CONN_RESET : e; return _rret; } if( _rret != ( t ) ) return -1; }
 #define _BAR_PROTO__SEND_ASSERT_RET( s, t ) { int _sret = ( s ); if( _sret <= 0 ) return _sret; if( _sret != ( t ) ) return -1; ret += _sret; }
-template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO {
+struct BAR_PROTO_STREAM {
     BAR_PROTO_GSTBL                     _gstbl       = {};
     BAR_PROTO_BRSTBL                    _brstbl      = {};
     BAR_PROTO_SRWRAP                    _srwrap      = {};
@@ -174,74 +180,91 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO {
     bar_proto_seq_acq_func_t            _seq_acq     = nullptr;
     std::deque< _BAR_PROTO_RESOLVER >   _resolvers   = {};
     std::mutex                          _resmtx      = {};
-    bar_cache_t< _CACHE_BUF_SZ >        _cache       = {};
+
 
     void bind_gstbl( const BAR_PROTO_GSTBL& gstbl ) { _gstbl = gstbl; }
     void bind_brstbl( const BAR_PROTO_BRSTBL& brstbl ) { _brstbl = brstbl; }
     void bind_srwrap( const BAR_PROTO_SRWRAP& srwrap ) { _srwrap = srwrap; }
     void bind_seq_acq( const bar_proto_seq_acq_func_t& seq_acq ) { _seq_acq = seq_acq; }
 
-    int _send( const void* src, int32_t sz, BAR_PROTO_OP op, int16_t seq, int flags, BAR_PROTO_SEND_METHOD method ) {
+
+    int32_t _sizeof_send_n_descs( BAR_PROTO_SEND_N_DESC* descs, int count ) {
+        int sz = 0;
+        for( int idx = 0; idx < count; ++idx ) sz += descs[ idx ].sz;
+        return sz;
+    }
+
+    template< bool _HAS_HEAD = BAR_PROTO_NO_HEAD >
+    int _send_n( BAR_PROTO_SEND_N_DESC* descs, int count, BAR_PROTO_OP op, int16_t seq, int flags, BAR_PROTO_SEND_METHOD method ) {
         int ret = 0;
 
         switch( method ) {
-        l_direct:
-            case BAR_PROTO_SEND_METHOD_DIRECT: {
-                bar_proto_head_t head;
-                head._dw0.op  = op;
-                head._dw1.seq = seq;
-                head._dw2.sz  = sz;
-
-                std::unique_lock< std::mutex > lock{ _smtx };
-                _BAR_PROTO__SEND_ASSERT_RET( _srwrap.send( &head, sizeof( head ), flags ), sizeof( head ) );
+        l_direct: case BAR_PROTO_SEND_METHOD_DIRECT: {
+                std::unique_lock< decltype( _smtx ) > lock{ _smtx };
                 
-                if( src != nullptr )
-                    _BAR_PROTO__SEND_ASSERT_RET( _srwrap.send( src, sz, flags ), sz );
-            break; }
-        
-        l_copy_to_cache:
-            case BAR_PROTO_SEND_METHOD_COPY_TO_CACHE: {
-                std::unique_lock< decltype( _cache.mtx ) > lock_c{ _cache.mtx };
-                _cache.head->_dw0.op  = op;
-                _cache.head->_dw1.seq = seq;
-                _cache.head->_dw2.sz  = sz;
-                if( src != nullptr )
-                    memcpy( _cache.data, src, sz );
-                int32_t tot_sz = sizeof( bar_proto_head_t ) + sz;
+                if constexpr( BAR_PROTO_NO_HEAD == _HAS_HEAD ) {
+                    bar_proto_head_t head;
+                    head._dw0.op  = op;
+                    head._dw1.seq = seq;
+                    head._dw2.sz  = _sizeof_send_n_descs( descs, count );
 
-                std::unique_lock< std::mutex > lock_s{ _smtx };
-                _BAR_PROTO__SEND_ASSERT_RET( _srwrap.send( _cache._buffer, tot_sz, flags ), tot_sz );
+                    int crt_ret = _srwrap.send( &head, sizeof( head ), flags );
+                    _BAR_PROTO_ASSERT( crt_ret == sizeof( head ), crt_ret <= 0 ? crt_ret : -1 );
+                    ret += crt_ret;
+                }
+
+                for( int idx = 0; idx < count; ++idx ) {
+                    int crt_ret = _srwrap.send( descs[ idx ].src, descs[ idx ].sz, flags );
+                    _BAR_PROTO_ASSERT( crt_ret == descs[ idx ].sz, crt_ret <= 0 ? crt_ret : -1 );
+                    ret += crt_ret;
+                }
             break; }
 
-        l_copy_on_stack:
-            case BAR_PROTO_SEND_METHOD_COPY_ON_STACK: {
-                int32_t tot_sz = sizeof( bar_proto_head_t ) + sz;
+        l_stack: case BAR_PROTO_SEND_METHOD_STACK: {
+                int tot_sz = _sizeof_send_n_descs( descs, count ) + _HAS_HEAD ? 0 : sizeof( bar_proto_head_t );
+
                 char buffer[ tot_sz ];
-                *( bar_proto_head_t* )buffer = bar_proto_head_t{};
-                if( src != nullptr )
-                    memcpy( buffer + sizeof( bar_proto_head_t ), src, sz );
-                ( ( bar_proto_head_t* )buffer )->_dw0.op  = op;
-                ( ( bar_proto_head_t* )buffer )->_dw1.seq = seq;
-                ( ( bar_proto_head_t* )buffer )->_dw2.sz  = sz;
                 
-                std::unique_lock< std::mutex > lock{ _smtx };
-                _BAR_PROTO__SEND_ASSERT_RET( _srwrap.send( buffer, tot_sz, flags ), tot_sz );
+                if constexpr( BAR_PROTO_NO_HEAD == _HAS_HEAD ) {
+                    ( ( bar_proto_head_t* )buffer )->_dw0.op  = op;
+                    ( ( bar_proto_head_t* )buffer )->_dw1.seq = seq;
+                    ( ( bar_proto_head_t* )buffer )->_dw2.sz  = tot_sz - sizeof( bar_proto_head_t );
+                    tot_sz = sizeof( bar_proto_head_t );
+                } else {
+                    tot_sz = 0;
+                }
+
+                for( int idx = 0; idx < count; ++idx ) {
+                    memcpy( buffer + tot_sz, descs[ idx ].src, descs[ idx ].sz );
+                    tot_sz += descs[ idx ].sz;
+                }
+                
+                std::unique_lock< decltype( _smtx ) > lock{ _smtx }; 
+                ret = _srwrap.send( buffer, tot_sz, flags );
+                _BAR_PROTO_ASSERT( ret == tot_sz, ret <= 0 ? ret : -1 );
             break; }
 
             case BAR_PROTO_SEND_METHOD_AUTO: {
-                if( src == nullptr )
+                if( descs == nullptr )
                     goto l_direct;
-                else if( sz + sizeof( bar_proto_head_t ) <= 64  )
-                    goto l_copy_on_stack;
-                else if( sz + sizeof( bar_proto_head_t ) <= _CACHE_BUF_SZ )
-                    goto l_copy_to_cache;
+                else if( sizeof( bar_proto_head_t ) + _sizeof_send_n_descs( descs, count ) <= 64  )
+                    goto l_stack;
                 else 
                     goto l_direct;
             break; }
         }
 
         return ret;
+    } 
+    
+    template< bool _HAS_HEAD = BAR_PROTO_NO_HEAD >
+    int _send( const void* src_, int32_t sz_, BAR_PROTO_OP op, int16_t seq, int flags, BAR_PROTO_SEND_METHOD method ) {
+        BAR_PROTO_SEND_N_DESC desc{ src: src_, sz: sz_ };
+        if( src_ != nullptr )
+            return _send_n< _HAS_HEAD >( &desc, 1, op, seq, flags, method );
+        return _send_n< _HAS_HEAD >( nullptr, 0, op, seq, flags, method );
     }
+
 
     int resolve_recv( BAR_PROTO_RESOLVE_RECV_INFO* info ) {
         if( int ret = _srwrap.recv( &info->recv_head, sizeof( info->recv_head ), 0 ); ret != sizeof( bar_proto_head_t ) ) {
@@ -254,7 +277,7 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO {
         switch( info->recv_head._dw0.op ) {
             case BAR_PROTO_OP_PING: {
                 _BAR_PROTO_INFO__SEND_ASSERT( 
-                    _send( nullptr, 0, BAR_PROTO_OP_ACK, info->recv_head._dw1.seq, 0, BAR_PROTO_SEND_METHOD_DIRECT ), 
+                    _send<>( nullptr, 0, BAR_PROTO_OP_ACK, info->recv_head._dw1.seq, 0, BAR_PROTO_SEND_METHOD_DIRECT ), 
                     BAR_PROTO_ERR_SEND 
                 );
             break; }
@@ -308,7 +331,7 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO {
 
             l_gs_nak: {
                 _BAR_PROTO_INFO__SEND_ASSERT(
-                    _send( info->nakr, info->nakr ? strlen( info->nakr ) + 1 : 0, BAR_PROTO_OP_NAK, info->recv_head._dw1.seq, 0, BAR_PROTO_SEND_METHOD_COPY_ON_STACK ),
+                    _send( info->nakr, info->nakr ? strlen( info->nakr ) + 1 : 0, BAR_PROTO_OP_NAK, info->recv_head._dw1.seq, 0, BAR_PROTO_SEND_METHOD_STACK ),
                     BAR_PROTO_ERR_SEND 
                 );
 
@@ -386,7 +409,7 @@ template< int16_t _CACHE_BUF_SZ > struct BAR_PROTO {
         } );
         lock.unlock();
 
-        int ret = _send( src, src_sz, op, resolver._seq, 0, method );
+        int ret = _send<>( src, src_sz, op, resolver._seq, 0, method );
         _BAR_PROTO_INFO__SEND_ASSERT_NO_ADD( ret, BAR_PROTO_ERR_SEND );
 
         return ret;

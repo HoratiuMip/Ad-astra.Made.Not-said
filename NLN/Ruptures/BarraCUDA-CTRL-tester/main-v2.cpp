@@ -84,8 +84,6 @@ public:
     {}
 
 protected:
-    NLN::Ticker   _tkr_ping       = { NLN::ticker_lap_epoch_init_t{} };
-    bool          _last_ping_ok   = false;
 
 public:
     virtual void frame( void ) override {
@@ -104,25 +102,36 @@ public:
         
         ImGui::SeparatorText( "Quick commands." );
 
-        if( ImGui::Button( "PING" ) ) {
-            if( int ret = BARCUD.ping(); ret > 0 ) {
-                STATS.add_sent( ret );
-                _last_ping_ok = true;
-                _tkr_ping.lap();
-            } else {
-                _last_ping_ok = false;
-            }
-        }
-        if( _tkr_ping.peek_lap() < 3.6 ) {
-            ImGui::SameLine();
-            if( _last_ping_ok )
-                ImGui::TextColored( { 0, 1, 0, 1 }, "ACK'd." );
-            else 
-                ImGui::TextColored( { 1, 0, 0, 1 }, "ERROR." );
-            ImGui::SetItemTooltip( "Will disappear in %.1fs.", 3.6 - _tkr_ping.peek_lap() );
-        }
+        static int              ping_thread_count = 1;
+        static std::atomic_int  last_ping_count   = { 1 };
+        static std::atomic_int  last_ping_target  = { 1 };
+        if( last_ping_target == last_ping_count ) { 
+            if( ImGui::Button( "PING" ) ) {
+                static std::array< std::thread, 99 > threads;
 
-        ImGui::SameLine( 0, 30 ); 
+                last_ping_count = 0;
+                last_ping_target = ping_thread_count;
+                for( int idx = 0; idx < ping_thread_count; ++idx ) {
+                    std::thread{ [ this ] () -> void {
+                        if( int ret = BARCUD.ping(); ret > 0 ) {
+                            STATS.add_sent( ret );
+                            ++last_ping_count;
+                        }
+                    } }.detach();
+                }
+            } 
+            ImGui::SameLine();
+        }
+        ImGui::SetNextItemWidth( 100 );
+        ImGui::DragInt( "Threads | ", &ping_thread_count, 0.1f, 1, 50 );
+
+        ImGui::SameLine();
+        if( last_ping_target == last_ping_count )
+            ImGui::TextColored( { 0, 1, 0, 1 }, "Responses: (%d).", last_ping_count.load() );
+        else 
+            ImGui::TextColored( { 1, 0.5f, 0, 1 }, "Responses: (%d).", last_ping_count.load() );
+        
+ 
         if( ImGui::Button( "RESET" ) ) {
             BARCUD.disconnect( 0 );
         }
@@ -254,7 +263,7 @@ public:
         ImGui::SetNextWindowSize( { 540, 100 }, ImGuiCond_Once );
         ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_None );
 
-        static constexpr int arr_size = 3'000;
+        static constexpr int arr_size = 2'000;
         static std::array< float, arr_size > values[ 6 ];
         static int at = 0;
 

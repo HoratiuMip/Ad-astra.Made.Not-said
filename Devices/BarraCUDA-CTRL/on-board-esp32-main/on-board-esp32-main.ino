@@ -336,7 +336,7 @@ struct _PROTO {
     return 0;
   }
 
-  BAR_PROTO_STREAM< 256 >   stream;
+  BAR_PROTO_STREAM   stream;
 
   int loop( void ) {
     if( COM.blue.available() ) {

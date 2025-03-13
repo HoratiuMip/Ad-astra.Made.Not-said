@@ -1,6 +1,11 @@
 #pragma once
-/*
-*/
+/*===== NLN Logging - Vatca "Mipsan" Tudor-Horatiu
+|
+> THIS SECTION REQUIRES HEAVY MODIFICATION.
+> ATTEMPT TO KEEP THE SYNTAX comms( *, ECHO_LEVEL )/echo( *, ECHO_LEVEL ).
+> IF NOT... GOD BLESS.
+|
+======*/
 
 #include <NLN/descriptor.hpp>
 #include <NLN/concepts.hpp>
@@ -18,6 +23,7 @@ namespace _ENGINE_NAMESPACE {
 #define  NLN_COMMS_ECHO_RT_ARG          _ENGINE_NAMESPACE::_ENGINE_COMMS_ECHO_RT_ARG
 
 
+class Echo; class Comms;
 
 enum ECHO_MODE {
     ECHO_MODE_RT, ECHO_MODE_ACC
@@ -31,6 +37,20 @@ enum ECHO_LEVEL {
     ECHO_LEVEL_PENDING = 4,
     ECHO_LEVEL_INPUT   = 5,
     ECHO_LEVEL_DEBUG   = 6
+};
+
+struct _RtEchoOneLiner {
+    _RtEchoOneLiner( Comms& c, Echo& e, const Descriptor* that, bool lock, ECHO_LEVEL level );
+
+    ~_RtEchoOneLiner();
+
+    Comms&   comms;
+    Echo&    echo;
+    bool     locked;
+
+    template< typename T >
+    requires is_std_ostringstream_pushable< std::decay_t< T > >
+    Echo& operator << ( T&& frag );
 };
 
 // template< ECHO_MODE MODE >
@@ -76,7 +96,7 @@ _ENGINE_PROTECTED:
     {}
 
 public:
-    ~Echo();
+    virtual ~Echo();
 
 _ENGINE_PROTECTED:
     enum _DUMP_ACCESS_IDX {
@@ -135,57 +155,21 @@ _ENGINE_PROTECTED:
     } _unknown_invoker_placeholder;
 
 public:
-    Echo& operator () ( const Descriptor& invoker, ECHO_LEVEL status ) {
-        this->operator<<( '\n' );
+    _RtEchoOneLiner operator () ( const Descriptor& invoker, ECHO_LEVEL status );
 
-        this->white()
-        .operator<<( "[ " )
-        .push_color( _status_colors[ status ] )
-        .operator<<( _status_strs[ status ] )
-        .white()
-        .operator<<( " ]   \t" );
-
-        this->white()
-        .operator<<( "[ " )
-        .gray()
-        .operator<<( time( nullptr ) )
-        .white()
-        .operator<<( " ]" );
-        
-        this->blue();
-        for( int64_t n = 1; n <= _depth; ++n )
-            this->operator<<( '|' );
-        
-        const char* struct_name = invoker.struct_name();
-
-        return this->white()
-        .operator<<( "[ " )
-        .gray()
-        .operator<<( struct_name ? struct_name : "NULL" )
-        .white()
-        .operator<<( " ][ " )
-        .gray()
-        .operator<<( invoker.xtdx() )
-        .white()
-        .operator<<( " ]" )
-        .blue()
-        .operator<<( " -> " )
-        .white();
-    }
-
-    Echo& operator() ( const Descriptor* invoker, ECHO_LEVEL status ) {
+    _RtEchoOneLiner operator() ( const Descriptor* invoker, ECHO_LEVEL status ) {
         return this->operator()( *invoker, status );
     }
 
     template< typename T >
     requires( !is_descriptor_tolerant< T > )
-    Echo& operator() ( const T& invoker, ECHO_LEVEL status ) {
+    _RtEchoOneLiner operator() ( const T& invoker, ECHO_LEVEL status ) {
         return this->operator()( _unknown_invoker_placeholder, status );
     }
 
     template< typename T >
     requires( !is_descriptor_tolerant< T > )
-    Echo& operator() ( const T* invoker, ECHO_LEVEL status ) {
+    _RtEchoOneLiner operator() ( const T* invoker, ECHO_LEVEL status ) {
         return this->operator()( *invoker, status );
     }
 
@@ -277,20 +261,8 @@ _ENGINE_PROTECTED:
     Echo                      _rt_echo      = { nullptr, 0 };
 
 _ENGINE_PROTECTED:
+    friend class Echo;
     friend struct _RtEchoOneLiner;
-    struct _RtEchoOneLiner {
-        _RtEchoOneLiner( Comms& c, Echo& e, auto* that, ECHO_LEVEL level )
-        : comms{ c }, echo{ e } { comms._out_mtx.lock(); echo( that, level ); }
-
-        ~_RtEchoOneLiner() { comms._out_mtx.unlock(); }
-
-        Comms&   comms;
-        Echo&    echo;
-
-        template< typename T >
-        requires is_std_ostringstream_pushable< std::decay_t< T > >
-        inline Echo& operator << ( T&& frag ) { return echo.operator<<( std::forward< T >( frag ) ); }
-    };
 
 public:
     template< typename T >
@@ -358,11 +330,11 @@ public:
 
 public:
     inline _RtEchoOneLiner operator () ( ECHO_LEVEL level = ECHO_LEVEL_INTEL ) {
-        return { *this, _rt_echo, this, level };
+        return { *this, _rt_echo, this, true, level };
     }
 
     inline _RtEchoOneLiner operator () ( auto* that, ECHO_LEVEL level = ECHO_LEVEL_INTEL ) {
-        return { *this, _rt_echo, that, level };
+        return { *this, _rt_echo, that, true, level };
     }
 
 public:
@@ -398,6 +370,12 @@ public:
     }
 
 }; inline Comms comms;
+
+
+
+template< typename T >
+requires is_std_ostringstream_pushable< std::decay_t< T > >
+Echo& _RtEchoOneLiner::operator << ( T&& frag ) { return echo.operator<<( std::forward< T >( frag ) ); }
 
 
 

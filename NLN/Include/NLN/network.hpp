@@ -58,7 +58,7 @@ public:
 
         do {
             DWORD ret = send( this->_socket, ( char* )buffer + crt, count - crt, flags );
-            NLN_ASSERT_ET( ret > 0, ret, "Send fault. WSA code ( " << WSAGetLastError() << ")." );
+            NLN_ASSERT_ET( ret > 0, ret, "Send fault. WSA code ( " << WSAGetLastError() << " )." );
             crt += ret;
         } while( crt < count );
 

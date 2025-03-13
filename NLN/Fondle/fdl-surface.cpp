@@ -132,7 +132,7 @@ int main() {
     std::cout << std::boolalpha;
 
     while( !surface.down( SurfKey::ESC ) ) {
-        OS::console.crs_at( initial_crs );
+        OS::console.cursor_at( initial_crs );
         
 
         std::cout << std::fixed
@@ -156,12 +156,12 @@ int main() {
         
         std::cout << "Keys: ";
         for( auto key : pressed ) {
-            OS::console.clr_with( surface.down( key ) ? OS::CONSOLE_CLR_GREEN : OS::CONSOLE_CLR_BLUE );
+            OS::console.color_with( surface.down( key ) ? OS::CONSOLE_CLR_GREEN : OS::CONSOLE_CLR_BLUE );
 
             std::cout << ( char )key << "[" << key << "] ";
         }
 
-        OS::console.clr_with( OS::CONSOLE_CLR_WHITE );
+        OS::console.color_with( OS::CONSOLE_CLR_WHITE );
         std::cout << '\n';
 
         std::cout << "MyKeySeqTrigger triggered: " << std::setw( 5 ) << std::left << my_seq_trigger.triggered << "\n\n";

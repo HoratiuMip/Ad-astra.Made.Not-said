@@ -1,5 +1,9 @@
-/*
-*/
+/*====== IXT/NLN Engine - OS - Vatca "Mipsan" Tudor-Horatiu
+|
+|=== DESCRIPTION
+> Implementation file.
+|
+======*/
 
 #include <NLN/os.hpp>
 
@@ -12,28 +16,30 @@ namespace _ENGINE_NAMESPACE { namespace OS {
 
 
 
-void SigInterceptor::_callback_proc( sig_t code ) {
-    {
-        auto echo = comms[ sig_interceptor ]; 
-        echo << "Intercepted signal #" << code << ' ' << _codes_strs[ code ] << '.';
+void SignalIntercept::_callback_proc( Signal_ code ) {
+    std::unique_lock lock{ comms };
+    comms.splash_critical( signal_intercept );
+    comms( "Intercepted {} ({}).", _codes_strings[ code ], ( int )code );
 
-        if( sig_interceptor._callbacks.empty() ) {
-            echo << " No callbacks to execute...";
-            return;
-        }
-
-        size_t callbacks_count = sig_interceptor._callbacks.size();
-        
-        echo << " Executing " << callbacks_count << " callback" << ( callbacks_count == 1 ? "" : "s" ) << "...";
+    if( signal_intercept._callbacks.empty() ) {
+        comms( " No callbacks to execute." );
+        goto l_wait_input;
     }
 
-    for( auto& [ _, callback ] : sig_interceptor._callbacks )
+    comms( " Executing {} callback{}...", signal_intercept._callbacks.size(), signal_intercept._callbacks.size() == 1 ? "" : "s" );
+    lock.unlock();
+
+    for( auto& [ _, callback ] : signal_intercept._callbacks )
         std::invoke( callback, code );
 
-    comms[ sig_interceptor ]
-    << "Callbacks executed for signal #" << code << ' ' << _codes_strs[ code ]
-    << ". Press [ ENTER ] to continue... Beware, continuing might crash the program. Read stdout first.";
+    lock.lock();
+    comms.splash_critical( signal_intercept );
+    comms( "Callbacks executed for {} ({}).", _codes_strings[ code ], ( int )code );
 
+
+l_wait_input:
+    comms( " Press [ ENTER ] to continue... Beware, continuing might crash the program. Read stdout first." );
+    lock.unlock();
     std::string s; std::getline( std::cin, s );
 }
 

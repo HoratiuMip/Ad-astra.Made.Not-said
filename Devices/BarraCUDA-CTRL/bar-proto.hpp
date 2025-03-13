@@ -167,11 +167,6 @@ struct _BAR_PROTO_RESOLVER {
 typedef   std::function< int16_t( void ) >   bar_proto_seq_acq_func_t;
 #define _BAR_PROTO_ASSERT( c, r ) if( !( c ) ) return ( r );
 #define _BAR_PROTO_INFO_ASSERT( c, e ) if( !( c ) ) { info->err = e; return -1; }
-#define _BAR_PROTO_INFO__SEND_ASSERT( s, e ) { int _sret = ( s ); if( _sret <= 0 ) { info->err = ( _sret == 0 ) ? BAR_PROTO_ERR_CONN_RESET : e; return _sret; } info->sent += _sret; }
-#define _BAR_PROTO_INFO__SEND_ASSERT_NO_ADD( s, e ) { int _sret = ( s ); if( _sret <= 0 ) { info->err = ( _sret == 0 ) ? BAR_PROTO_ERR_CONN_RESET : e; return _sret; } }
-#define _BAR_PROTO_INFO_NAK_IF( c, r ) if( c ) { info->nakr = "BAR_PROTO_NAKR_" r; goto l_gs_nak; }
-#define _BAR_PROTO_INFO_RECV_ASSERT( r, t, e ) { int _rret = ( r ); if( _rret <= 0 ) { info->err = ( _rret == 0 ) ? BAR_PROTO_ERR_CONN_RESET : e; return _rret; } if( _rret != ( t ) ) return -1; }
-#define _BAR_PROTO__SEND_ASSERT_RET( s, t ) { int _sret = ( s ); if( _sret <= 0 ) return _sret; if( _sret != ( t ) ) return -1; ret += _sret; }
 struct BAR_PROTO_STREAM {
     BAR_PROTO_GSTBL                     _gstbl       = {};
     BAR_PROTO_BRSTBL                    _brstbl      = {};
@@ -265,7 +260,10 @@ struct BAR_PROTO_STREAM {
         return _send_n< _HAS_HEAD >( nullptr, 0, op, seq, flags, method );
     }
 
-
+    
+#define _BAR_PROTO_RR__SEND_ASSERT( s, e ) { int _sret = ( s ); if( _sret <= 0 ) { info->err = ( _sret == 0 ) ? BAR_PROTO_ERR_CONN_RESET : e; return _sret; } info->sent += _sret; }
+#define _BAR_PROTO_RR_NAK_IF( c, r ) if( c ) { info->nakr = "BAR_PROTO_NAKR_" r; goto l_gs_nak; }
+#define _BAR_PROTO_RR_RECV_ASSERT( r, t, e ) { int _rret = ( r ); if( _rret <= 0 ) { info->err = ( _rret == 0 ) ? BAR_PROTO_ERR_CONN_RESET : e; return _rret; } if( _rret != ( t ) ) return -1; }
     int resolve_recv( BAR_PROTO_RESOLVE_RECV_INFO* info ) {
         if( int ret = _srwrap.recv( &info->recv_head, sizeof( info->recv_head ), 0 ); ret != sizeof( bar_proto_head_t ) ) {
             info->err = ( ret == 0 ) ? BAR_PROTO_ERR_CONN_RESET : BAR_PROTO_ERR_RECV;
@@ -276,7 +274,7 @@ struct BAR_PROTO_STREAM {
 
         switch( info->recv_head._dw0.op ) {
             case BAR_PROTO_OP_PING: {
-                _BAR_PROTO_INFO__SEND_ASSERT( 
+                _BAR_PROTO_RR__SEND_ASSERT( 
                     _send<>( nullptr, 0, BAR_PROTO_OP_ACK, info->recv_head._dw1.seq, 0, BAR_PROTO_SEND_METHOD_DIRECT ), 
                     BAR_PROTO_ERR_SEND 
                 );
@@ -284,35 +282,35 @@ struct BAR_PROTO_STREAM {
 
             case BAR_PROTO_OP_GET: [[fallthrough]];
             case BAR_PROTO_OP_SET: {
-                _BAR_PROTO_INFO_NAK_IF( info->recv_head._dw2.sz <= 0, "BAD_SIZE" );
+                _BAR_PROTO_RR_NAK_IF( info->recv_head._dw2.sz <= 0, "BAD_SIZE" );
                 char buffer[ info->recv_head._dw2.sz ];
-                _BAR_PROTO_INFO_RECV_ASSERT(
+                _BAR_PROTO_RR_RECV_ASSERT(
                     _srwrap.recv( buffer, info->recv_head._dw2.sz, 0 ), info->recv_head._dw2.sz, BAR_PROTO_ERR_RECV
                 );
 
                 char* delim = buffer - 1; while( *++delim != '\0' ) {
-                    _BAR_PROTO_INFO_NAK_IF( delim - buffer >= info->recv_head._dw2.sz - 1, "BAD_FORMAT" );
+                    _BAR_PROTO_RR_NAK_IF( delim - buffer >= info->recv_head._dw2.sz - 1, "BAD_FORMAT" );
                 }
 
                 BAR_PROTO_GSTBL_ENTRY* entry = _gstbl.search( buffer );
-                _BAR_PROTO_INFO_NAK_IF( entry == nullptr, "NO_ENTRY" );
+                _BAR_PROTO_RR_NAK_IF( entry == nullptr, "NO_ENTRY" );
 
                 if( info->recv_head._dw0.op == BAR_PROTO_OP_SET ) goto l_set;
             l_get:
                 if( entry->src != nullptr ) {
-                    _BAR_PROTO_INFO__SEND_ASSERT( 
+                    _BAR_PROTO_RR__SEND_ASSERT( 
                         _send( entry->src, entry->sz, BAR_PROTO_OP_ACK, info->recv_head._dw1.seq, 0, BAR_PROTO_SEND_METHOD_AUTO ),
                         BAR_PROTO_ERR_SEND
                     );
                 } else {
-                    _BAR_PROTO_INFO_NAK_IF( true, "NO_PROCEDRE" );
+                    _BAR_PROTO_RR_NAK_IF( true, "NO_PROCEDRE" );
                 }
             break;
             l_set:
-                _BAR_PROTO_INFO_NAK_IF( entry->read_only, "READ_ONLY" );
+                _BAR_PROTO_RR_NAK_IF( entry->read_only, "READ_ONLY" );
 
                 int32_t sz = info->recv_head._dw2.sz - ( delim - buffer + 1 );
-                _BAR_PROTO_INFO_NAK_IF( entry->sz != sz, "SIZE_MISMATCH" );
+                _BAR_PROTO_RR_NAK_IF( entry->sz != sz, "SIZE_MISMATCH" );
 
                 if( entry->set != nullptr ) {
                     if( const char* nakr = entry->set( delim + 1, sz ); nakr != nullptr ) {
@@ -321,16 +319,16 @@ struct BAR_PROTO_STREAM {
                 } else if( entry->src != nullptr ) {
                     memcpy( entry->src, delim + 1, sz );
                 } else {
-                    _BAR_PROTO_INFO_NAK_IF( true, "NO_PROCEDRE" );
+                    _BAR_PROTO_RR_NAK_IF( true, "NO_PROCEDRE" );
                 }
-                _BAR_PROTO_INFO__SEND_ASSERT( 
+                _BAR_PROTO_RR__SEND_ASSERT( 
                     _send( nullptr, 0, BAR_PROTO_OP_ACK, info->recv_head._dw1.seq, 0, BAR_PROTO_SEND_METHOD_DIRECT ),
                     BAR_PROTO_ERR_SEND
                 );
             break; }
 
             l_gs_nak: {
-                _BAR_PROTO_INFO__SEND_ASSERT(
+                _BAR_PROTO_RR__SEND_ASSERT(
                     _send( info->nakr, info->nakr ? strlen( info->nakr ) + 1 : 0, BAR_PROTO_OP_NAK, info->recv_head._dw1.seq, 0, BAR_PROTO_SEND_METHOD_STACK ),
                     BAR_PROTO_ERR_SEND 
                 );
@@ -349,7 +347,7 @@ struct BAR_PROTO_STREAM {
 
                 if( info->recv_head._dw0.op == BAR_PROTO_OP_NAK ) {
                     _BAR_PROTO_INFO_ASSERT( info->recv_head._dw2.sz <= BAR_PROTO_NAKR_MAX_SIZE, BAR_PROTO_ERR_NAKR_SIZE );
-                    _BAR_PROTO_INFO_RECV_ASSERT(
+                    _BAR_PROTO_RR_RECV_ASSERT(
                         _srwrap.recv( wb_info->nakr, info->recv_head._dw2.sz, 0 ), info->recv_head._dw2.sz, BAR_PROTO_ERR_RECV
                     );
                     goto l_resolver_sig;
@@ -358,7 +356,7 @@ struct BAR_PROTO_STREAM {
                 if( resolver._dst == nullptr ) goto l_resolver_sig;
 
                 _BAR_PROTO_INFO_ASSERT( resolver._sz >= info->recv_head._dw2.sz, BAR_PROTO_ERR_SIZE );
-                _BAR_PROTO_INFO_RECV_ASSERT(
+                _BAR_PROTO_RR_RECV_ASSERT(
                     _srwrap.recv( resolver._dst, info->recv_head._dw2.sz, 0 ), info->recv_head._dw2.sz, BAR_PROTO_ERR_RECV
                 );
 
@@ -383,7 +381,7 @@ struct BAR_PROTO_STREAM {
                 _BAR_PROTO_INFO_ASSERT( entry != nullptr, BAR_PROTO_ERR_NO_ENTRY );
                 _BAR_PROTO_INFO_ASSERT( info->recv_head._dw2.sz <= entry->sz, BAR_PROTO_ERR_SIZE );
 
-                _BAR_PROTO_INFO_RECV_ASSERT(
+                _BAR_PROTO_RR_RECV_ASSERT(
                     _srwrap.recv( entry->dst, info->recv_head._dw2.sz, 0 ), info->recv_head._dw2.sz, BAR_PROTO_ERR_RECV
                 );
             break; }
@@ -393,6 +391,7 @@ struct BAR_PROTO_STREAM {
         return sizeof( bar_proto_head_t ) + info->recv_head._dw2.sz;
     }
 
+#define _BAR_PROTO_WB__SEND_ASSERT( s, e ) { int _sret = ( s ); if( _sret <= 0 ) { info->err = ( _sret == 0 ) ? BAR_PROTO_ERR_CONN_RESET : e; return _sret; } }
     int wait_back( 
         BAR_PROTO_WAIT_BACK_INFO* info, 
         BAR_PROTO_OP op, 
@@ -410,7 +409,7 @@ struct BAR_PROTO_STREAM {
         lock.unlock();
 
         int ret = _send<>( src, src_sz, op, resolver._seq, 0, method );
-        _BAR_PROTO_INFO__SEND_ASSERT_NO_ADD( ret, BAR_PROTO_ERR_SEND );
+        _BAR_PROTO_WB__SEND_ASSERT( ret, BAR_PROTO_ERR_SEND );
 
         return ret;
     }

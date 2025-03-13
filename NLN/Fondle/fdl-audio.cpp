@@ -76,7 +76,7 @@ int main() {
             }
         }
 
-        OS::console.crs_at( crs );
+        OS::console.cursor_at( crs );
         std::cout << menu_str << '\n'
         << std::left << std::setw( 10 ) << "Volume: " << std::setw( 16 ) << audio->volume() << '\n'
         << std::left << std::setw( 10 ) << "Velocity: " << std::setw( 16 ) << audio->velocity() << '\n'

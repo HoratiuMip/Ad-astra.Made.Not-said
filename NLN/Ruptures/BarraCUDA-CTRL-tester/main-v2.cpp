@@ -1,4 +1,4 @@
-/*===== BarraCUDA-CTRL Tester - Vatca "Mipsan" Tudor-Horatiu
+/*===== BarraCUDA-CTRL Tester V2 - Vatca "Mipsan" Tudor-Horatiu
 |
 > A simple program to test the controller. This has been build upon the ImGui's OpenGL example.
 |
@@ -27,23 +27,37 @@ std::filesystem::path     G_root_dir;
 NLN::DEV::BarracudaCTRL   BARCUD;
 struct {
     NLN::Ticker                                     tkr;
-    std::pair< std::atomic_int, std::atomic_int >   tot_sent;
-    std::pair< std::atomic_int, std::atomic_int >   tot_recv;
+    std::pair< std::atomic_int, std::atomic_int >   tot_wb_sent;
+    std::pair< std::atomic_int, std::atomic_int >   tot_wb_recv;
+    std::pair< std::atomic_int, std::atomic_int >   tot_brst_sent;
+    std::pair< std::atomic_int, std::atomic_int >   tot_brst_recv;
 
     void reset_session() {
         tkr.lap();
-        tot_sent.first.store( 0, std::memory_order_relaxed );
-        tot_recv.first.store( 0, std::memory_order_relaxed );
+        tot_wb_sent.first.store( 0, std::memory_order_relaxed );
+        tot_wb_recv.first.store( 0, std::memory_order_relaxed );
+        tot_brst_sent.first.store( 0, std::memory_order_relaxed );
+        tot_brst_recv.first.store( 0, std::memory_order_relaxed );
     }
 
-    int add_sent( int val ) {
-        tot_sent.first.fetch_add( val, std::memory_order_relaxed );
-        tot_sent.second.fetch_add( val, std::memory_order_relaxed );
+    int add_wb_sent( int val ) {
+        tot_wb_sent.first.fetch_add( val, std::memory_order_relaxed );
+        tot_wb_sent.second.fetch_add( val, std::memory_order_relaxed );
         return val;
     }
-    int add_recv( int val ) {
-        tot_recv.first.fetch_add( val, std::memory_order_relaxed );
-        tot_recv.second.fetch_add( val, std::memory_order_relaxed );
+    int add_wb_recv( int val ) {
+        tot_wb_recv.first.fetch_add( val, std::memory_order_relaxed );
+        tot_wb_recv.second.fetch_add( val, std::memory_order_relaxed );
+        return val;
+    }
+    int add_brst_sent( int val ) {
+        tot_brst_sent.first.fetch_add( val, std::memory_order_relaxed );
+        tot_brst_sent.second.fetch_add( val, std::memory_order_relaxed );
+        return val;
+    }
+    int add_brst_recv( int val ) {
+        tot_brst_recv.first.fetch_add( val, std::memory_order_relaxed );
+        tot_brst_recv.second.fetch_add( val, std::memory_order_relaxed );
         return val;
     }
 
@@ -107,14 +121,14 @@ public:
         static std::atomic_int  last_ping_target  = { 1 };
         if( last_ping_target == last_ping_count ) { 
             if( ImGui::Button( "PING" ) ) {
-                static std::array< std::thread, 99 > threads;
+                static std::array< std::thread, 50 > threads;
 
                 last_ping_count = 0;
                 last_ping_target = ping_thread_count;
                 for( int idx = 0; idx < ping_thread_count; ++idx ) {
                     std::thread{ [ this ] () -> void {
                         if( int ret = BARCUD.ping(); ret > 0 ) {
-                            STATS.add_sent( ret );
+                            STATS.add_wb_sent( ret );
                             ++last_ping_count;
                         }
                     } }.detach();
@@ -144,15 +158,19 @@ public:
         ImGui::SeparatorText( "This controller session." );
 
         ImGui::BulletText( "Up time: %.1fs.", STATS.tkr.peek_lap() );
-        ImGui::BulletText( "Sent: %.1f kBytes.", STATS.tot_sent.first.load( std::memory_order_relaxed ) / 1000.0f );
-        ImGui::BulletText( "Received: %.1f kBytes.", STATS.tot_recv.first.load( std::memory_order_relaxed ) / 1000.0f );
+        ImGui::BulletText( "Wait-back sent: %d bytes.", STATS.tot_wb_sent.first.load( std::memory_order_relaxed ) );
+        ImGui::BulletText( "Wait-back received: %d bytes.", STATS.tot_wb_recv.first.load( std::memory_order_relaxed ) );
+        ImGui::BulletText( "Burst sent: %.1f kBytes.", STATS.tot_brst_sent.first.load( std::memory_order_relaxed ) / 1000.0f );
+        ImGui::BulletText( "Burst received: %.1f kBytes.", STATS.tot_brst_recv.first.load( std::memory_order_relaxed ) / 1000.0f );
     
     l_tester_session:
         ImGui::SeparatorText( "This tester session." );
 
         ImGui::BulletText( "Up time: %.1fs.", STATS.tkr.up_time() );
-        ImGui::BulletText( "Sent: %.1f kBytes.", STATS.tot_sent.second.load( std::memory_order_relaxed ) / 1000.0f );
-        ImGui::BulletText( "Received: %.1f kBytes.", STATS.tot_recv.second.load( std::memory_order_relaxed ) / 1000.0f );
+        ImGui::BulletText( "Wait-back sent: %d bytes.", STATS.tot_wb_sent.second.load( std::memory_order_relaxed ) );
+        ImGui::BulletText( "Wait-back received: %d bytes.", STATS.tot_wb_recv.second.load( std::memory_order_relaxed ) );
+        ImGui::BulletText( "Burst sent: %.1f kBytes.", STATS.tot_brst_sent.second.load( std::memory_order_relaxed ) / 1000.0f );
+        ImGui::BulletText( "Burst received: %.1f kBytes.", STATS.tot_brst_recv.second.load( std::memory_order_relaxed ) / 1000.0f );
         
         ImGui::End();
     }
@@ -347,11 +365,11 @@ public:
 
             char byte;
             BAR_PROTO_WAIT_BACK_INFO info;
-            int ret = BARCUD.wait_back( &info, ops_codes[ op_sel ], buffer, offset + 1, &byte, 1, BAR_PROTO_SEND_METHOD_AUTO );
+            int ret = BARCUD.wait_back( &info, ops_codes[ op_sel ], buffer, offset + 1, &byte, 1, BAR_PROTO_SEND_METHOD_DIRECT );
 
-            STATS.add_sent( ret );
+            STATS.add_wb_sent( ret );
             info.sig.wait( false );
-            STATS.add_recv( info.sz );
+            STATS.add_wb_recv( info.sz );
             
             if( !info.ackd ) {
                 prev_cmds.emplace_front( false, "" ).second += info.nakr;
@@ -552,8 +570,12 @@ int main( int argc, char** argv ) {
         while( G_is_running() ) {
             int ret = BARCUD.trust_resolve_recv( &info );
             if( ret <= 0 ) break;
-            STATS.add_recv( ret );
-            STATS.add_sent( info.sent );
+            if( info.recv_head._dw0.op == BAR_PROTO_OP_BURST ) {
+                STATS.add_brst_recv( ret );
+            } else {
+                STATS.add_wb_recv( ret );
+                STATS.add_wb_sent( info.sent );
+            }
         }
 
         BARCUD.disconnect( 0 );

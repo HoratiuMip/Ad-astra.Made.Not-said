@@ -1,6 +1,10 @@
 #pragma once
-/*
-*/
+/*====== IXT/NLN Engine - OS - Vatca "Mipsan" Tudor-Horatiu
+|
+|=== DESCRIPTION
+> The component of the engine which attempts to make an abstraction of the underlying operating system.
+|
+======*/
 
 #include <NLN/descriptor.hpp>
 
@@ -12,20 +16,20 @@ namespace _ENGINE_NAMESPACE { namespace OS {
 
 #if defined( _ENGINE_OS_WINDOWS )
 
-enum CONSOLE_CLR : char {
-    CONSOLE_CLR_GRAY   = 8,
-    CONSOLE_CLR_BLUE   = 9,
-    CONSOLE_CLR_GREEN  = 10,
-    CONSOLE_CLR_TURQ   = 11,
-    CONSOLE_CLR_RED    = 12,
-    CONSOLE_CLR_PINK   = 13,
-    CONSOLE_CLR_YELLOW = 14,
-    CONSOLE_CLR_WHITE  = 15
+enum ConsoleColor_ : char {
+    ConsoleColor_Gray   = 8,
+    ConsoleColor_Blue   = 9,
+    ConsoleColor_Green  = 10,
+    ConsoleColor_Turq   = 11,
+    ConsoleColor_Red    = 12,
+    ConsoleColor_Pink   = 13,
+    ConsoleColor_Yellow = 14,
+    ConsoleColor_White  = 15
 };
 
 struct ConsoleCursor {
-    short   row   = 0;
-    short   col   = 0;
+    short row;
+    short col;
 };
 
 class Console {
@@ -35,18 +39,18 @@ public:
     {}
 
 public:
-    Console& clr_with( CONSOLE_CLR clr ) {
-        SetConsoleTextAttribute( _h_std_out, clr );
+    Console& color_with( ConsoleColor_ color ) {
+        SetConsoleTextAttribute( _h_std_out, color );
         return *this;
     } 
 
-    Console& crs_at( ConsoleCursor crd ) {
-        SetConsoleCursorPosition( _h_std_out, COORD{ crd.col, crd.row } );
+    Console& cursor_at( ConsoleCursor crs ) {
+        SetConsoleCursorPosition( _h_std_out, COORD{ crs.col, crs.row } );
         return *this;
     }
 
-    ConsoleCursor crs() const {
-        CONSOLE_SCREEN_BUFFER_INFO  cinf{};
+    ConsoleCursor cursor() const {
+        CONSOLE_SCREEN_BUFFER_INFO cinf{};
         GetConsoleScreenBufferInfo( _h_std_out, &cinf );
 
         return { cinf.dwCursorPosition.Y, cinf.dwCursorPosition.X };
@@ -67,60 +71,62 @@ public:
 
 
 
-enum SIG : int {
-    SIG_ABORT     = SIGABRT, 
-    SIG_FLOAT     = SIGFPE, 
-    SIG_ILLEGAL   = SIGILL, 
-    SIG_INTERRUPT = SIGINT, 
-    SIG_SEGFAULT  = SIGSEGV, 
-    SIG_TERMINATE = SIGTERM
+enum Signal_ : int32_t {
+    Signal_Abort       = SIGABRT, 
+    Signal_Float       = SIGFPE, 
+    Signal_Illegal     = SIGILL, 
+    Signal_Interrupt   = SIGINT, 
+    Signal_Memory      = SIGSEGV, 
+    Signal_Terminate   = SIGTERM,
+    Signal_Break       = SIGBREAK,
+    Signal_AbortCompat = SIGABRT_COMPAT
 };
-typedef   int   sig_t;
 
-class SigInterceptor : public Descriptor {
+class SignalIntercept : public Descriptor {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "OS::SigInterceptor" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "OS::SignalIntercept" );
 
 _ENGINE_PROTECTED:
-    inline static constexpr const sig_t   _codes[]   = {
-        SIG_ABORT, SIG_FLOAT, SIG_ILLEGAL, SIG_INTERRUPT, SIG_SEGFAULT, SIG_TERMINATE
+    inline static constexpr const Signal_   _codes[]   = {
+        Signal_Abort, Signal_Float, Signal_Illegal, Signal_Interrupt, Signal_Memory, Signal_Terminate, Signal_Break, Signal_AbortCompat 
     };
 
-    inline static std::map< sig_t, const char* >   _codes_strs   = {
-        { SIG_ABORT, "SIG_ABORT" },
-        { SIG_FLOAT, "SIG_FLOAT" },
-        { SIG_ILLEGAL, "SIG_ILLEGAL" },
-        { SIG_INTERRUPT, "SIG_INTERRUPT" },
-        { SIG_SEGFAULT, "SIG_SEGFAULT" },
-        { SIG_TERMINATE, "SIG_TERMINATE" }
+    inline static std::map< Signal_, const char* >   _codes_strings   = {
+        { Signal_Abort, "Signal_Abort" },
+        { Signal_Float, "Signal_Float" },
+        { Signal_Illegal, "Signal_Illegal" },
+        { Signal_Interrupt, "Signal_Interrupt" },
+        { Signal_Memory, "Signal_Memory" },
+        { Signal_Terminate, "Signal_Terminate" },
+        { Signal_Break, "Signal_Break" },
+        { Signal_AbortCompat, "Signal_AbortCompat" }
     };
 
 public:
-    SigInterceptor() {
-        for( const auto& code : _codes )
-            signal( code, _callback_proc );
+    SignalIntercept() {
+        for( const auto& code : _codes ) signal( code, ( __p_sig_fn_t )_callback_proc );
     }
 
 _ENGINE_PROTECTED:
     using cbmap_key_t   = XtDx;
-    using cbmap_value_t = std::function< void( sig_t ) >;
+    using cbmap_value_t = std::function< void( Signal_ ) >;
 
 _ENGINE_PROTECTED:
     std::map< cbmap_key_t, cbmap_value_t >   _callbacks   = {};
 
 public:
-    void push_on_external_exception( const cbmap_key_t& xtdx, const cbmap_value_t& callback ) {
+    void push_on_signal( const cbmap_key_t& xtdx, const cbmap_value_t& callback ) {
         _callbacks.insert( std::make_pair( xtdx, callback ) );
     }
 
-    void pop_on_external_exception( const cbmap_key_t& xtdx ) {
+    void pop_on_signal( const cbmap_key_t& xtdx ) {
         _callbacks.erase( xtdx );
     }
 
 _ENGINE_PROTECTED:
-    static void _callback_proc( sig_t code );
+    static void _callback_proc( Signal_ code );
 
-}; inline SigInterceptor sig_interceptor;
+}; inline SignalIntercept signal_intercept;
 
 
 

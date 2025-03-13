@@ -327,8 +327,8 @@ struct _PROTO {
     } );
 
     stream.bind_srwrap( BAR_PROTO_SRWRAP{
-      send: [] BAR_PROTO_STREAM_SEND_LAMBDA { return COM.blue_itr_send( src, sz ); },
-      recv: [] BAR_PROTO_STREAM_RECV_LAMBDA { return COM.blue_itr_recv( dst, sz ); } 
+      send: [] BAR_PROTO_SEND_LAMBDA { return COM.blue_itr_send( src, sz ); },
+      recv: [] BAR_PROTO_RECV_LAMBDA { return COM.blue_itr_recv( dst, sz ); } 
     } );
 
     stream.bind_seq_acq( [] ( void ) -> int16_t { return PARAMS._bar_proto_seq; } );
@@ -340,9 +340,9 @@ struct _PROTO {
 
   int loop( void ) {
     if( COM.blue.available() ) {
-      BAR_PROTO_STREAM_RESOLVE_RECV_INFO info;
+      BAR_PROTO_RESOLVE_RECV_INFO info;
       if( int ret = stream.resolve_recv( &info ); ret <= 0 ) {
-        SERIAL_LOG( LOG_ERROR ) << "Protocol fault " << BAR_PROTO_STREAM_ERR_STR[ info.err ] << ".\n";
+        SERIAL_LOG( LOG_ERROR ) << "Protocol fault " << BAR_PROTO_ERR_STR[ info.err ] << ".\n";
         return ret;
       }
 

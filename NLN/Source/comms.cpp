@@ -1,5 +1,9 @@
-/*
-*/
+/*====== IXT/NLN Engine - Comms - Vatca "Mipsan" Tudor-Horatiu
+|
+|=== DESCRIPTION
+> Implementation file.
+|
+======*/
 
 #include <NLN/comms.hpp>
 

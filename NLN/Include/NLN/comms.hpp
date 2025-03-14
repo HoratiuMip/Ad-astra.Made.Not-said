@@ -92,10 +92,10 @@ _ENGINE_PROTECTED:
 
 public:
     template< typename ...Args >
-    Echo& operator () ( const Descriptor& desc, EchoLevel_ level, const char* fmt_str, Args&&... args );
+    Echo& operator () ( const Descriptor& desc, EchoLevel_ level, const std::format_string< Args... > fmt_str, Args&&... args );
 
     template< typename ...Args >
-    Echo& operator () ( const Descriptor* desc, EchoLevel_ level, const char* fmt_str, Args&&... args ) {
+    Echo& operator () ( const Descriptor* desc, EchoLevel_ level, const std::format_string< Args... > fmt_str, Args&&... args ) {
         return ( *this )( *desc, level, fmt_str, std::forward< Args >( args )... );
     }
 
@@ -226,21 +226,21 @@ public:
 
 public:
     template< typename ...Args >
-    Comms& operator () ( const Descriptor& desc, EchoLevel_ level, const char* fmt_str, Args&&... args ) {
+    Comms& operator () ( const Descriptor& desc, EchoLevel_ level, const std::format_string< Args... > fmt_str, Args&&... args ) {
         std::unique_lock lock{ *this };
         this->splash( desc, level, nullptr );
-        ( *_stream ) << std::vformat( fmt_str, std::make_format_args( args... ) );
+        ( *_stream ) << std::format( fmt_str, std::forward< Args >( args )... );
         return *this;
     }
 
     template< typename ...Args >
-    Comms& operator () ( const Descriptor* desc, EchoLevel_ level, const char* fmt_str, Args&&... args ) {
+    Comms& operator () ( const Descriptor* desc, EchoLevel_ level, const std::format_string< Args... > fmt_str, Args&&... args ) {
         return ( *this )( *desc, level, fmt_str, std::forward< Args >( args )... );
     }
 
     template< typename ...Args >
-    Comms& operator () ( const char* fmt_str, Args&&... args ) {
-        ( *_stream ) << std::vformat( fmt_str, std::make_format_args( args... ) );
+    Comms& operator () ( const std::format_string< Args... > fmt_str, Args&&... args ) {
+        ( *_stream ) << std::format( fmt_str, std::forward< Args >( args )... );
         return *this;
     }
 
@@ -271,10 +271,10 @@ public:
 
 
 template< typename ...Args >
-Echo& Echo::operator () ( const Descriptor& desc, EchoLevel_ level, const char* fmt_str, Args&&... args ) {
+Echo& Echo::operator () ( const Descriptor& desc, EchoLevel_ level, const std::format_string< Args... > fmt_str, Args&&... args ) {
     std::unique_lock lock{ comms };
     comms.splash( desc, level, this );
-    ( *comms._stream ) << std::vformat( fmt_str, std::make_format_args( args... ) );
+    ( *comms._stream ) << std::format( fmt_str, std::forward< Args >( args )... );
     return *this;
 }
 

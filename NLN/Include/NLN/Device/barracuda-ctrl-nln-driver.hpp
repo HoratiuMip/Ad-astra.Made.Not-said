@@ -53,7 +53,7 @@ public:
     }
 
 public:
-    DWORD connect( DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD connect( DWORD flags, _ENGINE_COMMS_ECHO_ARG ) {
         _trust_invk = flags & BARRACUDA_CTRL_FLAG_TRUST_INVOKER;
 
         _bar_seq.store( 0, std::memory_order_relaxed );
@@ -64,23 +64,23 @@ public:
         return 0;
     }
 
-    DWORD disconnect( DWORD flags, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD disconnect( DWORD flags, _ENGINE_COMMS_ECHO_ARG ) {
         return this->BTH_SOCKET::disconnect();
     }
 
 public:
-    DWORD ping( _ENGINE_COMMS_ECHO_RT_ARG ) {
-        echo( this, EchoLevel_Pending ) << "Pinging...";
+    DWORD ping( _ENGINE_COMMS_ECHO_ARG ) {
+        echo( this, EchoLevel_Pending, "Pinging..." );
 
         BAR_PROTO_WAIT_BACK_INFO info;
         int ret = this->wait_back( &info, BAR_PROTO_OP_PING, nullptr, 0, nullptr, 0, BAR_PROTO_SEND_METHOD_DIRECT );
         info.sig.wait( false );
         
-        echo( this, EchoLevel_Ok ) << "Received ping acknowledgement.";
+        echo( this, EchoLevel_Ok, "Received ping acknowledgement." );
         return ret;
     }
 
-    DWORD get( std::string_view str_id, void* dest, int32_t sz, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD get( std::string_view str_id, void* dest, int32_t sz, _ENGINE_COMMS_ECHO_ARG ) {
         BAR_PROTO_WAIT_BACK_INFO info;
 
         DWORD ret = this->BAR_PROTO_STREAM::wait_back( 
@@ -97,7 +97,7 @@ public:
         return 0;
     }
 
-    DWORD set( std::string_view str_id, void* src, int32_t sz, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD set( std::string_view str_id, void* src, int32_t sz, _ENGINE_COMMS_ECHO_ARG ) {
         char buffer[ str_id.length() + 1 + sz ];
         strcpy( buffer, str_id.data() );
         memcpy( buffer + str_id.length() + 1, src, sz );
@@ -119,7 +119,7 @@ public:
     }
 
 public: 
-    DWORD trust_resolve_recv( BAR_PROTO_RESOLVE_RECV_INFO* info, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    DWORD trust_resolve_recv( BAR_PROTO_RESOLVE_RECV_INFO* info, _ENGINE_COMMS_ECHO_ARG ) {
         DWORD ret = this->resolve_recv( info );
         NLN_ASSERT_ET( ret > 0, ret, BAR_PROTO_ERR_STR[ info->err ] );
 

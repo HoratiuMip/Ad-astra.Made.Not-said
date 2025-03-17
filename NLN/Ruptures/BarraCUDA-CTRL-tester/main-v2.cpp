@@ -1,5 +1,6 @@
 /*===== BarraCUDA-CTRL Tester V2 - Vatca "Mipsan" Tudor-Horatiu
 |
+|=== DESCRIPTION
 > A simple program to test the controller. This has been build upon the ImGui's OpenGL example.
 |
 ======*/
@@ -102,7 +103,7 @@ protected:
 public:
     virtual void frame( void ) override {
         ImGui::SetNextWindowSize( { 0, 0 }, ImGuiCond_Once );
-        ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_NoTitleBar );
+        ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_None );
 
         auto pad = ImGui::GetStyle().WindowPadding;
         if( !BARCUD.connected() ) {
@@ -325,7 +326,7 @@ public:
         static int  str_id_sel = 0; 
         const char* str_ids[]  = { "BITNA_CRT", "GRAN_ACC_RANGE", "GRAN_GYR_RANGE" };
 
-        static char args[ 32 ] = { '\0' }; 
+        static char hex_args[ 64 ] = { '\0' }; 
 
         static std::deque< std::pair< bool, std::string > > prev_cmds;
 
@@ -352,27 +353,37 @@ public:
         }
 
         ImGui::SeparatorText( "Arguments." );
-        ImGui::InputText( "##3", args, IM_ARRAYSIZE( args ), ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_CharsUppercase );
+        ImGui::InputText( "##3", hex_args, IM_ARRAYSIZE( hex_args ), ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_CharsUppercase );
 
         ImGui::Separator();
         if( ImGui::Button( "SEND" ) ) {
             char buffer[ 128 ];
             int offset = strlen( strcpy( buffer, str_ids[ str_id_sel ] ) ) + 1;
 
-            if( args[ 0 ] != '\0' ) buffer[ offset ] = args[ 0 ] - '0';
-
-            char byte;
             BAR_PROTO_WAIT_BACK_INFO info;
-            int ret = BARCUD.wait_back( &info, ops_codes[ op_sel ], buffer, offset + 1, &byte, 1, BAR_PROTO_SEND_METHOD_DIRECT );
+            int ret = BARCUD.wait_back( 
+                &info, 
+                ops_codes[ op_sel ], 
+                buffer, 
+                offset + NLN::Bit::hex_chars2bytes( ( NLN::UBYTE* )buffer + offset, hex_args ), 
+                buffer, 
+                sizeof( buffer ), 
+                BAR_PROTO_SEND_METHOD_DIRECT 
+            );
 
             STATS.add_wb_sent( ret );
             info.sig.wait( false );
             STATS.add_wb_recv( info.recvd );
             
             if( !info.ackd ) {
-                prev_cmds.emplace_front( false, "" ).second += info.nakr;
+                prev_cmds.emplace_front( false, info.nakr );
             } else {
-                prev_cmds.emplace_front( true, "" ).second += std::format( "{} {} {} - {}", ops[ op_sel ], str_ids[ str_id_sel ], args, info.recvd > sizeof( bar_proto_head_t ) ? byte + '0' : '-' );
+                prev_cmds.emplace_front( true, std::format( "{} {} {} - {}", 
+                    ops[ op_sel ], 
+                    str_ids[ str_id_sel ], 
+                    hex_args, 
+                    info.recvd > sizeof( bar_proto_head_t ) ? NLN::Bit::bytes2hex_chars( ( NLN::UBYTE* )buffer, info.recvd - sizeof( bar_proto_head_t ), true ) : std::string{ "N/A" } 
+                ) );
             }
         }
 
@@ -485,7 +496,7 @@ int main( int argc, char** argv ) {
     glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 1 );
     glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );
     glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
-    GLFWwindow* window = glfwCreateWindow( NLN::Env::w(.82), NLN::Env::h(.82) , "BarraCUDA-CTRL Tester V2", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow( NLN::Env::w(.86), NLN::Env::h(.86) , "BarraCUDA-CTRL Tester V2", nullptr, nullptr);
     glfwSetWindowPos( window, 50, 50 );
     NLN_ASSERT( window != nullptr, -1 );
     glfwMakeContextCurrent( window );
@@ -515,7 +526,7 @@ int main( int argc, char** argv ) {
 
 
     DASHBOARD.emplace_back( new STATS_BOARD{
-        "Stats - General"
+        "Stats"
     } );
     DASHBOARD.emplace_back( new JOYSTICK_BOARD{
         "Rachel - Joystick", &BARCUD.dynamic.rachel
@@ -542,10 +553,10 @@ int main( int argc, char** argv ) {
         "Gran - Accel & Gyro", &BARCUD.dynamic.gran
     } );
     DASHBOARD.emplace_back( new COMMAND_BOARD{
-        "Command - Selector"
+        "Command"
     } );
     DASHBOARD.emplace_back( new RENDER_BOARD{
-        "Render - Options", &render
+        "Render", &render
     } );
 
     BARCUD.bind();

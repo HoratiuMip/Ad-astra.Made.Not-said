@@ -1,5 +1,5 @@
 #pragma once
-/*====== IXT/NLN Engine - Comms - Vatca "Mipsan" Tudor-Horatiu
+/*====== IXT-NLN Engine - Comms - Vatca "Mipsan" Tudor-Horatiu
 |
 |=== DESCRIPTION
 > The logging component of the engine. 

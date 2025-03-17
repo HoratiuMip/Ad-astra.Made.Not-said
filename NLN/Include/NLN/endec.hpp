@@ -3,7 +3,7 @@
 */
 
 #include <NLN/descriptor.hpp>
-#include <NLN/bit-manip.hpp>
+#include <NLN/bit_utils.hpp>
 #include <NLN/comms.hpp>
 #include <NLN/file-manip.hpp>
 #include <NLN/hyper-vector.hpp>
@@ -65,15 +65,15 @@ public:
             file.read( raw_stream.get(), byte_count );
 
 
-            tunnel_count = Bytes::as< WORD, WAV_FMT_CHANNEL_COUNT_SZ, BIT_END_LITTLE >( &WAV_FMT_CHANNEL_COUNT_OFS[ raw_stream.get() ] );
+            tunnel_count = Bit::as< WORD, WAV_FMT_CHANNEL_COUNT_SZ, Bit::End_Little >( &WAV_FMT_CHANNEL_COUNT_OFS[ raw_stream.get() ] );
 
-            sample_rate = Bytes::as< DWORD, WAV_FMT_SAMPLE_RATE_SZ, BIT_END_LITTLE >( &WAV_FMT_SAMPLE_RATE_OFS[ raw_stream.get() ] );
+            sample_rate = Bit::as< DWORD, WAV_FMT_SAMPLE_RATE_SZ, Bit::End_Little >( &WAV_FMT_SAMPLE_RATE_OFS[ raw_stream.get() ] );
 
-            bits_per_sample = Bytes::as< uint16_t, WAV_FMT_BITS_PER_SAMPLE_SZ, BIT_END_LITTLE >( &WAV_FMT_BITS_PER_SAMPLE_OFS[ raw_stream.get() ] );
+            bits_per_sample = Bit::as< uint16_t, WAV_FMT_BITS_PER_SAMPLE_SZ, Bit::End_Little >( &WAV_FMT_BITS_PER_SAMPLE_OFS[ raw_stream.get() ] );
 
             uint16_t bytes_per_sample = bits_per_sample / 8;
 
-            sample_count = Bytes::as< uint64_t, WAV_FMT_SAMPLE_COUNT_SZ, BIT_END_LITTLE >( &WAV_FMT_SAMPLE_COUNT_OFS[ raw_stream.get() ] ) / bytes_per_sample;
+            sample_count = Bit::as< uint64_t, WAV_FMT_SAMPLE_COUNT_SZ, Bit::End_Little >( &WAV_FMT_SAMPLE_COUNT_OFS[ raw_stream.get() ] ) / bytes_per_sample;
 
 
             stream.vector( ( T* )malloc( sample_count * sizeof( T ) ) );
@@ -89,12 +89,12 @@ public:
 
                 for( size_t n = 0; n < sample_count; ++n )
                     stream[ n ] = static_cast< T >(
-                                    Bytes::as< int, BIT_END_LITTLE >( &WAV_FMT_DATA_OFS[ raw_stream.get() ] + n * bytes_per_sample, bytes_per_sample )
+                                    Bit::as< int, Bit::End_Little >( &WAV_FMT_DATA_OFS[ raw_stream.get() ] + n * bytes_per_sample, bytes_per_sample )
                                 ) / max_sample;
             } else {
                 for( size_t n = 0; n < sample_count; ++n )
                     stream[ n ] = static_cast< T >(
-                                    Bytes::as< int, BIT_END_LITTLE >( &WAV_FMT_DATA_OFS[ raw_stream.get() ] + n * bytes_per_sample, bytes_per_sample ) );
+                                    Bit::as< int, Bit::End_Little >( &WAV_FMT_DATA_OFS[ raw_stream.get() ] + n * bytes_per_sample, bytes_per_sample ) );
             }
 
 
@@ -157,15 +157,15 @@ public:
 
             file.read( ( char* )buffer.get(), buf_size );
 
-            udword_t in_file_reported_file_size = Bytes::as< udword_t, BMP_FMT_FILE_SIZE_SZ, BIT_END_LITTLE >( ( char* )&buffer[ BMP_FMT_FILE_SIZE_OFS ] );
+            udword_t in_file_reported_file_size = Bit::as< udword_t, BMP_FMT_FILE_SIZE_SZ, Bit::End_Little >( ( char* )&buffer[ BMP_FMT_FILE_SIZE_OFS ] );
 
             if( in_file_reported_file_size != buf_size )
                 echo( this, EchoLevel_Warning ) << "Actual file size ( " << buf_size << " ), is different from in-file reported file size ( " << in_file_reported_file_size << " ). The file may be either an unsupported format, or has been tampered with.";
 
-            data_ofs = Bytes::as< udword_t, BMP_FMT_DATA_OFS_SZ, BIT_END_LITTLE >( ( char* )&buffer[ BMP_FMT_DATA_OFS_OFS ] );
-            width    = Bytes::as< uint32_t, BMP_FMT_WIDTH_SZ, BIT_END_LITTLE >( ( char* )&buffer[ BMP_FMT_WIDTH_OFS ] );
-            height   = Bytes::as< uint32_t, BMP_FMT_HEIGHT_SZ, BIT_END_LITTLE >( ( char* )&buffer[ BMP_FMT_HEIGHT_OFS ] );
-            bits_ps  = Bytes::as< uint16_t, BMP_FMT_BITS_PER_PIXEL_SZ, BIT_END_LITTLE >( ( char* )&buffer[ BMP_FMT_BITS_PER_PIXEL_OFS ] );
+            data_ofs = Bit::as< udword_t, BMP_FMT_DATA_OFS_SZ, Bit::End_Little >( ( char* )&buffer[ BMP_FMT_DATA_OFS_OFS ] );
+            width    = Bit::as< uint32_t, BMP_FMT_WIDTH_SZ, Bit::End_Little >( ( char* )&buffer[ BMP_FMT_WIDTH_OFS ] );
+            height   = Bit::as< uint32_t, BMP_FMT_HEIGHT_SZ, Bit::End_Little >( ( char* )&buffer[ BMP_FMT_HEIGHT_OFS ] );
+            bits_ps  = Bit::as< uint16_t, BMP_FMT_BITS_PER_PIXEL_SZ, Bit::End_Little >( ( char* )&buffer[ BMP_FMT_BITS_PER_PIXEL_OFS ] );
             bytes_ps = bits_ps / 8;
 
             char mod = ( width * bytes_ps ) % 4;

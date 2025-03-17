@@ -1,6 +1,10 @@
 #pragma once
-/*
-*/
+/*====== IXT-NLN Engine - Init - Vatca "Mipsan" Tudor-Horatiu
+|
+|=== DESCRIPTION
+> Engine init.
+|
+======*/
 
 #include <NLN/descriptor.hpp>
 #include <NLN/comms.hpp>

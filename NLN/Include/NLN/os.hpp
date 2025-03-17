@@ -1,5 +1,5 @@
 #pragma once
-/*====== IXT/NLN Engine - OS - Vatca "Mipsan" Tudor-Horatiu
+/*====== IXT-NLN Engine - OS - Vatca "Mipsan" Tudor-Horatiu
 |
 |=== DESCRIPTION
 > The component of the engine which attempts to make an abstraction of the underlying operating system.

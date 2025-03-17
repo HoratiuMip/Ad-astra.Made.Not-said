@@ -1,4 +1,4 @@
-/*====== IXT/NLN Engine - OS - Vatca "Mipsan" Tudor-Horatiu
+/*====== IXT-NLN Engine - OS - Vatca "Mipsan" Tudor-Horatiu
 |
 |=== DESCRIPTION
 > Implementation file.

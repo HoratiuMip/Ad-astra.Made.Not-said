@@ -3,7 +3,7 @@
 */
 
 #include <NLN/descriptor.hpp>
-#include <NLN/bit-manip.hpp>
+#include <NLN/bit_utils.hpp>
 #include <NLN/comms.hpp>
 #include <NLN/concepts.hpp>
 

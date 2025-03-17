@@ -1,5 +1,5 @@
 #pragma once
-/*====== IXT/NLN Engine - Vatca "Mipsan" Tudor-Horatiu
+/*====== IXT-NLN Engine - Vatca "Mipsan" Tudor-Horatiu
 |
 >
 |

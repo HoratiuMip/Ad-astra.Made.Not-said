@@ -8,23 +8,28 @@
 #include "../bar-proto.hpp"
 
 #include <atomic>
-enum LOG_LEVEL {
-  LOG_OK, LOG_WARNING, LOG_ERROR, LOG_CRITICAL, LOG_INFO
+
+
+enum LogLevel_ {
+  LogLevel_Ok, LogLevel_Warning, LogLevel_Error, LogLevel_Critical, LogLevel_Info
 };
-const char* LOG_LEVEL_STR[] = { "OK - ", "WARNING - ", "ERROR - ", "CRITICAL - ", "INFO - " };
-struct _SERIAL_LOG {
-  _SERIAL_LOG& operator () ( LOG_LEVEL ll = LOG_INFO ) {
-    Serial.print( LOG_LEVEL_STR[ ll ] );
-    return *this;
+const char* LogLevel_strings[] = { "[ Ok ] ", "[ Warning ] ", "[ Error ] ", "[ Critical ] ", "[ Info ] " };
+struct __PRINTF {
+  template< typename ...Args >
+  void operator () ( const char* fmt_str, Args&&... args ) {
+    static constexpr int BUF_MAX_SIZE = 256;
+    char buffer[ BUF_MAX_SIZE ];
+    sprintf( buffer, fmt_str, std::forward< Args >( args )... );
+    Serial.print( buffer );
   }
 
-  template< typename T >
-  _SERIAL_LOG& operator << ( const T& frag ) {
-    Serial.print( frag );
-    return *this;
+  template< typename ...Args >
+  void operator () ( LogLevel_ level, const char* fmt_str, Args&&... args ) {
+    Serial.print( LogLevel_strings[ ( int )level ] );
+    ( *this )( fmt_str, std::forward< Args >( args )... );
   }
 
-} SERIAL_LOG;
+} _printf;
 
 
 typedef   int8_t   GPIO_pin_t;
@@ -33,15 +38,17 @@ typedef   int8_t   LED_RGB;
 
 struct _PARAMS {
   void reset() {
-    SERIAL_LOG( LOG_INFO ) << "Resetting parameters... ";
+    _printf( LogLevel_Info, "Resetting parameters... " );
     *this = _PARAMS{};
-    SERIAL_LOG << "ok.\n";
+    _printf( "ok.\n" );
   }
 
-  bool      _conn_rst         = true;
-  int16_t   _bar_proto_seq    = 0;
+  int16_t   _bar_proto_seq          = 0;
 
-  int32_t   main_loop_delay   = 20;
+  int       blue_recv_err_delay     = 1;
+  int       blue_recv_err_timeout   = 3000;
+
+  int       dynamic_burst_delay     = 20;
 
 } PARAMS;
 
@@ -54,7 +61,7 @@ struct {
   /*       JOYSTICKS                    |lower left                     |upper right */
 
   const GPIO_pin_t giselle = 5, karina = 18, ningning = 19, winter = 23;
-  /*      SWS     |blue        |red         |yellow        |green */
+  /*       SWS     |blue        |red         |yellow        |green */
 
   const GPIO_pin_t naksu = 4;
   /*               |light sensor */
@@ -62,7 +69,7 @@ struct {
   struct { const GPIO_pin_t r, g, b; } bitna{ r: 13, g: 12, b: 14 };
 
   int init() {
-    SERIAL_LOG() << "Configuring pin modes... ";
+    _printf( LogLevel_Info, "Configuring pin modes... " );
 
     pinMode( rachel.sw, INPUT_PULLUP ); pinMode( rachel.x, INPUT ); pinMode( rachel.y, INPUT );
     pinMode( samantha.sw, INPUT_PULLUP ); pinMode( samantha.x, INPUT ); pinMode( samantha.y, INPUT );
@@ -74,7 +81,7 @@ struct {
 
     pinMode( bitna.r, OUTPUT ); pinMode( bitna.g, OUTPUT ); pinMode( bitna.b, OUTPUT );
 
-    SERIAL_LOG << "ok.\n";
+    _printf( "ok.\n" );
 
     return 0;
   }
@@ -98,24 +105,44 @@ struct {
   BluetoothSerial   blue;
 
   int init() {
-    SERIAL_LOG() << "Bluetooth serial begin... ";
+    _printf( LogLevel_Info, "Bluetooth serial begin... " );
     blue.begin( barcud_ctrl::DEVICE_NAME );
-    SERIAL_LOG << "ok.\n";
+    _printf( "ok.\n" );
 
-    SERIAL_LOG() << "I^2C wire begin... ";
+    _printf( LogLevel_Info, "I^2C wire begin... " );
     Wire.begin();
-    SERIAL_LOG << "ok.\n";
+    _printf( "ok.\n" );
     
     return 0;
   }
 
   int blue_itr_recv( void* ptr, int sz ) {
-    int count = 0;
+    int count       = 0;
+    int timeout_acc = 0;
    
     do {
-      ( ( uint8_t* )ptr )[ count ] = ( uint8_t )blue.read();
-    } while( ++count < sz );
+    l_read:
+      int b = blue.read();
 
+      if( b == -1 ) { 
+        int delay_ms = min( PARAMS.blue_recv_err_delay, PARAMS.blue_recv_err_timeout - timeout_acc );
+
+        delay( delay_ms ); 
+        timeout_acc += delay_ms;
+
+        if( timeout_acc >= PARAMS.blue_recv_err_timeout ) {
+          _printf( LogLevel_Error, "Bluetooth recv exceeded set timeout (%d).\n", PARAMS.blue_recv_err_timeout );
+          return -1;
+        }
+
+        goto l_read;
+      } else if( timeout_acc != 0 ) {
+        timeout_acc = 0;
+      }
+
+      ( ( uint8_t* )ptr )[ count ] = ( uint8_t )b;
+    } while( ++count < sz );
+   
     return count;
   }
 
@@ -124,6 +151,7 @@ struct {
    
     do {
       int ret = blue.write( ( uint8_t* )ptr + count, sz - count );
+      if( ret <= 0 ) return ret;
       count += ret;
     } while( count < sz );
 
@@ -135,18 +163,17 @@ struct {
 
 struct _GRAN : public MPU6050_WE {
   int init( void ) {
-    SERIAL_LOG() << "MPU6050 init... ";
+    _printf( LogLevel_Info, "MPU6050 init... " );
     if( !this->MPU6050_WE::init() ) {
-      SERIAL_LOG << "fault.\n";
+      _printf( "fault.\n" );
       return -1;
     }
-    SERIAL_LOG << "ok.\n";
+    _printf( "ok.\n" );
 
-    SERIAL_LOG() << "MPU6050 calibrate... ";
-    this->MPU6050_WE::autoOffsets();
+    _printf( LogLevel_Info, "MPU6050 calibrate... " );
     this->MPU6050_WE::setAccRange( _acc_range );
     this->MPU6050_WE::setGyrRange( _gyr_range );
-    SERIAL_LOG << "ok.\n";
+    _printf( "ok.\n" );
 
     return 0;
   }
@@ -215,16 +242,16 @@ struct _DYNAMIC : bar_proto_head_t, barcud_ctrl::dynamic_t {
   } _idle_reads;
 
   int init( void ) {
-    SERIAL_LOG() << "Proto head init... ";
+    _printf( LogLevel_Info, "Proto head init... " );
     bar_proto_head_t::_dw0.op  = BAR_PROTO_OP_BURST;
     bar_proto_head_t::_dw1.seq = 1;
     bar_proto_head_t::_dw2.sz  = sizeof( barcud_ctrl::dynamic_t ); 
-    SERIAL_LOG << "ok.\n";
+    _printf( "ok.\n" );
 
-    SERIAL_LOG() << "Joysticks calibrate... ";
+    _printf( LogLevel_Info, "Joysticks calibrate... " );
     _idle_reads.rachel.x = analog_read_mean< float >( GPIO.rachel.x, 10, 1 ); _idle_reads.rachel.y = analog_read_mean< float >( GPIO.rachel.y, 10, 1 );
     _idle_reads.samantha.x = analog_read_mean< float >( GPIO.samantha.x, 10, 1 ); _idle_reads.samantha.y = analog_read_mean< float >( GPIO.samantha.y, 10, 1 );
-    SERIAL_LOG << "ok.\n";
+    _printf( "ok.\n" );
 
     return GRAN.init();
   }
@@ -339,23 +366,23 @@ struct _PROTO {
   BAR_PROTO_STREAM   stream;
 
   int loop( void ) {
-    if( COM.blue.available() ) {
-      BAR_PROTO_RESOLVE_RECV_INFO info;
-      if( int ret = stream.resolve_recv( &info ); ret <= 0 ) {
-        SERIAL_LOG( LOG_ERROR ) << "Protocol fault " << BAR_PROTO_ERR_STR[ info.err ] << ".\n";
-        return ret;
-      }
+    if( !COM.blue.available() ) return 0;
 
-      if( info.nakr != nullptr ) {
-        SERIAL_LOG() << "Responded with NAK on seuqence ( " << info.recv_head._dw1.seq << " ), operation ( " << ( int )info.recv_head._dw0.op << " ). Reason: " << info.nakr << ".\n";
-        return 0;
-      }
+    BAR_PROTO_RESOLVE_RECV_INFO info;
+    if( int ret = stream.resolve_recv( &info ); ret <= 0 ) {
+      _printf( LogLevel_Error, "Protocol breach: %s.\n ", BAR_PROTO_ERR_STR[ info.err ] );
+      return ret;
+    }
 
-      switch( info.recv_head._dw0.op ) {
-        case BAR_PROTO_OP_PING: {
-          SERIAL_LOG() << "Ping'd back on sequence ( " << info.recv_head._dw1.seq << " ).\n";
-        break; }
-      }
+    if( info.nakr != nullptr ) {
+      _printf( LogLevel_Info, "Responded with NAK on seq (%d), op (%d). Reson: %s.\n ", ( int )info.recv_head._dw1.seq, ( int )info.recv_head._dw0.op, info.nakr );
+      return 0;
+    }
+
+    switch( info.recv_head._dw0.op ) {
+      case BAR_PROTO_OP_PING: {
+        _printf( LogLevel_Info, "Ping'd back on sequence (%d).\n", ( int )info.recv_head._dw1.seq );
+      break; }
     }
 
     return 0;
@@ -370,7 +397,7 @@ void _dead( void ) {
 
 
 int do_tests( void ) {
-  SERIAL_LOG( LOG_INFO ) << "Beginning tests.\n";
+  _printf( LogLevel_Info, "Beginning tests.\n" );
 
   const auto _get_test = [] () -> int8_t {
     DYNAMIC.scan();
@@ -378,12 +405,12 @@ int do_tests( void ) {
   };
 
   const auto _begin = [] ( const char* test_name ) -> void {
-    SERIAL_LOG( LOG_INFO ) << "Acknowledged test [ " << test_name << " ]... ";
+    _printf( LogLevel_Info, "Acknowledged test [ %s ]...", test_name );
     BITNA.blink( LED::TRQ, true, 10, 50, 50 );
   };
   const auto _end = [] () -> void {
     BITNA.blink( LED::TRQ, true, 10, 50, 50 );
-    SERIAL_LOG << "ok.\n";
+    _printf( " ok.\n" );
   };
 
   int test_count = 0;
@@ -407,12 +434,12 @@ l_test_begin: {
     goto l_test_begin;
 }
 l_test_end:
-  SERIAL_LOG( LOG_INFO ) << "Tests ended. Completed ( " << test_count << " ) tests.\n";
+  _printf( LogLevel_Info, "Tests ended. Completed (%d) tests.\n", test_count ) ;
   return test_count;
 }
 
 
-#define SETUP_CRITICAL_ASSERT( c ) if( !c ) { SERIAL_LOG( LOG_CRITICAL ) << "CRITICAL ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n"; _dead(); }
+#define SETUP_CRITICAL_ASSERT( c ) if( !c ) { _printf( LogLevel_Critical, "CRITICAL ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n" ); _dead(); }
 void setup( void ) {
   Serial.begin( 115200 );
 
@@ -427,53 +454,74 @@ void setup( void ) {
   PARAMS.reset();
   PROTO.init();
 
-  SERIAL_LOG( LOG_OK ) << "Setup complete.\n";
+  _printf( LogLevel_Ok, "Setup complete.\n" );
   BITNA.blink( LED::GRN, true, 10, 50, 50 );
 
-  SERIAL_LOG( LOG_INFO ) << "Scanning for tests request.\n";
+  _printf( LogLevel_Info, "Scanning for tests request.\n" );
   DYNAMIC.scan();
   if( DYNAMIC.giselle.dwn ) {
     do_tests();
   } else {
-    SERIAL_LOG( LOG_INFO ) << "No tests request.\n";
+    _printf( LogLevel_Info, "No tests request.\n" );
   }
 
-  SERIAL_LOG( LOG_OK ) << "Ready to work.\n";
+  _printf( LogLevel_Ok, "Ready for link...\n" );
 
   BITNA( LED::BLU );
 }
 
-void loop( void ) {
-  if( COM.blue.connected() ) {
-    if( PARAMS._conn_rst ) {
-      PARAMS._conn_rst = false;
-      SERIAL_LOG( LOG_INFO ) << "Connected to device.\n";
-      BITNA.blink( LED::BLU, false, 10, 50, 50 );
-      BITNA( LED::BLU );
-    }
 
+struct _LOOP_STATE {
+  bool   _conn_rst   = true;
+} LOOP_STATE;
+
+/* 1: PARAMS._conn_rst | 0: COM.blue.connected() */
+std::function< int( void ) >   loop_procs[]   = {
+  /* 0b00 */ [] () -> bool {
+    _printf( LogLevel_Info, "Disconnected from device.\n" );
+    PARAMS.reset();
+    LOOP_STATE._conn_rst = true;
+    _printf( LogLevel_Info, "Ready to relink...\n" );
+    BITNA.blink( LED::BLU, true, 10, 50, 50 );
+    return true;
+  },
+  /* 0b01 */ [] () -> bool {
     if( PROTO.loop() != 0 ) {
       BITNA.blink( LED::RED, false, 9, 100, 500 );
       COM.blue.disconnect();
-      return;
+      return true;
     }
     
     DYNAMIC.scan();
     DYNAMIC.blue_tx();
 
-    delay( PARAMS.main_loop_delay );
-
-  } else {
-    if( !PARAMS._conn_rst ) {
-      SERIAL_LOG( LOG_INFO ) << "Disconnected from device.\n";
-      PARAMS.reset();
-      BITNA.blink( LED::BLU, true, 10, 50, 50 );
-    }
-    BITNA.blink( LED::BLU, 1, true, 500, 500 );
+    return true;
+  },
+  /* 0b10 */ [] () -> bool {
+    BITNA.blink( LED::BLU, 1, true, 100, 500 );
+    return true;
+  },
+  /* 0b11 */ [] () -> bool {
+    LOOP_STATE._conn_rst = false;
+    _printf( LogLevel_Info, "Connected to device.\n" );
+    BITNA.blink( LED::BLU, false, 10, 50, 50 );
+    BITNA( LED::BLU );
+    return true;
   }
+};
+
+void loop( void ) {
+  loop_procs[ ( LOOP_STATE._conn_rst << 1 ) | COM.blue.connected() ]();
 }
 
 
 int _DYNAMIC::blue_tx( void ) {
-    return PROTO.stream.trust_burst( this, sizeof( bar_proto_head_t ) + bar_proto_head_t::_dw2.sz, 0 );
-  }
+  static int last_ms = millis();
+  static int current_ms;
+
+  current_ms = millis();
+  if( current_ms - last_ms < PARAMS.dynamic_burst_delay ) return 0;
+
+  last_ms = current_ms;
+  return PROTO.stream.trust_burst( this, sizeof( bar_proto_head_t ) + bar_proto_head_t::_dw2.sz, 0 );
+}

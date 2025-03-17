@@ -35,9 +35,9 @@ public:
      barcud_ctrl::dynamic_t     dynamic         = {};
 
 _ENGINE_PROTECTED:
-    bool                     _trust_invk     = false;
-    std::atomic_int16_t      _bar_seq        = { 0 };
-    BAR_PROTO_BRSTBL_ENTRY   _brstbl_entry   = { dst: &dynamic, sz: sizeof( dynamic ) };
+    bool                        _trust_invk     = false;
+    std::atomic_int16_t         _bar_seq        = { 0 };
+    BAR_PROTO_BRSTBL_ENTRY      _brstbl_entry   = { dst: &dynamic, sz: sizeof( dynamic ) };
 
 public:
     void bind( void ) {

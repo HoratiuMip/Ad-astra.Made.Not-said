@@ -208,7 +208,7 @@ public:
     }
 
     void splash_critical( const Descriptor& desc ) {
-        ( *_stream ) << '\n';
+        ( *_stream ) << "\n\n";
         this->_white();
         ( *_stream ) << "[ ";
         this->_red();

@@ -3,6 +3,8 @@
 */
 
 #include <NLN/descriptor.hpp>
+#include <NLN/comms.hpp>
+#include <NLN/assert.hpp>
 
 
 
@@ -17,8 +19,37 @@ enum BIT_END {
 
 class Bytes {
 public:
-    template< typename T >
-    requires std::is_integral_v< T >
+    bool is_char_hex( char c ) {
+        c = std::tolower( c );
+        return ( c >= '0' && c <= '9' ) || ( c >= 'a' && c <= 'f' );
+    }
+
+    int hex_char2int( char c ) {
+        if( c >= '0' && c <= '9' ) return c - '0';
+        c = tolower( c );
+        if( c >= 'a' && c <= 'f' ) return c - 'a' + 10;
+        return -1;
+    }
+
+public:
+    static std::vector< UBYTE > hex_chars2bytes( std::string_view str ) {
+        std::vector< UBYTE > arr; arr.reserve( str.length() >> 1 );
+        for( int idx = 0; idx < str.length(); idx += 2 ) {
+            UBYTE crt = hex_char2int( str[ idx + 1 ] );
+            NLN_ASSERT( crt != -1, {} );
+
+            UBYTE& b = arr.emplace_back( crt );
+
+            crt = hex_char2int( str[ idx ] );
+            NLN_ASSERT( crt != -1, {} );
+
+            b |= ( crt << 4 );
+        } 
+        return arr;
+    }
+
+public:
+    template< typename T > requires std::is_integral_v< T >
     static T as( char* src, size_t count, BIT_END end ) {
         char dst[ sizeof( T ) ];
 
@@ -36,8 +67,7 @@ public:
         return *reinterpret_cast< T* >( dst );
     }
 
-    template< typename T, size_t count >
-    requires std::is_integral_v< T >
+    template< typename T, size_t count > requires std::is_integral_v< T >
     static T as( char* src, BIT_END end ) {
         if constexpr( count != sizeof( T ) )
             return as< T >( src, count, end );
@@ -56,8 +86,7 @@ public:
         }
     }
 
-    template< typename T, BIT_END end >
-    requires std::is_integral_v< T >
+    template< typename T, BIT_END end > requires std::is_integral_v< T >
     static T as( char* src, size_t count ) {
         char dst[ sizeof( T ) ];
 
@@ -75,8 +104,7 @@ public:
         return *reinterpret_cast< T* >( dst );
     }
 
-    template< typename T, size_t count, BIT_END end >
-    requires std::is_integral_v< T >
+    template< typename T, size_t count, BIT_END end > requires std::is_integral_v< T >
     static T as( char* src ) {
         if constexpr( count != sizeof( T ) )
             return as< T, end >( src, count );

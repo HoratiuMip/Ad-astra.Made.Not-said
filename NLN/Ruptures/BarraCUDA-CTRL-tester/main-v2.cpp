@@ -114,19 +114,17 @@ public:
         
         ImGui::TextColored( { 0, 1, 0, 1 }, "Connected." );
         
-        ImGui::SeparatorText( "Quick commands." );
+        ImGui::Separator();
 
         static int              ping_thread_count = 1;
         static std::atomic_int  last_ping_count   = { 1 };
         static std::atomic_int  last_ping_target  = { 1 };
         if( last_ping_target == last_ping_count ) { 
             if( ImGui::Button( "PING" ) ) {
-                static std::array< std::thread, 50 > threads;
-
                 last_ping_count = 0;
                 last_ping_target = ping_thread_count;
                 for( int idx = 0; idx < ping_thread_count; ++idx ) {
-                    std::thread{ [ this ] () -> void {
+                    std::thread{ [] () -> void {
                         if( int ret = BARCUD.ping(); ret > 0 ) {
                             STATS.add_wb_sent( ret );
                             ++last_ping_count;
@@ -145,7 +143,7 @@ public:
         else 
             ImGui::TextColored( { 1, 0.5f, 0, 1 }, "Responses: (%d).", last_ping_count.load() );
         
- 
+        ImGui::Separator();
         if( ImGui::Button( "RESET" ) ) {
             BARCUD.disconnect( 0 );
         }
@@ -369,18 +367,18 @@ public:
 
             STATS.add_wb_sent( ret );
             info.sig.wait( false );
-            STATS.add_wb_recv( info.sz );
+            STATS.add_wb_recv( info.recvd );
             
             if( !info.ackd ) {
                 prev_cmds.emplace_front( false, "" ).second += info.nakr;
             } else {
-                prev_cmds.emplace_front( true, "" ).second += std::to_string( ( int )byte );
+                prev_cmds.emplace_front( true, "" ).second += std::format( "{} {} {} - {}", ops[ op_sel ], str_ids[ str_id_sel ], args, info.recvd > sizeof( bar_proto_head_t ) ? byte + '0' : '-' );
             }
         }
 
         ImGui::SeparatorText( "Previous commands." );
         for( auto& cmd : prev_cmds ) {
-            ImGui::TextColored( cmd.first ? ImVec4{ 0, 1, 0, 1 } : ImVec4{ 1, 0, 0, 1 }, cmd.first ? "ACK'd: " : "NAK'd: " );
+            ImGui::TextColored( cmd.first ? ImVec4{ 0, 1, 0, 1 } : ImVec4{ 1, 0, 0, 1 }, cmd.first ? "ACK'd:" : "NAK'd:" );
             ImGui::SameLine();
             ImGui::Text( "%s.", cmd.second.c_str() );
         }
@@ -578,7 +576,7 @@ int main( int argc, char** argv ) {
             }
         }
 
-        BARCUD.disconnect( 0 );
+        if( BARCUD.connected() ) BARCUD.disconnect( 0 );
         BARCUD.force_waiting_resolvers();
         if( G_is_running() )
             goto l_attempt_connect;
@@ -602,7 +600,7 @@ int main( int argc, char** argv ) {
 
         DASHBOARD.frame();
 
-        ImGui::ShowDemoWindow();
+        //ImGui::ShowDemoWindow();
 
         ImGui::Render();
 

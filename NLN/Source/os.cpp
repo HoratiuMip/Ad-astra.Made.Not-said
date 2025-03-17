@@ -26,7 +26,7 @@ void SignalIntercept::_callback_proc( Signal_ code ) {
         goto l_wait_input;
     }
 
-    comms( " Executing {} callback{}...", signal_intercept._callbacks.size(), signal_intercept._callbacks.size() == 1 ? "" : "s" );
+    comms( " Executing {} callback{}...\n", signal_intercept._callbacks.size(), signal_intercept._callbacks.size() == 1 ? "" : "s" );
     lock.unlock();
 
     for( auto& [ _, callback ] : signal_intercept._callbacks )
@@ -34,11 +34,11 @@ void SignalIntercept::_callback_proc( Signal_ code ) {
 
     lock.lock();
     comms.splash_critical( signal_intercept );
-    comms( "Callbacks executed for {} ({}).", _codes_strings[ code ], ( int )code );
+    comms( "\nCallbacks executed for {} ({}).", _codes_strings[ code ], ( int )code );
 
 
 l_wait_input:
-    comms( " Press [ ENTER ] to continue... Beware, continuing might crash the program. Read stdout first." );
+    comms( " Press [ ENTER ] to continue... Beware, continuing might crash the program. Read stdout first.\n\n" );
     lock.unlock();
     std::string s; std::getline( std::cin, s );
 }

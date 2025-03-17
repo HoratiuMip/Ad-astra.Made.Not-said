@@ -4,6 +4,7 @@
 
 #include <NLN/descriptor.hpp>
 #include <NLN/comms.hpp>
+#include <NLN/os.hpp>
 
 namespace _ENGINE_NAMESPACE {
 
@@ -13,7 +14,6 @@ inline static struct {
 #if defined( _ENGINE_OS_WINDOWS )
     WSADATA    wsa_data;
 #endif
-
 } RUNTIME;
 
 

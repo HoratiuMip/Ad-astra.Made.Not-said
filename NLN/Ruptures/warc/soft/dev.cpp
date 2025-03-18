@@ -1,6 +1,6 @@
-#include <warc-spec-mod/common.hpp>
+#include <warc-dev/common.hpp>
 
-namespace warc { namespace spec_mod {
+namespace warc { namespace dev {
 
 
 static struct _INTERNAL {

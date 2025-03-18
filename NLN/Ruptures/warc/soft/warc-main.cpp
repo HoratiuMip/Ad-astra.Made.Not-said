@@ -1,5 +1,5 @@
 #include <warc/warc-main.hpp>
-#include <warc-spec-mod/all-spec-mods.hpp>
+#include <warc-dev/all-devs.hpp>
 
 namespace warc {
 
@@ -41,7 +41,7 @@ static struct _INTERNAL {
         { "--astro-ref-vernal-equinox-ts",     0b111, 1, &MAIN::_parse_proc_astro_ref_vernal_equinox_ts },
         { "--astro-ref-first-january-ts",      0b111, 1, &MAIN::_parse_proc_astro_ref_first_january_ts },
 
-        { "--spec-mod-barracuda-ctrl",         0b111, 0, &MAIN::_parse_proc_spec_mod_barracuda_controller }
+        { "--dev-barracuda-ctrl",              0b111, 0, &MAIN::_parse_proc_dev_barracuda_controller }
     };
     const int optc = sizeof( opts ) / sizeof( OPT );
 
@@ -320,15 +320,15 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_first_january_ts ) {
     return 0;
 }
 
-inline static spec_mod::BARRACUDA_CONTROLLER* ptrr = nullptr;
-WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_spec_mod_barracuda_controller ) {
-    _WARC_NLN_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_spec_mod_barracuda_controller()" );
+inline static dev::BARRACUDA_CONTROLLER* ptrr = nullptr;
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_dev_barracuda_controller ) {
+    _WARC_NLN_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_dev_barracuda_controller()" );
    
-    int status = spec_mod::push_device( barcud_ctrl::DEVICE_NAME, NLN::HVEC< spec_mod::BARRACUDA_CONTROLLER >::allocc() );
-    WARC_ASSERT_RT( status == 0, "Could not push the device in the special module reservation station.", status, status );
+    int status = dev::push_device( barcud_ctrl::DEVICE_NAME, NLN::HVEC< dev::BARRACUDA_CONTROLLER >::allocc() );
+    WARC_ASSERT_RT( status == 0, "Could not push the device in the device reservation station.", status, status );
 
-    _ixt_init_flags |= NLN::INIT_FLAG_UPLINK_NETWORK | NLN::INIT_FLAG_UPLINK_NETWORK_CONTINUE_IF_FAULT;
-    WARC_ECHO_RT_OK << "Pushed the device in the special module reservation station.";
+    _ixt_init_flags |= NLN::BEGIN_RUNTIME_FLAG_INIT_NETWORK | NLN::BEGIN_RUNTIME_FLAG_INIT_NETWORK_CONTINUE_IF_FAULT;
+    WARC_ECHO_RT_OK << "Pushed the device in the device reservation station.";
     return 0;
 }
 
@@ -463,13 +463,13 @@ int MAIN::main( int argc, char* argv[] ) {
     int status = this->_parse_opts( argc, argv );
     WARC_ASSERT_RT( status == 0, "Option parsing fault.", status, status );
 
-    status = NLN::initial_uplink( argc, argv, _ixt_init_flags, nullptr, nullptr );
+    status = NLN::begin_runtime( argc, argv, _ixt_init_flags, nullptr, nullptr );
     WARC_ASSERT_RT( status == 0, "Fault at starting the NLN engine.", status, status );
 
     status = inet_tls::uplink();
     WARC_ASSERT_RT( status == 0 || WARC_INET_TLS == 0, "Fault at starting the internet transport layer security module.", status, status );
 
-    status = spec_mod::set_devices( *this );
+    status = dev::set_devices( *this );
     if( status != 0 ) {
         WARC_ECHO_RT_WARNING << "Some special module devices were not set properly.";
     }
@@ -528,7 +528,7 @@ int MAIN::main( int argc, char* argv[] ) {
         } );
         
         this->_earth->main( argc, argv, [ & ] () -> int {
-            spec_mod::engage_devices( *this );
+            dev::engage_devices( *this );
             return 0;
         } );
     }
@@ -536,8 +536,8 @@ int MAIN::main( int argc, char* argv[] ) {
 
 l_main_end:
     status |= inet_tls::downlink();
-    status |= spec_mod::disengage_devices( std::memory_order_seq_cst, *this );
-    status |= NLN::final_downlink( argc, argv, 0, nullptr, nullptr );
+    status |= dev::disengage_devices( std::memory_order_seq_cst, *this );
+    status |= NLN::end_runtime( argc, argv, 0, nullptr, nullptr );
     return status;
 }
 

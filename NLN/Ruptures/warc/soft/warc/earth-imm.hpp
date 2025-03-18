@@ -39,7 +39,7 @@ struct EARTH_CTRL_PARAMS {
 #define WARC_IMM_CTRL_SINK_SEXECC( count ) (count)
 #define WARC_IMM_CTRL_SINK_INITIAL_SEXECC( count ) (count)
     struct _SINK {
-        std::string                     name       = nullptr;
+        std::string                     name       = {};
         std::function< int( float ) >   proc       = nullptr;
         int                             sexecc     = 1;
 
@@ -55,7 +55,7 @@ struct EARTH_CTRL_PARAMS {
 #define WARC_IMM_CTRL_DRAIN_PROC [ & ] ( float elapsed ) -> int
 #define WARC_IMM_CTRL_DRAIN_ENGAGED( flag ) ( flag )
     struct _DRAIN {
-        std::string                     name     = nullptr;
+        std::string                     name     = {};
         std::function< bool() >         cond     = nullptr;
         std::function< int( float ) >   proc     = nullptr;
         bool                            engd     = true;

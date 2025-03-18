@@ -29,7 +29,7 @@ enum BEGIN_RUNTIME_FLAG : DWORD {
     _BEGIN_RUNTIME_FLAG_FORCE_DWORD = 0x7f'ff'ff'ff
 };
 
-DWORD begin_runtime( int argc, char* argv[], DWORD flags, void* in, void** out ) {
+inline DWORD begin_runtime( int argc, char* argv[], DWORD flags, void* in, void** out ) {
     comms() << "Beginning " _ENGINE_STR " engine runtime...";
 {
     DWORD fault_ctr = 0;
@@ -65,7 +65,7 @@ DWORD begin_runtime( int argc, char* argv[], DWORD flags, void* in, void** out )
     return -1;
 }
 
-DWORD end_runtime( int argc, char* argv[], DWORD flags, void* arg, void** ret ) {
+inline DWORD end_runtime( int argc, char* argv[], DWORD flags, void* arg, void** ret ) {
     comms() << "Ending " _ENGINE_STR " engine runtime...";
 
     DWORD fault_crt = 0;

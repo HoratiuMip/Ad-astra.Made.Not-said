@@ -132,7 +132,7 @@ Damn.
 > |:-------|:------------|:-------:|:-----:|:------:|
 > | `--root-dir <arg1>` | The root directory to be used. `arg1` is the RELATIVE path to the root directory. | `No` | `No` | `Yes` |
 > | `--from-config <arg1>` | The configuration file containing the options for the session. `arg1` is the ABSOLUTE path to the configuration file. | `No` | `No` | `Yes` |
-> | `--spec-mod-barracuda-controller` | Attempt to connect to the Barracuda Controller before launching the program. | `No` | `Yes` | `Yes` |
+> | `--dev-barracuda-ctrl` | Attempt to connect to the Barracuda Controller before launching the program. | `No` | `Yes` | `Yes` |
 > | `--n2yo-mode <arg1>` | How to retrieve satellite data from the `N2YO` server. | `Yes` | `Yes` | `Yes` |
 > > Accepted `arg1`, Satellites positions are...:
 > > - `rand` - ...random. Server connection `IS NOT` made in this mode.

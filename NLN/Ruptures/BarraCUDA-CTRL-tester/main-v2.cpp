@@ -25,7 +25,7 @@ std::filesystem::path     G_root_dir;
 
 
 
-NLN::DEV::BarracudaCTRL   BARCUD;
+NLN::Dev::BarracudaCTRL   BARCUD;
 struct {
     NLN::Ticker                                     tkr;
     std::pair< std::atomic_int, std::atomic_int >   tot_wb_sent;
@@ -216,16 +216,27 @@ class SWITCH_BOARD : public _BOARD {
 public:
     SWITCH_BOARD( const std::string& name, ImVec4 col, barcud_ctrl::switch_t* sw )
     : _BOARD{ name }, _col{ IM_COL32( col.x, col.y, col.z, col.w ) }, _sw{ sw }
-    {}
+    {
+        memset( event_arr.data(), 0, sizeof( float ) * event_arr_size );
+    }
 
 protected:
     barcud_ctrl::switch_t*   _sw;
     ImU32                    _col;
 
+    static constexpr int                  event_arr_size   = 2'000;
+    std::array< float, event_arr_size >   event_arr;
+    int                                   event_arr_at     = 0;
+
+protected:
+    void inc_event_at() {
+        ++event_arr_at; if( event_arr_at >= event_arr_size ) event_arr_at = 0;
+    }
+
 public:
     virtual void frame( void ) override {
-        ImGui::SetNextWindowSize( { 160, 140 }, ImGuiCond_Always );
-        ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_NoResize );
+        ImGui::SetNextWindowSize( { 160, 140 }, ImGuiCond_Once );
+        ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_None );
 
         ImGui::Text( "SW: (%d)", _sw->dwn );
         ImGui::Separator();
@@ -239,6 +250,21 @@ public:
             imdraw->AddCircleFilled( org, 32, _col, 120 );
         else
             imdraw->AddCircle( org, 32, _col, 120, 3.0 );
+
+        
+        event_arr[ event_arr_at ] = 0;
+        if( _sw->prs ) event_arr[ event_arr_at ] = 1.0f;
+        if( _sw->rls ) {
+            if( _sw->prs ) this->inc_event_at();
+            event_arr[ event_arr_at ] = -1.0f;
+        }
+
+        int next_at = event_arr_at + 1; if( next_at >= event_arr_size ) next_at = 0;
+
+        ImGui::SetCursorScreenPos( { org.x + 60, org.y - 32 } );
+        ImGui::PlotLines( "Events", event_arr.data(), event_arr.size(), next_at, "", -1.0f, 1.0f, { 360, 64 } );
+
+        this->inc_event_at();
      
         ImGui::End();
     }
@@ -566,7 +592,7 @@ int main( int argc, char** argv ) {
         if( !G_is_running() )
             goto l_burst_th_end;
         NLN::comms( NLN::EchoLevel_Pending ) << "Attempting connection to the controller...";
-        if( BARCUD.connect( NLN::DEV::BARRACUDA_CTRL_FLAG_TRUST_INVOKER ) != 0 ) {
+        if( BARCUD.connect( NLN::Dev::BARRACUDA_CTRL_FLAG_TRUST_INVOKER ) != 0 ) {
             NLN::comms() << "Could not connect to the controller. Retrying in 3s...\n";
             BARCUD.force_waiting_resolvers();
             std::this_thread::sleep_for( std::chrono::seconds{ 3 } );

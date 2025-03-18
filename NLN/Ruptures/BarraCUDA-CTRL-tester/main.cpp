@@ -9,7 +9,7 @@
 
 using namespace barcud_ctrl;
 using namespace NLN;
-using namespace NLN::DEV;
+using namespace NLN::Dev;
 
 
 struct _VISUAL {

@@ -5,11 +5,11 @@
 
 #include <NLN/hyper-vector.hpp>
 
-namespace warc { namespace spec_mod {
+namespace warc { namespace dev {
 
 
-#define WARC_SPEC_MOD_STR WARC_STR"::spec_mod"
-_WARC_NLN_COMPONENT_DESCRIPTOR( WARC_SPEC_MOD_STR );
+#define WARC_DEV_STR WARC_STR"::dev"
+_WARC_NLN_COMPONENT_DESCRIPTOR( WARC_DEV_STR );
 
 
 typedef   const char*   device_name_t;

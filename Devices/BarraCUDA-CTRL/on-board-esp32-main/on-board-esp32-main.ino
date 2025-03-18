@@ -277,10 +277,10 @@ struct _DYNAMIC : bar_proto_head_t, barcud_ctrl::dynamic_t {
       int is_dwn = !digitalRead( pin );
 
       switch( ( sw.dwn << 1 ) | is_dwn ) {
-        case 0: [[fallthrough]];
-        case 3: sw.rls = 0; sw.prs = 0; break;
-        case 1: sw.rls = 0; sw.prs = 1; break;
-        case 2: sw.rls = 1; sw.prs = 0; break;
+        /* case 0b00: [[fallthrough]]; */
+        /* case 0b11: sw.rls = 0; sw.prs = 0; break; */
+        case 0b01: /* sw.rls = 0; */ sw.prs = 1; break;
+        case 0b10: sw.rls = 1; /* sw.prs = 0; */ break;
       }
 
       sw.dwn = is_dwn;
@@ -301,6 +301,15 @@ struct _DYNAMIC : bar_proto_head_t, barcud_ctrl::dynamic_t {
 
     naksu.val = 1.0 - sqrt( analogRead( GPIO.naksu ) / GPIO.ADC_fmax );
 
+  }
+
+  void reset_sw_prs_rls() {
+    rachel.sw.rls = 0; rachel.sw.prs = 0;
+    samantha.sw.rls = 0; samantha.sw.prs = 0;
+    giselle.rls = 0; giselle.prs = 0;
+    karina.rls = 0; karina.prs = 0;
+    ningning.rls = 0; ningning.prs = 0;
+    winter.rls = 0; winter.prs = 0;
   }
 
   int blue_tx( void );
@@ -523,5 +532,8 @@ int _DYNAMIC::blue_tx( void ) {
   if( current_ms - last_ms < PARAMS.dynamic_burst_delay ) return 0;
 
   last_ms = current_ms;
-  return PROTO.stream.trust_burst( this, sizeof( bar_proto_head_t ) + bar_proto_head_t::_dw2.sz, 0 );
+  int ret = PROTO.stream.trust_burst( this, sizeof( bar_proto_head_t ) + bar_proto_head_t::_dw2.sz, 0 );
+
+  this->reset_sw_prs_rls();
+  return ret;
 }

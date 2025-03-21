@@ -22,6 +22,7 @@
 
 #define _ENGINE_NAMESPACE NLN
 #define _ENGINE_DEVICE_NAMESPACE Dev
+#define _ENGINE_FRAMEWORK_NAMESPACE Fwk
 #define _ENGINE_STR "NLN"
 
 #define _ENGINE_STRUCT_NAME( name ) _ENGINE_STR "::" name

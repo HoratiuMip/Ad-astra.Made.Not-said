@@ -1,0 +1,192 @@
+<diagram program="umletino" version="15.1"><zoom_level>8</zoom_level><element><id>UMLClass</id><coordinates><x>648</x><y>280</y><w>216</w><h>200</h></coordinates><panel_attributes>Cloudhead
+--
+DESCRIPTION|
+--
+
+The users.
+
+--
+FIELDS|
+--
+
+PK - id: QWORD
+* - nickname: VARCHAR( 32 )
+* - type: BYTE
+? - password: VARCHAR( 64 )
+* - register_ts: TIMESTAMP
+* - last_log_ts: TIMESTAMP
+? - image_count: DWORD</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>872</x><y>280</y><w>112</w><h>80</h></coordinates><panel_attributes>bg=gray
+Types:
+0x00 - banned
+0x01 - guest
+0x02 - viewer
+0x10 - deep viewer
+0xA0 - admin </panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>872</x><y>368</y><w>112</w><h>48</h></coordinates><panel_attributes>bg=gray
+A guest has a NULL 
+password and the IP
+as the nickname.</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1080</x><y>280</y><w>216</w><h>208</h></coordinates><panel_attributes>Decoding
+--
+DESCRIPTION|
+--
+
+Any bytestream of data obrained from an
+acquired signal.
+
+--
+FIELDS|
+--
+
+PK - id: QWORD
+* - description: VARCHAR( 4096 )
+FK - source REFERENCES Satellite.norad_id
+* - acquire_ts: TIMESTAMP
+FK - invoker REFERENCES Cloudhead.id
+* - data: LONGBLOB
+? - format: VARCHAR( 16 )</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>872</x><y>424</y><w>112</w><h>48</h></coordinates><panel_attributes>bg=gray
+The cloudhead with
+id 0 is the Rig.</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>592</x><y>384</y><w>504</w><h>160</h></coordinates><panel_attributes>lt=&lt;&lt;-
+1 - n</panel_attributes><additional_attributes>70;10;10;10;10;180;550;180;550;80;610;80</additional_attributes></element><element><id>UMLClass</id><coordinates><x>1216</x><y>552</y><w>216</w><h>208</h></coordinates><panel_attributes>Satellite
+--
+DESCRIPTION|
+--
+
+Satellites from which the server is capable
+of acquiring any kind of information.
+
+--
+FIELDS|
+--
+
+PK - norad_id: DWORD
+* - description: VARCHAR( 4096 )
+* - downlink: DOUBLE [ MHz ]
+? - uplink: DOUBLE [ MHz ]
+? - beacon: DOUBLE [ MHz ]
+* - acquisition_count: DWORD
+? - popularity: DWORD
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>1040</x><y>416</y><w>192</w><h>272</h></coordinates><panel_attributes>lt=&lt;&lt;-
+n - 1</panel_attributes><additional_attributes>220;320;10;320;10;10;50;10</additional_attributes></element><element><id>UMLClass</id><coordinates><x>664</x><y>640</y><w>216</w><h>200</h></coordinates><panel_attributes>RigEvent
+--
+DESCRIPTION|
+--
+
+Pretty much anything that has happened
+or that the Rig has done.
+
+--
+FIELDS|
+--
+
+PK - id: QWORD
+* - level: BYTE
+* - description: VARCHAR( 1024 )
+* - trigger_ts: TIMESTAMP
+FK - source REFERENCES Cloudhead.id
+? - state: VARCHAR( 16 )
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>888</x><y>640</y><w>112</w><h>104</h></coordinates><panel_attributes>bg=gray
+Levels:
+0x00 - Trace
+0x01 - Debug
+0x02 - Error
+0x03 - Warning
+0x04 - Pending
+0x05 - Ok
+0x06 - Info</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>552</x><y>384</y><w>128</w><h>440</h></coordinates><panel_attributes>lt=&lt;&lt;-
+1 - n</panel_attributes><additional_attributes>120;10;10;10;10;530;140;530</additional_attributes></element><element><id>UMLClass</id><coordinates><x>1152</x><y>816</y><w>216</w><h>176</h></coordinates><panel_attributes>SatelliteMisc
+--
+DESCRIPTION|
+--
+
+Misc information about a satellite.
+
+--
+FIELDS|
+--
+
+FK - sat REFERENCES Satellite.norad_id
+? - avg_speed: DOUBLE [ m/s ]
+? - avg_alt: DOUBLE [ m ]
+? - heatmap: LONGBLOB [ .bmp ]
+? - last_pos: SET( DOUBLE, DOUBLE ) [ deg ]</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>1072</x><y>664</y><w>160</w><h>280</h></coordinates><panel_attributes>lt=&lt;&lt;-
+1 - 1</panel_attributes><additional_attributes>180;10;10;10;10;330;100;330</additional_attributes></element><element><id>UMLNote</id><coordinates><x>1440</x><y>600</y><w>120</w><h>48</h></coordinates><panel_attributes>bg=gray
+Popularity is computed
+based on acquisition
+count.</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>648</x><y>248</y><w>48</w><h>24</h></coordinates><panel_attributes>bg=magenta</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1080</x><y>248</y><w>88</w><h>24</h></coordinates><panel_attributes>bg=magenta</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1216</x><y>520</y><w>80</w><h>24</h></coordinates><panel_attributes>bg=magenta</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>760</x><y>968</y><w>216</w><h>176</h></coordinates><panel_attributes>Note
+--
+DESCRIPTION|
+--
+
+Notes written by cloudheads.
+
+--
+FIELDS|
+--
+
+PK - id: QWORD
+FK - source REFERENCES Cloudhead.id
+FK - target REFERENCES Satellite.norad_id
+* - content: VARCHAR( 1024 )
+* - release_ts: TIMESTAMP
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>512</x><y>384</y><w>264</w><h>720</h></coordinates><panel_attributes>lt=&lt;&lt;-
+1 - n</panel_attributes><additional_attributes>170;10;10;10;10;880;310;880</additional_attributes></element><element><id>Relation</id><coordinates><x>696</x><y>664</y><w>536</w><h>456</h></coordinates><panel_attributes>lt=&lt;&lt;-
+1 - 1</panel_attributes><additional_attributes>650;10;440;10;440;300;10;300;10;550;80;550</additional_attributes></element><element><id>UMLNote</id><coordinates><x>16</x><y>0</y><w>400</w><h>48</h></coordinates><panel_attributes>bg=gray
+WARC RIG DATABASE STRUCTURE
+fontsize=30
+valign=center
+bg=white</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>16</x><y>56</y><w>80</w><h>24</h></coordinates><panel_attributes>bg=magenta
+Main objective</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>104</x><y>56</y><w>80</w><h>24</h></coordinates><panel_attributes>bg=blue
+Internals</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>664</x><y>608</y><w>104</w><h>24</h></coordinates><panel_attributes>bg=blue</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>192</x><y>56</y><w>80</w><h>24</h></coordinates><panel_attributes>bg=green
+Computation</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1152</x><y>784</y><w>72</w><h>24</h></coordinates><panel_attributes>bg=green</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>280</x><y>56</y><w>80</w><h>24</h></coordinates><panel_attributes>bg=orange
+UX</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>760</x><y>936</y><w>104</w><h>24</h></coordinates><panel_attributes>bg=orange</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1224</x><y>784</y><w>32</w><h>24</h></coordinates><panel_attributes>bg=orange</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>1440</x><y>552</y><w>120</w><h>40</h></coordinates><panel_attributes>bg=gray
+Sattelite with norad
+id 0 is SOYEON. 
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>984</x><y>968</y><w>128</w><h>40</h></coordinates><panel_attributes>bg=gray
+Notes towards SOYEON
+are news for cloudheads.
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>64</x><y>296</y><w>216</w><h>160</h></coordinates><panel_attributes>InstalledAntenna
+--
+DESCRIPTION|
+--
+
+Antennas available on the Rig.
+
+--
+FIELDS|
+--
+
+PK - index: BYTE
+* - name: VARCHAR( 64 )
+* - rating: VARCHAR( 16 )
+* - acquisition_count: DWORD</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>288</x><y>296</y><w>112</w><h>72</h></coordinates><panel_attributes>bg=gray
+Ratings:
+"Poor"
+"Ok"
+"Good"
+"Excellent"</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>64</x><y>264</y><w>80</w><h>24</h></coordinates><panel_attributes>bg=blue</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1296</x><y>520</y><w>32</w><h>24</h></coordinates><panel_attributes>bg=orange</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1168</x><y>248</y><w>24</w><h>24</h></coordinates><panel_attributes>bg=orange</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>144</x><y>264</y><w>32</w><h>24</h></coordinates><panel_attributes>bg=orange</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>1304</x><y>280</y><w>112</w><h>40</h></coordinates><panel_attributes>bg=gray
+Format describes the
+data, e.g. ".jpeg".</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>696</x><y>248</y><w>64</w><h>24</h></coordinates><panel_attributes>bg=blue</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>16</x><y>88</y><w>16</w><h>24</h></coordinates><panel_attributes>*</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>32</x><y>88</y><w>192</w><h>24</h></coordinates><panel_attributes>Dedicated table view, besides generic.
+lw=0</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>184</x><y>264</y><w>16</w><h>24</h></coordinates><panel_attributes>*</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>776</x><y>608</y><w>16</w><h>24</h></coordinates><panel_attributes>*</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>872</x><y>936</y><w>16</w><h>24</h></coordinates><panel_attributes>*</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1264</x><y>784</y><w>16</w><h>24</h></coordinates><panel_attributes>*</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1336</x><y>520</y><w>16</w><h>24</h></coordinates><panel_attributes>*</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1200</x><y>248</y><w>16</w><h>24</h></coordinates><panel_attributes>*</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>768</x><y>248</y><w>16</w><h>24</h></coordinates><panel_attributes>*</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>888</x><y>752</y><w>112</w><h>56</h></coordinates><panel_attributes>bg=gray
+States: ( faults )
+"Waiting"
+"In progress"
+"Done"</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>104</x><y>600</y><w>240</w><h>200</h></coordinates><panel_attributes>Cookie
+--
+DESCRIPTION|
+--
+
+Sort of cookies?
+
+--
+FIELDS|
+--
+
+FK - cloudhead REFERENCES Cloudhead.id
+FK - antenna REFERENCES InstalledAntenna.index
+FK - sat REFERENCES Satellite.norad_id
+FK - decoding REFERENCES Deconding.id</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>104</x><y>568</y><w>104</w><h>24</h></coordinates><panel_attributes>bg=orange</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>24</x><y>712</y><w>72</w><h>32</h></coordinates><panel_attributes>lt=&lt;&lt;-
+1 - 1</panel_attributes><additional_attributes>10;20;70;20</additional_attributes></element><element><id>UMLClass</id><coordinates><x>0</x><y>712</y><w>40</w><h>32</h></coordinates><panel_attributes>...
+lw=0
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>72</x><y>720</y><w>40</w><h>32</h></coordinates><panel_attributes>...
+lw=0
+valign=center
+</panel_attributes><additional_attributes></additional_attributes></element></diagram>

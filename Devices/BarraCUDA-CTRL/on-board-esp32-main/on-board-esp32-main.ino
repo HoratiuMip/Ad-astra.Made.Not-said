@@ -1,7 +1,9 @@
-#include "BluetoothSerial.h"
-
+#include <BluetoothSerial.h>
 #include <MPU6050_WE.h>
 #include <Wire.h>
+
+#include "../../ixN/common_utils.hpp"
+using namespace ixN;
 
 #include "../barracuda-ctrl.hpp"
 #define BAR_PROTO_ARCHITECTURE_LITTLE
@@ -9,27 +11,6 @@
 
 #include <atomic>
 
-
-enum LogLevel_ {
-  LogLevel_Ok, LogLevel_Warning, LogLevel_Error, LogLevel_Critical, LogLevel_Info
-};
-const char* LogLevel_strings[] = { "[ Ok ] ", "[ Warning ] ", "[ Error ] ", "[ Critical ] ", "[ Info ] " };
-struct __PRINTF {
-  template< typename ...Args >
-  void operator () ( const char* fmt_str, Args&&... args ) {
-    static constexpr int BUF_MAX_SIZE = 256;
-    char buffer[ BUF_MAX_SIZE ];
-    sprintf( buffer, fmt_str, std::forward< Args >( args )... );
-    Serial.print( buffer );
-  }
-
-  template< typename ...Args >
-  void operator () ( LogLevel_ level, const char* fmt_str, Args&&... args ) {
-    Serial.print( LogLevel_strings[ ( int )level ] );
-    ( *this )( fmt_str, std::forward< Args >( args )... );
-  }
-
-} _printf;
 
 
 typedef   int8_t   GPIO_pin_t;
@@ -401,6 +382,8 @@ struct _PROTO {
 
 
 void _dead( void ) {
+  COM.blue.end();
+  Wire.end();
   while( 1 ) BITNA.blink( LED::RED, false, 1, 1000, 1000 );
 }
 

@@ -12,7 +12,7 @@ Quick power on.
 
 > When the status led stop blinking and stays blue, the connection is successful.
 
-> All set! Now you may either use the controller for an application, or build you own one! You may write your own driver for the controller's `BARK` protocol, or use the `NLN` engine's one, found [here](https://github.com/HoratiuMip/Ad-astra.Made.Not-said/blob/main/NLN/Include/NLN/Device/barracuda-ctrl-nln-driver.hpp).
+> All set! Now you may either use the controller for an application, or build you own one! You may write your own driver for the controller's `BARK` protocol, or use the `IXN` engine's one, found [here](https://github.com/HoratiuMip/Ad-astra.Made.Not-said/blob/main/IXN/Include/IXN/Device/barracuda-ctrl-nln-driver.hpp).
 
 Status LED.
 > | Pattern | Description |
@@ -33,9 +33,9 @@ Testing. - The controller may be put in testing mode by holding the blue switch 
 
 > To exit testing mode, while the status led is pulsating turquoise, press the blue and green switches.
 
-The tester program developed with the `NLN` engine provides a full interface with the controller, offering the posibility to see the state, and send commands to the controller.
+The tester program developed with the `IXN` engine provides a full interface with the controller, offering the posibility to see the state, and send commands to the controller.
 
-> Source code: https://github.com/HoratiuMip/Ad-astra.Made.Not-said/tree/main/NLN/Ruptures/BarraCUDA-CTRL-tester
+> Source code: https://github.com/HoratiuMip/Ad-astra.Made.Not-said/tree/main/IXN/Ruptures/BarraCUDA-CTRL-tester
 
 > Release:
 

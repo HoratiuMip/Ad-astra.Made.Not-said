@@ -345,9 +345,9 @@ public:
         ImGui::SetNextWindowSize( { 0, 0 }, ImGuiCond_Once );
         ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_None );
 
-        static int         op_sel      = 0;
-        const char*        ops[]       = { "GET", "SET" };
-        const BAR_PROTO_OP ops_codes[] = { BAR_PROTO_OP_GET, BAR_PROTO_OP_SET };
+        static int   op_sel      = 0;
+        const char*  ops[]       = { "GET", "SET" };
+        const WJPOp_ ops_codes[] = { WJPOp_QGet, WJPOp_QSet };
 
         static int  str_id_sel = 0; 
         const char* str_ids[]  = { "BITNA_CRT", "GRAN_ACC_RANGE", "GRAN_GYR_RANGE" };
@@ -386,7 +386,7 @@ public:
             char buffer[ 128 ];
             int offset = strlen( strcpy( buffer, str_ids[ str_id_sel ] ) ) + 1;
 
-            BAR_PROTO_WAIT_BACK_INFO info;
+            WJP_WAIT_BACK_INFO info;
             int ret = BARCUD.wait_back( 
                 &info, 
                 ops_codes[ op_sel ], 
@@ -394,21 +394,21 @@ public:
                 offset + ixN::Bit::hex_chars2bytes( ( ixN::UBYTE* )buffer + offset, hex_args ), 
                 buffer, 
                 sizeof( buffer ), 
-                BAR_PROTO_SEND_METHOD_DIRECT 
+                WJPSendMethod_Direct 
             );
 
             STATS.add_wb_sent( ret );
-            info.sig.wait( false );
-            STATS.add_wb_recv( info.recvd );
+            info.resolved.wait( false );
+            STATS.add_wb_recv( info.recv_count );
             
-            if( !info.ackd ) {
+            if( !info.ackd() ) {
                 prev_cmds.emplace_front( false, info.nakr );
             } else {
                 prev_cmds.emplace_front( true, std::format( "{} {} {} - {}", 
                     ops[ op_sel ], 
                     str_ids[ str_id_sel ], 
                     hex_args, 
-                    info.recvd > sizeof( bar_proto_head_t ) ? ixN::Bit::bytes2hex_chars( ( ixN::UBYTE* )buffer, info.recvd - sizeof( bar_proto_head_t ), true ) : std::string{ "N/A" } 
+                    info.recv_count > sizeof( WJP_HEAD ) ? ixN::Bit::bytes2hex_chars( ( ixN::UBYTE* )buffer, info.recv_count - sizeof( WJP_HEAD ), true ) : std::string{ "N/A" } 
                 ) );
             }
         }
@@ -601,15 +601,15 @@ int main( int argc, char** argv ) {
         STATS.reset_session();
         ixN::comms() << "Connected to the controller.\n";
 
-        BAR_PROTO_RESOLVE_RECV_INFO info;
+        WJP_RESOLVE_RECV_INFO info;
         while( G_is_running() ) {
             int ret = BARCUD.trust_resolve_recv( &info );
             if( ret <= 0 ) break;
-            if( info.recv_head._dw0.op == BAR_PROTO_OP_BURST ) {
+            if( info.recv_head._dw0.op == WJPOp_IBurst ) {
                 STATS.add_brst_recv( ret );
             } else {
                 STATS.add_wb_recv( ret );
-                STATS.add_wb_sent( info.sent );
+                STATS.add_wb_sent( info.sent_count );
             }
         }
 

@@ -1,13 +1,15 @@
+#include "../barracuda-ctrl.hpp"
+
 #include <BluetoothSerial.h>
 #include <MPU6050_WE.h>
 #include <Wire.h>
 
-#include "../../ixN/common_utils.hpp"
+#include "../../IXN/common_utils.hpp"
 using namespace ixN;
 
-#include "../barracuda-ctrl.hpp"
-#define BAR_PROTO_ARCHITECTURE_LITTLE
-#include "../bar-proto.hpp"
+#define WJP_ENVIRONMENT_ARDUINO
+#define WJP_ARCHITECTURE_LITTLE
+#include "../../../WJP/wjp.hpp"
 
 #include <atomic>
 
@@ -24,7 +26,7 @@ struct _PARAMS {
     _printf( "ok.\n" );
   }
 
-  int16_t   _bar_proto_seq          = 0;
+  int16_t   _wjp_seq          = 0;
 
   int       blue_recv_err_delay     = 1;
   int       blue_recv_err_timeout   = 3000;
@@ -217,16 +219,16 @@ struct LED {
 } BITNA;
 
 
-struct _DYNAMIC : bar_proto_head_t, barcud_ctrl::dynamic_t {
+struct _DYNAMIC : WJP_HEAD, barcud_ctrl::dynamic_t {
   struct {
     struct { float x, y; } rachel, samantha;
   } _idle_reads;
 
   int init( void ) {
     _printf( LogLevel_Info, "Proto head init... " );
-    bar_proto_head_t::_dw0.op  = BAR_PROTO_OP_BURST;
-    bar_proto_head_t::_dw1.seq = 1;
-    bar_proto_head_t::_dw2.sz  = sizeof( barcud_ctrl::dynamic_t ); 
+    WJP_HEAD::_dw0.op  = WJPOp_IBurst;
+    WJP_HEAD::_dw1.seq = 0;
+    WJP_HEAD::_dw3.sz  = sizeof( barcud_ctrl::dynamic_t ); 
     _printf( "ok.\n" );
 
     _printf( LogLevel_Info, "Joysticks calibrate... " );
@@ -313,54 +315,57 @@ struct _DYNAMIC : bar_proto_head_t, barcud_ctrl::dynamic_t {
 } DYNAMIC;
 
 
-BAR_PROTO_GSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
+WJP_QGSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
   { 
     str_id: "BITNA_CRT", 
-    src: &BITNA._crt, 
     sz: 1, 
-    BAR_PROTO_GSTBL_READ_ONLY, 
-    set: nullptr 
+    WJP_QGSTBL_READ_ONLY, 
+    qset_func: nullptr,
+    qget_func: nullptr, 
+    src: &BITNA._crt
   },
   { 
     str_id: "GRAN_ACC_RANGE", 
-    src: &GRAN._acc_range, 
     sz: 1, 
-    BAR_PROTO_GSTBL_READ_WRITE, 
-    set: [] ( void* src, [[maybe_unused]]int16_t sz ) -> const char* { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )src ) ? nullptr : "GRAN_ACC_INVALID_RANGE"; } 
+    WJP_QGSTBL_READ_WRITE, 
+    qset_func: [] ( void* src, [[maybe_unused]]int16_t sz ) -> const char* { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )src ) ? nullptr : "GRAN_ACC_INVALID_RANGE"; },
+    qget_func: nullptr,
+    src: &GRAN._acc_range
   },
   { 
     str_id: "GRAN_GYR_RANGE", 
-    src: &GRAN._gyr_range, 
     sz: 1, 
-    BAR_PROTO_GSTBL_READ_WRITE, 
-    set: [] ( void* src, [[maybe_unused]]int16_t sz ) -> const char* { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )src ) ? nullptr : "GRAN_GYR_INVALID_RANGE"; } 
+    WJP_QGSTBL_READ_WRITE, 
+    qset_func: [] ( void* src, [[maybe_unused]]int16_t sz ) -> const char* { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )src ) ? nullptr : "GRAN_GYR_INVALID_RANGE"; },
+    qget_func: nullptr,
+    src: &GRAN._gyr_range
   }
 };
 struct _PROTO {
   int init( void ) {
-    stream.bind_gstbl( BAR_PROTO_GSTBL{ 
+    device.bind_qgstbl( WJP_QGSTBL{ 
       entries: PROTO_GSTBL_ENTRIES, 
-      size: sizeof( PROTO_GSTBL_ENTRIES ) / sizeof( BAR_PROTO_GSTBL_ENTRY ) 
+      count: sizeof( PROTO_GSTBL_ENTRIES ) / sizeof( WJP_QGSTBL_ENTRY ) 
     } );
 
-    stream.bind_srwrap( BAR_PROTO_SRWRAP{
-      send: [] BAR_PROTO_SEND_LAMBDA { return COM.blue_itr_send( src, sz ); },
-      recv: [] BAR_PROTO_RECV_LAMBDA { return COM.blue_itr_recv( dst, sz ); } 
+    device.bind_srwrap( WJP_SRWRAP{
+      send: [] WJP_SEND_LAMBDA { return COM.blue_itr_send( src, sz ); },
+      recv: [] WJP_RECV_LAMBDA { return COM.blue_itr_recv( dst, sz ); } 
     } );
 
-    stream.bind_seq_acq( [] ( void ) -> int16_t { return PARAMS._bar_proto_seq; } );
+    device.bind_seq_acq( [] ( void ) -> int16_t { return PARAMS._wjp_seq++; } );
 
     return 0;
   }
 
-  BAR_PROTO_STREAM   stream;
+  WJP_DEVICE   device;
 
   int loop( void ) {
     if( !COM.blue.available() ) return 0;
 
-    BAR_PROTO_RESOLVE_RECV_INFO info;
-    if( int ret = stream.resolve_recv( &info ); ret <= 0 ) {
-      _printf( LogLevel_Error, "Protocol breach: %s.\n ", BAR_PROTO_ERR_STR[ info.err ] );
+    WJP_RESOLVE_RECV_INFO info;
+    if( int ret = device.resolve_recv( &info ); ret <= 0 ) {
+      _printf( LogLevel_Error, "Protocol breach: %s.\n ", WJP_err_strs[ info.err ] );
       return ret;
     }
 
@@ -370,7 +375,7 @@ struct _PROTO {
     }
 
     switch( info.recv_head._dw0.op ) {
-      case BAR_PROTO_OP_PING: {
+      case WJPOp_Ping: {
         _printf( LogLevel_Info, "Ping'd back on sequence (%d).\n", ( int )info.recv_head._dw1.seq );
       break; }
     }
@@ -515,7 +520,7 @@ int _DYNAMIC::blue_tx( void ) {
   if( current_ms - last_ms < PARAMS.dynamic_burst_delay ) return 0;
 
   last_ms = current_ms;
-  int ret = PROTO.stream.trust_burst( this, sizeof( bar_proto_head_t ) + bar_proto_head_t::_dw2.sz, 0 );
+  int ret = PROTO.device.trust_burst( this, sizeof( WJP_HEAD ) + WJP_HEAD::_dw3.sz, 0 );
 
   this->reset_sw_prs_rls();
   return ret;

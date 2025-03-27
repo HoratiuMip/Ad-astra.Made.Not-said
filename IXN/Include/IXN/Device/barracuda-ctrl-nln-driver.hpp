@@ -11,9 +11,11 @@
 
 
 #include "../../../../Devices/BarraCUDA-CTRL/barracuda-ctrl.hpp"
-#define BAR_PROTO_ARCHITECTURE_LITTLE
-#define BAR_PROTO_NOTIFIABLE_ATOMICS
-#include "../../../../Devices/BarraCUDA-CTRL/bar-proto.hpp"
+
+#define WJP_ENVIRONMENT_MINGW
+#define WJP_ARCHITECTURE_LITTLE
+#define WJP_NOTIFIABLE_ATOMICS
+#include "../../../../WJP/wjp.hpp"
 
 
 
@@ -27,36 +29,36 @@ enum BARRACUDA_CTRL_FLAG : DWORD {
     _BARRACUDA_CTRL_FLAG_FORCE_DWORD = 0x7f'ff'ff'ff
 };
 
-class BarracudaCTRL : public BTH_SOCKET, public BAR_PROTO_STREAM {
+class BarracudaCTRL : public BTH_SOCKET, public WJP_DEVICE {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "BarracudaCTRL" );
 
 public:
-     barcud_ctrl::dynamic_t     dynamic         = {};
+    barcud_ctrl::dynamic_t     dynamic         = {};
 
 _ENGINE_PROTECTED:
-    bool                        _trust_invk     = false;
-    std::atomic_int16_t         _bar_seq        = { 0 };
-    BAR_PROTO_BRSTBL_ENTRY      _brstbl_entry   = { dst: &dynamic, sz: sizeof( dynamic ) };
+    bool                       _trust_invk     = false;
+    std::atomic_int16_t        _wjp_seq        = { 0 };
+    WJP_IBRSTBL_ENTRY          _brstbl_entry   = { dst: &dynamic, sz: sizeof( dynamic ) };
 
 public:
     void bind( void ) {
-        this->BAR_PROTO_STREAM::bind_brstbl( BAR_PROTO_BRSTBL{
+        this->WJP_DEVICE::bind_ibrstbl( WJP_IBRSTBL{
             entries: &_brstbl_entry,
-            size: 1
+            count: 1
         } );
-        this->BAR_PROTO_STREAM::bind_srwrap( BAR_PROTO_SRWRAP{
-            send: [ this ] BAR_PROTO_SEND_LAMBDA { return this->BTH_SOCKET::itr_send( src, sz, flags ); },
-            recv: [ this ] BAR_PROTO_RECV_LAMBDA { return this->BTH_SOCKET::itr_recv( dst, sz, flags ); }
+        this->WJP_DEVICE::bind_srwrap( WJP_SRWRAP{
+            send: [ this ] WJP_SEND_LAMBDA { return this->BTH_SOCKET::itr_send( src, sz, flags ); },
+            recv: [ this ] WJP_RECV_LAMBDA { return this->BTH_SOCKET::itr_recv( dst, sz, flags ); }
         } );
-        this->BAR_PROTO_STREAM::bind_seq_acq( [ this ] () -> int16_t { return _bar_seq.fetch_add( 1, std::memory_order_relaxed ); } );
+        this->WJP_DEVICE::bind_seq_acq( [ this ] () -> int16_t { return _wjp_seq.fetch_add( 1, std::memory_order_relaxed ); } );
     }
 
 public:
     DWORD connect( DWORD flags, _ENGINE_COMMS_ECHO_ARG ) {
         _trust_invk = flags & BARRACUDA_CTRL_FLAG_TRUST_INVOKER;
 
-        _bar_seq.store( 0, std::memory_order_relaxed );
+        _wjp_seq.store( 0, std::memory_order_relaxed );
 
         DWORD ret = this->BTH_SOCKET::connect( barcud_ctrl::DEVICE_NAME_W );
         IXN_ASSERT( ret == 0, ret );
@@ -72,28 +74,28 @@ public:
     DWORD ping( _ENGINE_COMMS_ECHO_ARG ) {
         echo( this, EchoLevel_Pending, "Pinging..." );
 
-        BAR_PROTO_WAIT_BACK_INFO info;
-        int ret = this->wait_back( &info, BAR_PROTO_OP_PING, nullptr, 0, nullptr, 0, BAR_PROTO_SEND_METHOD_DIRECT );
-        info.sig.wait( false );
+        WJP_WAIT_BACK_INFO info;
+        int ret = this->wait_back( &info, WJPOp_Ping, nullptr, 0, nullptr, 0, WJPSendMethod_Direct );
+        info.resolved.wait( false );
         
         echo( this, EchoLevel_Ok, "Received ping acknowledgement." );
         return ret;
     }
 
     DWORD get( std::string_view str_id, void* dest, int32_t sz, _ENGINE_COMMS_ECHO_ARG ) {
-        BAR_PROTO_WAIT_BACK_INFO info;
+        WJP_WAIT_BACK_INFO info;
 
-        DWORD ret = this->BAR_PROTO_STREAM::wait_back( 
-            &info, BAR_PROTO_OP_GET, 
+        DWORD ret = this->WJP_DEVICE::wait_back( 
+            &info, WJPOp_QGet, 
             str_id.data(), str_id.length() + 1, 
             dest, sz,
-            BAR_PROTO_SEND_METHOD_STACK 
+            WJPSendMethod_Direct 
         );
-        IXN_ASSERT_ET( ret == 0, ret, BAR_PROTO_ERR_STR[ info.err ] );
+        IXN_ASSERT_ET( ret == 0, ret, WJP_err_strs[ info.err ] );
 
-        info.sig.wait( false );
+        info.resolved.wait( false );
 
-        IXN_ASSERT_ET( info.ackd, -1, info.nakr );
+        IXN_ASSERT_ET( info.ackd(), -1, info.nakr );
         return 0;
     }
 
@@ -102,26 +104,26 @@ public:
         strcpy( buffer, str_id.data() );
         memcpy( buffer + str_id.length() + 1, src, sz );
 
-        BAR_PROTO_WAIT_BACK_INFO info;
+        WJP_WAIT_BACK_INFO info;
 
-        DWORD ret = this->BAR_PROTO_STREAM::wait_back( 
-            &info, BAR_PROTO_OP_SET, 
+        DWORD ret = this->WJP_DEVICE::wait_back( 
+            &info, WJPOp_QSet, 
             buffer, str_id.length() + 1 + sz, 
             nullptr, 0,
-            BAR_PROTO_SEND_METHOD_DIRECT
+            WJPSendMethod_Direct
         );
-        IXN_ASSERT_ET( ret == 0, ret, BAR_PROTO_ERR_STR[ info.err ] );
+        IXN_ASSERT_ET( ret == 0, ret, WJP_err_strs[ info.err ] );
 
-        info.sig.wait( false );
+        info.resolved.wait( false );
 
-        IXN_ASSERT_ET( info.ackd, -1, info.nakr );
+        IXN_ASSERT_ET( info.ackd(), -1, info.nakr );
         return 0;
     }
 
 public: 
-    DWORD trust_resolve_recv( BAR_PROTO_RESOLVE_RECV_INFO* info, _ENGINE_COMMS_ECHO_ARG ) {
+    DWORD trust_resolve_recv( WJP_RESOLVE_RECV_INFO* info, _ENGINE_COMMS_ECHO_ARG ) {
         DWORD ret = this->resolve_recv( info );
-        IXN_ASSERT_ET( ret > 0, ret, BAR_PROTO_ERR_STR[ info->err ] );
+        IXN_ASSERT_ET( ret > 0, ret, WJP_err_strs[ info->err ] );
 
         if( info->nakr ) {
             echo( this, EchoLevel_Warning ) << "Responded with NAK on sequence ( " << info->recv_head._dw1.seq << " ). Reason: " << info->nakr << ".";

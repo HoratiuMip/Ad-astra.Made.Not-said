@@ -1,4 +1,4 @@
-/*===== IXN Dear ImGui on OpenGL3 framework - Vatca "Mipsan" Tudor-Horatiu
+/*===== IXN - Dear ImGui on OpenGL3 framework - Vatca "Mipsan" Tudor-Horatiu
 |
 |=== DESCRIPTION
 > 

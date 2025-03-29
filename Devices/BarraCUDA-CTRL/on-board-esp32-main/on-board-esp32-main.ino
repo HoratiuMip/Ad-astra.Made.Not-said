@@ -315,7 +315,7 @@ struct _DYNAMIC : WJP_HEAD, barcud_ctrl::dynamic_t {
 } DYNAMIC;
 
 
-WJP_QGSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
+WJP_QGSTBL_ENTRY   PROTO_QGSTBL_ENTRIES[ 3 ]   = {
   { 
     str_id: "BITNA_CRT", 
     sz: 1, 
@@ -344,8 +344,8 @@ WJP_QGSTBL_ENTRY   PROTO_GSTBL_ENTRIES[ 3 ]   = {
 struct _PROTO {
   int init( void ) {
     device.bind_qgstbl( WJP_QGSTBL{ 
-      entries: PROTO_GSTBL_ENTRIES, 
-      count: sizeof( PROTO_GSTBL_ENTRIES ) / sizeof( WJP_QGSTBL_ENTRY ) 
+      entries: PROTO_QGSTBL_ENTRIES, 
+      count: sizeof( PROTO_QGSTBL_ENTRIES ) / sizeof( WJP_QGSTBL_ENTRY ) 
     } );
 
     device.bind_srwrap( WJP_SRWRAP{

@@ -14,10 +14,10 @@
 
 
 #if defined( WJP_ARCHITECTURE_BIG ) 
-    const int32_t WJP_SIG     = 0x42'41'52'00; 
+    const int32_t WJP_SIG     = 0x57'4a'50'00; 
     const int32_t WJP_SIG_MSK = 0xff'ff'ff'00;
 #else
-    const int32_t WJP_SIG     = 0x00'52'41'42;
+    const int32_t WJP_SIG     = 0x00'50'4a'57;
     const int32_t WJP_SIG_MSK = 0x00'ff'ff'ff;
     #if !defined( WJP_ARCHITECTURE_LITTLE )
         #warning "[ WJP ] Endianess of target architecture not specified. Defaulting to little endian."
@@ -26,22 +26,22 @@
 
 
 enum WJPOp_ : int8_t {
-    WJPOp_Null    = 0,
+    WJPOp_Null   = 0x0,
 
-    WJPOp_Ack     = 1,
-    WJPOp_Nak     = 2,
+    WJPOp_Ack    = 0x1,
+    WJPOp_Nak    = 0x2,
 
-    WJPOp_Ping    = 11,
-    WJPOp_QSet     = 12,
-    WJPOp_QGet     = 13,
+    WJPOp_Ping   = 0xb,
+    WJPOp_QSet   = 0xc,
+    WJPOp_QGet   = 0xd,
 
-    WJPOp_IBurst   = -11,
+    WJPOp_IBurst = -0xb,
 
     _WJPOp_FORCE_BYTE = 0x7f
 };
 
 struct WJP_HEAD {
-    constexpr WJP_HEAD() { _dw0._sig_b0 = 0x42; _dw0._sig_b1 = 0x41, _dw0._sig_b2 = 0x52; _dw0.op = WJPOp_Null; }
+    constexpr WJP_HEAD() { _dw0._sig_b0 = 0x57; _dw0._sig_b1 = 0x4a, _dw0._sig_b2 = 0x50; _dw0.op = WJPOp_Null; }
 
     union {
         struct{ int8_t _sig_b0, _sig_b1, _sig_b2; int8_t op; } _dw0;
@@ -246,10 +246,10 @@ struct WJP_WAIT_BACK_INFO {
 };
 
 struct _WJP_RESOLVER {
-    int16_t               _seq    = 0;
-    void*                 _dst    = nullptr;
-    int32_t               _sz     = 0;
-    WJP_WAIT_BACK_INFO*   _info   = nullptr;
+    int16_t               seq    = 0;
+    void*                 dst    = nullptr;
+    int32_t               sz     = 0;
+    WJP_WAIT_BACK_INFO*   info   = nullptr;
 };
 
 struct _WJP_RECV_CONTEXT {
@@ -474,9 +474,9 @@ struct WJP_DEVICE {
 
         _WJP_RESOLVER& resolver = _resolvers.front();
 
-        _WJP_ASSERT_CTX_INFO( context->info->recv_head._dw1.seq == resolver._seq, WJPErr_Sequence, -1 );
+        _WJP_ASSERT_CTX_INFO( context->info->recv_head._dw1.seq == resolver.seq, WJPErr_Sequence, -1 );
 
-        WJP_WAIT_BACK_INFO* wb_info = resolver._info;
+        WJP_WAIT_BACK_INFO* wb_info = resolver.info;
 
         if( context->info->recv_head._dw0.op == WJPOp_Nak ) {
             //_WJP_ASSERT_INFO( info->recv_head._dw3.sz <= WJP_NAKR_MAX_SIZE, WJP_ERR_NAKR_SIZE, -1 );
@@ -486,11 +486,11 @@ struct WJP_DEVICE {
             goto l_release_resolver;
         }
 
-        if( resolver._dst == nullptr || context->info->recv_head._dw3.sz == 0 ) goto l_release_resolver;
+        if( resolver.dst == nullptr || context->info->recv_head._dw3.sz == 0 ) goto l_release_resolver;
 
-        _WJP_ASSERT_CTX_INFO( resolver._sz >= context->info->recv_head._dw3.sz, WJPErr_Size, -1 );
+        _WJP_ASSERT_CTX_INFO( resolver.sz >= context->info->recv_head._dw3.sz, WJPErr_Size, -1 );
         _WJP_RR_ASSERT_RECV(
-            _srwrap.recv( resolver._dst, context->info->recv_head._dw3.sz, 0 ), context->info->recv_head._dw3.sz, WJPErr_Recv
+            _srwrap.recv( resolver.dst, context->info->recv_head._dw3.sz, 0 ), context->info->recv_head._dw3.sz, WJPErr_Recv
         );
 
         wb_info->recv_count += context->info->recv_head._dw3.sz;
@@ -566,14 +566,14 @@ struct WJP_DEVICE {
     ) {
         std::unique_lock< std::mutex > lock{ _resmtx };
         _WJP_RESOLVER& resolver = _resolvers.emplace_back( _WJP_RESOLVER{
-            _seq: _seq_acq(),
-            _dst: dst,
-            _sz:  dst_sz,
-            _info: info
+            seq:  _seq_acq(),
+            dst:  dst,
+            sz:   dst_sz,
+            info: info
         } );
         lock.unlock();
 
-        int ret = _send<>( src, src_sz, op, resolver._seq, 0, method );
+        int ret = _send<>( src, src_sz, op, resolver.seq, 0, method );
         _WJP_WB_ASSERT__SEND( ret, WJPErr_Send );
 
         return ret;
@@ -582,11 +582,11 @@ struct WJP_DEVICE {
     void force_waiting_resolvers() {
         std::unique_lock< std::mutex > lock{ _resmtx };
         for( auto& resolver : _resolvers ) {
-            strcpy( resolver._info->nakr, WJP_err_strs[ WJPErr_Forced ] );
-            resolver._info->err = WJPErr_Forced;
-            resolver._info->resolved.store( true, std::memory_order_release );
+            strcpy( resolver.info->nakr, WJP_err_strs[ WJPErr_Forced ] );
+            resolver.info->err = WJPErr_Forced;
+            resolver.info->resolved.store( true, std::memory_order_release );
         #if defined( WJP_NOTIFIABLE_ATOMICS )
-            resolver._info->resolved.notify_one();
+            resolver.info->resolved.notify_one();
         #endif
         }
     }

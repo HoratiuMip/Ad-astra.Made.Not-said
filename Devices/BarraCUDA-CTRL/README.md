@@ -54,7 +54,7 @@ Legend.
 > ![barracuda-layout](https://github.com/user-attachments/assets/c65797ff-83c2-476d-b6dd-b8a89acdfb4b)
 
 ### Protocol
-The controller uses the `BAR STREAM/BURST` protocol for data transmission. 
+The controller uses the `WJP` for data transmission. 
 
 
 

@@ -239,6 +239,14 @@ public:
     }
 
     template< typename ...Args >
+    Comms& operator () ( EchoLevel_ level, const std::format_string< Args... > fmt_str, Args&&... args ) {
+        std::unique_lock lock{ *this };
+        this->splash( *this, level, nullptr );
+        ( *_stream ) << std::format( fmt_str, std::forward< Args >( args )... );
+        return *this;
+    }
+
+    template< typename ...Args >
     Comms& operator () ( const std::format_string< Args... > fmt_str, Args&&... args ) {
         ( *_stream ) << std::format( fmt_str, std::forward< Args >( args )... );
         return *this;

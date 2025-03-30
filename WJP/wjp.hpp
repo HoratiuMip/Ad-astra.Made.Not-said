@@ -32,6 +32,7 @@ enum WJPOp_ : int8_t {
     WJPOp_Nak    = 0x2,
 
     WJPOp_Ping   = 0xb,
+    
     WJPOp_QSet   = 0xc,
     WJPOp_QGet   = 0xd,
 

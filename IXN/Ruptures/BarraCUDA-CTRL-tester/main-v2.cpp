@@ -285,7 +285,7 @@ public:
         ImGui::SetNextWindowSize( { 0, 0 }, ImGuiCond_Once );
         ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_NoResize );
 
-        ImGui::VSliderFloat( "##1", { 100, 300 }, &_ls->val, 0.0, 1.0, "%.3f", ImGuiSliderFlags_NoInput );
+        ImGui::VSliderFloat( "##1", { 100, 300 }, &_ls->lvl, 0.0, 1.0, "%.3f", ImGuiSliderFlags_NoInput );
      
         ImGui::End();
     }
@@ -326,6 +326,27 @@ public:
         update( values[ 5 ], BARCUD.dynamic.gran.gyr.z, "Z[rad/s]", -250.0f, 250.0f );
 
         ++at; if( at >= arr_size ) at = 0;
+     
+        ImGui::End();
+    }
+
+};
+
+class POTENTIOMETER_BOARD : public _BOARD {
+public:
+    POTENTIOMETER_BOARD( const std::string& name, barcud_ctrl::potentiometer_t* pm )
+    : _BOARD{ name }, _pm{ pm }
+    {}
+
+protected:
+    barcud_ctrl::potentiometer_t*   _pm;
+
+public:
+    virtual void frame( void ) override {
+        ImGui::SetNextWindowSize( { 0, 0 }, ImGuiCond_Once );
+        ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_NoResize );
+
+        ImGui::VSliderFloat( "##1", { 100, 300 }, &_pm->lvl, 0.0, 1.0, "%.3f", ImGuiSliderFlags_NoInput );
      
         ImGui::End();
     }
@@ -574,6 +595,9 @@ int main( int argc, char** argv ) {
     } );
     DASHBOARD.emplace_back( new LIGHT_SENSOR_BOARD{
         "Naksu - Light Sensor", &BARCUD.dynamic.naksu
+    } );
+    DASHBOARD.emplace_back( new POTENTIOMETER_BOARD{
+        "Kazuha - Potentiometer", &BARCUD.dynamic.kazuha
     } );
     DASHBOARD.emplace_back( new ACCEL_GYRO_BOARD{
         "Gran - Accel & Gyro", &BARCUD.dynamic.gran

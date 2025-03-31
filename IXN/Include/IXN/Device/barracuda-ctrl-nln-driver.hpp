@@ -30,7 +30,7 @@ enum BARRACUDA_CTRL_FLAG : DWORD {
 
 class BarracudaCTRL : public BTH_SOCKET, public WJP_DEVICE {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "BarracudaCTRL" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Dev::BarracudaCTRL" );
 
 public:
     barcud_ctrl::dynamic_t     dynamic                = {};

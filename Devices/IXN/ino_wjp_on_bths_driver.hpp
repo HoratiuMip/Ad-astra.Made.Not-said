@@ -84,8 +84,8 @@ protected:
 
         this->WJP_DEVICE::bind_recv_buf( { addr: _wjp_recv_buf, sz: sizeof( _wjp_recv_buf ) } );
 
-        int status = this->WJP_DEVICE.open( flags );
-        return status == 0 ? ( _printf( "ok.\n" ), 0 ) : ( _printf( "fault (%d).\n", status ), status ) ;
+        int status = this->WJP_DEVICE::open( flags );
+        return status == 0 ? ( _printf( "ok.\n" ), 0 ) : ( _printf( "fault (%d).\n", status ), status );
     }
 
 public:

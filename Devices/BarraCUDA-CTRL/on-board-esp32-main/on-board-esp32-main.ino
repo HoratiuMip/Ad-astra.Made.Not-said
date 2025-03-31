@@ -1,18 +1,12 @@
 #include "../barracuda-ctrl.hpp"
 
-#include <BluetoothSerial.h>
 #include <MPU6050_WE.h>
 #include <Wire.h>
-
-#include "../../IXN/common_utils.hpp"
-using namespace ixN;
-
-#define WJP_ENVIRONMENT_ARDUINO
+#include <BluetoothSerial.h>
+#include "../../IXN/ino_common_utils.hpp"
 #define WJP_ARCHITECTURE_LITTLE
-#include "../../../WJP/wjp.hpp"
-
-#include <atomic>
-
+#include "../../IXN/ino_wjp_on_bths_driver.hpp"
+using namespace ixN::Ino;
 
 
 typedef   int8_t   GPIO_pin_t;
@@ -196,9 +190,9 @@ struct LED {
 
   int operator () ( int8_t idx ) { return this->set( rgbs[ idx ] ); }
 
-  int blink( LED_RGB rgb, bool keep_state, int N, int ms_on, int ms_off ) {
+  int blink( LED_RGB rgb, bool keep_state, int N, int ms_on, int ms_off, LED_RGB off_rgb = rgbs[ BLK ] ) {
     for( int n = 1; n <= N; ++n ) {
-      this->set( rgb ); delay( ms_on ); this->set( BLK ); delay( ms_off );
+      this->set( rgb ); delay( ms_on ); this->set( off_rgb ); delay( ms_off );
     }
     if( keep_state ) this->set( rgb );
     return 0;
@@ -328,7 +322,7 @@ WJP_QGSTBL_ENTRY   PROTO_QGSTBL_ENTRIES[ 3 ]   = {
     str_id: "GRAN_ACC_RANGE", 
     sz: 1, 
     WJP_QGSTBL_READ_WRITE, 
-    qset_func: [] ( void* src, [[maybe_unused]]int16_t sz ) -> const char* { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )src ) ? nullptr : "GRAN_ACC_INVALID_RANGE"; },
+    qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )args.addr ) ? nullptr : "GRAN_ACC_INVALID_RANGE"; },
     qget_func: nullptr,
     src: &GRAN._acc_range
   },
@@ -336,12 +330,14 @@ WJP_QGSTBL_ENTRY   PROTO_QGSTBL_ENTRIES[ 3 ]   = {
     str_id: "GRAN_GYR_RANGE", 
     sz: 1, 
     WJP_QGSTBL_READ_WRITE, 
-    qset_func: [] ( void* src, [[maybe_unused]]int16_t sz ) -> const char* { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )src ) ? nullptr : "GRAN_GYR_INVALID_RANGE"; },
+    qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )args.addr ) ? nullptr : "GRAN_GYR_INVALID_RANGE"; },
     qget_func: nullptr,
     src: &GRAN._gyr_range
   }
 };
 struct _PROTO {
+  char _wjp_recv_buf[ 256 ];
+
   int init( void ) {
     device.bind_qgstbl( WJP_QGSTBL{ 
       entries: PROTO_QGSTBL_ENTRIES, 
@@ -354,6 +350,11 @@ struct _PROTO {
     } );
 
     device.bind_seq_acq( [] ( void ) -> int16_t { return PARAMS._wjp_seq++; } );
+
+    device.bind_recv_buf( WJP_BUFFER{
+        addr: _wjp_recv_buf,
+        sz: sizeof( _wjp_recv_buf )
+    } );
 
     return 0;
   }
@@ -479,7 +480,7 @@ std::function< int( void ) >   loop_procs[]   = {
     PARAMS.reset();
     LOOP_STATE._conn_rst = true;
     _printf( LogLevel_Info, "Ready to relink...\n" );
-    BITNA.blink( LED::BLU, true, 10, 50, 50 );
+    BITNA.blink( LED::BLU, true, 10, 50, 50, LED::rgbs[ LED::RED ] );
     return true;
   },
   /* 0b01 */ [] () -> bool {
@@ -501,7 +502,7 @@ std::function< int( void ) >   loop_procs[]   = {
   /* 0b11 */ [] () -> bool {
     LOOP_STATE._conn_rst = false;
     _printf( LogLevel_Info, "Connected to device.\n" );
-    BITNA.blink( LED::BLU, false, 10, 50, 50 );
+    BITNA.blink( LED::BLU, false, 10, 50, 50, LED::GRN );
     BITNA( LED::BLU );
     return true;
   }

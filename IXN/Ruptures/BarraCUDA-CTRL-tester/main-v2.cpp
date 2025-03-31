@@ -390,10 +390,10 @@ public:
             int ret = BARCUD.wait_back( 
                 &info, 
                 ops_codes[ op_sel ], 
-                buffer, 
-                offset + ixN::Bit::hex_chars2bytes( ( ixN::UBYTE* )buffer + offset, hex_args ), 
-                buffer, 
-                sizeof( buffer ), 
+                { buffer, 
+                offset + ixN::Bit::hex_chars2bytes( ( ixN::UBYTE* )buffer + offset, hex_args ) }, 
+                { buffer, 
+                sizeof( buffer ) }, 
                 WJPSendMethod_Direct 
             );
 
@@ -585,7 +585,7 @@ int main( int argc, char** argv ) {
         "Render", &render
     } );
 
-    BARCUD.bind();
+    IXN_ASSERT( BARCUD.bind().open( 0 ) == 0, -1 );
     
     std::thread burst_th{ [] () -> void {
     l_attempt_connect: {

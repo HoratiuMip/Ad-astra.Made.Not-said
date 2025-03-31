@@ -8,6 +8,11 @@ set( CMAKE_CXX_EXTENSIONS ON )
 message( STATUS "Calibrating IXN engine for build..." )
 
 
+foreach( opt ${IXN_HIGH} )
+    set( IXN_${opt} ON )
+endforeach()
+
+
 # Intrinsics filter. ----------------------------------
 option( IXN_AVX "IXN_AVX" OFF )
 

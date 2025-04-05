@@ -1,249 +1,371 @@
 #include "../barracuda-ctrl.hpp"
+#include "logo.hpp"
 
-#include <MPU6050_WE.h>
 #include <Wire.h>
-#include <BluetoothSerial.h>
-#include "../../IXN/ino_common_utils.hpp"
+#include <MPU6050_WE.h>
+
+#define SSD1306_NO_SPLASH
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#include "../../IXN/common_utils.hpp"
 #define WJP_ARCHITECTURE_LITTLE
-#include "../../IXN/ino_wjp_on_bths_driver.hpp"
-using namespace ixN::Ino;
+#include "../../IXN/Driver/wjp_on_bths.hpp"
+using namespace ixN::uC;
+
+#include <atomic>
+
 
 
 typedef   int8_t   GPIO_pin_t;
-typedef   int8_t   LED_RGB;
+
+enum Mode_ : int {
+    Mode_Game = 0,
+    Mode_Ctrl = 1
+};
 
 
-static struct _PARAMS {
-  void reset() {
-    _printf( LogLevel_Info, "Resetting parameters... " );
-    *this = _PARAMS{};
-    _printf( "ok.\n" );
-  }
 
-  int       dynamic_burst_delay     = 50;
+static struct _CONFIG {
+    std::atomic_int   mode      = { Mode_Game };
 
-} PARAMS;
+    TwoWire*          I2C_bus   = &Wire;
 
+} CONFIG;
 
-static struct _GPIO { 
-  const int   ADC_nmax = 4095;
-  const float ADC_fmax = 4095.0f;
-
-  struct { const GPIO_pin_t sw, x, y; } rachel{ sw: 27, x: 35, y: 32 }, samantha{ sw: 33, x: 26, y: 25 };
-  /*       JOYSTICKS                    |lower left                     |upper right */
-
-  const GPIO_pin_t giselle = 5, karina = 18, ningning = 19, winter = 23;
-  /*       SWS     |blue        |red         |yellow        |green */
-
-  const GPIO_pin_t naksu = 15;
-  /*               |light sensor */
-
-  const GPIO_pin_t kazuha = 4;
-  /*               |potentiometer */
-
-  struct { const GPIO_pin_t r, g, b; } bitna{ r: 13, g: 12, b: 14 };
-
-  int init() {
-    _printf( LogLevel_Info, "Configuring pin modes... " );
-
-    pinMode( rachel.sw, INPUT_PULLUP ); pinMode( rachel.x, INPUT ); pinMode( rachel.y, INPUT );
-    pinMode( samantha.sw, INPUT_PULLUP ); pinMode( samantha.x, INPUT ); pinMode( samantha.y, INPUT );
-
-    pinMode( giselle,  INPUT_PULLUP );
-    pinMode( karina,   INPUT_PULLUP );
-    pinMode( ningning, INPUT_PULLUP );
-    pinMode( winter,   INPUT_PULLUP );
-
-    pinMode( naksu, INPUT );
-    pinMode( kazuha, INPUT );
-
-    pinMode( bitna.r, OUTPUT ); pinMode( bitna.g, OUTPUT ); pinMode( bitna.b, OUTPUT );
-
-    _printf( "ok.\n" );
-
-    return 0;
-  }
-
-} GPIO;
-
-template< typename T >
-T analog_read_mean( GPIO_pin_t pin, int reads, int dt_ms ) {
-  int acc = 0;
-
-  for( int n = 1; n <= reads; ++n ) {
-    acc += analogRead( pin );
-    if( dt_ms > 0 ) delay( dt_ms );
-  }
-
-  return ( T )acc / reads;
-}
-
-
-struct _GRAN : public MPU6050_WE {
-  int init( void ) {
-    _printf( LogLevel_Info, "MPU6050 init... " );
-    if( !this->MPU6050_WE::init() ) {
-      _printf( "fault.\n" );
-      return -1;
-    }
-    _printf( "ok.\n" );
-
-    _printf( LogLevel_Info, "MPU6050 calibrate... " );
-    this->MPU6050_WE::setAccRange( _acc_range );
-    this->MPU6050_WE::setGyrRange( _gyr_range );
-    _printf( "ok.\n" );
-
-    return 0;
-  }
-
-  bool set_acc_range( MPU9250_accRange range ) {
-    if( range < MPU6050_ACC_RANGE_2G || range > MPU6050_ACC_RANGE_16G ) return false;
-    this->MPU6050_WE::setAccRange( _acc_range = range );
-    return true;
-  }
-
-  bool set_gyr_range( MPU9250_gyroRange range ) {
-    if( range < MPU6050_GYRO_RANGE_250 || range > MPU6050_GYRO_RANGE_2000 ) return false;
-    this->MPU6050_WE::setGyrRange( _gyr_range = range );
-    return true;
-  }
-
-  MPU9250_accRange    _acc_range   = MPU6050_ACC_RANGE_2G;          
-  MPU9250_gyroRange   _gyr_range   = MPU6050_GYRO_RANGE_250;  
-
-} GRAN{ MPU6050_WE::WHO_AM_I_CODE };
-
-
-struct LED {
-  enum _IDX : LED_RGB { BLK = 0b000, RED = 0b100, YLW = 0b110, GRN = 0b010, TRQ = 0b011, BLU = 0b001, PRP = 0b101, WHT = 0b111 };
-
-  LED_RGB _crt;
-
-  int set( LED_RGB rgb ) {
-    digitalWrite( GPIO.bitna.r, ( rgb >> 2 ) & 1 );
-    digitalWrite( GPIO.bitna.g, ( rgb >> 1 ) & 1 );
-    digitalWrite( GPIO.bitna.b, ( rgb ) & 1 );
-    _crt = rgb;
-    return 0;
-  }
-
-  int operator () ( LED_RGB rgb ) { return this->set( rgb ); }
-
-  int blink( LED_RGB on_rgb, LED_RGB off_rgb, LED_RGB leave_rgb, int N, int ms_on, int ms_off ) {
-    for( int n = 1; n <= N; ++n ) {
-      this->set( on_rgb ); delay( ms_on ); this->set( off_rgb ); delay( ms_off );
-    }
-    this->set( leave_rgb );
-    return 0;
-  }
-
-  void test_rgb( int ms ) {
-    LED_RGB prev = _crt;
-
-    for( LED_RGB rgb = 0; rgb < 7; ++rgb ) {
-      this->set( rgb ); delay( ms );
+static struct _CONFIG_CTRL_MODE {
+    void reset() {
+        _printf( "Control mode configuration reset... " );
+        *this = _CONFIG_CTRL_MODE{};
+        _printf( "ok.\n" );
     }
 
-    this->set( prev );
-  }
+    int   dynamic_period   = 10;
+
+} CONFIG_CTRL_MODE;
+
+
+
+struct GPIO { 
+    inline static const int     ADC_nmax   = 4095;
+    inline static const float   ADC_fmax   = 4095.0f;
+
+    inline static struct { const GPIO_pin_t sw, x, y; } rachel{ sw: 27, x: 35, y: 32 }, samantha{ sw: 33, x: 26, y: 25 };
+    /*                                                  |lower left                     |upper right */
+
+    inline static const GPIO_pin_t giselle = 5, karina = 18, ningning = 23, winter = 19;
+    /*                             |blue        |red         |yellow        |green */
+
+    inline static const GPIO_pin_t naksu = 15;
+    /*                             |light sensor */
+
+    inline static const GPIO_pin_t kazuha = 4;
+    /*                             |potentiometer */
+
+    inline static struct { const GPIO_pin_t r, g, b; } bitna{ r: 13, g: 12, b: 14 };
+    /*                                                 |led */
+
+    /**
+     * @brief Configures the pins' modes.
+     * @returns `0` on success, negative otherwise.
+     * @attention Should always return `0`.
+     */
+    static int init( void ) {
+        _printf( LogLevel_Info, "Configuring pin modes... " );
+
+        pinMode( rachel.sw, INPUT_PULLUP ); pinMode( rachel.x, INPUT ); pinMode( rachel.y, INPUT );
+        pinMode( samantha.sw, INPUT_PULLUP ); pinMode( samantha.x, INPUT ); pinMode( samantha.y, INPUT );
+
+        pinMode( giselle,  INPUT_PULLUP );
+        pinMode( karina,   INPUT_PULLUP );
+        pinMode( ningning, INPUT_PULLUP );
+        pinMode( winter,   INPUT_PULLUP );
+
+        pinMode( naksu, INPUT );
+        pinMode( kazuha, INPUT );
+
+        pinMode( bitna.r, OUTPUT ); pinMode( bitna.g, OUTPUT ); pinMode( bitna.b, OUTPUT );
+
+        _printf( "ok.\n" );
+
+        return 0;
+    }
+
+    inline static int d_r( GPIO_pin_t pin ) { return digitalRead( pin ); }
+    inline static void d_w( GPIO_pin_t pin, int level ) { digitalWrite( pin, level ); }
+    inline static int a_r( GPIO_pin_t pin ) { return analogRead( pin ); }
+    inline static void a_w( GPIO_pin_t pin ); 
+
+    /**
+     * @brief Performs N analog reads on pin.
+     * @returns The mean of the `N` reads, as `_T`, in the range [ `0,  2^{ADC resolution}-1` ].
+     * @param[ in ] pin: The pin number.
+     * @param[ in ] N: The number of reads to perform.
+     */
+    template< typename _T > _T static a_rm( GPIO_pin_t pin, int N ) {
+        int acc = 0;
+        for( int n = 1; n <= N; ++n ) acc += a_r( pin );
+        return ( _T )acc / N;
+    }
+
+};
+
+
+
+#define Led_BLK 0b000
+#define Led_RED 0b100
+#define Led_YLW 0b110
+#define Led_GRN 0b010
+#define Led_TRQ 0b011
+#define Led_BLU 0b001
+#define Led_PRP 0b101
+#define Led_WHT 0b111
+typedef   int8_t   Led_;
+static struct _BITNA {
+    Led_   _crt   = Led_BLK;
+    
+    /**
+     * @brief Sets the accelerometer's range.
+     * @param[ in ] rgb: The RGB value to write.
+     */
+    _BITNA& set( Led_ rgb ) {
+        GPIO::d_w( GPIO::bitna.r, ( rgb >> 2 ) & 1 );
+        GPIO::d_w( GPIO::bitna.g, ( rgb >> 1 ) & 1 );
+        GPIO::d_w( GPIO::bitna.b, ( rgb ) & 1 );
+        _crt = rgb;
+        return *this;
+    }
+    
+    /**
+     * @brief Calls `this->set( rgb )`.
+     */
+    inline _BITNA& operator () ( Led_ rgb ) { return this->set( rgb ); }
+
+    /**
+     * @brief OR with the current color and write it.
+     */
+    inline _BITNA& operator |= ( Led_ rgb ) { return this->set( _crt | rgb ); }
+    /**
+     * @brief AND with the current color and write it.
+     */
+    inline _BITNA& operator &= ( Led_ rgb ) { return this->set( _crt & rgb ); }
+    /**
+     * @brief XOR with the current color and write it.
+     */
+    inline _BITNA& operator ^= ( Led_ rgb ) { return this->set( _crt ^ rgb ); }
+
+    /**
+     * @brief Blink the LED.
+     * @attention The LED color is left as `off_rgb` after this function returns.
+     * @param[ in ] N: The number of cycles.
+     * @param[ in ] on/off_rgb: The RGB during the `ON/OFF` period. 
+     * @param[ in ] ms_on/off: The `ON/OFF` period duration, in `ms`.
+     */
+    _BITNA& blink( int N, Led_ on_rgb, Led_ off_rgb, int ms_on, int ms_off ) {
+        for( int n = 1; n <= N; ++n ) {
+            this->set( on_rgb ); vTaskDelay( ms_on ); this->set( off_rgb ); vTaskDelay( ms_off );
+        }
+        return *this;
+    }
+
+    /**
+     * @brief Cycles through the 8 possible colors.
+     * @attention This function preserves the color of the LED before the call.
+     * @param[ in ] ms: The duration of each color, in `ms`.
+     */
+    void test_rgb( int ms ) {
+        Led_ prev = _crt;
+
+        for( int8_t rgb = 0; rgb <= 7; ++rgb ) {
+            this->set( ( Led_ )rgb ); vTaskDelay( ms );
+        }
+
+        this->set( prev );
+    }
 
 } BITNA;
 
-
-struct _DYNAMIC : WJP_HEAD, barcud_ctrl::dynamic_t {
-  struct {
-    struct { float x, y; } rachel, samantha;
-  } _idle_reads;
-
-  int init( void ) {
-    _printf( LogLevel_Info, "Proto head init... " );
-    WJP_HEAD::_dw0.op  = WJPOp_IBurst;
-    WJP_HEAD::_dw1.seq = 0;
-    WJP_HEAD::_dw3.sz  = sizeof( barcud_ctrl::dynamic_t ); 
-    _printf( "ok.\n" );
-
-    _printf( LogLevel_Info, "Joysticks calibrate... " );
-    _idle_reads.rachel.x = analog_read_mean< float >( GPIO.rachel.x, 10, 1 ); _idle_reads.rachel.y = analog_read_mean< float >( GPIO.rachel.y, 10, 1 );
-    _idle_reads.samantha.x = analog_read_mean< float >( GPIO.samantha.x, 10, 1 ); _idle_reads.samantha.y = analog_read_mean< float >( GPIO.samantha.y, 10, 1 );
-    _printf( "ok.\n" );
-
-    return GRAN.init();
-  }
-
-  void scan( void ) {
-    rachel.x = analogRead( GPIO.rachel.x ); rachel.y = analogRead( GPIO.rachel.y );
-    samantha.x = analogRead( GPIO.samantha.x ); samantha.y = analogRead( GPIO.samantha.y );
-
-    const auto _resolve_joystick_axis = [] ( float& read, float idle_read ) -> void {
-      if( ( read -= idle_read ) < .0 ) 
-        read /= idle_read;
-      else
-        read /= 4095.0 - idle_read;
-    };
-
-    _resolve_joystick_axis( rachel.x, _idle_reads.rachel.x ); _resolve_joystick_axis( rachel.y, _idle_reads.rachel.y );
-    _resolve_joystick_axis( samantha.x, _idle_reads.samantha.x ); _resolve_joystick_axis( samantha.y, _idle_reads.samantha.y );
-
-    samantha.y *= -1.0;
+static struct _YUNA : public Adafruit_SSD1306 {
+    using Adafruit_SSD1306::Adafruit_SSD1306;
+    using Adafruit_SSD1306::WIDTH;
+    using Adafruit_SSD1306::HEIGHT;
     
+    /**
+     * @brief Configures the display.
+     * @returns `0` on success, negative otherwise.
+     */
+    int init( void ) {
+        if( !this->begin( SSD1306_SWITCHCAPVCC, 0x3C ) ) return -1;
+        this->setTextColor( SSD1306_WHITE );
+        this->setTextWrap( false );
+        this->clearDisplay();
+        this->drawBitmap(0, 0, BARRACUDA_CTRL_LOGO, 128, 64, 1);
+        this->display(); this->invertDisplay(1);
+        
+        return 0;
+    }
 
-    const auto _resolve_switch = [] ( barcud_ctrl::switch_t& sw, GPIO_pin_t pin ) -> void {
-      int is_dwn = !digitalRead( pin );
+    static void splash( void* flag );
 
-      switch( ( sw.dwn << 1 ) | is_dwn ) {
-        /* case 0b00: [[fallthrough]]; */
-        /* case 0b11: sw.rls = 0; sw.prs = 0; break; */
-        case 0b01: /* sw.rls = 0; */ sw.prs = 1; break;
-        case 0b10: sw.rls = 1; /* sw.prs = 0; */ break;
-      }
+} YUNA{ 128, 64, CONFIG.I2C_bus, -1 };
 
-      sw.dwn = is_dwn;
-    };
+static struct _GRAN : public MPU6050_WE {
+    using MPU6050_WE::MPU6050_WE;
 
-    _resolve_switch( rachel.sw,   GPIO.rachel.sw );
-    _resolve_switch( samantha.sw, GPIO.samantha.sw );
-    _resolve_switch( giselle,     GPIO.giselle );
-    _resolve_switch( karina,      GPIO.karina );
-    _resolve_switch( ningning,    GPIO.ningning );
-    _resolve_switch( winter,      GPIO.winter);
+    /**
+     * @brief Configures the gyroscope and accelerometer ( MPU-6050 chip ).
+     * @returns 0 on success, negative otherwise.
+     */
+    int init( void ) {
+        _printf( LogLevel_Info, "MPU6050 init... " );
+        if( !this->MPU6050_WE::init() ) {
+        _printf( "fault.\n" );
+        return -1;
+        }
+        _printf( "ok.\n" );
 
+        _printf( LogLevel_Info, "MPU6050 calibrate... " );
+        this->MPU6050_WE::setAccRange( MPU6050_ACC_RANGE_2G );
+        this->MPU6050_WE::setGyrRange( MPU6050_GYRO_RANGE_250 );
+        _printf( "ok.\n" );
 
-    xyzFloat acc_read = GRAN.getGValues();
-    gran.acc = { x: acc_read.y, y: -acc_read.x, z: acc_read.z };
-    xyzFloat gyr_read = GRAN.getGyrValues();
-    gran.gyr = { x: gyr_read.y, y: -gyr_read.x, z: gyr_read.z };
+        return 0;
+    }
 
-    naksu.lvl = 1.0 - sqrt( analogRead( GPIO.naksu ) / GPIO.ADC_fmax );
-    kazuha.lvl = analogRead( GPIO.kazuha ) / GPIO.ADC_fmax;
-  }
+    /**
+     * @brief Sets the accelerometer's range.
+     * @returns 0 on success, negative otherwise.
+     */
+    bool set_acc_range( MPU9250_accRange range ) {
+        if( range < MPU6050_ACC_RANGE_2G || range > MPU6050_ACC_RANGE_16G ) return false;
+        this->MPU6050_WE::setAccRange( range );
+        return true;
+    }
 
-  void reset_sw_prs_rls() {
-    rachel.sw.rls = 0; rachel.sw.prs = 0;
-    samantha.sw.rls = 0; samantha.sw.prs = 0;
-    giselle.rls = 0; giselle.prs = 0;
-    karina.rls = 0; karina.prs = 0;
-    ningning.rls = 0; ningning.prs = 0;
-    winter.rls = 0; winter.prs = 0;
-  }
+    /**
+     * @brief Sets the gyroscope's range.
+     * @returns 0 on success, negative otherwise.
+     */
+    bool set_gyr_range( MPU9250_gyroRange range ) {
+        if( range < MPU6050_GYRO_RANGE_250 || range > MPU6050_GYRO_RANGE_2000 ) return false;
+        this->MPU6050_WE::setGyrRange( range );
+        return true;
+    }
+
+} GRAN{ CONFIG.I2C_bus, MPU6050_WE::WHO_AM_I_CODE };
+
+#define _DYNAM_SCAN_IF( bit, jmp_lbl ) if( ( flags & ( 1 << bit ) ) == 0 ) goto jmp_lbl;
+enum Scan_ : int {
+    Scan_Joysticks   = ( 1 << 0 ),
+    Scan_Switches    = ( 1 << 1 ),
+    Scan_Accel       = ( 1 << 2 ),
+    Scan_Gyro        = ( 1 << 3 ),
+    Scan_Light       = ( 1 << 4 ),
+    Scan_Potentio    = ( 1 << 5 ),
+
+    Scan_All         = ~0
+};
+static struct _DYNAM : WJP_HEAD, barcud_ctrl::dynamic_t {
+    struct {
+        struct { float x, y; } rachel, samantha;
+    } _idle_reads;
+
+    /**
+     * @brief Configures parameters for proper dynam flow.
+     * @returns `0` on success, negative otherwise.
+     */
+    int init( void ) {
+        int status = 0;
+
+        _printf( LogLevel_Info, "Proto head init... " );
+        WJP_HEAD::_dw0.op  = WJPOp_IBurst;
+        WJP_HEAD::_dw1.seq = 0;
+        WJP_HEAD::_dw3.sz  = sizeof( barcud_ctrl::dynamic_t ); 
+        _printf( "ok.\n" );
+
+        _printf( LogLevel_Info, "Joysticks calibrate... " );
+        _idle_reads.rachel.x = GPIO::a_rm< float >( GPIO::rachel.x, 10 ); _idle_reads.rachel.y = GPIO::a_rm< float >( GPIO::rachel.y, 10 );
+        _idle_reads.samantha.x = GPIO::a_rm< float >( GPIO::samantha.x, 10 ); _idle_reads.samantha.y = GPIO::a_rm< float >( GPIO::samantha.y, 10 );
+        _printf( "ok.\n" );
+
+        status = GRAN.init(); if( status != 0 ) return status;
+        //status = YUNA.init(); if( status != 0 ) return status;
+
+        return status;
+    }
+
+    /**
+     * @brief Updates the dynam values.
+     * @param[ in ] flags: Flags to select function behaviour. Default, updates everything.
+     */
+    void scan( int flags = Scan_All ) {
+    /* Joysticks */ l_joysticks: _DYNAM_SCAN_IF( 0, l_switches ); {
+        const auto _resolve_joystick_axis = [] ( float& read, float idle_read ) static -> void {
+            if( ( read -= idle_read ) < 0.0f ) 
+                read /= idle_read;
+            else
+                read /= GPIO::ADC_fmax - idle_read;
+        };
+
+        rachel.x = GPIO::a_r( GPIO::rachel.x ); rachel.y = GPIO::a_r( GPIO::rachel.y );
+        samantha.x = GPIO::a_r( GPIO::samantha.x ); samantha.y = GPIO::a_r( GPIO::samantha.y );
+
+        _resolve_joystick_axis( rachel.x, _idle_reads.rachel.x ); _resolve_joystick_axis( rachel.y, _idle_reads.rachel.y );
+        _resolve_joystick_axis( samantha.x, _idle_reads.samantha.x ); _resolve_joystick_axis( samantha.y, _idle_reads.samantha.y );
+
+        samantha.y *= -1.0f;
+    }
+    /* Switches */ l_switches: _DYNAM_SCAN_IF( 1, l_accel ); {
+        const auto _resolve_switch = [] ( barcud_ctrl::switch_t& sw, GPIO_pin_t pin ) static -> void {
+        int is_dwn = !digitalRead( pin );
+
+        switch( ( sw.dwn << 1 ) | is_dwn ) {
+            /* case 0b00: [[fallthrough]]; */
+            /* case 0b11: sw.rls = 0; sw.prs = 0; break; */
+            case 0b01: /* sw.rls = 0; */ sw.prs = 1; break;
+            case 0b10: sw.rls = 1; /* sw.prs = 0; */ break;
+        }
+
+        sw.dwn = is_dwn;
+        };
+
+        _resolve_switch( rachel.sw,   GPIO::rachel.sw );
+        _resolve_switch( samantha.sw, GPIO::samantha.sw );
+        _resolve_switch( giselle,     GPIO::giselle );
+        _resolve_switch( karina,      GPIO::karina );
+        _resolve_switch( ningning,    GPIO::ningning );
+        _resolve_switch( winter,      GPIO::winter);
+    }
+    /* Acceleration */ l_accel: _DYNAM_SCAN_IF( 2, l_gyro ); {
+        xyzFloat acc_read = GRAN.getGValues();
+        gran.acc = { x: acc_read.y, y: -acc_read.x, z: acc_read.z };
+    }
+    /* Gyroscope */ l_gyro: _DYNAM_SCAN_IF( 3, l_light ); {
+        xyzFloat gyr_read = GRAN.getGyrValues();
+        gran.gyr = { x: gyr_read.y, y: -gyr_read.x, z: gyr_read.z };
+    }
+    /* Light */ l_light: _DYNAM_SCAN_IF( 4, l_potentio ); {
+        naksu.lvl = 1.0 - sqrt( analogRead( GPIO::naksu ) / GPIO::ADC_fmax );
+    }
+    /* Potentiometer */ l_potentio: _DYNAM_SCAN_IF( 5, l_end ); {
+        kazuha.lvl = analogRead( GPIO::kazuha ) / GPIO::ADC_fmax;
+    }
+    l_end: return;
+    }
+
+    void reset_sw_prs_rls() {
+        rachel.sw.rls = 0; rachel.sw.prs = 0;
+        samantha.sw.rls = 0; samantha.sw.prs = 0;
+        giselle.rls = 0; giselle.prs = 0;
+        karina.rls = 0; karina.prs = 0;
+        ningning.rls = 0; ningning.prs = 0;
+        winter.rls = 0; winter.prs = 0;
+    }
 
   int blue_tx( void );
 
-  void serial_tx_dynamic_state( void ) {
-    char buffer[ 256 ];
+} DYNAM;
 
-    sprintf( buffer, 
-        "Rachel( S, X, Y ) = ( %d, %f, %f )\n" \
-        "Samantha( S, X, Y ) = ( %d, %f, %f )\n" \
-        "Switches( G, Y, R, B ) = ( %d, %d, %d, %d )\0",
-        rachel.sw.dwn, rachel.x, rachel.y,
-        samantha.sw.dwn, samantha.x, samantha.y,
-        karina.dwn, karina.dwn, karina.dwn, karina.dwn
-    );
-
-    Serial.println( buffer );
-  }
-
-} DYNAMIC;
 
 
 static WJP_QGSTBL_ENTRY QGSTBL[ 3 ] = {
@@ -261,7 +383,7 @@ static WJP_QGSTBL_ENTRY QGSTBL[ 3 ] = {
     WJP_QGSTBL_READ_WRITE, 
     qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )args.addr ) ? nullptr : "GRAN_ACC_INVALID_RANGE"; },
     qget_func: nullptr,
-    src: &GRAN._acc_range
+    src: nullptr
   },
   { 
     str_id: "GRAN_GYR_RANGE", 
@@ -269,23 +391,25 @@ static WJP_QGSTBL_ENTRY QGSTBL[ 3 ] = {
     WJP_QGSTBL_READ_WRITE, 
     qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )args.addr ) ? nullptr : "GRAN_GYR_INVALID_RANGE"; },
     qget_func: nullptr,
-    src: &GRAN._gyr_range
+    src: nullptr
   }
 };
 struct {
   WJP_on_BluetoothSerial   wjblu;
 
-  int init() {
+  int init( void ) {
+    _printf( LogLevel_Info, "I^2C wire begin... " );
+    Wire.begin();
+    _printf( "ok.\n" );
+
+    YUNA.init();
+    
     wjblu.bind_qgstbl( WJP_QGSTBL{ 
       entries: QGSTBL, 
       count: sizeof( QGSTBL ) / sizeof( WJP_QGSTBL_ENTRY ) 
     } );
     wjblu.begin( barcud_ctrl::DEVICE_NAME, 0 );
 
-    _printf( LogLevel_Info, "I^2C wire begin... " );
-    Wire.begin();
-    _printf( "ok.\n" );
-    
     return 0;
   }
 
@@ -318,81 +442,94 @@ struct {
 void _dead( void ) {
   COM.wjblu.end();
   Wire.end();
-  while( 1 ) BITNA.blink( LED::RED, LED::BLK, LED::BLK, 1, 1000, 1000 );
+  while( 1 ) BITNA.blink( 1, Led_RED, Led_BLK, 1000, 1000 );
 }
 
 
 int do_tests( void ) {
-  _printf( LogLevel_Info, "Beginning tests.\n" );
+    _printf( LogLevel_Info, "Beginning tests.\n" );
 
-  const auto _get_test = [] () -> int8_t {
-    DYNAMIC.scan();
-    return ( DYNAMIC.giselle.dwn << 3 ) | ( DYNAMIC.karina.dwn << 2 ) | ( DYNAMIC.ningning.dwn << 1 ) | DYNAMIC.winter.dwn;
-  };
+    const auto _get_test = [] () static -> int8_t {
+        DYNAM.scan( Scan_Switches );
+        return ( DYNAM.giselle.dwn << 3 ) | ( DYNAM.karina.dwn << 2 ) | ( DYNAM.ningning.dwn << 1 ) | DYNAM.winter.dwn;
+    };
 
-  const auto _begin = [] ( const char* test_name ) -> void {
-    _printf( LogLevel_Info, "Acknowledged test [ %s ]...", test_name );
-    BITNA.blink( LED::TRQ, LED::BLK, LED::BLK, 10, 50, 50 );
-  };
-  const auto _end = [] () -> void {
-    BITNA.blink( LED::TRQ, LED::BLK, LED::BLK, 10, 50, 50 );
-    _printf( " ok.\n" );
-  };
+    const auto _begin = [] ( const char* test_name ) static -> void {
+        _printf( LogLevel_Info, "Acknowledged test [ %s ]...", test_name );
+        BITNA.blink( 10, Led_TRQ, Led_BLK, 50, 50 );
+    };
+    const auto _end = [] () static -> void {
+        BITNA.blink( 10, Led_TRQ, Led_BLK, 50, 50 );
+        _printf( " ok.\n" );
+    };
 
-  int test_count = 0;
+    int test_count = 0;
 
 l_test_begin: {
-    BITNA.blink( LED::TRQ, LED::BLK, LED::TRQ, 1, 100, 500 );
+    BITNA.blink( 1, Led_TRQ, Led_BLK, 100, 500 );
     int8_t test = _get_test();
 
     switch( test ) {
-      case 0b0000: goto l_test_begin;
-      case 0b1001: goto l_test_end;
+        case 0b0000: goto l_test_begin;
+        case 0b1001: goto l_test_end;
 
-      case 0b0100: {
-        _begin( "STATUS-LED" ); BITNA.test_rgb( 2000 ); _end();
-      break; }
+        case 0b0100: {
+            _begin( "BITNA - LED color cycle" ); BITNA.test_rgb( 2000 ); _end();
+        break; }
 
-      default: goto l_test_begin;
+        default: goto l_test_begin;
     }
 
     ++test_count;
     goto l_test_begin;
 }
 l_test_end:
-  _printf( LogLevel_Info, "Tests ended. Completed (%d) tests.\n", test_count ) ;
-  return test_count;
+    _printf( LogLevel_Info, "Tests ended. Completed (%d) tests.\n", test_count ) ;
+    return test_count;
 }
 
 
-#define SETUP_CRITICAL_ASSERT( c ) if( !c ) { _printf( LogLevel_Critical, "CRITICAL ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n" ); _dead(); }
+#define _SETUP_ASSERT_OR_DEAD( c ) if( !(c) ) { _printf( LogLevel_Critical, "SETUP ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n" ); _dead(); *(int*)0=*(int*)-1=*(int*)1; }
 void setup( void ) {
-  Serial.begin( 115200 );
+    _SETUP_ASSERT_OR_DEAD( GPIO::init() == 0 );
+    BITNA( Led_RED ); vTaskDelay( 300 );
 
-  SETUP_CRITICAL_ASSERT( GPIO.init() == 0 );
-  
-  BITNA.blink( LED::RED, LED::BLK, LED::BLK, 10, 50, 50 );
+    Serial.begin( 115200 );
 
-  SETUP_CRITICAL_ASSERT( COM.init() == 0 );
+    _SETUP_ASSERT_OR_DEAD( YUNA.init() == 0 );
+    BITNA |= Led_BLU; vTaskDelay( 300 );
 
-  SETUP_CRITICAL_ASSERT( DYNAMIC.init() == 0 );
+    TaskHandle_t task;
+    auto status = xTaskCreatePinnedToCore(
+        &_YUNA::splash,
+        "YUNA splash",
+        4096,
+        nullptr,
+        0,
+        &task,
+        0
+    );
+                    
+    _SETUP_ASSERT_OR_DEAD( COM.init() == 0 );
 
-  PARAMS.reset();
+    _SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0 );
 
-  _printf( LogLevel_Ok, "Setup complete.\n" );
-  BITNA.blink( LED::GRN, LED::BLK, LED::BLK, 10, 50, 50 );
+    CONFIG_CTRL_MODE.reset();
 
-  _printf( LogLevel_Info, "Scanning for tests request.\n" );
-  DYNAMIC.scan();
-  if( DYNAMIC.giselle.dwn ) {
-    do_tests();
-  } else {
-    _printf( LogLevel_Info, "No tests request.\n" );
-  }
+    _printf( LogLevel_Ok, "Setup complete.\n" );
+    BITNA.blink( 10, Led_GRN, Led_BLK, 50, 50 );
 
-  _printf( LogLevel_Ok, "Ready for link...\n" );
+    _printf( LogLevel_Info, "Scanning for tests request.\n" );
+    DYNAM.scan( Scan_Switches );
+    if( DYNAM.giselle.dwn ) {
+        do_tests();
+    } else {
+        _printf( LogLevel_Info, "No tests request.\n" );
+    }
 
-  BITNA( LED::BLU );
+    _printf( LogLevel_Ok, "Ready for link...\n" );
+
+    BITNA( Led_BLU );
 }
 
 
@@ -404,32 +541,32 @@ struct _LOOP_STATE {
 std::function< int( void ) >   loop_procs[]   = {
   /* 0b00 */ [] () -> bool {
     _printf( LogLevel_Info, "Disconnected from device.\n" );
-    PARAMS.reset();
+    CONFIG_CTRL_MODE.reset();
     LOOP_STATE._conn_rst = true;
     _printf( LogLevel_Info, "Ready to relink...\n" );
-    BITNA.blink( LED::BLU, LED::RED, LED::BLU, 10, 50, 50 );
+    BITNA.blink( 10, Led_BLU, Led_RED, 50, 50 );
     return true;
   },
   /* 0b01 */ [] () -> bool {
     if( COM.loop() != 0 ) {
-      BITNA.blink( LED::RED, LED::BLK, LED::RED, 9, 100, 500 );
+      BITNA.blink( 10, Led_RED, Led_BLK, 100, 500 );
       COM.wjblu.disconnect();
       return true;
     }
     
-    DYNAMIC.scan();
-    DYNAMIC.blue_tx();
+    DYNAM.scan();
+    DYNAM.blue_tx();
 
     return true;
   },
   /* 0b10 */ [] () -> bool {
-    BITNA.blink( LED::BLU, LED::BLK, LED::BLU, 1, 100, 500 );
+    BITNA.blink( 1, Led_BLU, Led_BLK, 100, 500 );
     return true;
   },
   /* 0b11 */ [] () -> bool {
     LOOP_STATE._conn_rst = false;
     _printf( LogLevel_Info, "Connected to device.\n" );
-    BITNA.blink( LED::BLU, LED::BLK, LED::BLU, 10, 50, 50 );
+    BITNA.blink( 10, Led_BLU, Led_BLK, 50, 50 );
     return true;
   }
 };
@@ -439,16 +576,21 @@ void loop( void ) {
 }
 
 
-int _DYNAMIC::blue_tx( void ) {
+int _DYNAM::blue_tx( void ) {
   static int last_ms = millis();
   static int current_ms;
 
   current_ms = millis();
-  if( current_ms - last_ms < PARAMS.dynamic_burst_delay ) return 0;
+  if( current_ms - last_ms < CONFIG_CTRL_MODE.dynamic_period ) return 0;
 
   last_ms = current_ms;
   int ret = COM.wjblu.trust_burst( this, sizeof( WJP_HEAD ) + WJP_HEAD::_dw3.sz, 0 );
 
   this->reset_sw_prs_rls();
   return ret;
+}
+
+
+void _YUNA::splash( void* flag ) { bool inv = false;
+    while( true ) { BITNA ^= Led_GRN; vTaskDelay( 500 ); YUNA.invertDisplay( inv ^= true ); }
 }

@@ -1,11 +1,10 @@
 #pragma once
-/*
-BARRACUDA_CTRL_BUILD_FOR_ON_BOARD_UC
-BARRACUDA_CTRL_BUILD_FOR_ENGINE_DRIVER
-
-BARRACUDA_CTRL_ARCHITECTURE_LITTLE
-BARRACUDA_CTRL_ARCHITECTURE_BIG
-*/
+/*===== BarraCUDA-CTRL - Main header. - Vatca "Mipsan" Tudor-Horatiu
+|
+|=== DESCRIPTION
+> The quintessential structures of the controller.
+|
+======*/
 
 namespace barcud_ctrl {
 
@@ -14,24 +13,25 @@ const wchar_t* const DEVICE_NAME_W = L"BarraCUDA-CTRL";
 
 
 struct switch_t {
-    int8_t   dwn         = 0;
-    int8_t   prs         = 0;
-    int8_t   rls         = 0;
-    int8_t   _reserved   = 0;
+    uint8_t   dwn       : 1   = 0;
+    uint8_t   prs       : 1   = 0;
+    uint8_t   rls       : 1   = 0;
+    int8_t    _reserved : 5   = 0;
 };
-static_assert( sizeof( switch_t ) == sizeof( int32_t ) );
+static_assert( sizeof( switch_t ) == sizeof( int8_t ) );
 
 struct joystick_t {
-    switch_t   sw          = {};
-    float      x           = 0.0;
-    float      y           = 0.0;
-    int32_t    _reserved   = 0;
+    float      x            = 0.0;
+    float      y            = 0.0;
+    switch_t   sw           = {};
+    int8_t     _reserver1   = 0;
+    int16_t    _reserved2   = 0;
 };
-static_assert( sizeof( joystick_t ) == sizeof( switch_t ) + 2*sizeof( float ) + sizeof( int32_t ) );
+static_assert( sizeof( joystick_t ) == 2*sizeof( float ) + sizeof( switch_t ) + 3 );
 
 struct gyro_t {
-    struct { float x, y, z; }   acc        = { 0, 0, 0 };
-    struct { float x, y, z; }   gyr        = { 0, 0, 0 };
+    struct { float x, y, z; }   acc         = { 0, 0, 0 };
+    struct { float x, y, z; }   gyr         = { 0, 0, 0 };
     int32_t                     _reserved   = 0;
 };
 static_assert( sizeof( gyro_t ) == 6*sizeof( float ) + sizeof( int32_t ) );

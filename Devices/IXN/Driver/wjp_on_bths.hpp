@@ -1,16 +1,16 @@
 #pragma once
-/*====== IXT-NLN Engine - Arduino WJP on BluetoothSerial driver - Vatca "Mipsan" Tudor-Horatiu
+/*====== IXT-NLN Engine - uC WJP on BluetoothSerial driver - Vatca "Mipsan" Tudor-Horatiu
 |
 >
 |
 ======*/
-#include "ino_common_utils.hpp"
-#define WJP_ENVIRONMENT_ARDUINO
-#include "../../WJP/wjp.hpp"
+#include "../common_utils.hpp"
+#define WJP_ENVIRONMENT_UC
+#include "../../../WJP/wjp.hpp"
 #include "BluetoothSerial.h"
 
 
-namespace ixN { namespace Ino {
+namespace ixN { namespace uC {
 
 
 class WJP_on_BluetoothSerial : public WJP_DEVICE, public BluetoothSerial {
@@ -82,7 +82,7 @@ protected:
 
         this->WJP_DEVICE::bind_seq_acq( [ this ] () -> int16_t { return _wjp_seq.fetch_add( 1, std::memory_order_relaxed ); } );
 
-        this->WJP_DEVICE::bind_recv_buf( { addr: _wjp_recv_buf, sz: sizeof( _wjp_recv_buf ) } );
+        this->WJP_DEVICE::bind_recv_buf( WJP_BUFFER{ addr: _wjp_recv_buf, sz: sizeof( _wjp_recv_buf ) } );
 
         int status = this->WJP_DEVICE::open( flags );
         return status == 0 ? ( _printf( "ok.\n" ), 0 ) : ( _printf( "fault (%d).\n", status ), status );

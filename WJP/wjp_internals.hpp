@@ -6,7 +6,7 @@
 ======*/
 
 
-#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_ARDUINO )
+#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_UC )
     #include <atomic>
     #include <deque>
     #include <mutex>
@@ -15,7 +15,7 @@
 
 #if defined( WJP_ENVIRONMENT_MINGW )
     #define _WJP_forceinline __forceinline
-#elif defined( WJP_ENVIRONMENT_ARDUINO )
+#elif defined( WJP_ENVIRONMENT_UC )
     #define _WJP_forceinline inline
 #else
     #error "[ WJP ] Environment not specified or unsupported."
@@ -29,7 +29,7 @@
 |>  INTERLOCKED ======
 */
 /* Memory orders. */
-#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_ARDUINO )
+#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_UC )
     #define _WJP_MEM_ORD         std::memory_order
     #define _WJP_MEM_ORD_ARG     std::memory_order mem_ord
     #define _WJP_MEM_ORD_DFT_ARG _WJP_MEM_ORD_ARG = _WJP_MEM_ORD_SEQ_CST
@@ -48,12 +48,12 @@
 struct _WJP_INTERLOCKED_BOOL {
 
 /* Flag. */
-#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_ARDUINO )
+#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_UC )
     std::atomic_bool   _flag;
 #endif
 
 /* Read/Write. */
-#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_ARDUINO )
+#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_UC )
     _WJP_forceinline bool read( _WJP_MEM_ORD_DFT_ARG ) { return _flag.load( mem_ord ); }
     _WJP_forceinline void write( bool flag, _WJP_MEM_ORD_DFT_ARG ) { return _flag.store( flag, mem_ord ); }
 #else
@@ -87,7 +87,7 @@ struct _WJP_INTERLOCKED_BOOL {
 */
 template< typename _T > struct _WJP_INTERLOCKED_QUEUE {
 
-#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_ARDUINO )
+#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_UC )
     std::deque< _T >   _deq;
     std::mutex         _mtx;
 

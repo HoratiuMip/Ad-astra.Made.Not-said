@@ -1,12 +1,12 @@
 #pragma once
-/*====== IXT-NLN Engine - Arduino common utils - Vatca "Mipsan" Tudor-Horatiu
+/*====== IXT-NLN Engine - uC common utils - Vatca "Mipsan" Tudor-Horatiu
 |
 >
 |
 ======*/
 
 
-namespace ixN { namespace Ino {
+namespace ixN { namespace uC {
 
 
 enum LogLevel_ {

@@ -7,7 +7,7 @@
 #include <conio.h>
 
 
-using namespace barcud_ctrl;
+using namespace barra;
 using namespace ixN;
 using namespace ixN::Dev;
 

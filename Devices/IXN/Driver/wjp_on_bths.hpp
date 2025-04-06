@@ -1,5 +1,5 @@
 #pragma once
-/*====== IXT-NLN Engine - uC WJP on BluetoothSerial driver - Vatca "Mipsan" Tudor-Horatiu
+/*====== IXT-NLN uC Engine - WJP on BluetoothSerial driver - Vatca "Mipsan" Tudor-Horatiu
 |
 >
 |
@@ -24,11 +24,6 @@ protected:
     int                   _blue_recv_err_timeout   = 3000;
 
 protected:
-    int _blue_begin( const char* bth_name ) {
-        _printf( LogLevel_Info, WHO_AM_I_STR, "[2/2] Bluetooth begin... " );
-        return this->BluetoothSerial::begin( bth_name ) ? ( _printf( "ok.\n" ), 0 ) : ( _printf( "fault.\n" ), -1 );
-    }
-
     int _blue_itr_recv( WJP_BUFFER dst ) {
         int count       = 0;
         int timeout_acc = 0;
@@ -71,9 +66,9 @@ protected:
         return count;
     }
 
-protected:
-    int _wjp_begin( int flags ) {
-        _printf( LogLevel_Info, WHO_AM_I_STR, "[1/2] WJP begin... " );
+public:
+    int init( int flags ) {
+        _printf( LogLevel_Info, WHO_AM_I_STR, "WJP init... " );
 
         this->WJP_DEVICE::bind_srwrap( WJP_SRWRAP{
             send: [ this ] WJP_SEND_LAMBDA { return this->_blue_itr_send( src ); },
@@ -89,11 +84,9 @@ protected:
     }
 
 public:
-    int begin( const char* bth_name, int wjp_flags ) {
-        int status = this->_wjp_begin( wjp_flags ); if( status != 0 ) return status;
-        status = this->_blue_begin( bth_name ); if( status != 0 ) return status;
-
-        return status;
+    int begin( const char* bth_name ) {
+        _printf( LogLevel_Info, WHO_AM_I_STR, "Bluetooth begin... " );
+        return this->BluetoothSerial::begin( bth_name ) ? ( _printf( "ok.\n" ), 0 ) : ( _printf( "fault.\n" ), -1 );
     }
 
 };

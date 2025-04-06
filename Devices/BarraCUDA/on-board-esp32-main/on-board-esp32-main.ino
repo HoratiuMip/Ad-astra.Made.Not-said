@@ -1,5 +1,10 @@
-#include "../barracuda-ctrl.hpp"
-#include "logo.hpp"
+/*====== BarraCUDA - Main - Vatca "Mipsan" Tudor-Horatiu 
+|
+>
+|
+======*/
+#include "../barracuda.hpp"
+#include "graphics.hpp"
 
 #include <Wire.h>
 #include <MPU6050_WE.h>
@@ -27,22 +32,31 @@ enum Mode_ : int {
 
 
 static struct _CONFIG {
+	int init( void );
+
     std::atomic_int   mode      = { Mode_Game };
 
     TwoWire*          I2C_bus   = &Wire;
 
 } CONFIG;
 
-static struct _CONFIG_CTRL_MODE {
-    void reset() {
-        _printf( "Control mode configuration reset... " );
-        *this = _CONFIG_CTRL_MODE{};
-        _printf( "ok.\n" );
-    }
+static struct _CONFIG_GAME_MODE {
+	int init( void );
 
-    int   dynamic_period   = 10;
+} CONFIG_GAME_MODE;
+
+static struct _CONFIG_CTRL_MODE {
+	int init( void );
+
+	WJP_on_BluetoothSerial   wjpblu           = {};
+    int                      dynamic_period   = 10;
 
 } CONFIG_CTRL_MODE;
+
+
+
+void main_game();
+void main_ctrl();
 
 
 
@@ -173,17 +187,18 @@ static struct _BITNA {
      * @attention This function preserves the color of the LED before the call.
      * @param[ in ] ms: The duration of each color, in `ms`.
      */
-    void test_rgb( int ms ) {
+    _BITNA& itr_rgb( int ms ) {
         Led_ prev = _crt;
 
-        for( int8_t rgb = 0; rgb <= 7; ++rgb ) {
-            this->set( ( Led_ )rgb ); vTaskDelay( ms );
+        for( Led_ rgb = 0; rgb <= 7; ++rgb ) {
+            this->set( rgb ); vTaskDelay( ms );
         }
 
-        this->set( prev );
+        return this->set( prev );
     }
 
 } BITNA;
+
 
 static struct _YUNA : public Adafruit_SSD1306 {
     using Adafruit_SSD1306::Adafruit_SSD1306;
@@ -198,16 +213,72 @@ static struct _YUNA : public Adafruit_SSD1306 {
         if( !this->begin( SSD1306_SWITCHCAPVCC, 0x3C ) ) return -1;
         this->setTextColor( SSD1306_WHITE );
         this->setTextWrap( false );
+		this->setTextSize( 1 );
         this->clearDisplay();
-        this->drawBitmap(0, 0, BARRACUDA_CTRL_LOGO, 128, 64, 1);
-        this->display(); this->invertDisplay(1);
         
         return 0;
     }
 
-    static void splash( void* flag );
+	inline _YUNA& clear( void ) { this->clearDisplay(); return *this; }
+
+	template< typename _T > inline _YUNA& print_w( _T&& arg ) { this->print( std::forward< _T >( arg ) ); this->display(); return *this; }
+
+	inline void splash_logo() {
+		this->drawBitmap( 0, 0, BARRACUDA_LOGO, 128, 64, 1 );
+        this->display();
+	}
+
+	void _psplash_invert( bool* running ) { bool inv;
+		while( 1 ) { BITNA ^= Led_GRN; vTaskDelay( 500 ); this->invertDisplay( inv ^= true ); }
+	}
+
+	inline static const int _PSPLASH_COUNT = 1;
+	inline static void ( _YUNA::*_PSPLASH_TBL[ _PSPLASH_COUNT ] )( bool* ) = {
+		&_YUNA::_psplash_invert
+	};
+
+    struct pspl_info_t {
+		/* The handle of the invoker task to be notified on splash end. */
+		TaskHandle_t                            task      = nullptr;
+		/* The index of the splash. `-1` for custom splashes. */
+		int                                     idx       = -1;
+		/* The custom splash function. `NULL` if index is used. Called with this structure. */
+		std::function< void( pspl_info_t* ) >   func      = nullptr;
+		/* The index on which to notify. `-1` for default. */
+		int                                     ntf_idx   = 0;
+		/* Flag indicating wether the splash shall keep running. */
+		bool                                    running   = true;
+    };
+
+    static void psplash( void* pspl_info_v );
+
+	inline static int make_psplash( pspl_info_t* pspl_info, int core = 0, int stack_size_w = 4096  ) {
+		TaskHandle_t _task;
+		if( xTaskCreatePinnedToCore( &_YUNA::psplash, "YUNA::psplash()", stack_size_w, ( void* )pspl_info, 0, &_task, core ) == pdPASS ) return 0;
+		return -1;
+	}
 
 } YUNA{ 128, 64, CONFIG.I2C_bus, -1 };
+
+void _YUNA::psplash( void* pspl_info_v ) {
+	pspl_info_t* pspl_info = ( pspl_info_t* )pspl_info_v;
+
+	struct _NOTIFY_ON_RET {
+		~_NOTIFY_ON_RET() { this->proc(); } std::function< void( void ) > proc;
+	} _notify_on_ret{ proc: [ &pspl_info ] () -> void { 
+		xTaskNotifyGiveIndexed( pspl_info->task, pspl_info->ntf_idx ); 
+		vTaskDelete( xTaskGetCurrentTaskHandle() );
+	} };
+
+	if( pspl_info->idx >= 0 && pspl_info->idx <= YUNA._PSPLASH_COUNT ) {
+		( YUNA.* _PSPLASH_TBL[ pspl_info->idx ] )( &pspl_info->running );
+		goto l_end;
+	}
+
+l_end:
+	return;
+}
+
 
 static struct _GRAN : public MPU6050_WE {
     using MPU6050_WE::MPU6050_WE;
@@ -254,6 +325,7 @@ static struct _GRAN : public MPU6050_WE {
 
 } GRAN{ CONFIG.I2C_bus, MPU6050_WE::WHO_AM_I_CODE };
 
+
 #define _DYNAM_SCAN_IF( bit, jmp_lbl ) if( ( flags & ( 1 << bit ) ) == 0 ) goto jmp_lbl;
 enum Scan_ : int {
     Scan_Joysticks   = ( 1 << 0 ),
@@ -265,7 +337,7 @@ enum Scan_ : int {
 
     Scan_All         = ~0
 };
-static struct _DYNAM : WJP_HEAD, barcud_ctrl::dynamic_t {
+static struct _DYNAM : WJP_HEAD, barra::dynamic_t {
     struct {
         struct { float x, y; } rachel, samantha;
     } _idle_reads;
@@ -280,16 +352,13 @@ static struct _DYNAM : WJP_HEAD, barcud_ctrl::dynamic_t {
         _printf( LogLevel_Info, "Proto head init... " );
         WJP_HEAD::_dw0.op  = WJPOp_IBurst;
         WJP_HEAD::_dw1.seq = 0;
-        WJP_HEAD::_dw3.sz  = sizeof( barcud_ctrl::dynamic_t ); 
+        WJP_HEAD::_dw3.sz  = sizeof( barra::dynamic_t ); 
         _printf( "ok.\n" );
 
         _printf( LogLevel_Info, "Joysticks calibrate... " );
         _idle_reads.rachel.x = GPIO::a_rm< float >( GPIO::rachel.x, 10 ); _idle_reads.rachel.y = GPIO::a_rm< float >( GPIO::rachel.y, 10 );
         _idle_reads.samantha.x = GPIO::a_rm< float >( GPIO::samantha.x, 10 ); _idle_reads.samantha.y = GPIO::a_rm< float >( GPIO::samantha.y, 10 );
         _printf( "ok.\n" );
-
-        status = GRAN.init(); if( status != 0 ) return status;
-        //status = YUNA.init(); if( status != 0 ) return status;
 
         return status;
     }
@@ -316,7 +385,7 @@ static struct _DYNAM : WJP_HEAD, barcud_ctrl::dynamic_t {
         samantha.y *= -1.0f;
     }
     /* Switches */ l_switches: _DYNAM_SCAN_IF( 1, l_accel ); {
-        const auto _resolve_switch = [] ( barcud_ctrl::switch_t& sw, GPIO_pin_t pin ) static -> void {
+        const auto _resolve_switch = [] ( barra::switch_t& sw, GPIO_pin_t pin ) static -> void {
         int is_dwn = !digitalRead( pin );
 
         switch( ( sw.dwn << 1 ) | is_dwn ) {
@@ -368,56 +437,13 @@ static struct _DYNAM : WJP_HEAD, barcud_ctrl::dynamic_t {
 
 
 
-static WJP_QGSTBL_ENTRY QGSTBL[ 3 ] = {
-  { 
-    str_id: "BITNA_CRT", 
-    sz: 1, 
-    WJP_QGSTBL_READ_ONLY, 
-    qset_func: nullptr,
-    qget_func: nullptr, 
-    src: &BITNA._crt
-  },
-  { 
-    str_id: "GRAN_ACC_RANGE", 
-    sz: 1, 
-    WJP_QGSTBL_READ_WRITE, 
-    qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )args.addr ) ? nullptr : "GRAN_ACC_INVALID_RANGE"; },
-    qget_func: nullptr,
-    src: nullptr
-  },
-  { 
-    str_id: "GRAN_GYR_RANGE", 
-    sz: 1, 
-    WJP_QGSTBL_READ_WRITE, 
-    qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )args.addr ) ? nullptr : "GRAN_GYR_INVALID_RANGE"; },
-    qget_func: nullptr,
-    src: nullptr
-  }
-};
 struct {
-  WJP_on_BluetoothSerial   wjblu;
-
-  int init( void ) {
-    _printf( LogLevel_Info, "I^2C wire begin... " );
-    Wire.begin();
-    _printf( "ok.\n" );
-
-    YUNA.init();
-    
-    wjblu.bind_qgstbl( WJP_QGSTBL{ 
-      entries: QGSTBL, 
-      count: sizeof( QGSTBL ) / sizeof( WJP_QGSTBL_ENTRY ) 
-    } );
-    wjblu.begin( barcud_ctrl::DEVICE_NAME, 0 );
-
-    return 0;
-  }
 
   int loop( void ) {
-    if( !wjblu.available() ) return 0;
+    if( !CONFIG_CTRL_MODE.wjpblu.available() ) return 0;
 
     WJP_RESOLVE_RECV_INFO info;
-    if( int ret = wjblu.resolve_recv( &info ); ret <= 0 ) {
+    if( int ret = CONFIG_CTRL_MODE.wjpblu.resolve_recv( &info ); ret <= 0 ) {
       _printf( LogLevel_Error, "Protocol breach: %s.\n ", WJP_err_strs[ info.err ] );
       return ret;
     }
@@ -439,11 +465,13 @@ struct {
 } COM;
 
 
+
 void _dead( void ) {
-  COM.wjblu.end();
+  CONFIG_CTRL_MODE.wjpblu.end();
   Wire.end();
   while( 1 ) BITNA.blink( 1, Led_RED, Led_BLK, 1000, 1000 );
 }
+
 
 
 int do_tests( void ) {
@@ -456,17 +484,17 @@ int do_tests( void ) {
 
     const auto _begin = [] ( const char* test_name ) static -> void {
         _printf( LogLevel_Info, "Acknowledged test [ %s ]...", test_name );
-        BITNA.blink( 10, Led_TRQ, Led_BLK, 50, 50 );
+        BITNA.blink( 10, Led_YLW, Led_BLK, 50, 50 );
     };
     const auto _end = [] () static -> void {
-        BITNA.blink( 10, Led_TRQ, Led_BLK, 50, 50 );
+        BITNA.blink( 10, Led_YLW, Led_BLK, 50, 50 );
         _printf( " ok.\n" );
     };
 
     int test_count = 0;
 
 l_test_begin: {
-    BITNA.blink( 1, Led_TRQ, Led_BLK, 100, 500 );
+    BITNA.blink( 1, Led_YLW, Led_BLK, 100, 500 );
     int8_t test = _get_test();
 
     switch( test ) {
@@ -474,7 +502,7 @@ l_test_begin: {
         case 0b1001: goto l_test_end;
 
         case 0b0100: {
-            _begin( "BITNA - LED color cycle" ); BITNA.test_rgb( 2000 ); _end();
+            _begin( "BITNA - LED color cycle" ); BITNA.itr_rgb( 2000 ); _end();
         break; }
 
         default: goto l_test_begin;
@@ -489,47 +517,45 @@ l_test_end:
 }
 
 
+
 #define _SETUP_ASSERT_OR_DEAD( c ) if( !(c) ) { _printf( LogLevel_Critical, "SETUP ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n" ); _dead(); *(int*)0=*(int*)-1=*(int*)1; }
+#define _FANCY_SETUP_ASSERT_OR_DEAD( c, s, d ) { YUNA.print_w( s ); _SETUP_ASSERT_OR_DEAD( c ); YUNA.print_w( "OK\n" ); vTaskDelay( d ); }
 void setup( void ) {
     _SETUP_ASSERT_OR_DEAD( GPIO::init() == 0 );
-    BITNA( Led_RED ); vTaskDelay( 300 );
+
+	BITNA( Led_RED ).itr_rgb( 100 );
 
     Serial.begin( 115200 );
+	
+	_printf( LogLevel_Info, "Serial ok.\n" );
+	_printf( LogLevel_Info, "I^2C bus begin..." );
+	CONFIG.I2C_bus->begin();
+	_printf( "ok.\n" );
 
     _SETUP_ASSERT_OR_DEAD( YUNA.init() == 0 );
-    BITNA |= Led_BLU; vTaskDelay( 300 );
+	YUNA.print_w( ">/ YUNA [SSD1306]  OK\n" ); vTaskDelay( 400 );
 
-    TaskHandle_t task;
-    auto status = xTaskCreatePinnedToCore(
-        &_YUNA::splash,
-        "YUNA splash",
-        4096,
-        nullptr,
-        0,
-        &task,
-        0
-    );
-                    
-    _SETUP_ASSERT_OR_DEAD( COM.init() == 0 );
+	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ GRAN [MPU-6050] ", 400 );
+	
+	_FANCY_SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0, ">/ DYNAM           ", 400 );
 
-    _SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0 );
-
-    CONFIG_CTRL_MODE.reset();
-
-    _printf( LogLevel_Ok, "Setup complete.\n" );
-    BITNA.blink( 10, Led_GRN, Led_BLK, 50, 50 );
+    _FANCY_SETUP_ASSERT_OR_DEAD( CONFIG.init() == 0, ">/ CONFIG (+WJP)   ", 400 );
 
     _printf( LogLevel_Info, "Scanning for tests request.\n" );
     DYNAM.scan( Scan_Switches );
     if( DYNAM.giselle.dwn ) {
+		YUNA.print_w( "Testing... " );
         do_tests();
+		YUNA.print_w( "done." );
     } else {
+		YUNA.print_w( "No testing." );
         _printf( LogLevel_Info, "No tests request.\n" );
     }
 
-    _printf( LogLevel_Ok, "Ready for link...\n" );
+    _printf( LogLevel_Ok, "Init complete.\n" );
+	BITNA.blink( 10, Led_TRQ, Led_BLK, 50, 50 )( Led_TRQ ); 
 
-    BITNA( Led_BLU );
+	YUNA.clear().splash_logo(); vTaskDelay( 3600 );
 }
 
 
@@ -537,11 +563,10 @@ struct _LOOP_STATE {
   bool   _conn_rst   = true;
 } LOOP_STATE;
 
-/* 1: LOOP_STATE._conn_rst | 0: COM.wjblu.connected() */
+/* 1: LOOP_STATE._conn_rst | 0: CONFIG_CTRL_MODE.wjpblu.connected() */
 std::function< int( void ) >   loop_procs[]   = {
   /* 0b00 */ [] () -> bool {
     _printf( LogLevel_Info, "Disconnected from device.\n" );
-    CONFIG_CTRL_MODE.reset();
     LOOP_STATE._conn_rst = true;
     _printf( LogLevel_Info, "Ready to relink...\n" );
     BITNA.blink( 10, Led_BLU, Led_RED, 50, 50 );
@@ -550,7 +575,7 @@ std::function< int( void ) >   loop_procs[]   = {
   /* 0b01 */ [] () -> bool {
     if( COM.loop() != 0 ) {
       BITNA.blink( 10, Led_RED, Led_BLK, 100, 500 );
-      COM.wjblu.disconnect();
+      CONFIG_CTRL_MODE.wjpblu.disconnect();
       return true;
     }
     
@@ -571,9 +596,6 @@ std::function< int( void ) >   loop_procs[]   = {
   }
 };
 
-void loop( void ) {
-  loop_procs[ ( LOOP_STATE._conn_rst << 1 ) | COM.wjblu.connected() ]();
-}
 
 
 int _DYNAM::blue_tx( void ) {
@@ -584,13 +606,72 @@ int _DYNAM::blue_tx( void ) {
   if( current_ms - last_ms < CONFIG_CTRL_MODE.dynamic_period ) return 0;
 
   last_ms = current_ms;
-  int ret = COM.wjblu.trust_burst( this, sizeof( WJP_HEAD ) + WJP_HEAD::_dw3.sz, 0 );
+  int ret = CONFIG_CTRL_MODE.wjpblu.trust_burst( this, sizeof( WJP_HEAD ) + WJP_HEAD::_dw3.sz, 0 );
 
   this->reset_sw_prs_rls();
   return ret;
 }
 
 
-void _YUNA::splash( void* flag ) { bool inv = false;
-    while( true ) { BITNA ^= Led_GRN; vTaskDelay( 500 ); YUNA.invertDisplay( inv ^= true ); }
+
+int _CONFIG::init( void ) {
+	int status = 0;
+
+	status = CONFIG_GAME_MODE.init(); if( status != 0 ) return status;
+	status = CONFIG_CTRL_MODE.init(); if( status != 0 ) return status;
+
+	return 0;
+}
+
+
+int _CONFIG_GAME_MODE::init( void ) {
+	return 0;
+}
+
+void loop() { main_game(); _dead(); }
+
+void main_game() {
+for( ;; ) {
+	BITNA.blink( 1, Led_TRQ, Led_PRP, 500, 500 );
+
+} }
+
+
+static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 3 ] = {
+{ 
+	str_id: "BITNA_CRT", 
+	sz: 1, 
+	WJP_QGSTBL_READ_ONLY, 
+	qset_func: nullptr,
+	qget_func: nullptr, 
+	src: &BITNA._crt
+},
+{ 
+	str_id: "GRAN_ACC_RANGE", 
+	sz: 1, 
+	WJP_QGSTBL_READ_WRITE, 
+	qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )args.addr ) ? nullptr : "GRAN_ACC_INVALID_RANGE"; },
+	qget_func: nullptr,
+	src: nullptr
+},
+{ 
+	str_id: "GRAN_GYR_RANGE", 
+	sz: 1, 
+	WJP_QGSTBL_READ_WRITE, 
+	qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )args.addr ) ? nullptr : "GRAN_GYR_INVALID_RANGE"; },
+	qget_func: nullptr,
+	src: nullptr
+}
+};
+int _CONFIG_CTRL_MODE::init( void ) {
+	wjpblu.bind_qgstbl( WJP_QGSTBL{ 
+      	entries: wjp_QGSTBL, 
+      	count: sizeof( wjp_QGSTBL ) / sizeof( WJP_QGSTBL_ENTRY ) 
+    } );
+
+    return wjpblu.init( 0 );
+}
+
+void main_ctrl() {
+
 }

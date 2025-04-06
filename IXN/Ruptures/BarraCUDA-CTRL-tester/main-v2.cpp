@@ -178,12 +178,12 @@ public:
 
 class JOYSTICK_BOARD : public _BOARD {
 public:
-    JOYSTICK_BOARD( const std::string& name, barcud_ctrl::joystick_t* js )
+    JOYSTICK_BOARD( const std::string& name, barra::joystick_t* js )
     : _BOARD{ name }, _js{ js }
     {}
 
 protected:
-    barcud_ctrl::joystick_t*   _js;
+    barra::joystick_t*   _js;
 
 public:
     virtual void frame( void ) override {
@@ -214,14 +214,14 @@ public:
 
 class SWITCH_BOARD : public _BOARD {
 public:
-    SWITCH_BOARD( const std::string& name, ImVec4 col, barcud_ctrl::switch_t* sw )
+    SWITCH_BOARD( const std::string& name, ImVec4 col, barra::switch_t* sw )
     : _BOARD{ name }, _col{ IM_COL32( col.x, col.y, col.z, col.w ) }, _sw{ sw }
     {
         memset( event_arr.data(), 0, sizeof( float ) * event_arr_size );
     }
 
 protected:
-    barcud_ctrl::switch_t*   _sw;
+    barra::switch_t*   _sw;
     ImU32                    _col;
 
     static constexpr int                  event_arr_size   = 2'000;
@@ -273,12 +273,12 @@ public:
 
 class LIGHT_SENSOR_BOARD : public _BOARD {
 public:
-    LIGHT_SENSOR_BOARD( const std::string& name, barcud_ctrl::light_sensor_t* ls )
+    LIGHT_SENSOR_BOARD( const std::string& name, barra::light_sensor_t* ls )
     : _BOARD{ name }, _ls{ ls }
     {}
 
 protected:
-    barcud_ctrl::light_sensor_t*   _ls;
+    barra::light_sensor_t*   _ls;
 
 public:
     virtual void frame( void ) override {
@@ -294,12 +294,12 @@ public:
 
 class ACCEL_GYRO_BOARD : public _BOARD {
 public:
-    ACCEL_GYRO_BOARD( const std::string& name, barcud_ctrl::gyro_t* gr )
+    ACCEL_GYRO_BOARD( const std::string& name, barra::gyro_t* gr )
     : _BOARD{ name }, _gr{ gr }
     {}
 
 protected:
-    barcud_ctrl::gyro_t*   _gr;
+    barra::gyro_t*   _gr;
 
 public:
     virtual void frame( void ) override {
@@ -334,12 +334,12 @@ public:
 
 class POTENTIOMETER_BOARD : public _BOARD {
 public:
-    POTENTIOMETER_BOARD( const std::string& name, barcud_ctrl::potentiometer_t* pm )
+    POTENTIOMETER_BOARD( const std::string& name, barra::potentiometer_t* pm )
     : _BOARD{ name }, _pm{ pm }
     {}
 
 protected:
-    barcud_ctrl::potentiometer_t*   _pm;
+    barra::potentiometer_t*   _pm;
 
 public:
     virtual void frame( void ) override {

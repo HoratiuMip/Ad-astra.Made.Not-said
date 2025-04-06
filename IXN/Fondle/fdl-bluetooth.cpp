@@ -1,6 +1,6 @@
 #include <IXN/init.hpp>
 #include <IXN/comms.hpp>
-#include <IXN/SpecMod/barracuda-ctrl.hpp>
+#include <IXN/SpecMod/barracuda.hpp>
 
 using namespace ixN;
 

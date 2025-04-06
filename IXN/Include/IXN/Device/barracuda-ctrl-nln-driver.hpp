@@ -10,7 +10,7 @@
 #include <IXN/network.hpp>
 
 
-#include "../../../../Devices/BarraCUDA-CTRL/barracuda-ctrl.hpp"
+#include "../../../../Devices/BarraCUDA-CTRL/barracuda.hpp"
 
 #define WJP_ENVIRONMENT_MINGW
 #define WJP_ARCHITECTURE_LITTLE
@@ -33,7 +33,7 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Dev::BarracudaCTRL" );
 
 public:
-    barcud_ctrl::dynamic_t     dynamic                = {};
+    barra::dynamic_t     dynamic                = {};
 
 _ENGINE_PROTECTED:
     bool                       _trust_invk            = false;
@@ -66,7 +66,7 @@ public:
 
         _wjp_seq.store( 0, std::memory_order_relaxed );
 
-        DWORD ret = this->BTH_SOCKET::connect( barcud_ctrl::DEVICE_NAME_W );
+        DWORD ret = this->BTH_SOCKET::connect( barra::DEVICE_NAME_W );
         IXN_ASSERT( ret == 0, ret );
         
         return 0;

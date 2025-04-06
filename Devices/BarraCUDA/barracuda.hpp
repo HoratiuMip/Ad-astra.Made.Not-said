@@ -6,7 +6,7 @@
 |
 ======*/
 
-namespace barcud_ctrl {
+namespace barra {
 
 const char* const DEVICE_NAME = "BarraCUDA-CTRL";
 const wchar_t* const DEVICE_NAME_W = L"BarraCUDA-CTRL";

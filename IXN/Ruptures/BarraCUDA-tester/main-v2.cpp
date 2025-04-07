@@ -16,7 +16,7 @@
 #include <imgui_impl_opengl3.h>
 #include <implot.h>
 
-#include <IXN/Device/barracuda-ctrl-nln-driver.hpp>
+#include <IXN/Device/barracuda-nln-driver.hpp>
 
 
 

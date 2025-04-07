@@ -217,6 +217,11 @@ if( IXN_IMGUI )
     add_library( "ImGUI" STATIC ${_imgui_source_files} )
 endif()
 
+# STL-TS pre. ----------------------------------
+if( IXN_STL_TS )
+    include_directories( "${IXN_EXCOM_ROOT_DIR}/STL-Threadsafe/include/" )
+endif()
+
 
 # Set those folders' paths into variables. ----------------------------------
 set( IXN_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/Include" )

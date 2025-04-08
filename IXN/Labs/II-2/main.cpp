@@ -1,4 +1,4 @@
-#include <IXN/Framework/imgui-opengl3.hpp>
+#include <IXN/Framework/imgui_on_opengl3.hpp>
 
 
 class Ex1 {

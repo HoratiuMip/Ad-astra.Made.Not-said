@@ -1,4 +1,4 @@
-/*===== IXN - Dear ImGui on OpenGL3 framework - Vatca "Mipsan" Tudor-Horatiu
+/*===== IXN Framework - Dear ImGui on OpenGL3 - Vatca "Mipsan" Tudor-Horatiu
 |
 |=== DESCRIPTION
 > 
@@ -15,7 +15,7 @@
 #include <imgui_stdlib.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
-#include <implot.h>
+//#include <implot.h>
 
 #include <atomic>
 
@@ -65,7 +65,7 @@ public:
     /* ImGui */
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
-        ImPlot::CreateContext();
+        //ImPlot::CreateContext();
         struct {
             ImGuiIO&      io      = ImGui::GetIO();
             ImGuiStyle&   style   = ImGui::GetStyle();
@@ -117,7 +117,7 @@ public:
 
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
-        ImPlot::DestroyContext();
+        //ImPlot::DestroyContext();
         ImGui::DestroyContext();
 
         glfwDestroyWindow( window );

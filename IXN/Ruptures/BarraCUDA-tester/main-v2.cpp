@@ -14,7 +14,6 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
-#include <implot.h>
 
 #include <IXN/Device/barracuda-nln-driver.hpp>
 
@@ -554,7 +553,7 @@ int main( int argc, char** argv ) {
 /* ImGui */
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImPlot::CreateContext();
+    //ImPlot::CreateContext();
     struct {
         ImGuiIO&      io      = ImGui::GetIO();
         ImGuiStyle&   style   = ImGui::GetStyle();
@@ -678,7 +677,7 @@ int main( int argc, char** argv ) {
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
-    ImPlot::DestroyContext();
+    //ImPlot::DestroyContext();
     ImGui::DestroyContext();
 
     glfwDestroyWindow( window );

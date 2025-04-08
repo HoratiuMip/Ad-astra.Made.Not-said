@@ -1,6 +1,7 @@
 /*====== BarraCUDA - Main - Vatca "Mipsan" Tudor-Horatiu 
 |
->
+|=== DESCRIPTION
+> Ask Daniel. ( massive red flag )
 |
 ======*/
 #include "../barracuda.hpp"
@@ -22,11 +23,17 @@ using namespace ixN::uC;
 
 
 
+#define uC_CORE_0 0
+#define uC_CORE_1 1
+
 typedef   int8_t   GPIO_pin_t;
 
 enum Mode_ : int {
-    Mode_Game = 0,
-    Mode_Ctrl = 1
+    Mode_Brdg = 0,
+    Mode_Game = 1,
+    Mode_Ctrl = 2,
+
+    _Mode_Count
 };
 
 
@@ -34,11 +41,21 @@ enum Mode_ : int {
 static struct _CONFIG {
 	int init( void );
 
-    std::atomic_int   mode      = { Mode_Game };
+    void ( *mains[ _Mode_Count ] )( void* );
+
+    std::atomic_int   mode      = { Mode_Brdg };
 
     TwoWire*          I2C_bus   = &Wire;
 
+    SemaphoreHandle_t   init_sem   = { xSemaphoreCreateBinary() };
+
+
 } CONFIG;
+
+static struct _CONFIG_BRDG_MODE {
+    int init( void );
+
+} CONFIG_BRDG_MODE;
 
 static struct _CONFIG_GAME_MODE {
 	int init( void );
@@ -55,8 +72,9 @@ static struct _CONFIG_CTRL_MODE {
 
 
 
-void main_game();
-void main_ctrl();
+void main_brdg( void* );
+void main_game( void* );
+void main_ctrl( void* );
 
 
 
@@ -71,10 +89,13 @@ struct GPIO {
     /*                             |blue        |red         |yellow        |green */
 
     inline static const GPIO_pin_t naksu = 15;
-    /*                             |light sensor */
+    /*                             |light */
 
     inline static const GPIO_pin_t kazuha = 4;
     /*                             |potentiometer */
+
+    inline static const GPIO_pin_t xabara = 2;
+    /*                             |bridge */
 
     inline static struct { const GPIO_pin_t r, g, b; } bitna{ r: 13, g: 12, b: 14 };
     /*                                                 |led */
@@ -97,6 +118,8 @@ struct GPIO {
 
         pinMode( naksu, INPUT );
         pinMode( kazuha, INPUT );
+
+        pinMode( xabara, INPUT_PULLUP );
 
         pinMode( bitna.r, OUTPUT ); pinMode( bitna.g, OUTPUT ); pinMode( bitna.b, OUTPUT );
 
@@ -239,11 +262,11 @@ static struct _YUNA : public Adafruit_SSD1306 {
 
     struct pspl_info_t {
 		/* The handle of the invoker task to be notified on splash end. */
-		TaskHandle_t                            task      = nullptr;
+		TaskHandle_t                            task      = NULL;
 		/* The index of the splash. `-1` for custom splashes. */
 		int                                     idx       = -1;
 		/* The custom splash function. `NULL` if index is used. Called with this structure. */
-		std::function< void( pspl_info_t* ) >   func      = nullptr;
+		std::function< void( pspl_info_t* ) >   func      = NULL;
 		/* The index on which to notify. `-1` for default. */
 		int                                     ntf_idx   = 0;
 		/* Flag indicating wether the splash shall keep running. */
@@ -342,6 +365,18 @@ static struct _DYNAM : WJP_HEAD, barra::dynamic_t {
         struct { float x, y; } rachel, samantha;
     } _idle_reads;
 
+    struct snapshot_token_t {
+        barra::dynamic_t*   dst    = NULL;
+        int                 _seq   = 0;
+    };
+
+    int   _seq  = 0;
+    struct {
+        QueueHandle_t      handle   = NULL;
+        StaticQueue_t      header;
+        barra::dynamic_t   buffer;
+    } _q[ 2 ];
+
     /**
      * @brief Configures parameters for proper dynam flow.
      * @returns `0` on success, negative otherwise.
@@ -360,66 +395,92 @@ static struct _DYNAM : WJP_HEAD, barra::dynamic_t {
         _idle_reads.samantha.x = GPIO::a_rm< float >( GPIO::samantha.x, 10 ); _idle_reads.samantha.y = GPIO::a_rm< float >( GPIO::samantha.y, 10 );
         _printf( "ok.\n" );
 
+        _q[ 0 ].handle = xQueueCreateStatic( 1, sizeof( barra::dynamic_t ), ( uint8_t* )&_q[ 0 ].buffer, &_q[ 0 ].header );
+        _q[ 1 ].handle = xQueueCreateStatic( 1, sizeof( barra::dynamic_t ), ( uint8_t* )&_q[ 1 ].buffer, &_q[ 1 ].header );
+        xQueueOverwrite( _q[ _seq ^ 1 ].handle, &( barra::dynamic_t& )*this );
+
         return status;
     }
 
+    void _scan( int flags, barra::dynamic_t* tar ) {
+        /* Joysticks */ l_joysticks: _DYNAM_SCAN_IF( 0, l_switches ); {
+            const auto _resolve_joystick_axis = [] ( float& read, float idle_read ) static -> void {
+                if( ( read -= idle_read ) < 0.0f ) 
+                    read /= idle_read;
+                else
+                    read /= GPIO::ADC_fmax - idle_read;
+            };
+
+            tar->rachel.x = GPIO::a_r( GPIO::rachel.x ); tar->rachel.y = GPIO::a_r( GPIO::rachel.y );
+            tar->samantha.x = GPIO::a_r( GPIO::samantha.x ); tar->samantha.y = GPIO::a_r( GPIO::samantha.y );
+
+            _resolve_joystick_axis( tar->rachel.x, _idle_reads.rachel.x ); _resolve_joystick_axis( tar->rachel.y, _idle_reads.rachel.y );
+            _resolve_joystick_axis( tar->samantha.x, _idle_reads.samantha.x ); _resolve_joystick_axis( tar->samantha.y, _idle_reads.samantha.y );
+
+            samantha.y *= -1.0f;
+        }
+        /* Switches */ l_switches: _DYNAM_SCAN_IF( 1, l_accel ); {
+            const auto _resolve_switch = [] ( barra::switch_t& sw, GPIO_pin_t pin ) static -> void {
+            int is_dwn = !digitalRead( pin );
+
+            switch( ( sw.dwn << 1 ) | is_dwn ) {
+                /* case 0b00: [[fallthrough]]; */
+                /* case 0b11: sw.rls = 0; sw.prs = 0; break; */
+                case 0b01: /* sw.rls = 0; */ sw.prs = 1; break;
+                case 0b10: sw.rls = 1; /* sw.prs = 0; */ break;
+            }
+
+            sw.dwn = is_dwn;
+            };
+
+            _resolve_switch( tar->rachel.sw,   GPIO::rachel.sw );
+            _resolve_switch( tar->samantha.sw, GPIO::samantha.sw );
+            _resolve_switch( tar->giselle,     GPIO::giselle );
+            _resolve_switch( tar->karina,      GPIO::karina );
+            _resolve_switch( tar->ningning,    GPIO::ningning );
+            _resolve_switch( tar->winter,      GPIO::winter);
+        }
+        /* Acceleration */ l_accel: _DYNAM_SCAN_IF( 2, l_gyro ); {
+            xyzFloat acc_read = GRAN.getGValues();
+            tar->gran.acc = { x: acc_read.y, y: -acc_read.x, z: acc_read.z };
+        }
+        /* Gyroscope */ l_gyro: _DYNAM_SCAN_IF( 3, l_light ); {
+            xyzFloat gyr_read = GRAN.getGyrValues();
+            tar->gran.gyr = { x: gyr_read.y, y: -gyr_read.x, z: gyr_read.z };
+        }
+        /* Light */ l_light: _DYNAM_SCAN_IF( 4, l_potentio ); {
+            tar->naksu.lvl = 1.0 - sqrt( analogRead( GPIO::naksu ) / GPIO::ADC_fmax );
+        }
+        /* Potentiometer */ l_potentio: _DYNAM_SCAN_IF( 5, l_end ); {
+            tar->kazuha.lvl = analogRead( GPIO::kazuha ) / GPIO::ADC_fmax;
+        }
+    l_end:
+        return;
+    }
+    
     /**
      * @brief Updates the dynam values.
      * @param[ in ] flags: Flags to select function behaviour. Default, updates everything.
      */
-    void scan( int flags = Scan_All ) {
-    /* Joysticks */ l_joysticks: _DYNAM_SCAN_IF( 0, l_switches ); {
-        const auto _resolve_joystick_axis = [] ( float& read, float idle_read ) static -> void {
-            if( ( read -= idle_read ) < 0.0f ) 
-                read /= idle_read;
-            else
-                read /= GPIO::ADC_fmax - idle_read;
-        };
-
-        rachel.x = GPIO::a_r( GPIO::rachel.x ); rachel.y = GPIO::a_r( GPIO::rachel.y );
-        samantha.x = GPIO::a_r( GPIO::samantha.x ); samantha.y = GPIO::a_r( GPIO::samantha.y );
-
-        _resolve_joystick_axis( rachel.x, _idle_reads.rachel.x ); _resolve_joystick_axis( rachel.y, _idle_reads.rachel.y );
-        _resolve_joystick_axis( samantha.x, _idle_reads.samantha.x ); _resolve_joystick_axis( samantha.y, _idle_reads.samantha.y );
-
-        samantha.y *= -1.0f;
+    inline void scan( int flags ) {
+        this->_scan( flags, &( barra::dynamic_t& )*this );
     }
-    /* Switches */ l_switches: _DYNAM_SCAN_IF( 1, l_accel ); {
-        const auto _resolve_switch = [] ( barra::switch_t& sw, GPIO_pin_t pin ) static -> void {
-        int is_dwn = !digitalRead( pin );
 
-        switch( ( sw.dwn << 1 ) | is_dwn ) {
-            /* case 0b00: [[fallthrough]]; */
-            /* case 0b11: sw.rls = 0; sw.prs = 0; break; */
-            case 0b01: /* sw.rls = 0; */ sw.prs = 1; break;
-            case 0b10: sw.rls = 1; /* sw.prs = 0; */ break;
-        }
+    void q_scan( int flags ) {
+        barra::dynamic_t* tar = &_q[ _seq ^ 1 ].buffer;  
 
-        sw.dwn = is_dwn;
-        };
+        this->_scan( flags, tar );
+    
+        xQueueReceive( _q[ _seq ^ 1 ].handle, &_q[ _seq ].buffer, portMAX_DELAY );
+        xQueueOverwrite( _q[ _seq ].handle, &_q[ _seq ].buffer );
 
-        _resolve_switch( rachel.sw,   GPIO::rachel.sw );
-        _resolve_switch( samantha.sw, GPIO::samantha.sw );
-        _resolve_switch( giselle,     GPIO::giselle );
-        _resolve_switch( karina,      GPIO::karina );
-        _resolve_switch( ningning,    GPIO::ningning );
-        _resolve_switch( winter,      GPIO::winter);
+        _seq ^= 1;
     }
-    /* Acceleration */ l_accel: _DYNAM_SCAN_IF( 2, l_gyro ); {
-        xyzFloat acc_read = GRAN.getGValues();
-        gran.acc = { x: acc_read.y, y: -acc_read.x, z: acc_read.z };
-    }
-    /* Gyroscope */ l_gyro: _DYNAM_SCAN_IF( 3, l_light ); {
-        xyzFloat gyr_read = GRAN.getGyrValues();
-        gran.gyr = { x: gyr_read.y, y: -gyr_read.x, z: gyr_read.z };
-    }
-    /* Light */ l_light: _DYNAM_SCAN_IF( 4, l_potentio ); {
-        naksu.lvl = 1.0 - sqrt( analogRead( GPIO::naksu ) / GPIO::ADC_fmax );
-    }
-    /* Potentiometer */ l_potentio: _DYNAM_SCAN_IF( 5, l_end ); {
-        kazuha.lvl = analogRead( GPIO::kazuha ) / GPIO::ADC_fmax;
-    }
-    l_end: return;
+
+    inline int snapshot( snapshot_token_t* tok ) {
+        xQueuePeek( _q[ tok->_seq ].handle, tok->dst, portMAX_DELAY );
+        tok->_seq ^= 1;
+        return 0;
     }
 
     void reset_sw_prs_rls() {
@@ -431,7 +492,7 @@ static struct _DYNAM : WJP_HEAD, barra::dynamic_t {
         winter.rls = 0; winter.prs = 0;
     }
 
-  int blue_tx( void );
+    int blue_tx( void );
 
 } DYNAM;
 
@@ -448,7 +509,7 @@ struct {
       return ret;
     }
 
-    if( info.nakr != nullptr ) {
+    if( info.nakr != NULL ) {
       _printf( LogLevel_Info, "Responded with NAK on seq (%d), op (%d). Reson: %s.\n ", ( int )info.recv_head._dw1.seq, ( int )info.recv_head._dw0.op, info.nakr );
       return 0;
     }
@@ -518,12 +579,12 @@ l_test_end:
 
 
 
-#define _SETUP_ASSERT_OR_DEAD( c ) if( !(c) ) { _printf( LogLevel_Critical, "SETUP ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n" ); _dead(); *(int*)0=*(int*)-1=*(int*)1; }
+#define _SETUP_ASSERT_OR_DEAD( c ) if( !(c) ) { _printf( LogLevel_Critical, "SETUP ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n" ); _dead(); }
 #define _FANCY_SETUP_ASSERT_OR_DEAD( c, s, d ) { YUNA.print_w( s ); _SETUP_ASSERT_OR_DEAD( c ); YUNA.print_w( "OK\n" ); vTaskDelay( d ); }
 void setup( void ) {
     _SETUP_ASSERT_OR_DEAD( GPIO::init() == 0 );
 
-	BITNA( Led_RED ).itr_rgb( 100 );
+	BITNA.blink( 9, Led_BLK, Led_RED, 50, 50 );
 
     Serial.begin( 115200 );
 	
@@ -553,9 +614,17 @@ void setup( void ) {
     }
 
     _printf( LogLevel_Ok, "Init complete.\n" );
-	BITNA.blink( 10, Led_TRQ, Led_BLK, 50, 50 )( Led_TRQ ); 
+	BITNA.blink( 9, Led_BLK, Led_RED, 50, 50 );
 
-	YUNA.clear().splash_logo(); vTaskDelay( 3600 );
+	YUNA.clear().splash_logo(); vTaskDelay( 1600 );
+    BITNA( Led_BLK );
+}
+
+void loop() { 
+    vTaskPrioritySet( NULL, 3 );
+    xSemaphoreGive( CONFIG.init_sem );
+    main_brdg( NULL ); 
+    _dead(); 
 }
 
 
@@ -579,7 +648,7 @@ std::function< int( void ) >   loop_procs[]   = {
       return true;
     }
     
-    DYNAM.scan();
+    DYNAM.scan( Scan_All );
     DYNAM.blue_tx();
 
     return true;
@@ -614,9 +683,66 @@ int _DYNAM::blue_tx( void ) {
 
 
 
+/* .  .  _. . .  
+|| |\/| |_| | |\ |
+|| |  | | | | | \|
+*/ 
+
+static struct _FELLOW_TASK {
+    static void _func_wrap( void* func ) {
+        xSemaphoreTake( CONFIG.init_sem, portMAX_DELAY ); xSemaphoreGive( CONFIG.init_sem );
+        ( ( void (*)( void* ) )func )( NULL );
+        vTaskDelete( NULL );
+    } 
+
+    _FELLOW_TASK( const char* name, bool suspended, int stack_depth, int priority, void ( *func )( void* ) ) 
+    : _func{ func }
+    {
+        BaseType_t status = xTaskCreate( _FELLOW_TASK::_func_wrap, name, stack_depth, ( void* )_func, priority, &_handle );
+        if( status != pdPASS ) return;
+
+        if( suspended ) this->suspend();
+    }
+
+    TaskHandle_t   _handle   = NULL;
+    void           ( *_func )( void* );
+
+    void suspend() { vTaskSuspend( _handle ); }
+    void resume() { vTaskResume( _handle ); }
+
+}
+
+FELLOW_TASK_dynam_scan{ "dynam_scan", false, 4096, 5, [] ( void* ) static -> void { for(;;) {
+    vTaskDelay( 10 ); DYNAM.q_scan( Scan_All );
+} } },
+
+FELLOW_TASK_input_react{ "input_react", false, 4096, 0, [] ( void* ) static -> void { 
+    float lx[ 2 ], ly[ 2 ];
+
+    barra::dynamic_t ss;
+    _DYNAM::snapshot_token_t ss_tok{ dst: &ss };
+
+for(;;) {
+    DYNAM.snapshot( &ss_tok );
+
+    for( auto& sw : ss.switches ) if( sw.dwn ) goto l_react;
+
+    for( auto& js : ss.joysticks ) if( js.sw.dwn || abs( js.x ) > 0.8 || abs( js.y ) > 0.8 ) goto l_react;
+
+    BITNA( Led_BLK ); continue;
+l_react:
+    BITNA( Led_TRQ );
+} } };
+
+
 int _CONFIG::init( void ) {
 	int status = 0;
 
+    mains[ Mode_Brdg ] = &main_brdg;
+    mains[ Mode_Game ] = &main_game;
+    mains[ Mode_Ctrl ] = &main_ctrl;
+
+    status = CONFIG_BRDG_MODE.init(); if( status != 0 ) return status;
 	status = CONFIG_GAME_MODE.init(); if( status != 0 ) return status;
 	status = CONFIG_CTRL_MODE.init(); if( status != 0 ) return status;
 
@@ -624,45 +750,66 @@ int _CONFIG::init( void ) {
 }
 
 
+
+/* ._   _. .   .__
+|| |_\ |_| |\  | ._
+|| |_| | \ |_\ |__|
+*/ 
+int _CONFIG_BRDG_MODE::init( void ) {
+    return 0;
+}
+
+void main_brdg( void* arg ) {
+    while( 1 ) { vTaskDelay( 1000 ); }
+}
+
+
+
+/* .__   _. .  . .__
+|| | ._ |_| |\/| |_
+|| |__| | | |  | |__
+*/ 
 int _CONFIG_GAME_MODE::init( void ) {
 	return 0;
 }
 
-void loop() { main_game(); _dead(); }
+void main_game( void* arg ) {
 
-void main_game() {
-for( ;; ) {
-	BITNA.blink( 1, Led_TRQ, Led_PRP, 500, 500 );
-
-} }
+}
 
 
+
+/* .__ __.__ ._  .
+|| |     |   |_| |
+|| |__   |   | \ |__
+*/ 
 static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 3 ] = {
 { 
 	str_id: "BITNA_CRT", 
 	sz: 1, 
 	WJP_QGSTBL_READ_ONLY, 
-	qset_func: nullptr,
-	qget_func: nullptr, 
+	qset_func: NULL,
+	qget_func: NULL, 
 	src: &BITNA._crt
 },
 { 
 	str_id: "GRAN_ACC_RANGE", 
 	sz: 1, 
 	WJP_QGSTBL_READ_WRITE, 
-	qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )args.addr ) ? nullptr : "GRAN_ACC_INVALID_RANGE"; },
-	qget_func: nullptr,
-	src: nullptr
+	qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )args.addr ) ? NULL : "GRAN_ACC_INVALID_RANGE"; },
+	qget_func: NULL,
+	src: NULL
 },
 { 
 	str_id: "GRAN_GYR_RANGE", 
 	sz: 1, 
 	WJP_QGSTBL_READ_WRITE, 
-	qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )args.addr ) ? nullptr : "GRAN_GYR_INVALID_RANGE"; },
-	qget_func: nullptr,
-	src: nullptr
+	qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )args.addr ) ? NULL : "GRAN_GYR_INVALID_RANGE"; },
+	qget_func: NULL,
+	src: NULL
 }
 };
+
 int _CONFIG_CTRL_MODE::init( void ) {
 	wjpblu.bind_qgstbl( WJP_QGSTBL{ 
       	entries: wjp_QGSTBL, 
@@ -672,6 +819,6 @@ int _CONFIG_CTRL_MODE::init( void ) {
     return wjpblu.init( 0 );
 }
 
-void main_ctrl() {
+void main_ctrl( void* arg ) {
 
 }

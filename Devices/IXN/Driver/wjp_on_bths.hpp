@@ -85,8 +85,11 @@ public:
 
 public:
     int begin( const char* bth_name ) {
-        _printf( LogLevel_Info, WHO_AM_I_STR, "Bluetooth begin... " );
-        return this->BluetoothSerial::begin( bth_name ) ? ( _printf( "ok.\n" ), 0 ) : ( _printf( "fault.\n" ), -1 );
+        return this->BluetoothSerial::begin( bth_name ) ? 0 : -1;
+    }
+
+    int end() {
+        BluetoothSerial::end();
     }
 
 };

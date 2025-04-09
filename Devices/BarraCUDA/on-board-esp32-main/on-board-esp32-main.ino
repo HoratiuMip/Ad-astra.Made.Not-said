@@ -13,6 +13,7 @@
 #define SSD1306_NO_SPLASH
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Adafruit_BME280.h>
 
 #include "../../IXN/common_utils.hpp"
 #define WJP_ARCHITECTURE_LITTLE
@@ -38,17 +39,19 @@ enum Mode_ : int {
 
 
 
+#define MAIN_LOOP( _M ) for(; CONFIG.mode == _M ;)
 static struct _CONFIG {
 	int init( void );
 
     void ( *mains[ _Mode_Count ] )( void* );
 
-    std::atomic_int   mode      = { Mode_Brdg };
+    std::atomic_int     mode         = { Mode_Brdg };
 
-    TwoWire*          I2C_bus   = &Wire;
+    TwoWire*            I2C_bus      = &Wire;
 
-    SemaphoreHandle_t   init_sem   = { xSemaphoreCreateBinary() };
+    SemaphoreHandle_t   init_sem     = { xSemaphoreCreateBinary() };
 
+    int                 dyn_scan_T   = 10;
 
 } CONFIG;
 
@@ -94,7 +97,7 @@ struct GPIO {
     inline static const GPIO_pin_t kazuha = 4;
     /*                             |potentiometer */
 
-    inline static const GPIO_pin_t xabara = 2;
+    inline static const GPIO_pin_t xabara = 17;
     /*                             |bridge */
 
     inline static struct { const GPIO_pin_t r, g, b; } bitna{ r: 13, g: 12, b: 14 };
@@ -120,6 +123,11 @@ struct GPIO {
         pinMode( kazuha, INPUT );
 
         pinMode( xabara, INPUT_PULLUP );
+        attachInterrupt( digitalPinToInterrupt( xabara ), [] ( void ) static -> void { 
+            CONFIG.mode.store( Mode_Brdg );
+        },
+            RISING 
+        );
 
         pinMode( bitna.r, OUTPUT ); pinMode( bitna.g, OUTPUT ); pinMode( bitna.b, OUTPUT );
 
@@ -246,6 +254,14 @@ static struct _YUNA : public Adafruit_SSD1306 {
 
 	template< typename _T > inline _YUNA& print_w( _T&& arg ) { this->print( std::forward< _T >( arg ) ); this->display(); return *this; }
 
+    template< typename ..._Args >
+    inline _YUNA& printf_w( const char* fmt, _Args&&... args ) {
+        static constexpr int BUF_MAX_SIZE = 256;
+        char buffer[ BUF_MAX_SIZE ];
+        sprintf( buffer, fmt, std::forward< _Args >( args )... );
+        return this->print_w( buffer );
+    }
+
 	inline void splash_logo() {
 		this->drawBitmap( 0, 0, BARRACUDA_LOGO, 128, 64, 1 );
         this->display();
@@ -313,8 +329,8 @@ static struct _GRAN : public MPU6050_WE {
     int init( void ) {
         _printf( LogLevel_Info, "MPU6050 init... " );
         if( !this->MPU6050_WE::init() ) {
-        _printf( "fault.\n" );
-        return -1;
+            _printf( "fault.\n" );
+            return -1;
         }
         _printf( "ok.\n" );
 
@@ -347,6 +363,15 @@ static struct _GRAN : public MPU6050_WE {
     }
 
 } GRAN{ CONFIG.I2C_bus, MPU6050_WE::WHO_AM_I_CODE };
+
+
+static struct _SUSAN : public Adafruit_BME280 {
+    int init( void ) {
+        if( !this->Adafruit_BME280::begin( 0x60, CONFIG.I2C_bus ) ) return -1;
+        return 0;
+    }
+
+} SUSAN{};
 
 
 #define _DYNAM_SCAN_IF( bit, jmp_lbl ) if( ( flags & ( 1 << bit ) ) == 0 ) goto jmp_lbl;
@@ -560,9 +585,9 @@ l_test_begin: {
 
     switch( test ) {
         case 0b0000: goto l_test_begin;
-        case 0b1001: goto l_test_end;
+        case 0b0110: goto l_test_end;
 
-        case 0b0100: {
+        case 0b1000: {
             _begin( "BITNA - LED color cycle" ); BITNA.itr_rgb( 2000 ); _end();
         break; }
 
@@ -580,7 +605,7 @@ l_test_end:
 
 
 #define _SETUP_ASSERT_OR_DEAD( c ) if( !(c) ) { _printf( LogLevel_Critical, "SETUP ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n" ); _dead(); }
-#define _FANCY_SETUP_ASSERT_OR_DEAD( c, s, d ) { YUNA.print_w( s ); _SETUP_ASSERT_OR_DEAD( c ); YUNA.print_w( "OK\n" ); vTaskDelay( d ); }
+#define _FANCY_SETUP_ASSERT_OR_DEAD( c, s, d ) { YUNA.print_w( s ); _SETUP_ASSERT_OR_DEAD( c ); YUNA.print_w( " /ok\n" ); vTaskDelay( d ); }
 void setup( void ) {
     _SETUP_ASSERT_OR_DEAD( GPIO::init() == 0 );
 
@@ -594,23 +619,46 @@ void setup( void ) {
 	_printf( "ok.\n" );
 
     _SETUP_ASSERT_OR_DEAD( YUNA.init() == 0 );
-	YUNA.print_w( ">/ YUNA [SSD1306]  OK\n" ); vTaskDelay( 400 );
+    
+    YUNA.print_w( ">/ serial /ok\n" ); vTaskDelay( 400 );
+    YUNA.print_w( ">/ i2c-bus /ok\n" ); vTaskDelay( 400 );
+    {
+    static constexpr int PER_ROW = 5;
+    int count = 0;
+    for( int addr = 1; addr < 127; ++addr ) {
+        CONFIG.I2C_bus->beginTransmission( addr );
+        int status = CONFIG.I2C_bus->endTransmission();
 
-	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ GRAN [MPU-6050] ", 400 );
+        if( status != 0 ) continue;
+
+        YUNA.printf_w( "0x%s%x ", ( addr < 16 ? "0" : "" ), addr ); vTaskDelay( 400 );
+        if( ++count == PER_ROW ) {
+            YUNA.print_w( '\n' );
+            count = 0;
+        }
+    }
+    if( count != 0 ) YUNA.print_w( '\n' );
+    }
+
+	YUNA.print_w( ">/ [ssd1306] /ok\n" ); vTaskDelay( 400 );
+
+	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ [mpu-6050]", 400 );
+
+    //_FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bme-280]", 400 );
 	
-	_FANCY_SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0, ">/ DYNAM           ", 400 );
+	_FANCY_SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0, ">/ dynam", 400 );
 
-    _FANCY_SETUP_ASSERT_OR_DEAD( CONFIG.init() == 0, ">/ CONFIG (+WJP)   ", 400 );
+    _FANCY_SETUP_ASSERT_OR_DEAD( CONFIG.init() == 0, ">/ config", 400 );
 
     _printf( LogLevel_Info, "Scanning for tests request.\n" );
     DYNAM.scan( Scan_Switches );
-    if( DYNAM.giselle.dwn ) {
-		YUNA.print_w( "Testing... " );
+    if( DYNAM.ningning.dwn ) {
+		YUNA.print_w( "/ test... " );
         do_tests();
 		YUNA.print_w( "done." );
-    } else {
-		YUNA.print_w( "No testing." );
-        _printf( LogLevel_Info, "No tests request.\n" );
+    } else if( DYNAM.giselle.dwn ) {
+        YUNA.print_w( "/ jmp mode ctrl." );
+        CONFIG.mode.store( Mode_Ctrl );
     }
 
     _printf( LogLevel_Ok, "Init complete.\n" );
@@ -623,7 +671,9 @@ void setup( void ) {
 void loop() { 
     vTaskPrioritySet( NULL, 3 );
     xSemaphoreGive( CONFIG.init_sem );
-    main_brdg( NULL ); 
+    for(;;) {
+        CONFIG.mains[ CONFIG.mode ]( NULL ); 
+    }
     _dead(); 
 }
 
@@ -707,31 +757,46 @@ static struct _FELLOW_TASK {
     TaskHandle_t   _handle   = NULL;
     void           ( *_func )( void* );
 
-    void suspend() { vTaskSuspend( _handle ); }
-    void resume() { vTaskResume( _handle ); }
+    inline void suspend() { vTaskSuspend( _handle ); }
+    inline void resume() { vTaskResume( _handle ); }
 
 }
 
 FELLOW_TASK_dynam_scan{ "dynam_scan", false, 4096, 5, [] ( void* ) static -> void { for(;;) {
-    vTaskDelay( 10 ); DYNAM.q_scan( Scan_All );
+    vTaskDelay( CONFIG.dyn_scan_T ); DYNAM.q_scan( Scan_All );
 } } },
 
-FELLOW_TASK_input_react{ "input_react", false, 4096, 0, [] ( void* ) static -> void { 
-    float lx[ 2 ], ly[ 2 ];
+FELLOW_TASK_input_react{ "input_react", true, 1024, 0, [] ( void* ) static -> void {
+    /* Given a single threshold, the joystick area around it will cause flicker. Use hysteresis to mitigate. */
+    static constexpr float JS_REACT_THRESHOLD = 0.8;
+    static constexpr int   REACT_COUNT        = 5;
 
-    barra::dynamic_t ss;
-    _DYNAM::snapshot_token_t ss_tok{ dst: &ss };
+    barra::dynamic_t          dyn;
+     _DYNAM::snapshot_token_t ss_tok                = { dst: &dyn };
+    int                       last_state            = 0;
+    Led_                      reacts[ REACT_COUNT ] = { Led_TRQ, Led_GRN, Led_YLW, Led_PRP, Led_BLU };
+    int                       react_at              = -1;
 
 for(;;) {
     DYNAM.snapshot( &ss_tok );
 
-    for( auto& sw : ss.switches ) if( sw.dwn ) goto l_react;
+    int crt_state = 0;
 
-    for( auto& js : ss.joysticks ) if( js.sw.dwn || abs( js.x ) > 0.8 || abs( js.y ) > 0.8 ) goto l_react;
+    for( auto& sw : dyn.switches )
+        ( crt_state |= sw.dwn ) <<= 1;
 
-    BITNA( Led_BLK ); continue;
-l_react:
-    BITNA( Led_TRQ );
+    for( auto& js : dyn.joysticks ) { 
+        ( crt_state |=  js.sw.dwn ) <<= 1;
+        ( crt_state |= ( abs( js.x ) >= JS_REACT_THRESHOLD ) ) <<= 1;
+        ( crt_state |= ( abs( js.y ) >= JS_REACT_THRESHOLD ) ) <<= 1;
+    }
+
+    if( crt_state != 0 && last_state != crt_state ) 
+        BITNA( reacts[ ++react_at %= REACT_COUNT ] );
+    else if( crt_state == 0 ) 
+        BITNA( Led_BLK );
+
+    last_state = crt_state;
 } } };
 
 
@@ -751,7 +816,7 @@ int _CONFIG::init( void ) {
 
 
 
-/* ._   _. .   .__
+/* ._  ._  .   .__
 || |_\ |_| |\  | ._
 || |_| | \ |_\ |__|
 */ 
@@ -760,12 +825,16 @@ int _CONFIG_BRDG_MODE::init( void ) {
 }
 
 void main_brdg( void* arg ) {
-    while( 1 ) { vTaskDelay( 1000 ); }
+    FELLOW_TASK_input_react.resume();
+
+    MAIN_LOOP( Mode_Brdg ) { _printf( "%d", GPIO::d_r( GPIO::xabara ) );
+        vTaskDelay( 1000 );
+    }
 }
 
 
 
-/* .__   _. .  . .__
+/* .__   _  .  . .__
 || | ._ |_| |\/| |_
 || |__| | | |  | |__
 */ 
@@ -820,5 +889,13 @@ int _CONFIG_CTRL_MODE::init( void ) {
 }
 
 void main_ctrl( void* arg ) {
+    FELLOW_TASK_dynam_scan.suspend();
 
+    CONFIG_CTRL_MODE.wjpblu.begin( barra::DEVICE_NAME );    
+
+    MAIN_LOOP( Mode_Ctrl ) {
+        loop_procs[ ( LOOP_STATE._conn_rst << 1 ) | CONFIG_CTRL_MODE.wjpblu.connected() ]();
+    } 
+
+    CONFIG_CTRL_MODE.wjpblu.end();
 }

@@ -16,7 +16,7 @@ namespace _ENGINE_NAMESPACE { namespace OS {
 
 #if defined( _ENGINE_OS_WINDOWS )
 
-enum ConsoleColor_ : char {
+enum ConsoleColor_ : unsigned char {
     ConsoleColor_Gray   = 8,
     ConsoleColor_Blue   = 9,
     ConsoleColor_Green  = 10,
@@ -24,7 +24,10 @@ enum ConsoleColor_ : char {
     ConsoleColor_Red    = 12,
     ConsoleColor_Pink   = 13,
     ConsoleColor_Yellow = 14,
-    ConsoleColor_White  = 15
+    ConsoleColor_White  = 15,
+
+    ConsoleColor_WhiteBgRed    = 207,
+    ConsoleColor_BlackBgYellow = 224
 };
 
 struct ConsoleCursor {

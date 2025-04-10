@@ -5,7 +5,6 @@
 |
 ======*/
 #include "../barracuda.hpp"
-#include "graphics.hpp"
 
 #include <Wire.h>
 #include <MPU6050_WE.h>
@@ -19,6 +18,8 @@
 #define WJP_ARCHITECTURE_LITTLE
 #include "../../IXN/Driver/wjp_on_bths.hpp"
 using namespace ixN::uC;
+
+#include "graphics.hpp"
 
 #include <atomic>
 
@@ -39,7 +40,7 @@ enum Mode_ : int {
 
 
 
-#define MAIN_LOOP( _M ) for(; CONFIG.mode == _M ;)
+#define MAIN_LOOP_ON( _M ) for(; CONFIG.mode == _M ;)
 static struct _CONFIG {
 	int init( void );
 
@@ -242,6 +243,7 @@ static struct _YUNA : public Adafruit_SSD1306 {
      */
     int init( void ) {
         if( !this->begin( SSD1306_SWITCHCAPVCC, 0x3C ) ) return -1;
+        this->setFont( &BARRACUDA_GFX_FONT );
         this->setTextColor( SSD1306_WHITE );
         this->setTextWrap( false );
 		this->setTextSize( 1 );
@@ -620,8 +622,8 @@ void setup( void ) {
 
     _SETUP_ASSERT_OR_DEAD( YUNA.init() == 0 );
     
-    YUNA.print_w( ">/ serial /ok\n" ); vTaskDelay( 400 );
-    YUNA.print_w( ">/ i2c-bus /ok\n" ); vTaskDelay( 400 );
+    YUNA.print_w( ">/ serial /ok\n" ); vTaskDelay( 300 );
+    YUNA.print_w( ">/ i2c-bus /ok\n" ); vTaskDelay( 300 );
     {
     static constexpr int PER_ROW = 5;
     int count = 0;
@@ -631,7 +633,7 @@ void setup( void ) {
 
         if( status != 0 ) continue;
 
-        YUNA.printf_w( "0x%s%x ", ( addr < 16 ? "0" : "" ), addr ); vTaskDelay( 400 );
+        YUNA.printf_w( "0x%s%x ", ( addr < 16 ? "0" : "" ), addr ); vTaskDelay( 300 );
         if( ++count == PER_ROW ) {
             YUNA.print_w( '\n' );
             count = 0;
@@ -640,15 +642,15 @@ void setup( void ) {
     if( count != 0 ) YUNA.print_w( '\n' );
     }
 
-	YUNA.print_w( ">/ [ssd1306] /ok\n" ); vTaskDelay( 400 );
+	YUNA.print_w( ">/ [ssd1306] /ok\n" ); vTaskDelay( 300 );
 
-	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ [mpu-6050]", 400 );
+	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ [mpu-6050]", 300 );
 
-    //_FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bme-280]", 400 );
+    //_FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bme-280]", 300 );
 	
-	_FANCY_SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0, ">/ dynam", 400 );
+	_FANCY_SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0, ">/ dynam", 300 );
 
-    _FANCY_SETUP_ASSERT_OR_DEAD( CONFIG.init() == 0, ">/ config", 400 );
+    _FANCY_SETUP_ASSERT_OR_DEAD( CONFIG.init() == 0, ">/ config", 300 );
 
     _printf( LogLevel_Info, "Scanning for tests request.\n" );
     DYNAM.scan( Scan_Switches );
@@ -762,7 +764,8 @@ static struct _FELLOW_TASK {
 
 }
 
-FELLOW_TASK_dynam_scan{ "dynam_scan", false, 4096, 5, [] ( void* ) static -> void { for(;;) {
+FELLOW_TASK_dynam_scan{ "dynam_scan", false, 4096, 5, [] ( void* ) static -> void { 
+for(;;) {
     vTaskDelay( CONFIG.dyn_scan_T ); DYNAM.q_scan( Scan_All );
 } } },
 
@@ -825,9 +828,10 @@ int _CONFIG_BRDG_MODE::init( void ) {
 }
 
 void main_brdg( void* arg ) {
+    FELLOW_TASK_dynam_scan.resume();
     FELLOW_TASK_input_react.resume();
 
-    MAIN_LOOP( Mode_Brdg ) { _printf( "%d", GPIO::d_r( GPIO::xabara ) );
+    MAIN_LOOP_ON( Mode_Brdg ) {
         vTaskDelay( 1000 );
     }
 }
@@ -893,7 +897,7 @@ void main_ctrl( void* arg ) {
 
     CONFIG_CTRL_MODE.wjpblu.begin( barra::DEVICE_NAME );    
 
-    MAIN_LOOP( Mode_Ctrl ) {
+    MAIN_LOOP_ON( Mode_Ctrl ) {
         loop_procs[ ( LOOP_STATE._conn_rst << 1 ) | CONFIG_CTRL_MODE.wjpblu.connected() ]();
     } 
 

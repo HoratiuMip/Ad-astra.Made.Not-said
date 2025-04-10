@@ -89,7 +89,8 @@ public:
     }
 
     int end() {
-        BluetoothSerial::end();
+        this->BluetoothSerial::end();
+        return 0;
     }
 
 };

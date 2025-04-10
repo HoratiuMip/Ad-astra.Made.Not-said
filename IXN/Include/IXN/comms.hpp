@@ -61,14 +61,14 @@ public:
 
 _ENGINE_PROTECTED:
     inline static OS::ConsoleColor_ _level_colors[] = {
-        OS::ConsoleColor_Pink,   /* EchoLevel_Input */ 
-        OS::ConsoleColor_Pink,   /* EchoLevel_Trace */
-        OS::ConsoleColor_Gray,   /* EchoLevel_Debug */
-        OS::ConsoleColor_Red,    /* EchoLevel_Error */
-        OS::ConsoleColor_Yellow, /* EchoLevel_Warning */
-        OS::ConsoleColor_Blue,   /* EchoLevel_Pending */
-        OS::ConsoleColor_Green,  /* EchoLevel_Ok */
-        OS::ConsoleColor_Turq,   /* EchoLevel_Info */
+        OS::ConsoleColor_Pink,          /* EchoLevel_Input */ 
+        OS::ConsoleColor_Pink,          /* EchoLevel_Trace */
+        OS::ConsoleColor_Gray,          /* EchoLevel_Debug */
+        OS::ConsoleColor_WhiteBgRed,    /* EchoLevel_Error */
+        OS::ConsoleColor_BlackBgYellow, /* EchoLevel_Warning */
+        OS::ConsoleColor_Blue,          /* EchoLevel_Pending */
+        OS::ConsoleColor_Green,         /* EchoLevel_Ok */
+        OS::ConsoleColor_Turq,          /* EchoLevel_Info */
     };
 
     inline static const char* _level_strings[] = {

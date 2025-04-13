@@ -24,8 +24,13 @@ struct joystick_t {
     float      x;
     float      y;
     switch_t   sw;
-    int8_t     _reserved1;
-    int16_t    _reserved2;
+    struct {
+        int8_t   x         : 2;
+        int8_t   y         : 2;
+        int8_t   is        : 2;
+        int8_t   _reserved : 2;
+    }          trg;
+    int16_t    _reserved;
 };
 static_assert( sizeof( joystick_t ) == 2*sizeof( float ) + sizeof( switch_t ) + 3 );
 

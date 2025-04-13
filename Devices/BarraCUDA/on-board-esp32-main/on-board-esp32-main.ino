@@ -38,9 +38,20 @@ enum Mode_ : int {
 };
 
 enum Priority_ : int {
-    Priority_Aesth = 0,
-    Priority_Urgent = 5
+    Priority_Aesth   = 0,
+    Priority_SubMain = 2,
+    Priority_Main    = 3,
+    Priority_Urgent  = 4
 };
+
+
+
+
+void main_brdg( void* );
+void main_game( void* );
+void main_ctrl( void* );
+
+struct _BRIDGE;
 
 
 
@@ -63,6 +74,24 @@ static struct _CONFIG {
 static struct _CONFIG_BRDG_MODE {
     int init( void );
 
+    void bridge_back() { 
+        Mode_ last_mode = ( Mode_ )CONFIG.mode.exchange( ( int )Mode_Brdg, std::memory_order_seq_cst );
+        if( last_mode == Mode_Brdg ) {
+            _crt = _home;
+        } 
+    }
+
+    inline static constexpr int   STRIDE   = 16;
+
+    _BRIDGE*   _root   = NULL;
+    _BRIDGE*   _home   = NULL;
+    _BRIDGE*   _crt    = NULL;
+
+    int bridge_N();
+    int bridge_S();
+    int bridge_E();
+    int bridge_W();
+
 } CONFIG_BRDG_MODE;
 
 static struct _CONFIG_GAME_MODE {
@@ -77,12 +106,6 @@ static struct _CONFIG_CTRL_MODE {
     int                      dynamic_period   = 10;
 
 } CONFIG_CTRL_MODE;
-
-
-
-void main_brdg( void* );
-void main_game( void* );
-void main_ctrl( void* );
 
 
 
@@ -129,7 +152,7 @@ struct GPIO {
 
         pinMode( xabara, INPUT_PULLUP );
         attachInterrupt( digitalPinToInterrupt( xabara ), [] ( void ) static -> void { 
-            CONFIG.mode.store( Mode_Brdg );
+            CONFIG_BRDG_MODE.bridge_back();
         },
             RISING 
         );
@@ -257,7 +280,7 @@ static struct _YUNA : public Adafruit_SSD1306 {
         return 0;
     }
 
-	inline _YUNA& clear( void ) { this->clearDisplay(); return *this; }
+	inline _YUNA& clear_w( void ) { this->clearDisplay(); this->display(); return *this; }
 
 	template< typename _T > inline _YUNA& print_w( _T&& arg ) { this->print( std::forward< _T >( arg ) ); this->display(); return *this; }
 
@@ -398,8 +421,11 @@ static struct _DYNAM : WJP_HEAD, barra::dynamic_t {
     } _idle_reads;
 
     struct snapshot_token_t {
-        barra::dynamic_t*   dst    = NULL;
-        int                 _seq   = 0;
+        barra::dynamic_t*   dst          = NULL;
+        bool                blk          = true;
+        int                 _seq         = 0;
+        uint8_t             _xjtt[ 2 ]   = { HIGH, HIGH };
+        uint8_t             _yjtt[ 2 ]   = { HIGH, HIGH };
     };
 
     int   _seq  = 0;
@@ -453,16 +479,8 @@ static struct _DYNAM : WJP_HEAD, barra::dynamic_t {
         }
         /* Switches */ l_switches: _DYNAM_SCAN_IF( 1, l_accel ); {
             const auto _resolve_switch = [] ( barra::switch_t& sw, GPIO_pin_t pin ) static -> void {
-            int is_dwn = !digitalRead( pin );
-
-            switch( ( sw.dwn << 1 ) | is_dwn ) {
-                /* case 0b00: [[fallthrough]]; */
-                /* case 0b11: sw.rls = 0; sw.prs = 0; break; */
-                case 0b01: /* sw.rls = 0; */ sw.prs = 1; break;
-                case 0b10: sw.rls = 1; /* sw.prs = 0; */ break;
-            }
-
-            sw.dwn = is_dwn;
+                int is_dwn = !digitalRead( pin );
+                sw.dwn = is_dwn;
             };
 
             _resolve_switch( tar->rachel.sw,   GPIO::rachel.sw );
@@ -498,7 +516,7 @@ static struct _DYNAM : WJP_HEAD, barra::dynamic_t {
         this->_scan( flags, &( barra::dynamic_t& )*this );
     }
 
-    void q_scan( int flags ) {
+    inline void q_scan( int flags ) {
         barra::dynamic_t* tar = &_q[ _seq ^ 1 ].buffer;  
 
         this->_scan( flags, tar );
@@ -509,19 +527,46 @@ static struct _DYNAM : WJP_HEAD, barra::dynamic_t {
         _seq ^= 1;
     }
 
-    inline int snapshot( snapshot_token_t* tok ) {
-        xQueuePeek( _q[ tok->_seq ].handle, tok->dst, portMAX_DELAY );
+    int snapshot( snapshot_token_t* tok ) {
+        barra::switch_t sws[ 6 ] = {
+            tok->dst->samantha.sw, tok->dst->rachel.sw, 
+            tok->dst->giselle, tok->dst->karina, tok->dst->ningning, tok->dst->winter
+        };
+
+        if( xQueuePeek( _q[ tok->_seq ].handle, tok->dst, tok->blk ? portMAX_DELAY : 0 ) == errQUEUE_EMPTY ) return -1;
         tok->_seq ^= 1;
+
+        _DYNAM::_resolve_cmp_js( tok->_xjtt[ 0 ], tok->_yjtt[ 0 ], tok->dst->samantha, 0.8, 0.9 );
+        _DYNAM::_resolve_cmp_js( tok->_xjtt[ 1 ], tok->_yjtt[ 1 ], tok->dst->rachel, 0.8, 0.9 );
+
+        _DYNAM::_resolve_cmp_sw( sws[ 0 ], tok->dst->samantha.sw );
+        _DYNAM::_resolve_cmp_sw( sws[ 1 ], tok->dst->rachel.sw ); 
+        _DYNAM::_resolve_cmp_sw( sws[ 2 ], tok->dst->giselle ); 
+        _DYNAM::_resolve_cmp_sw( sws[ 3 ], tok->dst->karina ); 
+        _DYNAM::_resolve_cmp_sw( sws[ 4 ], tok->dst->ningning ); 
+        _DYNAM::_resolve_cmp_sw( sws[ 5 ], tok->dst->winter );
+
         return 0;
     }
 
-    void reset_sw_prs_rls() {
-        rachel.sw.rls = 0; rachel.sw.prs = 0;
-        samantha.sw.rls = 0; samantha.sw.prs = 0;
-        giselle.rls = 0; giselle.prs = 0;
-        karina.rls = 0; karina.prs = 0;
-        ningning.rls = 0; ningning.prs = 0;
-        winter.rls = 0; winter.prs = 0;
+    inline static void _resolve_cmp_sw( barra::switch_t& old, barra::switch_t& crt ) {
+        switch( ( old.dwn << 1 ) | crt.dwn ) {
+            case 0b00: [[fallthrough]];
+            case 0b11: crt.rls = 0; crt.prs = 0; break;
+            case 0b01: crt.rls = 0; crt.prs = 1; break;
+            case 0b10: crt.rls = 1; crt.prs = 0; break;
+        }
+    }
+
+#define _DYNAM_RESOLVE_CMP_JS_AXIS( jtt, axis ) \
+if( jtt == HIGH && ( js.axis >= th_high || js.axis <= -th_high ) ) { jtt = LOW; js.trg.axis = js.axis >= th_high ? 1 : -1; is##axis = 1; } \
+else if( jtt == LOW && abs( js.axis ) <= th_low ) { jtt = HIGH; js.trg.axis = 0; is##axis = 1; } \
+else { js.trg.axis = is##axis = 0; }
+    inline static void _resolve_cmp_js( uint8_t& xjtt, uint8_t& yjtt, barra::joystick_t& js, float th_low, float th_high ) {
+        bool isx = false, isy = false;
+        _DYNAM_RESOLVE_CMP_JS_AXIS( xjtt, x );
+        _DYNAM_RESOLVE_CMP_JS_AXIS( yjtt, y );
+        js.trg.is = isx | isy;
     }
 
     int blue_tx( void );
@@ -693,10 +738,8 @@ void setup( void ) {
     }
 
     _printf( LogLevel_Ok, "Init complete.\n" );
-	BITNA.blink( 9, Led_BLK, Led_RED, 50, 50 );
-
-	YUNA.clear().splash_logo(); vTaskDelay( 1600 );
-    BITNA( Led_BLK );
+	BITNA.blink( 9, Led_GRN, Led_BLK, 50, 50 );
+    YUNA.clear_w(); 
 }
 
 void loop() { 
@@ -709,66 +752,11 @@ void loop() {
 }
 
 
-struct _LOOP_STATE {
-    bool   _conn_rst   = true;
-} LOOP_STATE;
-
-/* 1: LOOP_STATE._conn_rst | 0: CONFIG_CTRL_MODE.wjpblu.connected() */
-std::function< int( void ) >   loop_procs[]   = {
-  /* 0b00 */ [] () -> bool {
-    _printf( LogLevel_Info, "Disconnected from device.\n" );
-    LOOP_STATE._conn_rst = true;
-    _printf( LogLevel_Info, "Ready to relink...\n" );
-    BITNA.blink( 10, Led_BLU, Led_RED, 50, 50 );
-    return true;
-  },
-  /* 0b01 */ [] () -> bool {
-    if( COM.loop() != 0 ) {
-      BITNA.blink( 10, Led_RED, Led_BLK, 100, 500 );
-      CONFIG_CTRL_MODE.wjpblu.disconnect();
-      return true;
-    }
-    
-    DYNAM.scan( Scan_All );
-    DYNAM.blue_tx();
-
-    return true;
-  },
-  /* 0b10 */ [] () -> bool {
-    BITNA.blink( 1, Led_BLU, Led_BLK, 100, 500 );
-    return true;
-  },
-  /* 0b11 */ [] () -> bool {
-    LOOP_STATE._conn_rst = false;
-    _printf( LogLevel_Info, "Connected to device.\n" );
-    BITNA.blink( 10, Led_BLU, Led_BLK, 50, 50 );
-    return true;
-  }
-};
-
-
-
-int _DYNAM::blue_tx( void ) {
-  static int last_ms = millis();
-  static int current_ms;
-
-  current_ms = millis();
-  if( current_ms - last_ms < CONFIG_CTRL_MODE.dynamic_period ) return 0;
-
-  last_ms = current_ms;
-  int ret = CONFIG_CTRL_MODE.wjpblu.trust_burst( this, sizeof( WJP_HEAD ) + WJP_HEAD::_dw3.sz, 0 );
-
-  this->reset_sw_prs_rls();
-  return ret;
-}
-
-
 
 /* .  .  _. . .  
 || |\/| |_| | |\ |
 || |  | | | | | \|
 */ 
-
 static struct _FELLOW_TASK {
     static void _func_wrap( void* func ) {
         xSemaphoreTake( CONFIG.init_sem, portMAX_DELAY ); xSemaphoreGive( CONFIG.init_sem );
@@ -804,7 +792,7 @@ FELLOW_TASK_input_react{ "input_react", true, 1024, Priority_Aesth, [] ( void* )
     static constexpr int   REACT_COUNT        = 5;
 
     barra::dynamic_t          dyn;
-     _DYNAM::snapshot_token_t ss_tok                = { dst: &dyn };
+     _DYNAM::snapshot_token_t ss_tok                = { dst: &dyn, blk: true };
     int                       last_state            = 0;
     Led_                      reacts[ REACT_COUNT ] = { Led_TRQ, Led_GRN, Led_YLW, Led_PRP, Led_BLU };
     int                       react_at              = -1;
@@ -819,8 +807,8 @@ for(;;) {
 
     for( auto& js : dyn.joysticks ) { 
         ( crt_state |=  js.sw.dwn ) <<= 1;
-        ( crt_state |= ( abs( js.x ) >= JS_REACT_THRESHOLD ) ) <<= 1;
-        ( crt_state |= ( abs( js.y ) >= JS_REACT_THRESHOLD ) ) <<= 1;
+        ( crt_state |=  abs( js.x ) >= JS_REACT_THRESHOLD ) <<= 1;
+        ( crt_state |=  abs( js.y ) >= JS_REACT_THRESHOLD ) <<= 1;
     }
 
     if( crt_state != 0 && last_state != crt_state ) 
@@ -852,7 +840,60 @@ int _CONFIG::init( void ) {
 || |_\ |_| |\  | ._
 || |_| | \ |_\ |__|
 */ 
+struct _BRIDGE {
+    _BRIDGE*   sup                                 = NULL;
+    _BRIDGE*   subs[ _CONFIG_BRDG_MODE::STRIDE ]   = { ( memset( ( void* )subs, NULL, _CONFIG_BRDG_MODE::STRIDE * sizeof( void* ) ), ( _BRIDGE* )NULL ) };
+    int        sub_idx                             = 0;
+
+    virtual void focus_begin() {};
+    virtual void focus_end() {};
+    virtual void focus_loop() {};
+} _BRIDGE_ROOT;
+
+struct _BRIDGE_HOME : _BRIDGE{
+    virtual void focus_begin() override { YUNA.clear_w(); };
+
+    virtual void focus_end() override {};
+
+    virtual void focus_loop() override { 
+        YUNA.splash_logo(); vTaskDelay( 1000 ); 
+    };
+
+} BRDIGE_HOME;
+
 int _CONFIG_BRDG_MODE::init( void ) {
+    _root = &_BRIDGE_ROOT;
+    _crt = _home = &BRDIGE_HOME;
+
+    _BRIDGE_ROOT.subs[ 0 ] = &BRDIGE_HOME;
+
+    BRDIGE_HOME.sup = &_BRIDGE_ROOT;
+
+    return 0;
+}
+
+int _CONFIG_BRDG_MODE::bridge_N() {
+    if( _crt->sup == NULL || _crt->sup == &_BRIDGE_ROOT ) return -1;
+    _crt = _crt->sup;
+    return 0;
+}
+int _CONFIG_BRDG_MODE::bridge_S() {
+    if( _crt->subs[ _crt->sub_idx ] == NULL ) return -1;
+    _crt = _crt->subs[ _crt->sub_idx ];
+    return 0;
+}
+int _CONFIG_BRDG_MODE::bridge_E() {
+    int next_idx = _crt->sup->sub_idx + 1;
+    if( next_idx >= STRIDE || _crt->sup->subs[ next_idx ] == NULL ) return -1;
+    _crt->sup->sub_idx = next_idx;
+    _crt = _crt->sup->subs[ next_idx ];
+    return 0;
+}
+int _CONFIG_BRDG_MODE::bridge_W() {
+    int next_idx = _crt->sup->sub_idx - 1;
+    if( next_idx < 0 || _crt->sup->subs[ next_idx ] == NULL ) return -1;
+    _crt->sup->sub_idx = next_idx;
+    _crt = _crt->sup->subs[ next_idx ];
     return 0;
 }
 
@@ -860,9 +901,17 @@ void main_brdg( void* arg ) {
     FELLOW_TASK_dynam_scan.resume();
     FELLOW_TASK_input_react.resume();
 
-    MAIN_LOOP_ON( Mode_Brdg ) {
-        vTaskDelay( 1000 );
+    barra::dynamic_t         dyn;
+    _DYNAM::snapshot_token_t ss_tok = { dst: &dyn, blk: true };
+
+MAIN_LOOP_ON( Mode_Brdg ) {
+    //CONFIG_BRDG_MODE._crt->focus_loop();
+    DYNAM.snapshot( &ss_tok );
+    if( dyn.rachel.trg.is != 0 ) { static bool inv = false; static int x = 0;
+        YUNA.invertDisplay( inv ^= 1 );_printf( "%d\n", ++x);
     }
+}
+
 }
 
 
@@ -920,6 +969,60 @@ int _CONFIG_CTRL_MODE::init( void ) {
 
     return wjpblu.init( 0 );
 }
+
+struct _LOOP_STATE {
+    bool   _conn_rst   = true;
+} LOOP_STATE;
+
+/* 1: LOOP_STATE._conn_rst | 0: CONFIG_CTRL_MODE.wjpblu.connected() */
+std::function< int( void ) >   loop_procs[]   = {
+  /* 0b00 */ [] () -> bool {
+    _printf( LogLevel_Info, "Disconnected from device.\n" );
+    LOOP_STATE._conn_rst = true;
+    _printf( LogLevel_Info, "Ready to relink...\n" );
+    BITNA.blink( 10, Led_BLU, Led_RED, 50, 50 );
+    return true;
+  },
+  /* 0b01 */ [] () -> bool {
+    if( COM.loop() != 0 ) {
+      BITNA.blink( 10, Led_RED, Led_BLK, 100, 500 );
+      CONFIG_CTRL_MODE.wjpblu.disconnect();
+      return true;
+    }
+    
+    DYNAM.scan( Scan_All );
+    DYNAM.blue_tx();
+
+    return true;
+  },
+  /* 0b10 */ [] () -> bool {
+    BITNA.blink( 1, Led_BLU, Led_BLK, 100, 500 );
+    return true;
+  },
+  /* 0b11 */ [] () -> bool {
+    LOOP_STATE._conn_rst = false;
+    _printf( LogLevel_Info, "Connected to device.\n" );
+    BITNA.blink( 10, Led_BLU, Led_BLK, 50, 50 );
+    return true;
+  }
+};
+
+
+
+int _DYNAM::blue_tx( void ) {
+  static int last_ms = millis();
+  static int current_ms;
+
+  current_ms = millis();
+  if( current_ms - last_ms < CONFIG_CTRL_MODE.dynamic_period ) return 0;
+
+  last_ms = current_ms;
+  int ret = CONFIG_CTRL_MODE.wjpblu.trust_burst( this, sizeof( WJP_HEAD ) + WJP_HEAD::_dw3.sz, 0 );
+
+  return ret;
+}
+
+
 
 void main_ctrl( void* arg ) {
     FELLOW_TASK_dynam_scan.suspend();

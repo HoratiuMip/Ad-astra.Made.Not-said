@@ -12,7 +12,7 @@
 #define SSD1306_NO_SPLASH
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <Adafruit_BME280.h>
+#include <Adafruit_BMP280.h>
 
 #include "../../IXN/common_utils.hpp"
 #define WJP_ARCHITECTURE_LITTLE
@@ -22,7 +22,6 @@ using namespace ixN::uC;
 #include "graphics.hpp"
 
 #include <atomic>
-
 
 
 #define uC_CORE_0 0
@@ -36,6 +35,11 @@ enum Mode_ : int {
     Mode_Ctrl = 2,
 
     _Mode_Count
+};
+
+enum Priority_ : int {
+    Priority_Aesth = 0,
+    Priority_Urgent = 5
 };
 
 
@@ -245,6 +249,7 @@ static struct _YUNA : public Adafruit_SSD1306 {
         if( !this->begin( SSD1306_SWITCHCAPVCC, 0x3C ) ) return -1;
         this->setFont( &BARRACUDA_GFX_FONT );
         this->setTextColor( SSD1306_WHITE );
+        this->setCursor( 0, 0 );
         this->setTextWrap( false );
 		this->setTextSize( 1 );
         this->clearDisplay();
@@ -367,13 +372,13 @@ static struct _GRAN : public MPU6050_WE {
 } GRAN{ CONFIG.I2C_bus, MPU6050_WE::WHO_AM_I_CODE };
 
 
-static struct _SUSAN : public Adafruit_BME280 {
+static struct _SUSAN : public Adafruit_BMP280 {
     int init( void ) {
-        if( !this->Adafruit_BME280::begin( 0x60, CONFIG.I2C_bus ) ) return -1;
+        if( !this->Adafruit_BMP280::begin( 0x76 ) ) return -1;
         return 0;
     }
 
-} SUSAN{};
+} SUSAN{ CONFIG.I2C_bus };
 
 
 #define _DYNAM_SCAN_IF( bit, jmp_lbl ) if( ( flags & ( 1 << bit ) ) == 0 ) goto jmp_lbl;
@@ -565,21 +570,47 @@ void _dead( void ) {
 int do_tests( void ) {
     _printf( LogLevel_Info, "Beginning tests.\n" );
 
+    bool in_test    = false;
+    int  test_count = 0;
+
     const auto _get_test = [] () static -> int8_t {
         DYNAM.scan( Scan_Switches );
         return ( DYNAM.giselle.dwn << 3 ) | ( DYNAM.karina.dwn << 2 ) | ( DYNAM.ningning.dwn << 1 ) | DYNAM.winter.dwn;
     };
 
-    const auto _begin = [] ( const char* test_name ) static -> void {
+    const auto _begin = [ &in_test ] ( const char* test_name ) -> void {
         _printf( LogLevel_Info, "Acknowledged test [ %s ]...", test_name );
         BITNA.blink( 10, Led_YLW, Led_BLK, 50, 50 );
+        in_test = true;
     };
-    const auto _end = [] () static -> void {
+    const auto _end = [ &in_test ] () -> void {
         BITNA.blink( 10, Led_YLW, Led_BLK, 50, 50 );
         _printf( " ok.\n" );
+        in_test = false;
     };
 
-    int test_count = 0;
+    YUNA.print_w( ">/ test" );
+
+
+    TaskHandle_t htsk_anim; xTaskCreate( [] ( void* arg ) static -> void { 
+            bool& in_test  = *( bool* )arg;
+            int   at       = 1;
+
+            int x = YUNA.getCursorX(), y = YUNA.getCursorY();
+
+            for(;;) {
+                YUNA.print_w( '.' );
+                vTaskDelay( 300 );
+
+                if( at++ < 5 ) continue;
+
+                at = 1;
+                YUNA.fillRect( x, y, 20, 5, SSD1306_BLACK );
+                YUNA.setCursor( x, y );
+            }
+        }, 
+        "test_display_animation", 4096, &in_test, Priority_Aesth, &htsk_anim 
+    );
 
 l_test_begin: {
     BITNA.blink( 1, Led_YLW, Led_BLK, 100, 500 );
@@ -601,13 +632,16 @@ l_test_begin: {
 }
 l_test_end:
     _printf( LogLevel_Info, "Tests ended. Completed (%d) tests.\n", test_count ) ;
+
+    vTaskDelete( htsk_anim );
+    YUNA.printf_w( " >done(%d)", test_count );
     return test_count;
 }
 
 
 
 #define _SETUP_ASSERT_OR_DEAD( c ) if( !(c) ) { _printf( LogLevel_Critical, "SETUP ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n" ); _dead(); }
-#define _FANCY_SETUP_ASSERT_OR_DEAD( c, s, d ) { YUNA.print_w( s ); _SETUP_ASSERT_OR_DEAD( c ); YUNA.print_w( " /ok\n" ); vTaskDelay( d ); }
+#define _FANCY_SETUP_ASSERT_OR_DEAD( c, s, d ) { YUNA.print_w( s ); _SETUP_ASSERT_OR_DEAD( c ); YUNA.print_w( " ~ok\n" ); vTaskDelay( d ); }
 void setup( void ) {
     _SETUP_ASSERT_OR_DEAD( GPIO::init() == 0 );
 
@@ -622,8 +656,7 @@ void setup( void ) {
 
     _SETUP_ASSERT_OR_DEAD( YUNA.init() == 0 );
     
-    YUNA.print_w( ">/ serial /ok\n" ); vTaskDelay( 300 );
-    YUNA.print_w( ">/ i2c-bus /ok\n" ); vTaskDelay( 300 );
+    YUNA.print_w( ">/ i2c-bus >...\n" ); vTaskDelay( 300 );
     {
     static constexpr int PER_ROW = 5;
     int count = 0;
@@ -642,11 +675,9 @@ void setup( void ) {
     if( count != 0 ) YUNA.print_w( '\n' );
     }
 
-	YUNA.print_w( ">/ [ssd1306] /ok\n" ); vTaskDelay( 300 );
-
 	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ [mpu-6050]", 300 );
 
-    //_FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bme-280]", 300 );
+    _FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bmp-280]", 300 );
 	
 	_FANCY_SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0, ">/ dynam", 300 );
 
@@ -655,9 +686,7 @@ void setup( void ) {
     _printf( LogLevel_Info, "Scanning for tests request.\n" );
     DYNAM.scan( Scan_Switches );
     if( DYNAM.ningning.dwn ) {
-		YUNA.print_w( "/ test... " );
         do_tests();
-		YUNA.print_w( "done." );
     } else if( DYNAM.giselle.dwn ) {
         YUNA.print_w( "/ jmp mode ctrl." );
         CONFIG.mode.store( Mode_Ctrl );
@@ -681,7 +710,7 @@ void loop() {
 
 
 struct _LOOP_STATE {
-  bool   _conn_rst   = true;
+    bool   _conn_rst   = true;
 } LOOP_STATE;
 
 /* 1: LOOP_STATE._conn_rst | 0: CONFIG_CTRL_MODE.wjpblu.connected() */
@@ -764,12 +793,12 @@ static struct _FELLOW_TASK {
 
 }
 
-FELLOW_TASK_dynam_scan{ "dynam_scan", false, 4096, 5, [] ( void* ) static -> void { 
+FELLOW_TASK_dynam_scan{ "dynam_scan", false, 4096, Priority_Urgent, [] ( void* ) static -> void { 
 for(;;) {
     vTaskDelay( CONFIG.dyn_scan_T ); DYNAM.q_scan( Scan_All );
 } } },
 
-FELLOW_TASK_input_react{ "input_react", true, 1024, 0, [] ( void* ) static -> void {
+FELLOW_TASK_input_react{ "input_react", true, 1024, Priority_Aesth, [] ( void* ) static -> void {
     /* Given a single threshold, the joystick area around it will cause flicker. Use hysteresis to mitigate. */
     static constexpr float JS_REACT_THRESHOLD = 0.8;
     static constexpr int   REACT_COUNT        = 5;

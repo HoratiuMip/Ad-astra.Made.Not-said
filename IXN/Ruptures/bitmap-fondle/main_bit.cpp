@@ -38,12 +38,16 @@ int main( int argc, char* argv[] ) {
     }
 */
 
+
+
+
     std::ostringstream res; res << std::hex;
     std::ostringstream res2; res2 << std::hex;
     int count    = 0;
     int bmp_byte = 0;
     int bytes_per_row = 16;
     int bytes_at = 0;
+    int last_bat = 0;
 
     std::cout << '\n';
     for( int32_t x = 0; x < w; ++x ) {
@@ -94,9 +98,10 @@ int main( int argc, char* argv[] ) {
         std::cout << "------------------\n";
 
         char buff[ 256 ];
-        sprintf( buff, "{ bitmapOffset: %d, width: %d, height: %d, xAdvance: %d, xOffset: %d, yOffset: %d },\n", bytes_at - 1, char_w, char_h, char_w + 1, 0, 0 );
+        sprintf( buff, "{ bitmapOffset: %d, width: %d, height: %d, xAdvance: %d, xOffset: %d, yOffset: %d },\n", last_bat, char_w, char_h, char_w + 1, 0, 0 );
         res2 << buff;
 
+        last_bat = bytes_at;
         x = wx - 1;
     }
 

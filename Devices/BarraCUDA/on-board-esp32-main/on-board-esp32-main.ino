@@ -67,19 +67,12 @@ static struct _CONFIG {
 
     SemaphoreHandle_t   init_sem     = { xSemaphoreCreateBinary() };
 
-    int                 dyn_scan_T   = 10;
+    int                 dyn_scan_T   = 20;
 
 } CONFIG;
 
 static struct _CONFIG_BRDG_MODE {
     int init( void );
-
-    void bridge_back() { 
-        Mode_ last_mode = ( Mode_ )CONFIG.mode.exchange( ( int )Mode_Brdg, std::memory_order_seq_cst );
-        if( last_mode == Mode_Brdg ) {
-            _crt = _home;
-        } 
-    }
 
     inline static constexpr int   STRIDE   = 16;
 
@@ -87,6 +80,9 @@ static struct _CONFIG_BRDG_MODE {
     _BRIDGE*   _home   = NULL;
     _BRIDGE*   _crt    = NULL;
 
+    void force_awake();
+
+    void bridge_back();
     int bridge_N();
     int bridge_S();
     int bridge_E();
@@ -757,6 +753,11 @@ void loop() {
 || |\/| |_| | |\ |
 || |  | | | | | \|
 */ 
+enum FellowTask_ : int {
+    FellowTask_DynamScan  = ( 1 << 0 ),
+    FellowTask_InputReact = ( 1 << 1 ),
+    FellowTask_BrdgLoop   = ( 1 << 2 )
+};
 static struct _FELLOW_TASK {
     static void _func_wrap( void* func ) {
         xSemaphoreTake( CONFIG.init_sem, portMAX_DELAY ); xSemaphoreGive( CONFIG.init_sem );
@@ -764,14 +765,16 @@ static struct _FELLOW_TASK {
         vTaskDelete( NULL );
     } 
 
-    _FELLOW_TASK( const char* name, bool suspended, int stack_depth, int priority, void ( *func )( void* ) ) 
+    _FELLOW_TASK( const char* name, int stack_depth, int priority, void ( *func )( void* ) ) 
     : _func{ func }
     {
         BaseType_t status = xTaskCreate( _FELLOW_TASK::_func_wrap, name, stack_depth, ( void* )_func, priority, &_handle );
+        static int _array_idx = 0; _FELLOW_TASK::_array[ _array_idx++ ] = this;
         if( status != pdPASS ) return;
-
-        if( suspended ) this->suspend();
     }
+
+    inline static constexpr int   _ARR_SZ   = 16;
+    inline static _FELLOW_TASK*   _array[ _ARR_SZ ];
 
     TaskHandle_t   _handle   = NULL;
     void           ( *_func )( void* );
@@ -779,14 +782,19 @@ static struct _FELLOW_TASK {
     inline void suspend() { vTaskSuspend( _handle ); }
     inline void resume() { vTaskResume( _handle ); }
 
+    inline static void require( int tasks ) {
+        for( int idx = 0; idx < _ARR_SZ && _array[ idx ] != NULL; ++idx ) {
+            if( ( tasks >> idx ) & 1 ) _array[ idx ]->resume(); else _array[ idx ]->suspend();
+        }
+    }
 }
 
-FELLOW_TASK_dynam_scan{ "dynam_scan", false, 4096, Priority_Urgent, [] ( void* ) static -> void { 
+FELLOW_TASK_dynam_scan{ "dynam_scan", 4096, Priority_Urgent, [] ( void* ) static -> void { 
 for(;;) {
     vTaskDelay( CONFIG.dyn_scan_T ); DYNAM.q_scan( Scan_All );
 } } },
 
-FELLOW_TASK_input_react{ "input_react", true, 1024, Priority_Aesth, [] ( void* ) static -> void {
+FELLOW_TASK_input_react{ "input_react", 1024, Priority_Aesth, [] ( void* ) static -> void {
     /* Given a single threshold, the joystick area around it will cause flicker. Use hysteresis to mitigate. */
     static constexpr float JS_REACT_THRESHOLD = 0.8;
     static constexpr int   REACT_COUNT        = 5;
@@ -840,14 +848,18 @@ int _CONFIG::init( void ) {
 || |_\ |_| |\  | ._
 || |_| | \ |_\ |__|
 */ 
+#define BRIDGE_TASK_DELAY( ms ) { vTaskDelay( ms ); if( this->_forced_awaken ) return; }
+
 struct _BRIDGE {
     _BRIDGE*   sup                                 = NULL;
     _BRIDGE*   subs[ _CONFIG_BRDG_MODE::STRIDE ]   = { ( memset( ( void* )subs, NULL, _CONFIG_BRDG_MODE::STRIDE * sizeof( void* ) ), ( _BRIDGE* )NULL ) };
     int        sub_idx                             = 0;
 
-    virtual void focus_begin() {};
-    virtual void focus_end() {};
-    virtual void focus_loop() {};
+    bool       _forced_awaken                      = false;
+
+    virtual void focus_begin() {} void _focus_begin() { _forced_awaken = false; this->focus_begin(); }
+    virtual void focus_end() {}   void _focus_end() { this->focus_end(); }
+    virtual void focus_loop() {}
 } _BRIDGE_ROOT;
 
 struct _BRIDGE_HOME : _BRIDGE{
@@ -856,60 +868,104 @@ struct _BRIDGE_HOME : _BRIDGE{
     virtual void focus_end() override {};
 
     virtual void focus_loop() override { 
-        YUNA.splash_logo(); vTaskDelay( 1000 ); 
+        YUNA.splash_logo(); 
+        BRIDGE_TASK_DELAY( 1000 ); 
     };
 
 } BRDIGE_HOME;
+
+struct _BRDIGE_BTH : _BRIDGE {
+    virtual void focus_begin() override { x = 0; };
+
+    virtual void focus_end() override {};
+
+    virtual void focus_loop() override { 
+        YUNA.clearDisplay();
+        YUNA.setCursor( 0, 0 );
+        YUNA.printf_w( "Blth at %d", ++x );
+        BRIDGE_TASK_DELAY( 100 );
+    };
+
+    int x = 0;
+
+} BRDIGE_BTH;
+
+_FELLOW_TASK FELLOW_TASK_bridge_loop{ "bridge_loop", 4096, Priority_SubMain, [] ( void* ) static -> void {
+    _BRIDGE* brdg = CONFIG_BRDG_MODE._crt;
+
+for(;;) {
+    if( CONFIG_BRDG_MODE._crt != brdg ) {
+        brdg->_focus_end();
+        brdg = CONFIG_BRDG_MODE._crt;
+        brdg->_focus_begin();
+    }
+    brdg->focus_loop();
+} } };
 
 int _CONFIG_BRDG_MODE::init( void ) {
     _root = &_BRIDGE_ROOT;
     _crt = _home = &BRDIGE_HOME;
 
-    _BRIDGE_ROOT.subs[ 0 ] = &BRDIGE_HOME;
+    _BRIDGE_ROOT.sub_idx = 1;
+    _BRIDGE_ROOT.subs[ 0 ] = &BRDIGE_BTH;
+    _BRIDGE_ROOT.subs[ 1 ] = &BRDIGE_HOME;
 
-    BRDIGE_HOME.sup = &_BRIDGE_ROOT;
+    BRDIGE_HOME.sup = BRDIGE_BTH.sup = &_BRIDGE_ROOT;
 
     return 0;
+}
+
+void _CONFIG_BRDG_MODE::force_awake() {
+    _crt->_forced_awaken = true;
+    xTaskAbortDelay( FELLOW_TASK_bridge_loop._handle );
+}
+
+void _CONFIG_BRDG_MODE::bridge_back() { 
+    Mode_ last_mode = ( Mode_ )CONFIG.mode.exchange( ( int )Mode_Brdg, std::memory_order_seq_cst );
+    if( last_mode == Mode_Brdg ) {
+        _root->sub_idx = 1;
+        _crt = _home;
+    } 
 }
 
 int _CONFIG_BRDG_MODE::bridge_N() {
     if( _crt->sup == NULL || _crt->sup == &_BRIDGE_ROOT ) return -1;
-    _crt = _crt->sup;
+    force_awake(); _crt = _crt->sup;
     return 0;
 }
 int _CONFIG_BRDG_MODE::bridge_S() {
     if( _crt->subs[ _crt->sub_idx ] == NULL ) return -1;
-    _crt = _crt->subs[ _crt->sub_idx ];
+    force_awake(); _crt = _crt->subs[ _crt->sub_idx ];
     return 0;
 }
 int _CONFIG_BRDG_MODE::bridge_E() {
     int next_idx = _crt->sup->sub_idx + 1;
     if( next_idx >= STRIDE || _crt->sup->subs[ next_idx ] == NULL ) return -1;
     _crt->sup->sub_idx = next_idx;
-    _crt = _crt->sup->subs[ next_idx ];
+    force_awake(); _crt = _crt->sup->subs[ next_idx ];
     return 0;
 }
 int _CONFIG_BRDG_MODE::bridge_W() {
     int next_idx = _crt->sup->sub_idx - 1;
     if( next_idx < 0 || _crt->sup->subs[ next_idx ] == NULL ) return -1;
     _crt->sup->sub_idx = next_idx;
-    _crt = _crt->sup->subs[ next_idx ];
+    force_awake(); _crt = _crt->sup->subs[ next_idx ];
     return 0;
 }
 
 void main_brdg( void* arg ) {
-    FELLOW_TASK_dynam_scan.resume();
-    FELLOW_TASK_input_react.resume();
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_BrdgLoop );
 
     barra::dynamic_t         dyn;
     _DYNAM::snapshot_token_t ss_tok = { dst: &dyn, blk: true };
 
 MAIN_LOOP_ON( Mode_Brdg ) {
-    //CONFIG_BRDG_MODE._crt->focus_loop();
     DYNAM.snapshot( &ss_tok );
-    if( dyn.rachel.trg.is != 0 ) { static bool inv = false; static int x = 0;
-        YUNA.invertDisplay( inv ^= 1 );_printf( "%d\n", ++x);
-    }
+
+    if( dyn.samantha.trg.is != 1 ) continue;
+
+    if     ( dyn.samantha.trg.x == 1 )  CONFIG_BRDG_MODE.bridge_E();
+    else if( dyn.samantha.trg.x == -1 ) CONFIG_BRDG_MODE.bridge_W();
 }
 
 }
@@ -1025,7 +1081,7 @@ int _DYNAM::blue_tx( void ) {
 
 
 void main_ctrl( void* arg ) {
-    FELLOW_TASK_dynam_scan.suspend();
+    _FELLOW_TASK::require( FellowTask_DynamScan );
 
     CONFIG_CTRL_MODE.wjpblu.begin( barra::DEVICE_NAME );    
 

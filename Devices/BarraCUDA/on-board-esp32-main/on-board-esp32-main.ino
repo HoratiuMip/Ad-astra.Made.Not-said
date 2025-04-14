@@ -74,13 +74,51 @@ static struct _CONFIG {
 static struct _CONFIG_BRDG_MODE {
     int init( void );
 
-    inline static constexpr int   STRIDE   = 16;
+    inline static constexpr int   STRIDE   = 8;
+    inline static constexpr int   DEPTH    = 4;
 
     _BRIDGE*   _root   = NULL;
     _BRIDGE*   _home   = NULL;
-    _BRIDGE*   _crt    = NULL;
+    
+    struct { 
+        _BRIDGE*   crt           = NULL;
+        int        dep           = 0; 
+        char       path[ 256 ]   = { ">/" };
 
-    void force_awake();
+        char* _path_rss( int idx ) {
+            int len = strlen( path );
+            char* ptr = path + len - 1;
+
+            if( *ptr == '/' ) --ptr;
+
+            while( ptr >= path ) {
+                if( *ptr == '/' && --idx == 0 ) return ptr;
+                --ptr;
+            }
+
+            return path + 1;
+        }
+
+        void _path_mks() {
+            char* ptr = path + strlen( path ) + 1;
+            *ptr = '\0';
+            *--ptr = '/';
+        }
+
+        void path_x( const char* name, bool has_subs ) {
+            strcpy( this->_path_rss( 1 ) + 1, name );
+            if( has_subs ) this->_path_mks();
+        }
+
+        void path_d( const char* name, bool has_subs ) {
+            strcpy( path + strlen( path ), name );
+            if( has_subs ) this->_path_mks();
+        }
+
+        void path_s() {
+            *( this->_path_rss( 1 ) + 1 ) = '\0';
+        }
+    } _nav;
 
     void bridge_back();
     int bridge_N();
@@ -742,6 +780,7 @@ void loop() {
     vTaskPrioritySet( NULL, 3 );
     xSemaphoreGive( CONFIG.init_sem );
     for(;;) {
+        YUNA.clear_w();
         CONFIG.mains[ CONFIG.mode ]( NULL ); 
     }
     _dead(); 
@@ -848,108 +887,255 @@ int _CONFIG::init( void ) {
 || |_\ |_| |\  | ._
 || |_| | \ |_\ |__|
 */ 
-#define BRIDGE_TASK_DELAY( ms ) { vTaskDelay( ms ); if( this->_forced_awaken ) return; }
+#define BRIDGE_FOCUS_LOOP virtual void focus_loop( int ms, int elapsed  ) override
+#define BRIDGE_FOCUS_BEGIN virtual void focus_begin() override
+#define BRIDGE_FOCUS_END virtual void focus_end() override
+#define BRIDGE_SELECT virtual void select() override
 
 struct _BRIDGE {
-    _BRIDGE*   sup                                 = NULL;
-    _BRIDGE*   subs[ _CONFIG_BRDG_MODE::STRIDE ]   = { ( memset( ( void* )subs, NULL, _CONFIG_BRDG_MODE::STRIDE * sizeof( void* ) ), ( _BRIDGE* )NULL ) };
-    int        sub_idx                             = 0;
+    _BRIDGE*      sup                                 = NULL;
+    _BRIDGE*      subs[ _CONFIG_BRDG_MODE::STRIDE ]   = { ( memset( ( void* )subs, NULL, _CONFIG_BRDG_MODE::STRIDE * sizeof( void* ) ), ( _BRIDGE* )NULL ) };
+    int           sub_idx                             = 0;
+    const char*   name                                = "root";
 
-    bool       _forced_awaken                      = false;
+    static constexpr int   _NAV_V_X   = 1;
+    static constexpr int   _NAV_V_Y   = 1;
+    static constexpr int   _NAV_V_W   = 7;
+    static constexpr int   _NAV_V_H   = 56;
 
-    virtual void focus_begin() {} void _focus_begin() { _forced_awaken = false; this->focus_begin(); }
-    virtual void focus_end() {}   void _focus_end() { this->focus_end(); }
-    virtual void focus_loop() {}
+    static constexpr int   _NAV_H_X   = 120;
+    static constexpr int   _NAV_H_Y   = 1;
+    static constexpr int   _NAV_H_W   = 7;
+    static constexpr int   _NAV_H_H   = 56;
+
+    static constexpr int   _NAV_P_X   = 1;
+    static constexpr int   _NAV_P_Y   = 59;
+
+    static constexpr int   _CAGE_X    = 11;
+    static constexpr int   _CAGE_Y    = 2;
+    int                    _last_ms   = 0;
+
+    virtual void focus_begin() {} void _focus_begin() { 
+        YUNA.clearDisplay();
+
+        if( this != CONFIG_BRDG_MODE._home ) {
+            int x = _NAV_H_X, y = _NAV_H_Y;
+            for( int count = 0; count < _CONFIG_BRDG_MODE::STRIDE && this->sup->subs[ count ] != NULL ; ++count ) {
+                if( this == this->sup->subs[ count ] ) {
+                    YUNA.drawRect( x, y, 7, 7, SSD1306_WHITE );
+                    y += 9;
+                } else {
+                    YUNA.drawRect( x + 2, y, 3, 3, SSD1306_WHITE );
+                    y += 5;
+                }
+            }
+
+            x = _NAV_V_X; y = _NAV_V_Y;
+            for( int count = 0; count <= CONFIG_BRDG_MODE._nav.dep; ++count ) {
+                if( count == CONFIG_BRDG_MODE._nav.dep ) {
+                    YUNA.drawRect( x, y, 7, 7, SSD1306_WHITE );
+                    y += 9;
+                } else {
+                    YUNA.drawRect( x + 2, y, 3, 3, SSD1306_WHITE );
+                    y += 5;
+                }
+            }
+            if( this->subs[ 0 ] != NULL ) YUNA.drawRect( x + 2, y, 3, 3, SSD1306_WHITE );
+
+            YUNA.setCursor( _NAV_P_X, _NAV_P_Y );
+            YUNA.print( CONFIG_BRDG_MODE._nav.path );
+        } 
+
+        _last_ms = millis();
+        this->focus_begin(); 
+    }
+
+    virtual void focus_end() {} void _focus_end() { 
+        this->focus_end(); 
+    }
+
+    virtual void focus_loop( int ms, int elapsed ) {} void _focus_loop() {
+        int ms = millis();
+
+        if( this != CONFIG_BRDG_MODE._home ) {
+            static int cage_ox = 0, cage_oy = 0;
+            float cage_arg = ( float )ms / 100;
+            YUNA.drawBitmap( _CAGE_X + cage_ox, _CAGE_Y + cage_oy, BARRACUDA_BRDG_CAGE, 106, 52, SSD1306_BLACK );
+            cage_ox = sin( cage_arg ) * 2;
+            cage_oy = cos( cage_arg ) * 2;
+            YUNA.drawBitmap( _CAGE_X + cage_ox, _CAGE_Y + cage_oy, BARRACUDA_BRDG_CAGE, 106, 52, SSD1306_WHITE );
+        } 
+
+        this->focus_loop( ms, ms - _last_ms );
+        YUNA.display();
+
+        _last_ms = ms;
+    }
+
+    virtual void select() {}
+
 } _BRIDGE_ROOT;
 
-struct _BRIDGE_HOME : _BRIDGE{
-    virtual void focus_begin() override { YUNA.clear_w(); };
+struct _BRIDGE_HOME : _BRIDGE{ 
+BRIDGE_FOCUS_LOOP{ 
+    YUNA.fillRect( 0, 0, 20, 64, SSD1306_BLACK );
+    YUNA.fillRect( 108, 0, 20, 64, SSD1306_BLACK );
 
-    virtual void focus_end() override {};
+    int vibe_amp = ( 1.0 + sin( ms / 1200 ) ) * 8 + 8;
+    int vibe_lo = ( 1.0 + sin( ms / 230.0 ) ) * vibe_amp;
+    int vibe_ro = ( 1.0 + cos( ms / 230.0 ) ) * vibe_amp;
 
-    virtual void focus_loop() override { 
-        YUNA.splash_logo(); 
-        BRIDGE_TASK_DELAY( 1000 ); 
-    };
+    YUNA.drawBitmap( 0, vibe_lo, BARRACUDA_LOGO_VIBE, 20, 64 - vibe_lo, SSD1306_WHITE );
+    YUNA.drawBitmap( 108, vibe_ro, BARRACUDA_LOGO_VIBE, 20, 64 - vibe_ro, SSD1306_WHITE );
+};
+BRIDGE_FOCUS_BEGIN{
+    YUNA.drawBitmap( 0, 0, BARRACUDA_LOGO, 128, 64, SSD1306_WHITE );
+};
+} BRIDGE_HOME;
 
-} BRDIGE_HOME;
+struct _BRIDGE_BTH : _BRIDGE { 
+BRIDGE_FOCUS_LOOP{ 
+    YUNA.setCursor( 50, 30 );
+    YUNA.printf( "bth" );
+};
+BRIDGE_SELECT{
+    CONFIG.mode.store( Mode_Ctrl, std::memory_order_seq_cst );
+};
+} BRIDGE_BTH;
 
-struct _BRDIGE_BTH : _BRIDGE {
-    virtual void focus_begin() override { x = 0; };
+struct _BRIDGE_TOOLS : _BRIDGE { 
+BRIDGE_FOCUS_LOOP{ 
+    YUNA.setCursor( 50, 30 );
+    YUNA.printf( "tools" );
+}; 
+} BRIDGE_TOOLS;
 
-    virtual void focus_end() override {};
+struct _BRIDGE_GAMES : _BRIDGE { 
+BRIDGE_FOCUS_LOOP{ 
+    YUNA.setCursor( 50, 30 );
+    YUNA.printf( "games" );
+}; 
+} BRIDGE_GAMES;
 
-    virtual void focus_loop() override { 
-        YUNA.clearDisplay();
-        YUNA.setCursor( 0, 0 );
-        YUNA.printf_w( "Blth at %d", ++x );
-        BRIDGE_TASK_DELAY( 100 );
-    };
+struct _BRIDGE_ENVIRONMENT : _BRIDGE { 
+BRIDGE_FOCUS_LOOP{ 
+    YUNA.setCursor( 50, 30 );
+    YUNA.printf( "environment" );
+}; 
+} BRIDGE_ENVIRONMENT;
 
-    int x = 0;
+struct _BRIDGE_SYSINFO : _BRIDGE { 
+BRIDGE_FOCUS_LOOP{ 
+    YUNA.setCursor( 50, 30 );
+    YUNA.printf( "sysinfo" );
+}; 
+} BRIDGE_SYSINFO;
 
-} BRDIGE_BTH;
+struct _BRIDGE_PONG : _BRIDGE { 
+BRIDGE_FOCUS_LOOP{ 
+    YUNA.setCursor( 50, 30 );
+    YUNA.printf( "pong" );
+}; 
+} BRIDGE_PONG;
+
+struct _BRIDGE_SNAKE : _BRIDGE { 
+BRIDGE_FOCUS_LOOP{ 
+    YUNA.setCursor( 50, 30 );
+    YUNA.printf( "snake" );
+}; 
+} BRIDGE_SNAKE;
 
 _FELLOW_TASK FELLOW_TASK_bridge_loop{ "bridge_loop", 4096, Priority_SubMain, [] ( void* ) static -> void {
-    _BRIDGE* brdg = CONFIG_BRDG_MODE._crt;
+    _BRIDGE* brdg = CONFIG_BRDG_MODE._nav.crt;
 
+    brdg->_focus_begin();
 for(;;) {
-    if( CONFIG_BRDG_MODE._crt != brdg ) {
+    if( CONFIG_BRDG_MODE._nav.crt != brdg ) {
         brdg->_focus_end();
-        brdg = CONFIG_BRDG_MODE._crt;
+        brdg = CONFIG_BRDG_MODE._nav.crt;
         brdg->_focus_begin();
     }
-    brdg->focus_loop();
+    brdg->_focus_loop();
 } } };
 
 int _CONFIG_BRDG_MODE::init( void ) {
     _root = &_BRIDGE_ROOT;
-    _crt = _home = &BRDIGE_HOME;
+    _nav.crt = _home = &BRIDGE_HOME;
 
     _BRIDGE_ROOT.sub_idx = 1;
-    _BRIDGE_ROOT.subs[ 0 ] = &BRDIGE_BTH;
-    _BRIDGE_ROOT.subs[ 1 ] = &BRDIGE_HOME;
+    _BRIDGE_ROOT.subs[ 0 ] = &BRIDGE_BTH;
+    _BRIDGE_ROOT.subs[ 1 ] = &BRIDGE_HOME;
 
-    BRDIGE_HOME.sup = BRDIGE_BTH.sup = &_BRIDGE_ROOT;
+    BRIDGE_BTH.name = "bluetooth";
+
+    BRIDGE_HOME.name = "";
+    BRIDGE_HOME.sup = BRIDGE_BTH.sup = &_BRIDGE_ROOT;
+    BRIDGE_HOME.subs[ 0 ] = &BRIDGE_TOOLS;
+    BRIDGE_HOME.subs[ 1 ] = &BRIDGE_GAMES;
+    BRIDGE_HOME.subs[ 2 ] = &BRIDGE_ENVIRONMENT;
+    BRIDGE_HOME.subs[ 3 ] = &BRIDGE_SYSINFO;
+
+    BRIDGE_TOOLS.name = "tools";
+    BRIDGE_TOOLS.sup = &BRIDGE_HOME;
+
+    BRIDGE_GAMES.name = "games";
+    BRIDGE_GAMES.sup = &BRIDGE_HOME;
+    BRIDGE_GAMES.subs[ 0 ] = &BRIDGE_PONG;
+    BRIDGE_GAMES.subs[ 1 ] = &BRIDGE_SNAKE;
+
+    BRIDGE_ENVIRONMENT.name = "environment";
+    BRIDGE_ENVIRONMENT.sup = &BRIDGE_HOME;
+
+    BRIDGE_SYSINFO.name = "sysinfo";
+    BRIDGE_SYSINFO.sup = &BRIDGE_HOME;
+
+    BRIDGE_PONG.name = "pong";
+    BRIDGE_PONG.sup = &BRIDGE_GAMES;
+
+    BRIDGE_SNAKE.name = "snake";
+    BRIDGE_SNAKE.sup = &BRIDGE_GAMES;
 
     return 0;
-}
-
-void _CONFIG_BRDG_MODE::force_awake() {
-    _crt->_forced_awaken = true;
-    xTaskAbortDelay( FELLOW_TASK_bridge_loop._handle );
 }
 
 void _CONFIG_BRDG_MODE::bridge_back() { 
     Mode_ last_mode = ( Mode_ )CONFIG.mode.exchange( ( int )Mode_Brdg, std::memory_order_seq_cst );
     if( last_mode == Mode_Brdg ) {
         _root->sub_idx = 1;
-        _crt = _home;
+        strcpy( _nav.path, ">/" );
+        _nav.dep = 0;
+        _nav.crt = _home;
     } 
 }
 
 int _CONFIG_BRDG_MODE::bridge_N() {
-    if( _crt->sup == NULL || _crt->sup == &_BRIDGE_ROOT ) return -1;
-    force_awake(); _crt = _crt->sup;
+    if( _nav.crt->sup == NULL || _nav.crt->sup == &_BRIDGE_ROOT ) return -1;
+    --_nav.dep;
+    _nav.crt = _nav.crt->sup;
+    _nav.path_s();
     return 0;
 }
 int _CONFIG_BRDG_MODE::bridge_S() {
-    if( _crt->subs[ _crt->sub_idx ] == NULL ) return -1;
-    force_awake(); _crt = _crt->subs[ _crt->sub_idx ];
+    if( _nav.crt->subs[ _nav.crt->sub_idx ] == NULL ) return -1;
+    ++_nav.dep;
+    _nav.crt = _nav.crt->subs[ _nav.crt->sub_idx ];
+    _nav.path_d( _nav.crt->name, _nav.crt->subs[ 0 ] != NULL );
     return 0;
 }
 int _CONFIG_BRDG_MODE::bridge_E() {
-    int next_idx = _crt->sup->sub_idx + 1;
-    if( next_idx >= STRIDE || _crt->sup->subs[ next_idx ] == NULL ) return -1;
-    _crt->sup->sub_idx = next_idx;
-    force_awake(); _crt = _crt->sup->subs[ next_idx ];
+    int next_idx = _nav.crt->sup->sub_idx + 1;
+    if( next_idx >= STRIDE || _nav.crt->sup->subs[ next_idx ] == NULL ) return -1;
+    _nav.crt->sup->sub_idx = next_idx;
+    _nav.crt = _nav.crt->sup->subs[ next_idx ];
+    _nav.path_x( _nav.crt->name, _nav.crt->subs[ 0 ] != NULL );
     return 0;
 }
 int _CONFIG_BRDG_MODE::bridge_W() {
-    int next_idx = _crt->sup->sub_idx - 1;
-    if( next_idx < 0 || _crt->sup->subs[ next_idx ] == NULL ) return -1;
-    _crt->sup->sub_idx = next_idx;
-    force_awake(); _crt = _crt->sup->subs[ next_idx ];
+    int next_idx = _nav.crt->sup->sub_idx - 1;
+    if( next_idx < 0 || _nav.crt->sup->subs[ next_idx ] == NULL ) return -1;
+    _nav.crt->sup->sub_idx = next_idx;
+    _nav.crt = _nav.crt->sup->subs[ next_idx ];
+    _nav.path_x( _nav.crt->name, _nav.crt->subs[ 0 ] != NULL );
     return 0;
 }
 
@@ -962,10 +1148,15 @@ void main_brdg( void* arg ) {
 MAIN_LOOP_ON( Mode_Brdg ) {
     DYNAM.snapshot( &ss_tok );
 
-    if( dyn.samantha.trg.is != 1 ) continue;
+    if( dyn.samantha.trg.is != 1 ) goto l_skip_nav;
 
     if     ( dyn.samantha.trg.x == 1 )  CONFIG_BRDG_MODE.bridge_E();
     else if( dyn.samantha.trg.x == -1 ) CONFIG_BRDG_MODE.bridge_W();
+    else if( dyn.samantha.trg.y == 1 )  CONFIG_BRDG_MODE.bridge_S();
+    else if( dyn.samantha.trg.y == -1 ) CONFIG_BRDG_MODE.bridge_N();
+
+l_skip_nav:
+    if( dyn.giselle.rls ) CONFIG_BRDG_MODE._nav.crt->select();
 }
 
 }

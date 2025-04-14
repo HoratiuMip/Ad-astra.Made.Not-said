@@ -7,7 +7,7 @@ using namespace ixN;
 
 
 int main( int argc, char* argv[] ) {
-    if( argc != 4 ) {
+    if( argc <= 1 ) {
         comms( EchoLevel_Error ) << "Wrong number of arguments.";
         return -1;
     }
@@ -15,7 +15,9 @@ int main( int argc, char* argv[] ) {
     Endec::Bmp r{ argv[ 1 ] };
     int32_t w = r.width;
     int32_t h = r.height;
-/*
+
+    comms( EchoLevel_Warning, "W - {} | H - {}", w, h );
+
     std::ostringstream res; res << std::hex; 
     int count    = 0;
     int bmp_byte = 0;
@@ -34,11 +36,17 @@ int main( int argc, char* argv[] ) {
                 ++count;
             }
         }
+        if( count == 0 ) goto l_skip_pad;
+        while( ++count != 8 ) bmp_byte <<= 1;
+        res << "0x" << ( bmp_byte <= 0xF ? "0" : "" ) << bmp_byte << ", ";
+    l_skip_pad:
+        bmp_byte = count = 0;
         res << '\n'; std::cout << '\n';
     }
-*/
 
+    std::ofstream{ argv[ 2 ] } << res.str();
 
+/*
 
 
     std::ostringstream res; res << std::hex;
@@ -107,7 +115,7 @@ int main( int argc, char* argv[] ) {
 
     std::ofstream{ argv[ 2 ] } << res.str();
     std::ofstream{ argv[ 3 ] } << res2.str();
-
+*/
     comms( EchoLevel_Ok ) << "Done.";
 
     return 0;

@@ -136,8 +136,8 @@ static struct _CONFIG_GAME_MODE {
 static struct _CONFIG_CTRL_MODE {
 	int init( void );
 
-	WJP_on_BluetoothSerial   wjpblu           = {};
-    int                      dynamic_period   = 10;
+	WJP_on_BluetoothSerial   wjpblu      = {};
+    bool                     _conn_rst   = true;
 
 } CONFIG_CTRL_MODE;
 
@@ -449,7 +449,7 @@ enum Scan_ : int {
 
     Scan_All         = ~0
 };
-static struct _DYNAM : WJP_HEAD, barra::dynamic_t {
+static struct _DYNAM : barra::dynamic_t {
     struct {
         struct { float x, y; } rachel, samantha;
     } _idle_reads;
@@ -475,12 +475,6 @@ static struct _DYNAM : WJP_HEAD, barra::dynamic_t {
      */
     int init( void ) {
         int status = 0;
-
-        _printf( LogLevel_Info, "Proto head init... " );
-        WJP_HEAD::_dw0.op  = WJPOp_IBurst;
-        WJP_HEAD::_dw1.seq = 0;
-        WJP_HEAD::_dw3.sz  = sizeof( barra::dynamic_t ); 
-        _printf( "ok.\n" );
 
         _printf( LogLevel_Info, "Joysticks calibrate... " );
         _idle_reads.rachel.x = GPIO::a_rm< float >( GPIO::rachel.x, 10 ); _idle_reads.rachel.y = GPIO::a_rm< float >( GPIO::rachel.y, 10 );
@@ -509,7 +503,7 @@ static struct _DYNAM : WJP_HEAD, barra::dynamic_t {
             _resolve_joystick_axis( tar->rachel.x, _idle_reads.rachel.x ); _resolve_joystick_axis( tar->rachel.y, _idle_reads.rachel.y );
             _resolve_joystick_axis( tar->samantha.x, _idle_reads.samantha.x ); _resolve_joystick_axis( tar->samantha.y, _idle_reads.samantha.y );
 
-            samantha.y *= -1.0f;
+            tar->samantha.y *= -1.0f;
         }
         /* Switches */ l_switches: _DYNAM_SCAN_IF( 1, l_accel ); {
             const auto _resolve_switch = [] ( barra::switch_t& sw, GPIO_pin_t pin ) static -> void {
@@ -602,8 +596,6 @@ else { js.trg.axis = is##axis = 0; }
         _DYNAM_RESOLVE_CMP_JS_AXIS( yjtt, y );
         js.trg.is = isx | isy;
     }
-
-    int blue_tx( void );
 
 } DYNAM;
 
@@ -794,8 +786,7 @@ void loop() {
 */ 
 enum FellowTask_ : int {
     FellowTask_DynamScan  = ( 1 << 0 ),
-    FellowTask_InputReact = ( 1 << 1 ),
-    FellowTask_BrdgLoop   = ( 1 << 2 )
+    FellowTask_InputReact = ( 1 << 1 )
 };
 static struct _FELLOW_TASK {
     static void _func_wrap( void* func ) {
@@ -897,6 +888,7 @@ struct _BRIDGE {
     _BRIDGE*      subs[ _CONFIG_BRDG_MODE::STRIDE ]   = { ( memset( ( void* )subs, NULL, _CONFIG_BRDG_MODE::STRIDE * sizeof( void* ) ), ( _BRIDGE* )NULL ) };
     int           sub_idx                             = 0;
     const char*   name                                = "root";
+    int           _last_ms                            = 0;
 
     static constexpr int   _NAV_V_X   = 1;
     static constexpr int   _NAV_V_Y   = 1;
@@ -913,8 +905,12 @@ struct _BRIDGE {
 
     static constexpr int   _CAGE_X    = 11;
     static constexpr int   _CAGE_Y    = 2;
-    int                    _last_ms   = 0;
 
+    static constexpr int   _ICO_X     = 15;
+    static constexpr int   _ICO_Y     = 6;
+    static constexpr int   _ICO_W     = 98;
+    static constexpr int   _ICO_H     = 44;
+    
     virtual void focus_begin() {} void _focus_begin() { 
         YUNA.clearDisplay();
 
@@ -958,11 +954,11 @@ struct _BRIDGE {
         int ms = millis();
 
         if( this != CONFIG_BRDG_MODE._home ) {
-            static int cage_ox = 0, cage_oy = 0;
+            YUNA.fillRect( _CAGE_X - 2, _CAGE_Y - 2, 110, 56, SSD1306_BLACK );
+
             float cage_arg = ( float )ms / 100;
-            YUNA.drawBitmap( _CAGE_X + cage_ox, _CAGE_Y + cage_oy, BARRACUDA_BRDG_CAGE, 106, 52, SSD1306_BLACK );
-            cage_ox = sin( cage_arg ) * 2;
-            cage_oy = cos( cage_arg ) * 2;
+            int cage_ox = sin( cage_arg ) * 2;
+            int cage_oy = cos( cage_arg ) * 2;
             YUNA.drawBitmap( _CAGE_X + cage_ox, _CAGE_Y + cage_oy, BARRACUDA_BRDG_CAGE, 106, 52, SSD1306_WHITE );
         } 
 
@@ -981,9 +977,9 @@ BRIDGE_FOCUS_LOOP{
     YUNA.fillRect( 0, 0, 20, 64, SSD1306_BLACK );
     YUNA.fillRect( 108, 0, 20, 64, SSD1306_BLACK );
 
-    int vibe_amp = ( 1.0 + sin( ms / 1200 ) ) * 8 + 8;
-    int vibe_lo = ( 1.0 + sin( ms / 230.0 ) ) * vibe_amp;
-    int vibe_ro = ( 1.0 + cos( ms / 230.0 ) ) * vibe_amp;
+    int vibe_amp = ( 1.1 + sin( ms / 1200 ) ) * 8 + 8;
+    int vibe_lo = ( 1.1 + sin( ms / 230.0 ) ) * vibe_amp;
+    int vibe_ro = ( 1.1 + cos( ms / 230.0 ) ) * vibe_amp;
 
     YUNA.drawBitmap( 0, vibe_lo, BARRACUDA_LOGO_VIBE, 20, 64 - vibe_lo, SSD1306_WHITE );
     YUNA.drawBitmap( 108, vibe_ro, BARRACUDA_LOGO_VIBE, 20, 64 - vibe_ro, SSD1306_WHITE );
@@ -995,13 +991,24 @@ BRIDGE_FOCUS_BEGIN{
 
 struct _BRIDGE_BTH : _BRIDGE { 
 BRIDGE_FOCUS_LOOP{ 
-    YUNA.setCursor( 50, 30 );
-    YUNA.printf( "bth" );
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRACUDA_BRDG_ICO_BTH, _ICO_W, _ICO_H, SSD1306_WHITE );
 };
 BRIDGE_SELECT{
     CONFIG.mode.store( Mode_Ctrl, std::memory_order_seq_cst );
 };
 } BRIDGE_BTH;
+
+struct _BRIDGE_INFO : _BRIDGE { 
+BRIDGE_FOCUS_LOOP{ 
+    float x = ( float )ms / 380.0;
+    int yo = ( sin( x ) + 0.23*sin( x*3 ) + 0.06*sin( x*5 ) ) * 6.0;
+
+    YUNA.drawBitmap( _ICO_X, _ICO_Y + yo, BARRACUDA_BRDG_ICO_INFO, _ICO_W, _ICO_H, SSD1306_WHITE );
+};
+BRIDGE_SELECT{
+    
+};
+} BRIDGE_INFO;
 
 struct _BRIDGE_TOOLS : _BRIDGE { 
 BRIDGE_FOCUS_LOOP{ 
@@ -1017,12 +1024,12 @@ BRIDGE_FOCUS_LOOP{
 }; 
 } BRIDGE_GAMES;
 
-struct _BRIDGE_ENVIRONMENT : _BRIDGE { 
+struct _BRIDGE_ENV : _BRIDGE { 
 BRIDGE_FOCUS_LOOP{ 
     YUNA.setCursor( 50, 30 );
-    YUNA.printf( "environment" );
+    YUNA.printf( "env" );
 }; 
-} BRIDGE_ENVIRONMENT;
+} BRIDGE_ENV;
 
 struct _BRIDGE_SYSINFO : _BRIDGE { 
 BRIDGE_FOCUS_LOOP{ 
@@ -1038,25 +1045,11 @@ BRIDGE_FOCUS_LOOP{
 }; 
 } BRIDGE_PONG;
 
-struct _BRIDGE_SNAKE : _BRIDGE { 
+struct _BRIDGE_SNAKE : _BRIDGE {
 BRIDGE_FOCUS_LOOP{ 
-    YUNA.setCursor( 50, 30 );
-    YUNA.printf( "snake" );
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRACUDA_BRDG_ICO_SNAKE, _ICO_W, _ICO_H, SSD1306_WHITE );
 }; 
 } BRIDGE_SNAKE;
-
-_FELLOW_TASK FELLOW_TASK_bridge_loop{ "bridge_loop", 4096, Priority_SubMain, [] ( void* ) static -> void {
-    _BRIDGE* brdg = CONFIG_BRDG_MODE._nav.crt;
-
-    brdg->_focus_begin();
-for(;;) {
-    if( CONFIG_BRDG_MODE._nav.crt != brdg ) {
-        brdg->_focus_end();
-        brdg = CONFIG_BRDG_MODE._nav.crt;
-        brdg->_focus_begin();
-    }
-    brdg->_focus_loop();
-} } };
 
 int _CONFIG_BRDG_MODE::init( void ) {
     _root = &_BRIDGE_ROOT;
@@ -1065,14 +1058,17 @@ int _CONFIG_BRDG_MODE::init( void ) {
     _BRIDGE_ROOT.sub_idx = 1;
     _BRIDGE_ROOT.subs[ 0 ] = &BRIDGE_BTH;
     _BRIDGE_ROOT.subs[ 1 ] = &BRIDGE_HOME;
+    _BRIDGE_ROOT.subs[ 2 ] = &BRIDGE_INFO;
 
     BRIDGE_BTH.name = "bluetooth";
 
+    BRIDGE_INFO.name = "info";
+
     BRIDGE_HOME.name = "";
-    BRIDGE_HOME.sup = BRIDGE_BTH.sup = &_BRIDGE_ROOT;
+    BRIDGE_HOME.sup = BRIDGE_BTH.sup = BRIDGE_INFO.sup = &_BRIDGE_ROOT;
     BRIDGE_HOME.subs[ 0 ] = &BRIDGE_TOOLS;
     BRIDGE_HOME.subs[ 1 ] = &BRIDGE_GAMES;
-    BRIDGE_HOME.subs[ 2 ] = &BRIDGE_ENVIRONMENT;
+    BRIDGE_HOME.subs[ 2 ] = &BRIDGE_ENV;
     BRIDGE_HOME.subs[ 3 ] = &BRIDGE_SYSINFO;
 
     BRIDGE_TOOLS.name = "tools";
@@ -1083,8 +1079,8 @@ int _CONFIG_BRDG_MODE::init( void ) {
     BRIDGE_GAMES.subs[ 0 ] = &BRIDGE_PONG;
     BRIDGE_GAMES.subs[ 1 ] = &BRIDGE_SNAKE;
 
-    BRIDGE_ENVIRONMENT.name = "environment";
-    BRIDGE_ENVIRONMENT.sup = &BRIDGE_HOME;
+    BRIDGE_ENV.name = "env";
+    BRIDGE_ENV.sup = &BRIDGE_HOME;
 
     BRIDGE_SYSINFO.name = "sysinfo";
     BRIDGE_SYSINFO.sup = &BRIDGE_HOME;
@@ -1139,11 +1135,37 @@ int _CONFIG_BRDG_MODE::bridge_W() {
     return 0;
 }
 
+struct _brdg_sync_t {
+    TaskHandle_t       master      = NULL;
+    std::atomic_bool   slave_run   = false;
+};
+
+void bridge_slave_loop( void* arg ) {
+    _brdg_sync_t* sync = ( _brdg_sync_t* )arg;
+    _BRIDGE*      brdg = CONFIG_BRDG_MODE._nav.crt;
+
+    brdg->_focus_begin();
+    for(; sync->slave_run.load( std::memory_order_relaxed ) == true ;) {
+        if( CONFIG_BRDG_MODE._nav.crt != brdg ) {
+            brdg->_focus_end();
+            brdg = CONFIG_BRDG_MODE._nav.crt;
+            brdg->_focus_begin();
+        }
+        brdg->_focus_loop();
+    } 
+
+    xTaskNotifyGive( sync->master );
+    vTaskDelete( NULL );
+};
+
 void main_brdg( void* arg ) {
-    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_BrdgLoop );
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact );
 
     barra::dynamic_t         dyn;
     _DYNAM::snapshot_token_t ss_tok = { dst: &dyn, blk: true };
+    _brdg_sync_t             sync   = { master: xTaskGetCurrentTaskHandle(), slave_run: true };
+
+    TaskHandle_t slave; xTaskCreate( &bridge_slave_loop, "bridge_slave_loop", 4096, &sync, Priority_SubMain, &slave );
 
 MAIN_LOOP_ON( Mode_Brdg ) {
     DYNAM.snapshot( &ss_tok );
@@ -1152,13 +1174,15 @@ MAIN_LOOP_ON( Mode_Brdg ) {
 
     if     ( dyn.samantha.trg.x == 1 )  CONFIG_BRDG_MODE.bridge_E();
     else if( dyn.samantha.trg.x == -1 ) CONFIG_BRDG_MODE.bridge_W();
-    else if( dyn.samantha.trg.y == 1 )  CONFIG_BRDG_MODE.bridge_S();
-    else if( dyn.samantha.trg.y == -1 ) CONFIG_BRDG_MODE.bridge_N();
+    else if( dyn.samantha.trg.y == 1 )  CONFIG_BRDG_MODE.bridge_N();
+    else if( dyn.samantha.trg.y == -1 ) CONFIG_BRDG_MODE.bridge_S();
 
 l_skip_nav:
-    if( dyn.giselle.rls ) CONFIG_BRDG_MODE._nav.crt->select();
+    if( dyn.giselle.rls || dyn.samantha.sw.rls ) CONFIG_BRDG_MODE._nav.crt->select();
 }
 
+    sync.slave_run.store( false, std::memory_order_seq_cst );
+    ulTaskNotifyTake( true, portMAX_DELAY );
 }
 
 
@@ -1217,17 +1241,12 @@ int _CONFIG_CTRL_MODE::init( void ) {
     return wjpblu.init( 0 );
 }
 
-struct _LOOP_STATE {
-    bool   _conn_rst   = true;
-} LOOP_STATE;
-
-/* 1: LOOP_STATE._conn_rst | 0: CONFIG_CTRL_MODE.wjpblu.connected() */
-std::function< int( void ) >   loop_procs[]   = {
+std::function< int( void ) >   ctrl_loop_procs[]   = {
   /* 0b00 */ [] () -> bool {
     _printf( LogLevel_Info, "Disconnected from device.\n" );
-    LOOP_STATE._conn_rst = true;
+    CONFIG_CTRL_MODE._conn_rst = true;
     _printf( LogLevel_Info, "Ready to relink...\n" );
-    BITNA.blink( 10, Led_BLU, Led_RED, 50, 50 );
+    BITNA.blink( 9, Led_BLU, Led_BLK, 50, 50 );
     return true;
   },
   /* 0b01 */ [] () -> bool {
@@ -1236,9 +1255,19 @@ std::function< int( void ) >   loop_procs[]   = {
       CONFIG_CTRL_MODE.wjpblu.disconnect();
       return true;
     }
+
+    static struct _PACKET : WJP_HEAD { 
+        _PACKET() {
+            WJP_HEAD::_dw0.op  = WJPOp_IBurst;
+            WJP_HEAD::_dw1.seq = 0;
+            WJP_HEAD::_dw3.sz  = sizeof( barra::dynamic_t ); 
+        }
+        barra::dynamic_t   dyn;
+    } packet;
+    static _DYNAM::snapshot_token_t ss_tok{ dst: &packet.dyn, blk: true };
     
-    DYNAM.scan( Scan_All );
-    DYNAM.blue_tx();
+    DYNAM.snapshot( &ss_tok );
+    CONFIG_CTRL_MODE.wjpblu.trust_burst( &packet, sizeof( packet ), 0 );
 
     return true;
   },
@@ -1247,38 +1276,21 @@ std::function< int( void ) >   loop_procs[]   = {
     return true;
   },
   /* 0b11 */ [] () -> bool {
-    LOOP_STATE._conn_rst = false;
+    CONFIG_CTRL_MODE._conn_rst = false;
     _printf( LogLevel_Info, "Connected to device.\n" );
-    BITNA.blink( 10, Led_BLU, Led_BLK, 50, 50 );
+    BITNA.blink( 9, Led_BLK, Led_BLU, 50, 50 );
     return true;
   }
 };
-
-
-
-int _DYNAM::blue_tx( void ) {
-  static int last_ms = millis();
-  static int current_ms;
-
-  current_ms = millis();
-  if( current_ms - last_ms < CONFIG_CTRL_MODE.dynamic_period ) return 0;
-
-  last_ms = current_ms;
-  int ret = CONFIG_CTRL_MODE.wjpblu.trust_burst( this, sizeof( WJP_HEAD ) + WJP_HEAD::_dw3.sz, 0 );
-
-  return ret;
-}
-
-
 
 void main_ctrl( void* arg ) {
     _FELLOW_TASK::require( FellowTask_DynamScan );
 
     CONFIG_CTRL_MODE.wjpblu.begin( barra::DEVICE_NAME );    
 
-    MAIN_LOOP_ON( Mode_Ctrl ) {
-        loop_procs[ ( LOOP_STATE._conn_rst << 1 ) | CONFIG_CTRL_MODE.wjpblu.connected() ]();
-    } 
+MAIN_LOOP_ON( Mode_Ctrl ) {
+    ctrl_loop_procs[ ( CONFIG_CTRL_MODE._conn_rst << 1 ) | CONFIG_CTRL_MODE.wjpblu.connected() ]();
+} 
 
     CONFIG_CTRL_MODE.wjpblu.end();
 }

@@ -46,7 +46,6 @@ enum Priority_ : int {
 
 
 
-
 void main_brdg( void* );
 void main_game( void* );
 void main_ctrl( void* );
@@ -68,6 +67,9 @@ static struct _CONFIG {
     SemaphoreHandle_t   init_sem     = { xSemaphoreCreateBinary() };
 
     int                 dyn_scan_T   = 20;
+    int                 focus_T      = 16;
+
+    Mode_ xchg_mode( Mode_ m ) { return ( Mode_ )mode.exchange( m, std::memory_order_seq_cst ); }
 
 } CONFIG;
 
@@ -768,16 +770,6 @@ void setup( void ) {
     YUNA.clear_w(); 
 }
 
-void loop() { 
-    vTaskPrioritySet( NULL, 3 );
-    xSemaphoreGive( CONFIG.init_sem );
-    for(;;) {
-        YUNA.clear_w();
-        CONFIG.mains[ CONFIG.mode ]( NULL ); 
-    }
-    _dead(); 
-}
-
 
 
 /* .  .  _. . .  
@@ -858,6 +850,51 @@ for(;;) {
 } } };
 
 
+#define FOCUS_LOOP_FNCSIG  virtual void focus_loop( _FOCUS::bli_t* bli ) override
+#define FOCUS_BEGIN_FNCSIG virtual void focus_begin( void ) override
+#define FOCUS_END_FNCSIG   virtual void focus_end( void ) override
+struct _FOCUS {
+    struct bli_t {
+        int   ms   = 0;
+    };
+
+    virtual void _focus_loop( bli_t* bli ) = 0; virtual void _focus_begin( void ) = 0; virtual void _focus_end( void ) = 0;
+    virtual void focus_loop( bli_t* bli ) {}; virtual void focus_begin( void ) {}; virtual void focus_end( void ) {};
+
+    inline static struct {
+        TaskHandle_t       handle;
+        _FOCUS*            focus;
+    } _sync{ handle: NULL, focus: NULL };
+
+    static void _main( void* arg ) {
+        _FOCUS* crt     = NULL;
+        bli_t   bli;
+        int     last_ms = millis();
+
+    l_swap:
+        crt = _sync.focus;
+        if( crt == NULL ) {
+            ulTaskNotifyTake( true, portMAX_DELAY );
+            goto l_swap;
+        }
+
+        crt->_focus_begin();
+        for(; _sync.focus == crt ;) { 
+            bli.ms = millis();
+            crt->_focus_loop( &bli ); 
+            vTaskDelay( CONFIG.focus_T );
+        }
+        crt->_focus_end();
+
+        goto l_swap;
+    };
+
+    static void place( _FOCUS* focus ) {
+        if( ( _sync.focus = focus ) != NULL ) xTaskNotifyGive( _sync.handle );
+    }
+};
+
+
 int _CONFIG::init( void ) {
 	int status = 0;
 
@@ -873,17 +910,27 @@ int _CONFIG::init( void ) {
 }
 
 
+void loop() { 
+    vTaskPrioritySet( NULL, Priority_Main );
+    xSemaphoreGive( CONFIG.init_sem );
+
+    xTaskCreate( &_FOCUS::_main, "focus_main", 4096, NULL, Priority_SubMain, &_FOCUS::_sync.handle );
+
+    for(;;) {
+        CONFIG.mains[ CONFIG.mode ]( NULL ); 
+        _FOCUS::place( NULL );
+    }
+    _dead(); 
+}
+
+
 
 /* ._  ._  .   .__
 || |_\ |_| |\  | ._
 || |_| | \ |_\ |__|
 */ 
-#define BRIDGE_FOCUS_LOOP virtual void focus_loop( int ms, int elapsed  ) override
-#define BRIDGE_FOCUS_BEGIN virtual void focus_begin() override
-#define BRIDGE_FOCUS_END virtual void focus_end() override
-#define BRIDGE_SELECT virtual void select() override
-
-struct _BRIDGE {
+#define BRIDGE_SELECT_FNCSIG virtual void select() override
+struct _BRIDGE : _FOCUS {
     _BRIDGE*      sup                                 = NULL;
     _BRIDGE*      subs[ _CONFIG_BRDG_MODE::STRIDE ]   = { ( memset( ( void* )subs, NULL, _CONFIG_BRDG_MODE::STRIDE * sizeof( void* ) ), ( _BRIDGE* )NULL ) };
     int           sub_idx                             = 0;
@@ -911,7 +958,7 @@ struct _BRIDGE {
     static constexpr int   _ICO_W     = 98;
     static constexpr int   _ICO_H     = 44;
     
-    virtual void focus_begin() {} void _focus_begin() { 
+    void _focus_begin( void ) override { 
         YUNA.clearDisplay();
 
         if( this != CONFIG_BRDG_MODE._home ) {
@@ -936,36 +983,34 @@ struct _BRIDGE {
                     y += 5;
                 }
             }
-            if( this->subs[ 0 ] != NULL ) YUNA.drawRect( x + 2, y, 3, 3, SSD1306_WHITE );
+            if( this->subs[ 0 ] != NULL ) 
+                YUNA.drawTriangle( x + 1, y, x + 5, y, x + 3, y + 6, SSD1306_WHITE );
+            else
+                YUNA.drawRect( x + 1, y, 5, 2, SSD1306_WHITE );
 
             YUNA.setCursor( _NAV_P_X, _NAV_P_Y );
             YUNA.print( CONFIG_BRDG_MODE._nav.path );
         } 
 
-        _last_ms = millis();
         this->focus_begin(); 
     }
 
-    virtual void focus_end() {} void _focus_end() { 
+    void _focus_end( void ) { 
         this->focus_end(); 
     }
 
-    virtual void focus_loop( int ms, int elapsed ) {} void _focus_loop() {
-        int ms = millis();
-
+    void _focus_loop( _FOCUS::bli_t* bli ) {
         if( this != CONFIG_BRDG_MODE._home ) {
             YUNA.fillRect( _CAGE_X - 2, _CAGE_Y - 2, 110, 56, SSD1306_BLACK );
 
-            float cage_arg = ( float )ms / 100;
+            float cage_arg = ( float )bli->ms / 100;
             int cage_ox = sin( cage_arg ) * 2;
             int cage_oy = cos( cage_arg ) * 2;
             YUNA.drawBitmap( _CAGE_X + cage_ox, _CAGE_Y + cage_oy, BARRACUDA_BRDG_CAGE, 106, 52, SSD1306_WHITE );
         } 
 
-        this->focus_loop( ms, ms - _last_ms );
+        this->focus_loop( bli );
         YUNA.display();
-
-        _last_ms = ms;
     }
 
     virtual void select() {}
@@ -973,80 +1018,82 @@ struct _BRIDGE {
 } _BRIDGE_ROOT;
 
 struct _BRIDGE_HOME : _BRIDGE{ 
-BRIDGE_FOCUS_LOOP{ 
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.drawBitmap( 0, 0, BARRACUDA_LOGO_VIBE, 20, 64, SSD1306_WHITE );
+    YUNA.drawBitmap( 108, 0, BARRACUDA_LOGO_VIBE, 20, 64, SSD1306_WHITE );
+
+    float vibe_amp = ( 1.1 + sin( bli->ms / 1200 ) ) * 8.0 + 8.0;
+    int vibe_lo = ( 1.1 + sin( bli->ms / 230.0 ) ) * vibe_amp;
+    int vibe_ro = ( 1.1 + cos( bli->ms / 230.0 ) ) * vibe_amp;
+
+    YUNA.fillRect( 0, 0, 20, vibe_lo, SSD1306_BLACK );
+    YUNA.fillRect( 108, 0, 20, vibe_ro, SSD1306_BLACK );
+};
+FOCUS_BEGIN_FNCSIG{
+    YUNA.drawBitmap( 0, 0, BARRACUDA_LOGO, 128, 64, SSD1306_WHITE );
     YUNA.fillRect( 0, 0, 20, 64, SSD1306_BLACK );
     YUNA.fillRect( 108, 0, 20, 64, SSD1306_BLACK );
-
-    int vibe_amp = ( 1.1 + sin( ms / 1200 ) ) * 8 + 8;
-    int vibe_lo = ( 1.1 + sin( ms / 230.0 ) ) * vibe_amp;
-    int vibe_ro = ( 1.1 + cos( ms / 230.0 ) ) * vibe_amp;
-
-    YUNA.drawBitmap( 0, vibe_lo, BARRACUDA_LOGO_VIBE, 20, 64 - vibe_lo, SSD1306_WHITE );
-    YUNA.drawBitmap( 108, vibe_ro, BARRACUDA_LOGO_VIBE, 20, 64 - vibe_ro, SSD1306_WHITE );
-};
-BRIDGE_FOCUS_BEGIN{
-    YUNA.drawBitmap( 0, 0, BARRACUDA_LOGO, 128, 64, SSD1306_WHITE );
 };
 } BRIDGE_HOME;
 
 struct _BRIDGE_BTH : _BRIDGE { 
-BRIDGE_FOCUS_LOOP{ 
+FOCUS_LOOP_FNCSIG{ 
     YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRACUDA_BRDG_ICO_BTH, _ICO_W, _ICO_H, SSD1306_WHITE );
 };
-BRIDGE_SELECT{
-    CONFIG.mode.store( Mode_Ctrl, std::memory_order_seq_cst );
+BRIDGE_SELECT_FNCSIG{
+    CONFIG.xchg_mode( Mode_Ctrl );
 };
 } BRIDGE_BTH;
 
 struct _BRIDGE_INFO : _BRIDGE { 
-BRIDGE_FOCUS_LOOP{ 
-    float x = ( float )ms / 380.0;
+FOCUS_LOOP_FNCSIG{ 
+    float x = ( float )bli->ms / 320.0;
     int yo = ( sin( x ) + 0.23*sin( x*3 ) + 0.06*sin( x*5 ) ) * 6.0;
 
     YUNA.drawBitmap( _ICO_X, _ICO_Y + yo, BARRACUDA_BRDG_ICO_INFO, _ICO_W, _ICO_H, SSD1306_WHITE );
 };
-BRIDGE_SELECT{
+BRIDGE_SELECT_FNCSIG{
     
 };
 } BRIDGE_INFO;
 
 struct _BRIDGE_TOOLS : _BRIDGE { 
-BRIDGE_FOCUS_LOOP{ 
+FOCUS_LOOP_FNCSIG{ 
     YUNA.setCursor( 50, 30 );
     YUNA.printf( "tools" );
 }; 
 } BRIDGE_TOOLS;
 
 struct _BRIDGE_GAMES : _BRIDGE { 
-BRIDGE_FOCUS_LOOP{ 
+FOCUS_LOOP_FNCSIG{ 
     YUNA.setCursor( 50, 30 );
     YUNA.printf( "games" );
 }; 
 } BRIDGE_GAMES;
 
 struct _BRIDGE_ENV : _BRIDGE { 
-BRIDGE_FOCUS_LOOP{ 
+FOCUS_LOOP_FNCSIG{ 
     YUNA.setCursor( 50, 30 );
     YUNA.printf( "env" );
 }; 
 } BRIDGE_ENV;
 
 struct _BRIDGE_SYSINFO : _BRIDGE { 
-BRIDGE_FOCUS_LOOP{ 
+FOCUS_LOOP_FNCSIG{ 
     YUNA.setCursor( 50, 30 );
     YUNA.printf( "sysinfo" );
 }; 
 } BRIDGE_SYSINFO;
 
 struct _BRIDGE_PONG : _BRIDGE { 
-BRIDGE_FOCUS_LOOP{ 
+FOCUS_LOOP_FNCSIG{ 
     YUNA.setCursor( 50, 30 );
     YUNA.printf( "pong" );
 }; 
 } BRIDGE_PONG;
 
 struct _BRIDGE_SNAKE : _BRIDGE {
-BRIDGE_FOCUS_LOOP{ 
+FOCUS_LOOP_FNCSIG{ 
     YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRACUDA_BRDG_ICO_SNAKE, _ICO_W, _ICO_H, SSD1306_WHITE );
 }; 
 } BRIDGE_SNAKE;
@@ -1095,12 +1142,13 @@ int _CONFIG_BRDG_MODE::init( void ) {
 }
 
 void _CONFIG_BRDG_MODE::bridge_back() { 
-    Mode_ last_mode = ( Mode_ )CONFIG.mode.exchange( ( int )Mode_Brdg, std::memory_order_seq_cst );
+    Mode_ last_mode = CONFIG.xchg_mode( Mode_Brdg );
     if( last_mode == Mode_Brdg ) {
         _root->sub_idx = 1;
         strcpy( _nav.path, ">/" );
         _nav.dep = 0;
         _nav.crt = _home;
+        _FOCUS::place( _home );
     } 
 }
 
@@ -1135,54 +1183,30 @@ int _CONFIG_BRDG_MODE::bridge_W() {
     return 0;
 }
 
-struct _brdg_sync_t {
-    TaskHandle_t       master      = NULL;
-    std::atomic_bool   slave_run   = false;
-};
-
-void bridge_slave_loop( void* arg ) {
-    _brdg_sync_t* sync = ( _brdg_sync_t* )arg;
-    _BRIDGE*      brdg = CONFIG_BRDG_MODE._nav.crt;
-
-    brdg->_focus_begin();
-    for(; sync->slave_run.load( std::memory_order_relaxed ) == true ;) {
-        if( CONFIG_BRDG_MODE._nav.crt != brdg ) {
-            brdg->_focus_end();
-            brdg = CONFIG_BRDG_MODE._nav.crt;
-            brdg->_focus_begin();
-        }
-        brdg->_focus_loop();
-    } 
-
-    xTaskNotifyGive( sync->master );
-    vTaskDelete( NULL );
-};
 
 void main_brdg( void* arg ) {
     _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact );
 
     barra::dynamic_t         dyn;
     _DYNAM::snapshot_token_t ss_tok = { dst: &dyn, blk: true };
-    _brdg_sync_t             sync   = { master: xTaskGetCurrentTaskHandle(), slave_run: true };
 
-    TaskHandle_t slave; xTaskCreate( &bridge_slave_loop, "bridge_slave_loop", 4096, &sync, Priority_SubMain, &slave );
+    _FOCUS::place( CONFIG_BRDG_MODE._nav.crt );
 
 MAIN_LOOP_ON( Mode_Brdg ) {
     DYNAM.snapshot( &ss_tok );
 
     if( dyn.samantha.trg.is != 1 ) goto l_skip_nav;
 
-    if     ( dyn.samantha.trg.x == 1 )  CONFIG_BRDG_MODE.bridge_E();
-    else if( dyn.samantha.trg.x == -1 ) CONFIG_BRDG_MODE.bridge_W();
-    else if( dyn.samantha.trg.y == 1 )  CONFIG_BRDG_MODE.bridge_N();
-    else if( dyn.samantha.trg.y == -1 ) CONFIG_BRDG_MODE.bridge_S();
+    if     ( dyn.samantha.trg.x == 1 )  { CONFIG_BRDG_MODE.bridge_E(); _FOCUS::place( CONFIG_BRDG_MODE._nav.crt ); }
+    else if( dyn.samantha.trg.x == -1 ) { CONFIG_BRDG_MODE.bridge_W(); _FOCUS::place( CONFIG_BRDG_MODE._nav.crt ); }
+    else if( dyn.samantha.trg.y == 1 )  { CONFIG_BRDG_MODE.bridge_N(); _FOCUS::place( CONFIG_BRDG_MODE._nav.crt ); }
+    else if( dyn.samantha.trg.y == -1 ) { CONFIG_BRDG_MODE.bridge_S(); _FOCUS::place( CONFIG_BRDG_MODE._nav.crt ); }
 
 l_skip_nav:
-    if( dyn.giselle.rls || dyn.samantha.sw.rls ) CONFIG_BRDG_MODE._nav.crt->select();
+    if( dyn.giselle.rls || dyn.samantha.sw.rls || ( CONFIG_BRDG_MODE._nav.crt->subs[ 0 ] == NULL && dyn.samantha.trg.y == -1 ) ) 
+        CONFIG_BRDG_MODE._nav.crt->select();
 }
 
-    sync.slave_run.store( false, std::memory_order_seq_cst );
-    ulTaskNotifyTake( true, portMAX_DELAY );
 }
 
 

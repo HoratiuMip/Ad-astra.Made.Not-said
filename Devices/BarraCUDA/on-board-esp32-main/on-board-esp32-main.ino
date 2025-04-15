@@ -54,7 +54,7 @@ struct _BRIDGE;
 
 
 
-#define MAIN_LOOP_ON( _M ) for(; CONFIG.mode == _M ;)
+#define MAIN_LOOP_ON( _M ) for(; CONFIG.mode.load( std::memory_order_relaxed ) == _M ;)
 static struct _CONFIG {
 	int init( void );
 
@@ -69,7 +69,9 @@ static struct _CONFIG {
     int                 dyn_scan_T   = 20;
     int                 focus_T      = 16;
 
-    Mode_ xchg_mode( Mode_ m ) { return ( Mode_ )mode.exchange( m, std::memory_order_seq_cst ); }
+    void*               _arg         = NULL;
+
+    Mode_ xchg_mode( Mode_ m, void* arg ) { _arg = arg; return ( Mode_ )mode.exchange( m, std::memory_order_seq_cst ); }
 
 } CONFIG;
 
@@ -77,7 +79,6 @@ static struct _CONFIG_BRDG_MODE {
     int init( void );
 
     inline static constexpr int   STRIDE   = 8;
-    inline static constexpr int   DEPTH    = 4;
 
     _BRIDGE*   _root   = NULL;
     _BRIDGE*   _home   = NULL;
@@ -85,7 +86,7 @@ static struct _CONFIG_BRDG_MODE {
     struct { 
         _BRIDGE*   crt           = NULL;
         int        dep           = 0; 
-        char       path[ 256 ]   = { ">/" };
+        char       path[ 256 ]   = { ">//" };
 
         char* _path_rss( int idx ) {
             int len = strlen( path );
@@ -187,12 +188,7 @@ struct GPIO {
         pinMode( kazuha, INPUT );
 
         pinMode( xabara, INPUT_PULLUP );
-        attachInterrupt( digitalPinToInterrupt( xabara ), [] ( void ) static -> void { 
-            CONFIG_BRDG_MODE.bridge_back();
-        },
-            RISING 
-        );
-
+    
         pinMode( bitna.r, OUTPUT ); pinMode( bitna.g, OUTPUT ); pinMode( bitna.b, OUTPUT );
 
         _printf( "ok.\n" );
@@ -200,10 +196,12 @@ struct GPIO {
         return 0;
     }
 
-    inline static int d_r( GPIO_pin_t pin ) { return digitalRead( pin ); }
-    inline static void d_w( GPIO_pin_t pin, int level ) { digitalWrite( pin, level ); }
-    inline static int a_r( GPIO_pin_t pin ) { return analogRead( pin ); }
-    inline static void a_w( GPIO_pin_t pin ); 
+    inline static int  D_R ( GPIO_pin_t pin )            { return digitalRead( pin ); }
+    inline static void D_W ( GPIO_pin_t pin, int level ) { digitalWrite( pin, level ); }
+    inline static int  A_R ( GPIO_pin_t pin )            { return analogRead( pin ); }
+    inline static void A_W ( GPIO_pin_t pin, int dc )    { analogWrite( pin, dc ); }
+    inline static void A_Wr( GPIO_pin_t pin, int res )   { analogWriteResolution( pin, res ); }
+    inline static void A_Wf( GPIO_pin_t pin, int freq )  { analogWriteFrequency( pin, freq ); }
 
     /**
      * @brief Performs N analog reads on pin.
@@ -211,9 +209,9 @@ struct GPIO {
      * @param[ in ] pin: The pin number.
      * @param[ in ] N: The number of reads to perform.
      */
-    template< typename _T > _T static a_rm( GPIO_pin_t pin, int N ) {
+    template< typename _T > _T static A_Rm( GPIO_pin_t pin, int N ) {
         int acc = 0;
-        for( int n = 1; n <= N; ++n ) acc += a_r( pin );
+        for( int n = 1; n <= N; ++n ) acc += A_R( pin );
         return ( _T )acc / N;
     }
 
@@ -221,47 +219,79 @@ struct GPIO {
 
 
 
-#define Led_BLK 0b000
-#define Led_RED 0b100
-#define Led_YLW 0b110
-#define Led_GRN 0b010
-#define Led_TRQ 0b011
-#define Led_BLU 0b001
-#define Led_PRP 0b101
-#define Led_WHT 0b111
-typedef   int8_t   Led_;
+#define Led_BLK 0x00'00'00
+#define Led_RED 0xFF'00'00
+#define Led_GRN 0x00'FF'00
+#define Led_BLU 0x00'00'FF
+#define Led_YLW (Led_RED|Led_GRN)
+#define Led_TRQ (Led_BLU|Led_GRN)
+#define Led_PRP (Led_RED|Led_BLU)
+#define Led_WHT (Led_RED|Led_GRN|Led_BLU)
+
+#define LED_CH_R( rgb ) ( ( rgb >> 16 ) & 0xFF )
+#define LED_CH_G( rgb ) ( ( rgb >> 8 ) & 0xFF )
+#define LED_CH_B( rgb ) ( rgb & 0xFF )
+#define LED_CH( ch, rgb ) ( ( rgb >> ((2-ch)*8) ) & 0xFF )
+
+#define LED_MAKE_CH( ch, val ) ( ( val & 0xFF ) << ((2-ch)*8) )
+
+struct Led_ {
+    Led_() : rgb{ 0 } {}
+    Led_( int rgb ) : rgb{ rgb } {}
+    Led_( int r, int g, int b ) : r{ r }, g{ g }, b{ b } {}
+
+    union {
+        struct {
+            uint8_t b;
+            uint8_t g;
+            uint8_t r;
+            uint8_t _unused;
+        };
+        int rgb;
+    };
+
+    operator int () { return rgb; }
+};
+
 static struct _BITNA {
     Led_   _crt   = Led_BLK;
+    Led_   _tar   = Led_BLK;
+
+    inline void _set( Led_ led ) {
+        GPIO::A_W( GPIO::bitna.r, LED_CH_R( led.rgb ) );
+        GPIO::A_W( GPIO::bitna.g, LED_CH_G( led.rgb ) );
+        GPIO::A_W( GPIO::bitna.b, LED_CH_B( led.rgb ) );
+    }
     
-    /**
-     * @brief Sets the accelerometer's range.
-     * @param[ in ] rgb: The RGB value to write.
-     */
-    _BITNA& set( Led_ rgb ) {
-        GPIO::d_w( GPIO::bitna.r, ( rgb >> 2 ) & 1 );
-        GPIO::d_w( GPIO::bitna.g, ( rgb >> 1 ) & 1 );
-        GPIO::d_w( GPIO::bitna.b, ( rgb ) & 1 );
-        _crt = rgb;
+    inline _BITNA& target( Led_ led ) {
+        _tar = led;
+        return *this;
+    }
+
+    inline _BITNA& make( Led_ led ) {
+        this->_set( _crt = led );
+        return *this;
+    }
+
+    inline _BITNA& jump( Led_ led ) {
+        this->_set( _tar = _crt = led );
         return *this;
     }
     
-    /**
-     * @brief Calls `this->set( rgb )`.
-     */
-    inline _BITNA& operator () ( Led_ rgb ) { return this->set( rgb ); }
+    inline _BITNA& operator () ( Led_ led ) { return this->jump( led ); }
 
     /**
      * @brief OR with the current color and write it.
      */
-    inline _BITNA& operator |= ( Led_ rgb ) { return this->set( _crt | rgb ); }
+    inline _BITNA& operator |= ( Led_ led ) { return this->jump( _crt.rgb | led.rgb ); }
     /**
      * @brief AND with the current color and write it.
      */
-    inline _BITNA& operator &= ( Led_ rgb ) { return this->set( _crt & rgb ); }
+    inline _BITNA& operator &= ( Led_ led ) { return this->jump( _crt.rgb & led.rgb ); }
     /**
      * @brief XOR with the current color and write it.
      */
-    inline _BITNA& operator ^= ( Led_ rgb ) { return this->set( _crt ^ rgb ); }
+    inline _BITNA& operator ^= ( Led_ led ) { return this->jump( _crt.rgb ^ led.rgb ); }
 
     /**
      * @brief Blink the LED.
@@ -270,26 +300,11 @@ static struct _BITNA {
      * @param[ in ] on/off_rgb: The RGB during the `ON/OFF` period. 
      * @param[ in ] ms_on/off: The `ON/OFF` period duration, in `ms`.
      */
-    _BITNA& blink( int N, Led_ on_rgb, Led_ off_rgb, int ms_on, int ms_off ) {
+    _BITNA& blink( int N, Led_ on_led, Led_ off_led, int ms_on, int ms_off ) {
         for( int n = 1; n <= N; ++n ) {
-            this->set( on_rgb ); vTaskDelay( ms_on ); this->set( off_rgb ); vTaskDelay( ms_off );
+            this->jump( on_led ); vTaskDelay( ms_on ); this->jump( off_led ); vTaskDelay( ms_off );
         }
         return *this;
-    }
-
-    /**
-     * @brief Cycles through the 8 possible colors.
-     * @attention This function preserves the color of the LED before the call.
-     * @param[ in ] ms: The duration of each color, in `ms`.
-     */
-    _BITNA& itr_rgb( int ms ) {
-        Led_ prev = _crt;
-
-        for( Led_ rgb = 0; rgb <= 7; ++rgb ) {
-            this->set( rgb ); vTaskDelay( ms );
-        }
-
-        return this->set( prev );
     }
 
 } BITNA;
@@ -306,7 +321,7 @@ static struct _YUNA : public Adafruit_SSD1306 {
      */
     int init( void ) {
         if( !this->begin( SSD1306_SWITCHCAPVCC, 0x3C ) ) return -1;
-        this->setFont( &BARRACUDA_GFX_FONT );
+        this->setFont( &BARRA_GFX_FONT );
         this->setTextColor( SSD1306_WHITE );
         this->setCursor( 0, 0 );
         this->setTextWrap( false );
@@ -329,7 +344,7 @@ static struct _YUNA : public Adafruit_SSD1306 {
     }
 
 	inline void splash_logo() {
-		this->drawBitmap( 0, 0, BARRACUDA_LOGO, 128, 64, 1 );
+		this->drawBitmap( 0, 0, BARRA_LOGO, 128, 64, 1 );
         this->display();
 	}
 
@@ -479,8 +494,8 @@ static struct _DYNAM : barra::dynamic_t {
         int status = 0;
 
         _printf( LogLevel_Info, "Joysticks calibrate... " );
-        _idle_reads.rachel.x = GPIO::a_rm< float >( GPIO::rachel.x, 10 ); _idle_reads.rachel.y = GPIO::a_rm< float >( GPIO::rachel.y, 10 );
-        _idle_reads.samantha.x = GPIO::a_rm< float >( GPIO::samantha.x, 10 ); _idle_reads.samantha.y = GPIO::a_rm< float >( GPIO::samantha.y, 10 );
+        _idle_reads.rachel.x = GPIO::A_Rm< float >( GPIO::rachel.x, 10 ); _idle_reads.rachel.y = GPIO::A_Rm< float >( GPIO::rachel.y, 10 );
+        _idle_reads.samantha.x = GPIO::A_Rm< float >( GPIO::samantha.x, 10 ); _idle_reads.samantha.y = GPIO::A_Rm< float >( GPIO::samantha.y, 10 );
         _printf( "ok.\n" );
 
         _q[ 0 ].handle = xQueueCreateStatic( 1, sizeof( barra::dynamic_t ), ( uint8_t* )&_q[ 0 ].buffer, &_q[ 0 ].header );
@@ -499,8 +514,8 @@ static struct _DYNAM : barra::dynamic_t {
                     read /= GPIO::ADC_fmax - idle_read;
             };
 
-            tar->rachel.x = GPIO::a_r( GPIO::rachel.x ); tar->rachel.y = GPIO::a_r( GPIO::rachel.y );
-            tar->samantha.x = GPIO::a_r( GPIO::samantha.x ); tar->samantha.y = GPIO::a_r( GPIO::samantha.y );
+            tar->rachel.x = GPIO::A_R( GPIO::rachel.x ); tar->rachel.y = GPIO::A_R( GPIO::rachel.y );
+            tar->samantha.x = GPIO::A_R( GPIO::samantha.x ); tar->samantha.y = GPIO::A_R( GPIO::samantha.y );
 
             _resolve_joystick_axis( tar->rachel.x, _idle_reads.rachel.x ); _resolve_joystick_axis( tar->rachel.y, _idle_reads.rachel.y );
             _resolve_joystick_axis( tar->samantha.x, _idle_reads.samantha.x ); _resolve_joystick_axis( tar->samantha.y, _idle_reads.samantha.y );
@@ -509,7 +524,7 @@ static struct _DYNAM : barra::dynamic_t {
         }
         /* Switches */ l_switches: _DYNAM_SCAN_IF( 1, l_accel ); {
             const auto _resolve_switch = [] ( barra::switch_t& sw, GPIO_pin_t pin ) static -> void {
-                int is_dwn = !digitalRead( pin );
+                int is_dwn = !GPIO::D_R( pin );
                 sw.dwn = is_dwn;
             };
 
@@ -665,7 +680,7 @@ int do_tests( void ) {
     YUNA.print_w( ">/ test" );
 
 
-    TaskHandle_t htsk_anim; xTaskCreate( [] ( void* arg ) static -> void { 
+    TaskHandle_t animation; xTaskCreate( [] ( void* arg ) static -> void { 
             bool& in_test  = *( bool* )arg;
             int   at       = 1;
 
@@ -682,7 +697,7 @@ int do_tests( void ) {
                 YUNA.setCursor( x, y );
             }
         }, 
-        "test_display_animation", 4096, &in_test, Priority_Aesth, &htsk_anim 
+        "test_display_animation", 4096, &in_test, Priority_Aesth, &animation 
     );
 
 l_test_begin: {
@@ -693,9 +708,12 @@ l_test_begin: {
         case 0b0000: goto l_test_begin;
         case 0b0110: goto l_test_end;
 
-        case 0b1000: {
-            _begin( "BITNA - LED color cycle" ); BITNA.itr_rgb( 2000 ); _end();
-        break; }
+        case 0b1000: { _begin( "BITNA - LED color cycle" ); 
+            for( int ch = 0; ch <= 2; ++ch ) {
+                for( int val = 0; val <= 255; ++val ) { BITNA( LED_MAKE_CH( ch, val ) ); vTaskDelay( 4 ); }
+                for( int val = 255; val >= 0; --val ) { BITNA( LED_MAKE_CH( ch, val ) ); vTaskDelay( 4 ); }
+            }
+        _end(); break; }
 
         default: goto l_test_begin;
     }
@@ -706,7 +724,7 @@ l_test_begin: {
 l_test_end:
     _printf( LogLevel_Info, "Tests ended. Completed (%d) tests.\n", test_count ) ;
 
-    vTaskDelete( htsk_anim );
+    vTaskDelete( animation );
     YUNA.printf_w( " >done(%d)", test_count );
     return test_count;
 }
@@ -777,8 +795,9 @@ void setup( void ) {
 || |  | | | | | \|
 */ 
 enum FellowTask_ : int {
-    FellowTask_DynamScan  = ( 1 << 0 ),
-    FellowTask_InputReact = ( 1 << 1 )
+    FellowTask_DynamScan     = ( 1 << 0 ),
+    FellowTask_InputReact    = ( 1 << 1 ),
+    FellowTask_LedController = ( 1 << 2 )
 };
 static struct _FELLOW_TASK {
     static void _func_wrap( void* func ) {
@@ -842,17 +861,39 @@ for(;;) {
     }
 
     if( crt_state != 0 && last_state != crt_state ) 
-        BITNA( reacts[ ++react_at %= REACT_COUNT ] );
+        BITNA.target( reacts[ ++react_at %= REACT_COUNT ] );
     else if( crt_state == 0 ) 
-        BITNA( Led_BLK );
+        BITNA.target( Led_BLK );
 
     last_state = crt_state;
+} } },
+
+FELLOW_TASK_led_controller{ "led_controller", 1024, Priority_Aesth, [] ( void* ) static -> void {
+    const float Kp  = 0.36;
+    const int   Ts  = 30;
+    Led_        cmd = 0;
+    float       err = 0;
+
+for(;;) {
+    err = BITNA._tar.r - BITNA._crt.r;
+    cmd.r = BITNA._crt.r + err * Kp;
+
+    err = BITNA._tar.g - BITNA._crt.g;
+    cmd.g = BITNA._crt.g + err * Kp;
+
+    err = BITNA._tar.b - BITNA._crt.b;
+    cmd.b = BITNA._crt.b + err * Kp;
+
+    BITNA.make( cmd );
+
+    vTaskDelay( Ts );
 } } };
 
 
 #define FOCUS_LOOP_FNCSIG  virtual void focus_loop( _FOCUS::bli_t* bli ) override
 #define FOCUS_BEGIN_FNCSIG virtual void focus_begin( void ) override
 #define FOCUS_END_FNCSIG   virtual void focus_end( void ) override
+
 struct _FOCUS {
     struct bli_t {
         int   ms   = 0;
@@ -890,7 +931,7 @@ struct _FOCUS {
     };
 
     static void place( _FOCUS* focus ) {
-        if( ( _sync.focus = focus ) != NULL ) xTaskNotifyGive( _sync.handle );
+        if( _sync.focus != focus && ( _sync.focus = focus ) != NULL ) xTaskNotifyGive( _sync.handle );
     }
 };
 
@@ -916,297 +957,18 @@ void loop() {
 
     xTaskCreate( &_FOCUS::_main, "focus_main", 4096, NULL, Priority_SubMain, &_FOCUS::_sync.handle );
 
+    attachInterrupt( digitalPinToInterrupt( GPIO::xabara ), [] ( void ) static -> void { 
+        CONFIG_BRDG_MODE.bridge_back();
+    },
+        RISING 
+    );
+
     for(;;) {
-        CONFIG.mains[ CONFIG.mode ]( NULL ); 
+        CONFIG.mains[ CONFIG.mode.load( std::memory_order_seq_cst ) ]( CONFIG._arg ); 
         _FOCUS::place( NULL );
+        YUNA.clear_w();
     }
     _dead(); 
-}
-
-
-
-/* ._  ._  .   .__
-|| |_\ |_| |\  | ._
-|| |_| | \ |_\ |__|
-*/ 
-#define BRIDGE_SELECT_FNCSIG virtual void select() override
-struct _BRIDGE : _FOCUS {
-    _BRIDGE*      sup                                 = NULL;
-    _BRIDGE*      subs[ _CONFIG_BRDG_MODE::STRIDE ]   = { ( memset( ( void* )subs, NULL, _CONFIG_BRDG_MODE::STRIDE * sizeof( void* ) ), ( _BRIDGE* )NULL ) };
-    int           sub_idx                             = 0;
-    const char*   name                                = "root";
-    int           _last_ms                            = 0;
-
-    static constexpr int   _NAV_V_X   = 1;
-    static constexpr int   _NAV_V_Y   = 1;
-    static constexpr int   _NAV_V_W   = 7;
-    static constexpr int   _NAV_V_H   = 56;
-
-    static constexpr int   _NAV_H_X   = 120;
-    static constexpr int   _NAV_H_Y   = 1;
-    static constexpr int   _NAV_H_W   = 7;
-    static constexpr int   _NAV_H_H   = 56;
-
-    static constexpr int   _NAV_P_X   = 1;
-    static constexpr int   _NAV_P_Y   = 59;
-
-    static constexpr int   _CAGE_X    = 11;
-    static constexpr int   _CAGE_Y    = 2;
-
-    static constexpr int   _ICO_X     = 15;
-    static constexpr int   _ICO_Y     = 6;
-    static constexpr int   _ICO_W     = 98;
-    static constexpr int   _ICO_H     = 44;
-    
-    void _focus_begin( void ) override { 
-        YUNA.clearDisplay();
-
-        if( this != CONFIG_BRDG_MODE._home ) {
-            int x = _NAV_H_X, y = _NAV_H_Y;
-            for( int count = 0; count < _CONFIG_BRDG_MODE::STRIDE && this->sup->subs[ count ] != NULL ; ++count ) {
-                if( this == this->sup->subs[ count ] ) {
-                    YUNA.drawRect( x, y, 7, 7, SSD1306_WHITE );
-                    y += 9;
-                } else {
-                    YUNA.drawRect( x + 2, y, 3, 3, SSD1306_WHITE );
-                    y += 5;
-                }
-            }
-
-            x = _NAV_V_X; y = _NAV_V_Y;
-            for( int count = 0; count <= CONFIG_BRDG_MODE._nav.dep; ++count ) {
-                if( count == CONFIG_BRDG_MODE._nav.dep ) {
-                    YUNA.drawRect( x, y, 7, 7, SSD1306_WHITE );
-                    y += 9;
-                } else {
-                    YUNA.drawRect( x + 2, y, 3, 3, SSD1306_WHITE );
-                    y += 5;
-                }
-            }
-            if( this->subs[ 0 ] != NULL ) 
-                YUNA.drawTriangle( x + 1, y, x + 5, y, x + 3, y + 6, SSD1306_WHITE );
-            else
-                YUNA.drawRect( x + 1, y, 5, 2, SSD1306_WHITE );
-
-            YUNA.setCursor( _NAV_P_X, _NAV_P_Y );
-            YUNA.print( CONFIG_BRDG_MODE._nav.path );
-        } 
-
-        this->focus_begin(); 
-    }
-
-    void _focus_end( void ) { 
-        this->focus_end(); 
-    }
-
-    void _focus_loop( _FOCUS::bli_t* bli ) {
-        if( this != CONFIG_BRDG_MODE._home ) {
-            YUNA.fillRect( _CAGE_X - 2, _CAGE_Y - 2, 110, 56, SSD1306_BLACK );
-
-            float cage_arg = ( float )bli->ms / 100;
-            int cage_ox = sin( cage_arg ) * 2;
-            int cage_oy = cos( cage_arg ) * 2;
-            YUNA.drawBitmap( _CAGE_X + cage_ox, _CAGE_Y + cage_oy, BARRACUDA_BRDG_CAGE, 106, 52, SSD1306_WHITE );
-        } 
-
-        this->focus_loop( bli );
-        YUNA.display();
-    }
-
-    virtual void select() {}
-
-} _BRIDGE_ROOT;
-
-struct _BRIDGE_HOME : _BRIDGE{ 
-FOCUS_LOOP_FNCSIG{ 
-    YUNA.drawBitmap( 0, 0, BARRACUDA_LOGO_VIBE, 20, 64, SSD1306_WHITE );
-    YUNA.drawBitmap( 108, 0, BARRACUDA_LOGO_VIBE, 20, 64, SSD1306_WHITE );
-
-    float vibe_amp = ( 1.1 + sin( bli->ms / 1200 ) ) * 8.0 + 8.0;
-    int vibe_lo = ( 1.1 + sin( bli->ms / 230.0 ) ) * vibe_amp;
-    int vibe_ro = ( 1.1 + cos( bli->ms / 230.0 ) ) * vibe_amp;
-
-    YUNA.fillRect( 0, 0, 20, vibe_lo, SSD1306_BLACK );
-    YUNA.fillRect( 108, 0, 20, vibe_ro, SSD1306_BLACK );
-};
-FOCUS_BEGIN_FNCSIG{
-    YUNA.drawBitmap( 0, 0, BARRACUDA_LOGO, 128, 64, SSD1306_WHITE );
-    YUNA.fillRect( 0, 0, 20, 64, SSD1306_BLACK );
-    YUNA.fillRect( 108, 0, 20, 64, SSD1306_BLACK );
-};
-} BRIDGE_HOME;
-
-struct _BRIDGE_BTH : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
-    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRACUDA_BRDG_ICO_BTH, _ICO_W, _ICO_H, SSD1306_WHITE );
-};
-BRIDGE_SELECT_FNCSIG{
-    CONFIG.xchg_mode( Mode_Ctrl );
-};
-} BRIDGE_BTH;
-
-struct _BRIDGE_INFO : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
-    float x = ( float )bli->ms / 320.0;
-    int yo = ( sin( x ) + 0.23*sin( x*3 ) + 0.06*sin( x*5 ) ) * 6.0;
-
-    YUNA.drawBitmap( _ICO_X, _ICO_Y + yo, BARRACUDA_BRDG_ICO_INFO, _ICO_W, _ICO_H, SSD1306_WHITE );
-};
-BRIDGE_SELECT_FNCSIG{
-    
-};
-} BRIDGE_INFO;
-
-struct _BRIDGE_TOOLS : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
-    YUNA.setCursor( 50, 30 );
-    YUNA.printf( "tools" );
-}; 
-} BRIDGE_TOOLS;
-
-struct _BRIDGE_GAMES : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
-    YUNA.setCursor( 50, 30 );
-    YUNA.printf( "games" );
-}; 
-} BRIDGE_GAMES;
-
-struct _BRIDGE_ENV : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
-    YUNA.setCursor( 50, 30 );
-    YUNA.printf( "env" );
-}; 
-} BRIDGE_ENV;
-
-struct _BRIDGE_SYSINFO : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
-    YUNA.setCursor( 50, 30 );
-    YUNA.printf( "sysinfo" );
-}; 
-} BRIDGE_SYSINFO;
-
-struct _BRIDGE_PONG : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
-    YUNA.setCursor( 50, 30 );
-    YUNA.printf( "pong" );
-}; 
-} BRIDGE_PONG;
-
-struct _BRIDGE_SNAKE : _BRIDGE {
-FOCUS_LOOP_FNCSIG{ 
-    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRACUDA_BRDG_ICO_SNAKE, _ICO_W, _ICO_H, SSD1306_WHITE );
-}; 
-} BRIDGE_SNAKE;
-
-int _CONFIG_BRDG_MODE::init( void ) {
-    _root = &_BRIDGE_ROOT;
-    _nav.crt = _home = &BRIDGE_HOME;
-
-    _BRIDGE_ROOT.sub_idx = 1;
-    _BRIDGE_ROOT.subs[ 0 ] = &BRIDGE_BTH;
-    _BRIDGE_ROOT.subs[ 1 ] = &BRIDGE_HOME;
-    _BRIDGE_ROOT.subs[ 2 ] = &BRIDGE_INFO;
-
-    BRIDGE_BTH.name = "bluetooth";
-
-    BRIDGE_INFO.name = "info";
-
-    BRIDGE_HOME.name = "";
-    BRIDGE_HOME.sup = BRIDGE_BTH.sup = BRIDGE_INFO.sup = &_BRIDGE_ROOT;
-    BRIDGE_HOME.subs[ 0 ] = &BRIDGE_TOOLS;
-    BRIDGE_HOME.subs[ 1 ] = &BRIDGE_GAMES;
-    BRIDGE_HOME.subs[ 2 ] = &BRIDGE_ENV;
-    BRIDGE_HOME.subs[ 3 ] = &BRIDGE_SYSINFO;
-
-    BRIDGE_TOOLS.name = "tools";
-    BRIDGE_TOOLS.sup = &BRIDGE_HOME;
-
-    BRIDGE_GAMES.name = "games";
-    BRIDGE_GAMES.sup = &BRIDGE_HOME;
-    BRIDGE_GAMES.subs[ 0 ] = &BRIDGE_PONG;
-    BRIDGE_GAMES.subs[ 1 ] = &BRIDGE_SNAKE;
-
-    BRIDGE_ENV.name = "env";
-    BRIDGE_ENV.sup = &BRIDGE_HOME;
-
-    BRIDGE_SYSINFO.name = "sysinfo";
-    BRIDGE_SYSINFO.sup = &BRIDGE_HOME;
-
-    BRIDGE_PONG.name = "pong";
-    BRIDGE_PONG.sup = &BRIDGE_GAMES;
-
-    BRIDGE_SNAKE.name = "snake";
-    BRIDGE_SNAKE.sup = &BRIDGE_GAMES;
-
-    return 0;
-}
-
-void _CONFIG_BRDG_MODE::bridge_back() { 
-    Mode_ last_mode = CONFIG.xchg_mode( Mode_Brdg );
-    if( last_mode == Mode_Brdg ) {
-        _root->sub_idx = 1;
-        strcpy( _nav.path, ">/" );
-        _nav.dep = 0;
-        _nav.crt = _home;
-        _FOCUS::place( _home );
-    } 
-}
-
-int _CONFIG_BRDG_MODE::bridge_N() {
-    if( _nav.crt->sup == NULL || _nav.crt->sup == &_BRIDGE_ROOT ) return -1;
-    --_nav.dep;
-    _nav.crt = _nav.crt->sup;
-    _nav.path_s();
-    return 0;
-}
-int _CONFIG_BRDG_MODE::bridge_S() {
-    if( _nav.crt->subs[ _nav.crt->sub_idx ] == NULL ) return -1;
-    ++_nav.dep;
-    _nav.crt = _nav.crt->subs[ _nav.crt->sub_idx ];
-    _nav.path_d( _nav.crt->name, _nav.crt->subs[ 0 ] != NULL );
-    return 0;
-}
-int _CONFIG_BRDG_MODE::bridge_E() {
-    int next_idx = _nav.crt->sup->sub_idx + 1;
-    if( next_idx >= STRIDE || _nav.crt->sup->subs[ next_idx ] == NULL ) return -1;
-    _nav.crt->sup->sub_idx = next_idx;
-    _nav.crt = _nav.crt->sup->subs[ next_idx ];
-    _nav.path_x( _nav.crt->name, _nav.crt->subs[ 0 ] != NULL );
-    return 0;
-}
-int _CONFIG_BRDG_MODE::bridge_W() {
-    int next_idx = _nav.crt->sup->sub_idx - 1;
-    if( next_idx < 0 || _nav.crt->sup->subs[ next_idx ] == NULL ) return -1;
-    _nav.crt->sup->sub_idx = next_idx;
-    _nav.crt = _nav.crt->sup->subs[ next_idx ];
-    _nav.path_x( _nav.crt->name, _nav.crt->subs[ 0 ] != NULL );
-    return 0;
-}
-
-
-void main_brdg( void* arg ) {
-    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact );
-
-    barra::dynamic_t         dyn;
-    _DYNAM::snapshot_token_t ss_tok = { dst: &dyn, blk: true };
-
-    _FOCUS::place( CONFIG_BRDG_MODE._nav.crt );
-
-MAIN_LOOP_ON( Mode_Brdg ) {
-    DYNAM.snapshot( &ss_tok );
-
-    if( dyn.samantha.trg.is != 1 ) goto l_skip_nav;
-
-    if     ( dyn.samantha.trg.x == 1 )  { CONFIG_BRDG_MODE.bridge_E(); _FOCUS::place( CONFIG_BRDG_MODE._nav.crt ); }
-    else if( dyn.samantha.trg.x == -1 ) { CONFIG_BRDG_MODE.bridge_W(); _FOCUS::place( CONFIG_BRDG_MODE._nav.crt ); }
-    else if( dyn.samantha.trg.y == 1 )  { CONFIG_BRDG_MODE.bridge_N(); _FOCUS::place( CONFIG_BRDG_MODE._nav.crt ); }
-    else if( dyn.samantha.trg.y == -1 ) { CONFIG_BRDG_MODE.bridge_S(); _FOCUS::place( CONFIG_BRDG_MODE._nav.crt ); }
-
-l_skip_nav:
-    if( dyn.giselle.rls || dyn.samantha.sw.rls || ( CONFIG_BRDG_MODE._nav.crt->subs[ 0 ] == NULL && dyn.samantha.trg.y == -1 ) ) 
-        CONFIG_BRDG_MODE._nav.crt->select();
-}
-
 }
 
 
@@ -1215,12 +977,19 @@ l_skip_nav:
 || | ._ |_| |\/| |_
 || |__| | | |  | |__
 */ 
+#define GAME_MAIN_FNCSIG void main( void ) override
+
+struct _GAME {
+    virtual void main( void ) = 0;
+};
+
+
 int _CONFIG_GAME_MODE::init( void ) {
 	return 0;
 }
 
 void main_game( void* arg ) {
-
+    ( ( _GAME* )arg )->main();
 }
 
 
@@ -1317,4 +1086,354 @@ MAIN_LOOP_ON( Mode_Ctrl ) {
 } 
 
     CONFIG_CTRL_MODE.wjpblu.end();
+}
+
+
+
+/* ._  ._  .   .__
+|| |_\ |_| |\  | ._
+|| |_| | \ |_\ |__|
+*/ 
+#define BRIDGE_SELECT_FNCSIG virtual void select() override
+struct _BRIDGE : _FOCUS {
+    _BRIDGE*      sup                                 = NULL;
+    _BRIDGE*      subs[ _CONFIG_BRDG_MODE::STRIDE ]   = { ( memset( ( void* )subs, NULL, _CONFIG_BRDG_MODE::STRIDE * sizeof( void* ) ), ( _BRIDGE* )NULL ) };
+    int           sub_idx                             = 0;
+    const char*   name                                = "root";
+    int           _last_ms                            = 0;
+
+    static constexpr int   _NAV_V_X   = 1;
+    static constexpr int   _NAV_V_Y   = 1;
+    static constexpr int   _NAV_V_W   = 7;
+    static constexpr int   _NAV_V_H   = 56;
+
+    static constexpr int   _NAV_H_X   = 120;
+    static constexpr int   _NAV_H_Y   = 1;
+    static constexpr int   _NAV_H_W   = 7;
+    static constexpr int   _NAV_H_H   = 56;
+
+    static constexpr int   _NAV_P_X   = 1;
+    static constexpr int   _NAV_P_Y   = 59;
+
+    static constexpr int   _CAGE_X    = 11;
+    static constexpr int   _CAGE_Y    = 2;
+
+    static constexpr int   _ICO_X     = 15;
+    static constexpr int   _ICO_Y     = 6;
+    
+    void _focus_begin( void ) override { 
+        YUNA.clearDisplay();
+
+        if( this != CONFIG_BRDG_MODE._home ) {
+            int x = _NAV_H_X, y = _NAV_H_Y;
+            for( int count = 0; count < _CONFIG_BRDG_MODE::STRIDE && this->sup->subs[ count ] != NULL ; ++count ) {
+                if( this == this->sup->subs[ count ] ) {
+                    YUNA.drawRect( x, y, 7, 7, SSD1306_WHITE );
+                    y += 9;
+                } else {
+                    YUNA.drawRect( x + 2, y, 3, 3, SSD1306_WHITE );
+                    y += 5;
+                }
+            }
+
+            x = _NAV_V_X; y = _NAV_V_Y;
+            for( int count = 0; count <= CONFIG_BRDG_MODE._nav.dep; ++count ) {
+                if( count == CONFIG_BRDG_MODE._nav.dep ) {
+                    YUNA.drawRect( x, y, 7, 7, SSD1306_WHITE );
+                    y += 9;
+                } else {
+                    YUNA.drawRect( x + 2, y, 3, 3, SSD1306_WHITE );
+                    y += 5;
+                }
+            }
+            if( this->subs[ 0 ] != NULL ) 
+                YUNA.drawTriangle( x + 1, y, x + 5, y, x + 3, y + 6, SSD1306_WHITE );
+            else
+                YUNA.drawRect( x + 1, y, 5, 2, SSD1306_WHITE );
+
+            YUNA.setCursor( _NAV_P_X, _NAV_P_Y );
+            YUNA.print( CONFIG_BRDG_MODE._nav.path );
+        } 
+
+        this->focus_begin(); 
+    }
+
+    void _focus_end( void ) { 
+        this->focus_end(); 
+    }
+
+    void _focus_loop( _FOCUS::bli_t* bli ) {
+        if( this != CONFIG_BRDG_MODE._home ) {
+            YUNA.fillRect( _CAGE_X - 2, _CAGE_Y - 2, 110, 56, SSD1306_BLACK );
+
+            float cage_arg = ( float )bli->ms / 100;
+            int cage_ox = sin( cage_arg ) * 2;
+            int cage_oy = cos( cage_arg ) * 2;
+            YUNA.drawBitmap( _CAGE_X + cage_ox, _CAGE_Y + cage_oy, BARRA_BRDG_CAGE, 106, 52, SSD1306_WHITE );
+        } 
+
+        this->focus_loop( bli );
+        YUNA.display();
+    }
+
+    virtual void select() {}
+
+} _BRIDGE_ROOT;
+
+struct _BRIDGE_HOME : _BRIDGE{ 
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.drawBitmap( 0, 0, BARRA_LOGO_VIBE, 20, 64, SSD1306_WHITE );
+    YUNA.drawBitmap( 108, 0, BARRA_LOGO_VIBE, 20, 64, SSD1306_WHITE );
+
+    float vibe_amp = ( 1.1 + sin( bli->ms / 1200 ) ) * 8.0 + 8.0;
+    int vibe_lo = ( 1.1 + sin( bli->ms / 230.0 ) ) * vibe_amp;
+    int vibe_ro = ( 1.1 + cos( bli->ms / 230.0 ) ) * vibe_amp;
+
+    YUNA.fillRect( 0, 0, 20, vibe_lo, SSD1306_BLACK );
+    YUNA.fillRect( 108, 0, 20, vibe_ro, SSD1306_BLACK );
+};
+FOCUS_BEGIN_FNCSIG{
+    YUNA.drawBitmap( 0, 0, BARRA_LOGO, 128, 64, SSD1306_WHITE );
+    YUNA.fillRect( 0, 0, 20, 64, SSD1306_BLACK );
+    YUNA.fillRect( 108, 0, 20, 64, SSD1306_BLACK );
+};
+} BRIDGE_HOME;
+
+struct _BRIDGE_BTH : _BRIDGE { 
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_BTH, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
+};
+BRIDGE_SELECT_FNCSIG{
+    CONFIG.xchg_mode( Mode_Ctrl, NULL );
+};
+} BRIDGE_BTH;
+
+struct _BRIDGE_INFO : _BRIDGE { 
+FOCUS_LOOP_FNCSIG{ 
+    float x = ( float )bli->ms / 320.0;
+    int yo = ( sin( x ) + 0.23*sin( x*3 ) + 0.06*sin( x*5 ) ) * 9.0;
+
+    YUNA.drawBitmap( _ICO_X, _ICO_Y + yo, BARRA_BRDG_ICO_INFO, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
+};
+BRIDGE_SELECT_FNCSIG{
+    
+};
+} BRIDGE_INFO;
+
+struct _BRIDGE_TOOLS : _BRIDGE { 
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_TOOLS, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
+}; 
+} BRIDGE_TOOLS;
+
+struct _BRIDGE_GAMES : _BRIDGE { 
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.setCursor( 50, 30 );
+    YUNA.printf( "games" );
+};
+} BRIDGE_GAMES;
+
+struct _BRIDGE_ENV : _BRIDGE { 
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.setCursor( 50, 30 );
+    YUNA.printf( "env" );
+};
+} BRIDGE_ENV;
+
+struct _BRIDGE_SYSINFO : _BRIDGE { 
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.setCursor( 50, 30 );
+    YUNA.printf( "sysinfo" );
+}; 
+} BRIDGE_SYSINFO;
+
+struct _BRIDGE_TEMPERATURE : _BRIDGE { 
+    bool   in_celsius   = true;
+
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.setTextSize( 2 );
+    YUNA.setCursor( _ICO_X + 16, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
+    if( in_celsius ) {
+        {YUNA.printf( "%.2f 'c", SUSAN.readTemperature() );
+    } else {
+        YUNA.printf( "%.2f 'f", SUSAN.readTemperature() * 1.8 + 32.0 );
+    }
+    YUNA.setTextSize( 1 );
+};
+BRIDGE_SELECT_FNCSIG{
+    in_celsius ^= true;
+};
+} BRIDGE_TEMPERATURE;
+
+struct _BRIDGE_PRESSURE : _BRIDGE { 
+    int   unit   = 0;
+
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.setTextSize( 2 );
+    YUNA.setCursor( _ICO_X + 2, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
+    switch( unit ) {
+        case 0: YUNA.printf( "%.1f Pa", SUSAN.readPressure() ); break;
+        case 1: YUNA.printf( "%.2f bar", SUSAN.readPressure() * 1e-5 ); break;
+        case 2: YUNA.printf( "%.2f atm", SUSAN.readPressure() * 9.86923267e-6 ); break;
+    }
+    YUNA.setTextSize( 1 );
+};
+BRIDGE_SELECT_FNCSIG{
+    if( ++unit >= 3 ) unit = 0;
+};
+} BRIDGE_PRESSURE;
+
+struct _BRIDGE_ALTITUDE : _BRIDGE { 
+    int   unit   = 0;
+
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.setTextSize( 2 );
+    YUNA.setCursor( _ICO_X + 6, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
+    YUNA.printf( "%.2f m", SUSAN.readAltitude() );
+    YUNA.setTextSize( 1 );
+};
+} BRIDGE_ALTITUDE;
+
+struct _BRIDGE_PONG : _BRIDGE { 
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.setCursor( 50, 30 );
+    YUNA.printf( "pong" );
+}; 
+} BRIDGE_PONG;
+
+struct _BRIDGE_SNAKE : _BRIDGE {
+FOCUS_LOOP_FNCSIG{ 
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_SNAKE, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
+}; 
+} BRIDGE_SNAKE;
+
+int _CONFIG_BRDG_MODE::init( void ) {
+    _root = &_BRIDGE_ROOT;
+    _nav.crt = _home = &BRIDGE_HOME;
+
+    _BRIDGE_ROOT.sub_idx = 1;
+    _BRIDGE_ROOT.subs[ 0 ] = &BRIDGE_BTH;
+    _BRIDGE_ROOT.subs[ 1 ] = &BRIDGE_HOME;
+    _BRIDGE_ROOT.subs[ 2 ] = &BRIDGE_INFO;
+
+    BRIDGE_BTH.name = "bluetooth";
+
+    BRIDGE_INFO.name = "info";
+
+    BRIDGE_HOME.name = "";
+    BRIDGE_HOME.sup = BRIDGE_BTH.sup = BRIDGE_INFO.sup = &_BRIDGE_ROOT;
+    BRIDGE_HOME.subs[ 0 ] = &BRIDGE_TOOLS;
+    BRIDGE_HOME.subs[ 1 ] = &BRIDGE_GAMES;
+    BRIDGE_HOME.subs[ 2 ] = &BRIDGE_ENV;
+    BRIDGE_HOME.subs[ 3 ] = &BRIDGE_SYSINFO;
+
+    BRIDGE_TOOLS.name = "tools";
+    BRIDGE_TOOLS.sup = &BRIDGE_HOME;
+
+    BRIDGE_GAMES.name = "games";
+    BRIDGE_GAMES.sup = &BRIDGE_HOME;
+    BRIDGE_GAMES.subs[ 0 ] = &BRIDGE_PONG;
+    BRIDGE_GAMES.subs[ 1 ] = &BRIDGE_SNAKE;
+
+    BRIDGE_ENV.name = "env";
+    BRIDGE_ENV.sup = &BRIDGE_HOME;
+    BRIDGE_ENV.subs[ 0 ] = &BRIDGE_TEMPERATURE;
+    BRIDGE_ENV.subs[ 1 ] = &BRIDGE_PRESSURE;
+    BRIDGE_ENV.subs[ 2 ] = &BRIDGE_ALTITUDE;
+
+    BRIDGE_SYSINFO.name = "sysinfo";
+    BRIDGE_SYSINFO.sup = &BRIDGE_HOME;
+
+    BRIDGE_TEMPERATURE.name = "temperature";
+    BRIDGE_TEMPERATURE.sup = &BRIDGE_ENV;
+
+    BRIDGE_PRESSURE.name = "pressure";
+    BRIDGE_PRESSURE.sup = &BRIDGE_ENV;
+
+    BRIDGE_ALTITUDE.name = "altitude";
+    BRIDGE_ALTITUDE.sup = &BRIDGE_ENV;
+
+    BRIDGE_PONG.name = "pong";
+    BRIDGE_PONG.sup = &BRIDGE_GAMES;
+
+    BRIDGE_SNAKE.name = "snake";
+    BRIDGE_SNAKE.sup = &BRIDGE_GAMES;
+
+    return 0;
+}
+
+void _CONFIG_BRDG_MODE::bridge_back() { 
+    Mode_ last_mode = CONFIG.xchg_mode( Mode_Brdg, NULL );
+    if( last_mode == Mode_Brdg ) {
+        _root->sub_idx = 1;
+        strcpy( _nav.path, ">//" );
+        _nav.dep = 0;
+        _nav.crt = _home;
+        _FOCUS::place( _home );
+    } 
+}
+
+int _CONFIG_BRDG_MODE::bridge_N() {
+    if( _nav.crt->sup == NULL || _nav.crt->sup == &_BRIDGE_ROOT ) return -1;
+    --_nav.dep;
+    _nav.crt = _nav.crt->sup;
+    _nav.path_s();
+    return 0;
+}
+int _CONFIG_BRDG_MODE::bridge_S() {
+    if( _nav.crt->subs[ _nav.crt->sub_idx ] == NULL ) return -1;
+    ++_nav.dep;
+    _nav.crt = _nav.crt->subs[ _nav.crt->sub_idx ];
+    _nav.path_d( _nav.crt->name, _nav.crt->subs[ 0 ] != NULL );
+    return 0;
+}
+int _CONFIG_BRDG_MODE::bridge_E() {
+    int next_idx = _nav.crt->sup->sub_idx + 1;
+    if( next_idx >= STRIDE || _nav.crt->sup->subs[ next_idx ] == NULL ) return -1;
+    _nav.crt->sup->sub_idx = next_idx;
+    _nav.crt = _nav.crt->sup->subs[ next_idx ];
+    _nav.path_x( _nav.crt->name, _nav.crt->subs[ 0 ] != NULL );
+    return 0;
+}
+int _CONFIG_BRDG_MODE::bridge_W() {
+    int next_idx = _nav.crt->sup->sub_idx - 1;
+    if( next_idx < 0 || _nav.crt->sup->subs[ next_idx ] == NULL ) return -1;
+    _nav.crt->sup->sub_idx = next_idx;
+    _nav.crt = _nav.crt->sup->subs[ next_idx ];
+    _nav.path_x( _nav.crt->name, _nav.crt->subs[ 0 ] != NULL );
+    return 0;
+}
+
+
+void main_brdg( void* arg ) {
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController );
+
+    barra::dynamic_t         dyn;
+    _DYNAM::snapshot_token_t ss_tok = { dst: &dyn, blk: true };
+
+    _FOCUS::place( CONFIG_BRDG_MODE._nav.crt );
+
+MAIN_LOOP_ON( Mode_Brdg ) {
+    DYNAM.snapshot( &ss_tok );
+
+    if( dyn.samantha.trg.is != 1 ) goto l_action;
+
+    if     ( dyn.samantha.trg.x == 1 )  { if( CONFIG_BRDG_MODE.bridge_E() == 0 ) goto l_nav; }
+    else if( dyn.samantha.trg.x == -1 ) { if( CONFIG_BRDG_MODE.bridge_W() == 0 ) goto l_nav; }
+    else if( dyn.samantha.trg.y == 1 )  { if( CONFIG_BRDG_MODE.bridge_N() == 0 ) goto l_nav; }
+    else if( dyn.samantha.trg.y == -1 ) { if( CONFIG_BRDG_MODE.bridge_S() == 0 ) goto l_nav; }
+    goto l_action;
+    
+l_nav:
+    _FOCUS::place( CONFIG_BRDG_MODE._nav.crt );
+    goto l_end;
+
+l_action:
+    if( dyn.giselle.rls || dyn.samantha.sw.rls || ( CONFIG_BRDG_MODE._nav.crt->subs[ 0 ] == NULL && dyn.samantha.trg.y == -1 ) ) 
+        CONFIG_BRDG_MODE._nav.crt->select();
+
+l_end:
+    continue;
+}
+
 }

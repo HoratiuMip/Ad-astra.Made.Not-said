@@ -67,7 +67,7 @@ static struct _CONFIG {
     SemaphoreHandle_t   init_sem     = { xSemaphoreCreateBinary() };
 
     int                 dyn_scan_T   = 20;
-    int                 focus_T      = 16;
+    int                 focus_T      = 33;
 
     void*               _arg         = NULL;
 
@@ -123,11 +123,11 @@ static struct _CONFIG_BRDG_MODE {
         }
     } _nav;
 
-    void bridge_back();
-    int bridge_N();
-    int bridge_S();
-    int bridge_E();
-    int bridge_W();
+    void bridge_back( void );
+    int bridge_N( void );
+    int bridge_S( void );
+    int bridge_E( void );
+    int bridge_W( void );
 
 } CONFIG_BRDG_MODE;
 
@@ -1180,6 +1180,8 @@ struct _BRIDGE : _FOCUS {
 
 } _BRIDGE_ROOT;
 
+#pragma region BRIDGES
+
 struct _BRIDGE_HOME : _BRIDGE{ 
 FOCUS_LOOP_FNCSIG{ 
     YUNA.drawBitmap( 0, 0, BARRA_LOGO_VIBE, 20, 64, SSD1306_WHITE );
@@ -1254,7 +1256,7 @@ FOCUS_LOOP_FNCSIG{
     YUNA.setTextSize( 2 );
     YUNA.setCursor( _ICO_X + 16, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
     if( in_celsius ) {
-        {YUNA.printf( "%.2f 'c", SUSAN.readTemperature() );
+        YUNA.printf( "%.2f 'c", SUSAN.readTemperature() );
     } else {
         YUNA.printf( "%.2f 'f", SUSAN.readTemperature() * 1.8 + 32.0 );
     }
@@ -1306,6 +1308,9 @@ FOCUS_LOOP_FNCSIG{
     YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_SNAKE, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 }; 
 } BRIDGE_SNAKE;
+
+#pragma endregion BRIDGES
+
 
 int _CONFIG_BRDG_MODE::init( void ) {
     _root = &_BRIDGE_ROOT;

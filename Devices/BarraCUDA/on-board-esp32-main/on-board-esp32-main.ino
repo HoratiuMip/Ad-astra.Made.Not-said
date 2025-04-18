@@ -67,7 +67,7 @@ static struct _CONFIG {
     SemaphoreHandle_t   init_sem     = { xSemaphoreCreateBinary() };
 
     int                 dyn_scan_T   = 20;
-    int                 focus_T      = 33;
+    int                 spot_T       = 33;
 
     void*               _arg         = NULL;
 
@@ -165,7 +165,7 @@ struct GPIO {
     inline static const GPIO_pin_t xabara = 17;
     /*                             |bridge */
 
-    inline static struct { const GPIO_pin_t r, g, b; } bitna{ r: 13, g: 12, b: 14 };
+    inline static struct { const GPIO_pin_t r, g, b; } bitna{ r: 13, g: 14, b: 12 };
     /*                                                 |led */
 
     /**
@@ -258,9 +258,9 @@ static struct _BITNA {
     Led_   _tar   = Led_BLK;
 
     inline void _set( Led_ led ) {
-        GPIO::A_W( GPIO::bitna.r, LED_CH_R( led.rgb ) );
-        GPIO::A_W( GPIO::bitna.g, LED_CH_G( led.rgb ) );
-        GPIO::A_W( GPIO::bitna.b, LED_CH_B( led.rgb ) );
+        GPIO::A_W( GPIO::bitna.r, 255 - LED_CH_R( led.rgb ) );
+        GPIO::A_W( GPIO::bitna.g, 255 - LED_CH_G( led.rgb ) );
+        GPIO::A_W( GPIO::bitna.b, 255 - LED_CH_B( led.rgb ) );
     }
     
     inline _BITNA& target( Led_ led ) {
@@ -343,61 +343,7 @@ static struct _YUNA : public Adafruit_SSD1306 {
         return this->print_w( buffer );
     }
 
-	inline void splash_logo() {
-		this->drawBitmap( 0, 0, BARRA_LOGO, 128, 64, 1 );
-        this->display();
-	}
-
-	void _psplash_invert( bool* running ) { bool inv;
-		while( 1 ) { BITNA ^= Led_GRN; vTaskDelay( 500 ); this->invertDisplay( inv ^= true ); }
-	}
-
-	inline static const int _PSPLASH_COUNT = 1;
-	inline static void ( _YUNA::*_PSPLASH_TBL[ _PSPLASH_COUNT ] )( bool* ) = {
-		&_YUNA::_psplash_invert
-	};
-
-    struct pspl_info_t {
-		/* The handle of the invoker task to be notified on splash end. */
-		TaskHandle_t                            task      = NULL;
-		/* The index of the splash. `-1` for custom splashes. */
-		int                                     idx       = -1;
-		/* The custom splash function. `NULL` if index is used. Called with this structure. */
-		std::function< void( pspl_info_t* ) >   func      = NULL;
-		/* The index on which to notify. `-1` for default. */
-		int                                     ntf_idx   = 0;
-		/* Flag indicating wether the splash shall keep running. */
-		bool                                    running   = true;
-    };
-
-    static void psplash( void* pspl_info_v );
-
-	inline static int make_psplash( pspl_info_t* pspl_info, int core = 0, int stack_size_w = 4096  ) {
-		TaskHandle_t _task;
-		if( xTaskCreatePinnedToCore( &_YUNA::psplash, "YUNA::psplash()", stack_size_w, ( void* )pspl_info, 0, &_task, core ) == pdPASS ) return 0;
-		return -1;
-	}
-
 } YUNA{ 128, 64, CONFIG.I2C_bus, -1 };
-
-void _YUNA::psplash( void* pspl_info_v ) {
-	pspl_info_t* pspl_info = ( pspl_info_t* )pspl_info_v;
-
-	struct _NOTIFY_ON_RET {
-		~_NOTIFY_ON_RET() { this->proc(); } std::function< void( void ) > proc;
-	} _notify_on_ret{ proc: [ &pspl_info ] () -> void { 
-		xTaskNotifyGiveIndexed( pspl_info->task, pspl_info->ntf_idx ); 
-		vTaskDelete( xTaskGetCurrentTaskHandle() );
-	} };
-
-	if( pspl_info->idx >= 0 && pspl_info->idx <= YUNA._PSPLASH_COUNT ) {
-		( YUNA.* _PSPLASH_TBL[ pspl_info->idx ] )( &pspl_info->running );
-		goto l_end;
-	}
-
-l_end:
-	return;
-}
 
 
 static struct _GRAN : public MPU6050_WE {
@@ -455,6 +401,7 @@ static struct _SUSAN : public Adafruit_BMP280 {
 } SUSAN{ CONFIG.I2C_bus };
 
 
+
 #define _DYNAM_SCAN_IF( bit, jmp_lbl ) if( ( flags & ( 1 << bit ) ) == 0 ) goto jmp_lbl;
 enum Scan_ : int {
     Scan_Joysticks   = ( 1 << 0 ),
@@ -475,6 +422,7 @@ static struct _DYNAM : barra::dynamic_t {
         barra::dynamic_t*   dst          = NULL;
         bool                blk          = true;
         int                 _seq         = 0;
+        bool                _fs          = true;
         uint8_t             _xjtt[ 2 ]   = { HIGH, HIGH };
         uint8_t             _yjtt[ 2 ]   = { HIGH, HIGH };
     };
@@ -557,8 +505,9 @@ static struct _DYNAM : barra::dynamic_t {
      * @brief Updates the dynam values.
      * @param[ in ] flags: Flags to select function behaviour. Default, updates everything.
      */
-    inline void scan( int flags ) {
+    inline _DYNAM& scan( int flags ) {
         this->_scan( flags, &( barra::dynamic_t& )*this );
+        return *this;
     }
 
     inline void q_scan( int flags ) {
@@ -581,6 +530,11 @@ static struct _DYNAM : barra::dynamic_t {
         if( xQueuePeek( _q[ tok->_seq ].handle, tok->dst, tok->blk ? portMAX_DELAY : 0 ) == errQUEUE_EMPTY ) return -1;
         tok->_seq ^= 1;
 
+        if( tok->_fs == true ) {
+            tok->_fs = false;
+            return 0;
+        }
+
         _DYNAM::_resolve_cmp_js( tok->_xjtt[ 0 ], tok->_yjtt[ 0 ], tok->dst->samantha, 0.8, 0.9 );
         _DYNAM::_resolve_cmp_js( tok->_xjtt[ 1 ], tok->_yjtt[ 1 ], tok->dst->rachel, 0.8, 0.9 );
 
@@ -594,6 +548,14 @@ static struct _DYNAM : barra::dynamic_t {
         return 0;
     }
 
+    barra::dynamic_t snapshot_once( void ) {
+        barra::dynamic_t    buffer;
+        snapshot_token_t    token    = { dst: &buffer, blk: true };
+
+        this->snapshot( &token );
+        return buffer; 
+    }
+
     inline static void _resolve_cmp_sw( barra::switch_t& old, barra::switch_t& crt ) {
         switch( ( old.dwn << 1 ) | crt.dwn ) {
             case 0b00: [[fallthrough]];
@@ -604,14 +566,14 @@ static struct _DYNAM : barra::dynamic_t {
     }
 
 #define _DYNAM_RESOLVE_CMP_JS_AXIS( jtt, axis ) \
-if( jtt == HIGH && ( js.axis >= th_high || js.axis <= -th_high ) ) { jtt = LOW; js.trg.axis = js.axis >= th_high ? 1 : -1; is##axis = 1; } \
-else if( jtt == LOW && abs( js.axis ) <= th_low ) { jtt = HIGH; js.trg.axis = 0; is##axis = 1; } \
-else { js.trg.axis = is##axis = 0; }
+if( jtt == HIGH && ( js.axis >= th_high || js.axis <= -th_high ) ) { jtt = LOW; js.edg.axis = js.axis >= th_high ? 1 : -1; is##axis = 1; } \
+else if( jtt == LOW && abs( js.axis ) <= th_low ) { jtt = HIGH; js.edg.axis = 0; is##axis = 1; } \
+else { js.edg.axis = is##axis = 0; }
     inline static void _resolve_cmp_js( uint8_t& xjtt, uint8_t& yjtt, barra::joystick_t& js, float th_low, float th_high ) {
         bool isx = false, isy = false;
         _DYNAM_RESOLVE_CMP_JS_AXIS( xjtt, x );
         _DYNAM_RESOLVE_CMP_JS_AXIS( yjtt, y );
-        js.trg.is = isx | isy;
+        js.edg.is = isx | isy;
     }
 
 } DYNAM;
@@ -890,48 +852,62 @@ for(;;) {
 } } };
 
 
-#define FOCUS_LOOP_FNCSIG  virtual void focus_loop( _FOCUS::bli_t* bli ) override
-#define FOCUS_BEGIN_FNCSIG virtual void focus_begin( void ) override
-#define FOCUS_END_FNCSIG   virtual void focus_end( void ) override
+#define SPOT_LOOP_OVR  virtual void spot_loop( _SPOT::bli_t* bli ) override
+#define SPOT_BEGIN_OVR virtual void spot_begin( void ) override
+#define SPOT_END_OVR   virtual void spot_end( void ) override
 
-struct _FOCUS {
+struct _SPOT {
     struct bli_t {
         int   ms   = 0;
+
+        struct _tim_t {
+            int   _count   = 0;
+
+            void each( int ms, std::function< void( void ) > func ) {
+                if( _count < ms ) return;
+                func();
+                _count = 0;
+            }
+        }    tim[ 3 ]; 
+        _tim_t& tim_0 = tim[ 0 ], tim_1 = tim[ 1 ], tim_2 = tim[ 2 ];
     };
 
-    virtual void _focus_loop( bli_t* bli ) = 0; virtual void _focus_begin( void ) = 0; virtual void _focus_end( void ) = 0;
-    virtual void focus_loop( bli_t* bli ) {}; virtual void focus_begin( void ) {}; virtual void focus_end( void ) {};
+    virtual void _spot_loop( bli_t* bli ) = 0; virtual void _spot_begin( void ) = 0; virtual void _spot_end( void ) = 0;
+    virtual void spot_loop( bli_t* bli ) {}; virtual void spot_begin( void ) {}; virtual void spot_end( void ) {};
 
     inline static struct {
         TaskHandle_t       handle;
-        _FOCUS*            focus;
-    } _sync{ handle: NULL, focus: NULL };
+        _SPOT*            spot;
+    } _sync{ handle: NULL, spot: NULL };
 
     static void _main( void* arg ) {
-        _FOCUS* crt     = NULL;
+        _SPOT* crt     = NULL;
         bli_t   bli;
         int     last_ms = millis();
 
     l_swap:
-        crt = _sync.focus;
+        crt = _sync.spot;
         if( crt == NULL ) {
             ulTaskNotifyTake( true, portMAX_DELAY );
             goto l_swap;
         }
 
-        crt->_focus_begin();
-        for(; _sync.focus == crt ;) { 
+        crt->_spot_begin();
+        for(; _sync.spot == crt ;) { 
             bli.ms = millis();
-            crt->_focus_loop( &bli ); 
-            vTaskDelay( CONFIG.focus_T );
+            for( auto& t : bli.tim ) t._count += bli.ms - last_ms;
+            last_ms = bli.ms;
+
+            crt->_spot_loop( &bli ); 
+            vTaskDelay( CONFIG.spot_T );
         }
-        crt->_focus_end();
+        crt->_spot_end();
 
         goto l_swap;
     };
 
-    static void place( _FOCUS* focus ) {
-        if( _sync.focus != focus && ( _sync.focus = focus ) != NULL ) xTaskNotifyGive( _sync.handle );
+    static void place( _SPOT* spot ) {
+        if( _sync.spot != spot && ( _sync.spot = spot ) != NULL ) xTaskNotifyGive( _sync.handle );
     }
 };
 
@@ -955,7 +931,7 @@ void loop() {
     vTaskPrioritySet( NULL, Priority_Main );
     xSemaphoreGive( CONFIG.init_sem );
 
-    xTaskCreate( &_FOCUS::_main, "focus_main", 4096, NULL, Priority_SubMain, &_FOCUS::_sync.handle );
+    xTaskCreate( &_SPOT::_main, "spot_main", 4096, NULL, Priority_SubMain, &_SPOT::_sync.handle );
 
     attachInterrupt( digitalPinToInterrupt( GPIO::xabara ), [] ( void ) static -> void { 
         CONFIG_BRDG_MODE.bridge_back();
@@ -965,7 +941,7 @@ void loop() {
 
     for(;;) {
         CONFIG.mains[ CONFIG.mode.load( std::memory_order_seq_cst ) ]( CONFIG._arg ); 
-        _FOCUS::place( NULL );
+        _SPOT::place( NULL );
         YUNA.clear_w();
     }
     _dead(); 
@@ -977,11 +953,53 @@ void loop() {
 || | ._ |_| |\/| |_
 || |__| | | |  | |__
 */ 
-#define GAME_MAIN_FNCSIG void main( void ) override
+#define GAME_MAIN_OVR void main( void ) override
 
-struct _GAME {
+struct _GAME : _SPOT {
     virtual void main( void ) = 0;
+
+     void _spot_begin( void ) override { 
+        YUNA.clearDisplay();
+        this->spot_begin(); 
+    }
+
+    void _spot_end( void ) { 
+        this->spot_end(); 
+    }
+
+    void _spot_loop( _SPOT::bli_t* bli ) {
+        this->spot_loop( bli );
+        YUNA.display();
+    }
 };
+
+#pragma region GAMES
+
+struct _GAME_PONG : _GAME {
+    inline static constexpr float   ARENA_H   = 57.0;
+
+    struct _ball_t {
+        float   x   = 0.0;
+        float   y   = 0.0;
+    } ball;
+
+SPOT_LOOP_OVR{
+    bli->tim_0.each( 250, [ this ] ( void ) -> void {
+        
+    } );
+};
+
+GAME_MAIN_OVR{
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController );
+
+MAIN_LOOP_ON( Mode_Game ) {
+    vTaskDelay( 1000 );
+}
+
+};
+} GAME_PONG;
+
+#pragma endregion GAMES
 
 
 int _CONFIG_GAME_MODE::init( void ) {
@@ -1094,8 +1112,8 @@ MAIN_LOOP_ON( Mode_Ctrl ) {
 || |_\ |_| |\  | ._
 || |_| | \ |_\ |__|
 */ 
-#define BRIDGE_SELECT_FNCSIG virtual void select() override
-struct _BRIDGE : _FOCUS {
+#define BRIDGE_SELECT_OVR virtual void select() override
+struct _BRIDGE : _SPOT {
     _BRIDGE*      sup                                 = NULL;
     _BRIDGE*      subs[ _CONFIG_BRDG_MODE::STRIDE ]   = { ( memset( ( void* )subs, NULL, _CONFIG_BRDG_MODE::STRIDE * sizeof( void* ) ), ( _BRIDGE* )NULL ) };
     int           sub_idx                             = 0;
@@ -1121,7 +1139,7 @@ struct _BRIDGE : _FOCUS {
     static constexpr int   _ICO_X     = 15;
     static constexpr int   _ICO_Y     = 6;
     
-    void _focus_begin( void ) override { 
+    void _spot_begin( void ) override { 
         YUNA.clearDisplay();
 
         if( this != CONFIG_BRDG_MODE._home ) {
@@ -1155,14 +1173,14 @@ struct _BRIDGE : _FOCUS {
             YUNA.print( CONFIG_BRDG_MODE._nav.path );
         } 
 
-        this->focus_begin(); 
+        this->spot_begin(); 
     }
 
-    void _focus_end( void ) { 
-        this->focus_end(); 
+    void _spot_end( void ) { 
+        this->spot_end(); 
     }
 
-    void _focus_loop( _FOCUS::bli_t* bli ) {
+    void _spot_loop( _SPOT::bli_t* bli ) {
         if( this != CONFIG_BRDG_MODE._home ) {
             YUNA.fillRect( _CAGE_X - 2, _CAGE_Y - 2, 110, 56, SSD1306_BLACK );
 
@@ -1172,7 +1190,7 @@ struct _BRIDGE : _FOCUS {
             YUNA.drawBitmap( _CAGE_X + cage_ox, _CAGE_Y + cage_oy, BARRA_BRDG_CAGE, 106, 52, SSD1306_WHITE );
         } 
 
-        this->focus_loop( bli );
+        this->spot_loop( bli );
         YUNA.display();
     }
 
@@ -1183,7 +1201,7 @@ struct _BRIDGE : _FOCUS {
 #pragma region BRIDGES
 
 struct _BRIDGE_HOME : _BRIDGE{ 
-FOCUS_LOOP_FNCSIG{ 
+SPOT_LOOP_OVR{ 
     YUNA.drawBitmap( 0, 0, BARRA_LOGO_VIBE, 20, 64, SSD1306_WHITE );
     YUNA.drawBitmap( 108, 0, BARRA_LOGO_VIBE, 20, 64, SSD1306_WHITE );
 
@@ -1194,7 +1212,7 @@ FOCUS_LOOP_FNCSIG{
     YUNA.fillRect( 0, 0, 20, vibe_lo, SSD1306_BLACK );
     YUNA.fillRect( 108, 0, 20, vibe_ro, SSD1306_BLACK );
 };
-FOCUS_BEGIN_FNCSIG{
+SPOT_BEGIN_OVR{
     YUNA.drawBitmap( 0, 0, BARRA_LOGO, 128, 64, SSD1306_WHITE );
     YUNA.fillRect( 0, 0, 20, 64, SSD1306_BLACK );
     YUNA.fillRect( 108, 0, 20, 64, SSD1306_BLACK );
@@ -1202,109 +1220,138 @@ FOCUS_BEGIN_FNCSIG{
 } BRIDGE_HOME;
 
 struct _BRIDGE_BTH : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
+SPOT_LOOP_OVR{ 
     YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_BTH, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 };
-BRIDGE_SELECT_FNCSIG{
+BRIDGE_SELECT_OVR{
     CONFIG.xchg_mode( Mode_Ctrl, NULL );
 };
 } BRIDGE_BTH;
 
 struct _BRIDGE_INFO : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
+SPOT_LOOP_OVR{ 
     float x = ( float )bli->ms / 320.0;
     int yo = ( sin( x ) + 0.23*sin( x*3 ) + 0.06*sin( x*5 ) ) * 9.0;
 
     YUNA.drawBitmap( _ICO_X, _ICO_Y + yo, BARRA_BRDG_ICO_INFO, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 };
-BRIDGE_SELECT_FNCSIG{
+BRIDGE_SELECT_OVR{
     
 };
 } BRIDGE_INFO;
 
 struct _BRIDGE_TOOLS : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
+SPOT_LOOP_OVR{ 
     YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_TOOLS, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 }; 
 } BRIDGE_TOOLS;
 
 struct _BRIDGE_GAMES : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
-    YUNA.setCursor( 50, 30 );
-    YUNA.printf( "games" );
+SPOT_LOOP_OVR{ 
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_GAMES, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 };
 } BRIDGE_GAMES;
 
 struct _BRIDGE_ENV : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
+SPOT_LOOP_OVR{ 
     YUNA.setCursor( 50, 30 );
     YUNA.printf( "env" );
 };
 } BRIDGE_ENV;
 
 struct _BRIDGE_SYSINFO : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
-    YUNA.setCursor( 50, 30 );
-    YUNA.printf( "sysinfo" );
+SPOT_LOOP_OVR{ 
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_SYSINFO, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 }; 
 } BRIDGE_SYSINFO;
 
 struct _BRIDGE_TEMPERATURE : _BRIDGE { 
-    bool   in_celsius   = true;
+    float   read         = 0.0;
+    bool    in_celsius   = true;
 
-FOCUS_LOOP_FNCSIG{ 
+SPOT_LOOP_OVR{ 
+    bli->tim_0.each( 300, [ this ] ( void ) -> void {
+        read = SUSAN.readTemperature();
+    } );
+
     YUNA.setTextSize( 2 );
     YUNA.setCursor( _ICO_X + 16, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
     if( in_celsius ) {
-        YUNA.printf( "%.2f 'c", SUSAN.readTemperature() );
+        YUNA.printf( "%.2f 'c", read );
     } else {
-        YUNA.printf( "%.2f 'f", SUSAN.readTemperature() * 1.8 + 32.0 );
+        YUNA.printf( "%.2f 'f", read * 1.8 + 32.0 );
     }
     YUNA.setTextSize( 1 );
 };
-BRIDGE_SELECT_FNCSIG{
+BRIDGE_SELECT_OVR{
     in_celsius ^= true;
 };
 } BRIDGE_TEMPERATURE;
 
 struct _BRIDGE_PRESSURE : _BRIDGE { 
-    int   unit   = 0;
+    float   read   = 0.0;
+    int     unit   = 0;
 
-FOCUS_LOOP_FNCSIG{ 
+SPOT_LOOP_OVR{ 
+    bli->tim_0.each( 300, [ this ] ( void ) -> void {
+        read = SUSAN.readPressure();
+    } );
+
     YUNA.setTextSize( 2 );
     YUNA.setCursor( _ICO_X + 2, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
     switch( unit ) {
-        case 0: YUNA.printf( "%.1f Pa", SUSAN.readPressure() ); break;
-        case 1: YUNA.printf( "%.2f bar", SUSAN.readPressure() * 1e-5 ); break;
-        case 2: YUNA.printf( "%.2f atm", SUSAN.readPressure() * 9.86923267e-6 ); break;
+        case 0: YUNA.printf( "%.1f hPa", read * 1e-2 ); break;
+        case 1: YUNA.printf( "%.2f bar", read * 1e-5 ); break;
+        case 2: YUNA.printf( "%.2f atm", read * 9.86923267e-6 ); break;
     }
     YUNA.setTextSize( 1 );
 };
-BRIDGE_SELECT_FNCSIG{
+BRIDGE_SELECT_OVR{
     if( ++unit >= 3 ) unit = 0;
 };
 } BRIDGE_PRESSURE;
 
 struct _BRIDGE_ALTITUDE : _BRIDGE { 
-    int   unit   = 0;
+    float   read   = 0.0;
 
-FOCUS_LOOP_FNCSIG{ 
+SPOT_LOOP_OVR{ 
+    bli->tim_0.each( 300, [ this ] ( void ) -> void {
+        read = SUSAN.readAltitude();
+    } );
+
     YUNA.setTextSize( 2 );
     YUNA.setCursor( _ICO_X + 6, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
-    YUNA.printf( "%.2f m", SUSAN.readAltitude() );
+    YUNA.printf( "%.2f m", read );
     YUNA.setTextSize( 1 );
 };
 } BRIDGE_ALTITUDE;
 
+struct _BRIDGE_LIGHT : _BRIDGE { 
+    float   read   = 0.0;
+
+SPOT_LOOP_OVR{ 
+    bli->tim_0.each( 300, [ this ] ( void ) -> void {
+        read = DYNAM.scan( Scan_Light ).naksu.lvl;
+    } );
+
+    YUNA.setTextSize( 2 );
+    YUNA.setCursor( _ICO_X + 6, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
+    YUNA.printf( "%.2f", read );
+    YUNA.setTextSize( 1 );
+};
+} BRIDGE_LIGHT;
+
 struct _BRIDGE_PONG : _BRIDGE { 
-FOCUS_LOOP_FNCSIG{ 
-    YUNA.setCursor( 50, 30 );
-    YUNA.printf( "pong" );
+SPOT_LOOP_OVR{ 
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_PONG, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 }; 
+BRIDGE_SELECT_OVR{
+    CONFIG.xchg_mode( Mode_Game, &GAME_PONG );
+};
 } BRIDGE_PONG;
 
 struct _BRIDGE_SNAKE : _BRIDGE {
-FOCUS_LOOP_FNCSIG{ 
+SPOT_LOOP_OVR{ 
     YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_SNAKE, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 }; 
 } BRIDGE_SNAKE;
@@ -1345,6 +1392,7 @@ int _CONFIG_BRDG_MODE::init( void ) {
     BRIDGE_ENV.subs[ 0 ] = &BRIDGE_TEMPERATURE;
     BRIDGE_ENV.subs[ 1 ] = &BRIDGE_PRESSURE;
     BRIDGE_ENV.subs[ 2 ] = &BRIDGE_ALTITUDE;
+    BRIDGE_ENV.subs[ 3 ] = &BRIDGE_LIGHT;
 
     BRIDGE_SYSINFO.name = "sysinfo";
     BRIDGE_SYSINFO.sup = &BRIDGE_HOME;
@@ -1358,6 +1406,9 @@ int _CONFIG_BRDG_MODE::init( void ) {
     BRIDGE_ALTITUDE.name = "altitude";
     BRIDGE_ALTITUDE.sup = &BRIDGE_ENV;
 
+    BRIDGE_LIGHT.name = "light";
+    BRIDGE_LIGHT.sup = &BRIDGE_ENV;
+
     BRIDGE_PONG.name = "pong";
     BRIDGE_PONG.sup = &BRIDGE_GAMES;
 
@@ -1369,13 +1420,13 @@ int _CONFIG_BRDG_MODE::init( void ) {
 
 void _CONFIG_BRDG_MODE::bridge_back() { 
     Mode_ last_mode = CONFIG.xchg_mode( Mode_Brdg, NULL );
-    if( last_mode == Mode_Brdg ) {
-        _root->sub_idx = 1;
-        strcpy( _nav.path, ">//" );
-        _nav.dep = 0;
-        _nav.crt = _home;
-        _FOCUS::place( _home );
-    } 
+    // if( last_mode == Mode_Brdg ) {
+    //     _root->sub_idx = 1;
+    //     strcpy( _nav.path, ">//" );
+    //     _nav.dep = 0;
+    //     _nav.crt = _home;
+    //     _SPOT::place( _home );
+    // } 
 }
 
 int _CONFIG_BRDG_MODE::bridge_N() {
@@ -1413,28 +1464,28 @@ int _CONFIG_BRDG_MODE::bridge_W() {
 void main_brdg( void* arg ) {
     _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController );
 
-    barra::dynamic_t         dyn;
+    barra::dynamic_t         dyn    = {};
     _DYNAM::snapshot_token_t ss_tok = { dst: &dyn, blk: true };
 
-    _FOCUS::place( CONFIG_BRDG_MODE._nav.crt );
+    _SPOT::place( CONFIG_BRDG_MODE._nav.crt );
 
 MAIN_LOOP_ON( Mode_Brdg ) {
     DYNAM.snapshot( &ss_tok );
 
-    if( dyn.samantha.trg.is != 1 ) goto l_action;
+    if( dyn.samantha.edg.is != 1 ) goto l_action;
 
-    if     ( dyn.samantha.trg.x == 1 )  { if( CONFIG_BRDG_MODE.bridge_E() == 0 ) goto l_nav; }
-    else if( dyn.samantha.trg.x == -1 ) { if( CONFIG_BRDG_MODE.bridge_W() == 0 ) goto l_nav; }
-    else if( dyn.samantha.trg.y == 1 )  { if( CONFIG_BRDG_MODE.bridge_N() == 0 ) goto l_nav; }
-    else if( dyn.samantha.trg.y == -1 ) { if( CONFIG_BRDG_MODE.bridge_S() == 0 ) goto l_nav; }
+    if     ( dyn.samantha.edg.x == 1 )  { if( CONFIG_BRDG_MODE.bridge_E() == 0 ) goto l_nav; }
+    else if( dyn.samantha.edg.x == -1 ) { if( CONFIG_BRDG_MODE.bridge_W() == 0 ) goto l_nav; }
+    else if( dyn.samantha.edg.y == 1 )  { if( CONFIG_BRDG_MODE.bridge_N() == 0 ) goto l_nav; }
+    else if( dyn.samantha.edg.y == -1 ) { if( CONFIG_BRDG_MODE.bridge_S() == 0 ) goto l_nav; }
     goto l_action;
     
 l_nav:
-    _FOCUS::place( CONFIG_BRDG_MODE._nav.crt );
+    _SPOT::place( CONFIG_BRDG_MODE._nav.crt );
     goto l_end;
 
 l_action:
-    if( dyn.giselle.rls || dyn.samantha.sw.rls || ( CONFIG_BRDG_MODE._nav.crt->subs[ 0 ] == NULL && dyn.samantha.trg.y == -1 ) ) 
+    if( dyn.giselle.rls || dyn.samantha.sw.rls || ( CONFIG_BRDG_MODE._nav.crt->subs[ 0 ] == NULL && dyn.samantha.edg.y == -1 ) ) 
         CONFIG_BRDG_MODE._nav.crt->select();
 
 l_end:

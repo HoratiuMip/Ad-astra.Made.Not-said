@@ -29,7 +29,7 @@ struct joystick_t {
         int8_t   y         : 2;
         int8_t   is        : 2;
         int8_t   _reserved : 2;
-    }          trg;
+    }          edg;
     int16_t    _reserved;
 };
 static_assert( sizeof( joystick_t ) == 2*sizeof( float ) + sizeof( switch_t ) + 3 );

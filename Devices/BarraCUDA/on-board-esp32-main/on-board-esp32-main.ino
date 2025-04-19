@@ -149,6 +149,8 @@ static struct _CONFIG_CTRL_MODE {
 struct GPIO { 
     inline static const int     ADC_nmax   = 4095;
     inline static const float   ADC_fmax   = 4095.0f;
+    inline static const int     DC_n100    = 255;
+    inline static const int     DC_n0      = 0;
 
     inline static struct { const GPIO_pin_t sw, x, y; } rachel{ sw: 27, x: 35, y: 32 }, samantha{ sw: 33, x: 26, y: 25 };
     /*                                                  |lower left                     |upper right */
@@ -161,6 +163,9 @@ struct GPIO {
 
     inline static const GPIO_pin_t kazuha = 4;
     /*                             |potentiometer */
+
+    inline static const GPIO_pin_t froggy = 16;
+    /*                             |buzzer */
 
     inline static const GPIO_pin_t xabara = 17;
     /*                             |bridge */
@@ -186,6 +191,8 @@ struct GPIO {
 
         pinMode( naksu, INPUT );
         pinMode( kazuha, INPUT );
+
+        pinMode( froggy, OUTPUT ); A_W( froggy, DC_n100 );
 
         pinMode( xabara, INPUT_PULLUP );
     
@@ -399,6 +406,20 @@ static struct _SUSAN : public Adafruit_BMP280 {
     }
 
 } SUSAN{ CONFIG.I2C_bus };
+
+
+static struct _FROGGY {
+    int init( void ) {
+        for( int n = 1; n <= 3; ++n ) {
+            GPIO::A_W( GPIO::froggy, GPIO::DC_n0 );
+            vTaskDelay( 100 );
+            GPIO::A_W( GPIO::froggy, GPIO::DC_n100 );
+            vTaskDelay( 100 );
+        }
+        return 0;
+    }
+
+} FROGGY;
 
 
 
@@ -727,6 +748,8 @@ void setup( void ) {
     }
     if( count != 0 ) YUNA.print_w( '\n' );
     }
+
+    _FANCY_SETUP_ASSERT_OR_DEAD( FROGGY.init() == 0, ">/ [buzz-a]", 300 );
 
 	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ [mpu-6050]", 300 );
 

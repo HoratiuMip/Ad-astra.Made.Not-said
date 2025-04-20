@@ -350,6 +350,21 @@ static struct _YUNA : public Adafruit_SSD1306 {
         return this->print_w( buffer );
     }
 
+    template< typename ..._Args >
+    _YUNA& printf_av( int16_t x, int16_t y, const char* fmt, _Args&&... args ) {
+        int16_t cx, cy;
+        uint16_t w, h;
+
+        char buffer[ 128 ];
+        sprintf( buffer, fmt, std::forward< _Args >( args )... );
+
+        this->getTextBounds( buffer, x, y, &cx, &cy, &w, &h );
+        this->setCursor( cx - w/2, cy - h/2 );
+        this->print( buffer );
+        
+        return *this;
+    }
+
 } YUNA{ 128, 64, CONFIG.I2C_bus, -1 };
 
 
@@ -397,6 +412,31 @@ static struct _GRAN : public MPU6050_WE {
     }
 
 } GRAN{ CONFIG.I2C_bus, MPU6050_WE::WHO_AM_I_CODE };
+
+
+static struct _NAKSU {
+    enum Unit_ : int {
+        Unit_Raw, Unit_ELA, Unit_Lux, UNIT_COUNT
+    };
+
+    inline static Unit_   _unit   = Unit_Raw;
+
+    static float from_raw( float raw ) {
+        switch( _unit ) {
+            case Unit_Raw: return raw;
+            case Unit_ELA: return 1.0 - sqrt( raw / GPIO::ADC_fmax );
+            case Unit_Lux: raw /= ( GPIO::ADC_fmax / 100.0 ); return pow( 10.0, -0.164 * ( raw - 12.0 ) ) + 10.0 - raw / 10.0;
+        }
+        return -1.0;
+    }
+
+    inline static int set_unit( Unit_ u ) {
+        if( u < 0 || u >= UNIT_COUNT ) return -1;
+        _unit = u;
+        return 0;   
+    }
+
+} NAKSU;
 
 
 static struct _SUSAN : public Adafruit_BMP280 {
@@ -513,7 +553,7 @@ static struct _DYNAM : barra::dynamic_t {
             tar->gran.gyr = { x: gyr_read.y, y: -gyr_read.x, z: gyr_read.z };
         }
         /* Light */ l_light: _DYNAM_SCAN_IF( 4, l_potentio ); {
-            tar->naksu.lvl = 1.0 - sqrt( analogRead( GPIO::naksu ) / GPIO::ADC_fmax );
+            tar->naksu.lvl = _NAKSU::from_raw( GPIO::A_R( GPIO::naksu ) );
         }
         /* Potentiometer */ l_potentio: _DYNAM_SCAN_IF( 5, l_end ); {
             tar->kazuha.lvl = analogRead( GPIO::kazuha ) / GPIO::ADC_fmax;
@@ -1158,6 +1198,8 @@ struct _BRIDGE : _SPOT {
 
     static constexpr int   _CAGE_X    = 11;
     static constexpr int   _CAGE_Y    = 2;
+    static constexpr int   _CAGE_MX   = 64;
+    static constexpr int   _CAGE_MY   = 27;
 
     static constexpr int   _ICO_X     = 15;
     static constexpr int   _ICO_Y     = 6;
@@ -1205,12 +1247,12 @@ struct _BRIDGE : _SPOT {
 
     void _spot_loop( _SPOT::bli_t* bli ) {
         if( this != CONFIG_BRDG_MODE._home ) {
-            YUNA.fillRect( _CAGE_X - 2, _CAGE_Y - 2, 110, 56, SSD1306_BLACK );
+            YUNA.fillRect( _CAGE_X - 2, _CAGE_Y - 2, BARRA_BRDG_CAGE_W + 4, BARRA_BRDG_CAGE_H + 4, SSD1306_BLACK );
 
             float cage_arg = ( float )bli->ms / 100;
             int cage_ox = sin( cage_arg ) * 2;
             int cage_oy = cos( cage_arg ) * 2;
-            YUNA.drawBitmap( _CAGE_X + cage_ox, _CAGE_Y + cage_oy, BARRA_BRDG_CAGE, 106, 52, SSD1306_WHITE );
+            YUNA.drawBitmap( _CAGE_X + cage_ox, _CAGE_Y + cage_oy, BARRA_BRDG_CAGE, BARRA_BRDG_CAGE_W, BARRA_BRDG_CAGE_H, SSD1306_WHITE );
         } 
 
         this->spot_loop( bli );
@@ -1275,10 +1317,9 @@ SPOT_LOOP_OVR{
 };
 } BRIDGE_GAMES;
 
-struct _BRIDGE_ENV : _BRIDGE { 
+struct _BRIDGE_ENV : _BRIDGE {
 SPOT_LOOP_OVR{ 
-    YUNA.setCursor( 50, 30 );
-    YUNA.printf( "env" );
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_ENV, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 };
 } BRIDGE_ENV;
 
@@ -1300,9 +1341,9 @@ SPOT_LOOP_OVR{
     YUNA.setTextSize( 2 );
     YUNA.setCursor( _ICO_X + 16, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
     if( in_celsius ) {
-        YUNA.printf( "%.2f 'c", read );
+        YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.2f 'c", read );
     } else {
-        YUNA.printf( "%.2f 'f", read * 1.8 + 32.0 );
+        YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.2f 'f", read * 1.8 + 32.0 );
     }
     YUNA.setTextSize( 1 );
 };
@@ -1323,9 +1364,9 @@ SPOT_LOOP_OVR{
     YUNA.setTextSize( 2 );
     YUNA.setCursor( _ICO_X + 2, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
     switch( unit ) {
-        case 0: YUNA.printf( "%.1f hPa", read * 1e-2 ); break;
-        case 1: YUNA.printf( "%.2f bar", read * 1e-5 ); break;
-        case 2: YUNA.printf( "%.2f atm", read * 9.86923267e-6 ); break;
+        case 0: YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.1f hPa", read * 1e-2 ); break;
+        case 1: YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.2f bar", read * 1e-5 ); break;
+        case 2: YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.2f atm", read * 9.86923267e-6 ); break;
     }
     YUNA.setTextSize( 1 );
 };
@@ -1344,7 +1385,7 @@ SPOT_LOOP_OVR{
 
     YUNA.setTextSize( 2 );
     YUNA.setCursor( _ICO_X + 6, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
-    YUNA.printf( "%.2f m", read );
+    YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.2f m", read );
     YUNA.setTextSize( 1 );
 };
 } BRIDGE_ALTITUDE;
@@ -1359,8 +1400,21 @@ SPOT_LOOP_OVR{
 
     YUNA.setTextSize( 2 );
     YUNA.setCursor( _ICO_X + 6, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
-    YUNA.printf( "%.2f", read );
+
+    const char* fmt = NULL;
+    switch( _NAKSU::_unit ) {
+        case _NAKSU::Unit_Raw: fmt = "%.0f raw"; break;
+        case _NAKSU::Unit_ELA: fmt = "%.2f ela"; break;
+        case _NAKSU::Unit_Lux: fmt = "%.2f lux"; break;
+    }
+    YUNA.printf_av( _CAGE_MX, _CAGE_MY, fmt, read );
+
     YUNA.setTextSize( 1 );
+};
+BRIDGE_SELECT_OVR{
+    _NAKSU::Unit_ nu = ( _NAKSU::Unit_ )( _NAKSU::_unit + 1 );
+    if( nu >= _NAKSU::UNIT_COUNT ) nu = _NAKSU::Unit_Raw;
+    _NAKSU::set_unit( nu );
 };
 } BRIDGE_LIGHT;
 

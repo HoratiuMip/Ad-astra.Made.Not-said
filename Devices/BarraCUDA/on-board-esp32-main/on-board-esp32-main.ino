@@ -167,6 +167,9 @@ struct GPIO {
     inline static const GPIO_pin_t froggy = 16;
     /*                             |buzzer */
 
+    inline static const GPIO_pin_t minju = 34;
+    /*                             |pulse */
+
     inline static const GPIO_pin_t xabara = 17;
     /*                             |bridge */
 
@@ -193,6 +196,8 @@ struct GPIO {
         pinMode( kazuha, INPUT );
 
         pinMode( froggy, OUTPUT ); A_W( froggy, DC_n100 );
+
+        pinMode( minju, INPUT );
 
         pinMode( xabara, INPUT_PULLUP );
     
@@ -240,6 +245,7 @@ struct GPIO {
 #define LED_CH_B( rgb ) ( rgb & 0xFF )
 #define LED_CH( ch, rgb ) ( ( rgb >> ((2-ch)*8) ) & 0xFF )
 
+#define LED_MAKE_RGB( r, g, b ) ( ( r << 16 ) | ( g << 8 ) | b )
 #define LED_MAKE_CH( ch, val ) ( ( val & 0xFF ) << ((2-ch)*8) )
 
 struct Led_ {
@@ -457,6 +463,14 @@ static struct _FROGGY {
             vTaskDelay( 100 );
         }
         return 0;
+    }
+
+    inline void sink( void ) {
+        GPIO::A_W( GPIO::froggy, GPIO::DC_n0 );
+    }
+
+    inline void source( void ) {
+        GPIO::A_W( GPIO::froggy, GPIO::DC_n100 );
     }
 
 } FROGGY;
@@ -861,14 +875,14 @@ for(;;) {
 } } },
 
 FELLOW_TASK_input_react{ "input_react", 1024, Priority_Aesth, [] ( void* ) static -> void {
-    /* Given a single threshold, the joystick area around it will cause flicker. Use hysteresis to mitigate. */
-    static constexpr float JS_REACT_THRESHOLD = 0.8;
+    /* Given a single threshold, the joystick area around it may cause flicker. Use hysteresis to mitigate. */
+    static constexpr float REACT_THRESHOLD = 0.8;
     static constexpr int   REACT_COUNT        = 5;
 
     barra::dynamic_t          dyn;
      _DYNAM::snapshot_token_t ss_tok                = { dst: &dyn, blk: true };
     int                       last_state            = 0;
-    Led_                      reacts[ REACT_COUNT ] = { Led_TRQ, Led_GRN, Led_YLW, Led_PRP, Led_BLU };
+    Led_                      reacts[ REACT_COUNT ] = { Led_TRQ, Led_GRN, LED_MAKE_RGB( 255, 63, 0 ), Led_PRP, Led_BLU };
     int                       react_at              = -1;
 
 for(;;) {
@@ -881,8 +895,8 @@ for(;;) {
 
     for( auto& js : dyn.joysticks ) { 
         ( crt_state |=  js.sw.dwn ) <<= 1;
-        ( crt_state |=  abs( js.x ) >= JS_REACT_THRESHOLD ) <<= 1;
-        ( crt_state |=  abs( js.y ) >= JS_REACT_THRESHOLD ) <<= 1;
+        ( crt_state |=  abs( js.x ) >= REACT_THRESHOLD ) <<= 1;
+        ( crt_state |=  abs( js.y ) >= REACT_THRESHOLD ) <<= 1;
     }
 
     if( crt_state != 0 && last_state != crt_state ) 
@@ -1026,17 +1040,59 @@ struct _GAME : _SPOT {
         this->spot_begin(); 
     }
 
-    void _spot_end( void ) { 
+    void _spot_end( void ) override { 
         this->spot_end(); 
     }
 
-    void _spot_loop( _SPOT::bli_t* bli ) {
+    void _spot_loop( _SPOT::bli_t* bli ) override {
         this->spot_loop( bli );
         YUNA.display();
     }
 };
 
 #pragma region GAMES
+
+struct _GAME_HEART : _GAME {
+GAME_MAIN_OVR{
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_LedController );
+    BITNA.target( Led_BLK );
+
+    int buf_sz = YUNA.WIDTH;
+    int buffer[ buf_sz ]; memset( buffer, 0, buf_sz * sizeof( int ) );
+    int buf_at = 0;
+
+    bool riding    = false;
+    int  last_t    = 0;
+    int  last_read = 0;
+
+MAIN_LOOP_ON( Mode_Game ) {
+    int read = GPIO::A_R( GPIO::minju );
+
+    int t = millis();
+
+    float dr = ( float )( read - last_read ) / ( t - last_t );
+    last_read = read;
+    last_t = t;
+
+    Serial.print( 0 );
+    Serial.print( " " );
+    Serial.print( 4095 );
+    Serial.print( " " );
+    Serial.print( dr*100 );
+    Serial.print( " " );
+    Serial.println( read );
+
+    if( dr * 100.0 < -80.0 && riding == false ) {
+        riding = true;
+        BITNA.make( Led_RED );
+    } else {
+        riding = false;
+    }
+
+    vTaskDelay( 30 );
+}
+};
+} GAME_HEART;
 
 struct _GAME_PONG : _GAME {
     inline static constexpr float   ARENA_H   = 57.0;
@@ -1329,6 +1385,15 @@ SPOT_LOOP_OVR{
 }; 
 } BRIDGE_SYSINFO;
 
+struct _BRIDGE_HEART : _BRIDGE {
+SPOT_LOOP_OVR{ 
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_HEART, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
+};
+BRIDGE_SELECT_OVR{
+    CONFIG.xchg_mode( Mode_Game, &GAME_HEART );
+};
+} BRIDGE_HEART;
+
 struct _BRIDGE_TEMPERATURE : _BRIDGE { 
     float   read         = 0.0;
     bool    in_celsius   = true;
@@ -1458,6 +1523,7 @@ int _CONFIG_BRDG_MODE::init( void ) {
 
     BRIDGE_TOOLS.name = "tools";
     BRIDGE_TOOLS.sup = &BRIDGE_HOME;
+    BRIDGE_TOOLS.subs[ 0 ] = &BRIDGE_HEART;
 
     BRIDGE_GAMES.name = "games";
     BRIDGE_GAMES.sup = &BRIDGE_HOME;
@@ -1473,6 +1539,9 @@ int _CONFIG_BRDG_MODE::init( void ) {
 
     BRIDGE_SYSINFO.name = "sysinfo";
     BRIDGE_SYSINFO.sup = &BRIDGE_HOME;
+
+    BRIDGE_HEART.name = "heart";
+    BRIDGE_HEART.sup = &BRIDGE_TOOLS;
 
     BRIDGE_TEMPERATURE.name = "temperature";
     BRIDGE_TEMPERATURE.sup = &BRIDGE_ENV;

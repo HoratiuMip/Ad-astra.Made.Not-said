@@ -2,6 +2,7 @@
 |
 |=== DESCRIPTION
 > Ask Daniel. ( massive red flag )
+> Yes, everything in one file, deal w/ it.
 |
 ======*/
 #include "../barracuda.hpp"
@@ -41,7 +42,8 @@ enum Priority_ : int {
     Priority_Aesth   = 0,
     Priority_SubMain = 2,
     Priority_Main    = 3,
-    Priority_Urgent  = 4
+    Priority_AbvMain = 4,
+    Priority_Urgent  = 5
 };
 
 
@@ -323,6 +325,10 @@ static struct _BITNA {
 } BITNA;
 
 
+enum YunaAV_ {
+    YunaAV_C, YunaAV_TL, YunaAV_TR, YunaAV_BL, YunaAV_BR
+};
+
 static struct _YUNA : public Adafruit_SSD1306 {
     using Adafruit_SSD1306::Adafruit_SSD1306;
     using Adafruit_SSD1306::WIDTH;
@@ -357,7 +363,7 @@ static struct _YUNA : public Adafruit_SSD1306 {
     }
 
     template< typename ..._Args >
-    _YUNA& printf_av( int16_t x, int16_t y, const char* fmt, _Args&&... args ) {
+    _YUNA& printf_av( YunaAV_ av, int16_t x, int16_t y, const char* fmt, _Args&&... args ) {
         int16_t cx, cy;
         uint16_t w, h;
 
@@ -365,7 +371,15 @@ static struct _YUNA : public Adafruit_SSD1306 {
         sprintf( buffer, fmt, std::forward< _Args >( args )... );
 
         this->getTextBounds( buffer, x, y, &cx, &cy, &w, &h );
-        this->setCursor( cx - w/2, cy - h/2 );
+
+        switch( av ) {
+            case YunaAV_C:  this->setCursor( cx - w/2, cy - h/2 ); break;
+            case YunaAV_TL: this->setCursor( cx, cy ); break;          
+            case YunaAV_TR: this->setCursor( cx - w + 1, cy ); break;
+            case YunaAV_BL: this->setCursor( cx, cy - h + 1 ); break;
+            case YunaAV_BR: this->setCursor( cx - w + 1, cy - h + 1 ); break;
+        }
+
         this->print( buffer );
         
         return *this;
@@ -877,7 +891,7 @@ for(;;) {
 FELLOW_TASK_input_react{ "input_react", 1024, Priority_Aesth, [] ( void* ) static -> void {
     /* Given a single threshold, the joystick area around it may cause flicker. Use hysteresis to mitigate. */
     static constexpr float REACT_THRESHOLD = 0.8;
-    static constexpr int   REACT_COUNT        = 5;
+    static constexpr int   REACT_COUNT     = 5;
 
     barra::dynamic_t          dyn;
      _DYNAM::snapshot_token_t ss_tok                = { dst: &dyn, blk: true };
@@ -953,8 +967,8 @@ struct _SPOT {
     virtual void spot_loop( bli_t* bli ) {}; virtual void spot_begin( void ) {}; virtual void spot_end( void ) {};
 
     inline static struct {
-        TaskHandle_t       handle;
-        _SPOT*            spot;
+        TaskHandle_t   handle;
+        _SPOT*         spot;
     } _sync{ handle: NULL, spot: NULL };
 
     static void _main( void* arg ) {
@@ -1035,7 +1049,7 @@ void loop() {
 struct _GAME : _SPOT {
     virtual void main( void ) = 0;
 
-     void _spot_begin( void ) override { 
+    void _spot_begin( void ) override { 
         YUNA.clearDisplay();
         this->spot_begin(); 
     }
@@ -1095,27 +1109,151 @@ MAIN_LOOP_ON( Mode_Game ) {
 } GAME_HEART;
 
 struct _GAME_PONG : _GAME {
-    inline static constexpr float   ARENA_H   = 57.0;
+    inline static constexpr int     ARENA_Y_BEGIN   = 7;
+    inline static constexpr float   ARENA_WIDTH     = 127.0;
+    inline static constexpr float   ARENA_HEIGHT    = 56.0;
 
     struct _ball_t {
-        float   x   = 0.0;
-        float   y   = 0.0;
-    } ball;
+        float   x    = 0.0;
+        float   y    = 0.0;
+        float   vx   = 0.0;
+        float   vy   = 0.0;
 
-SPOT_LOOP_OVR{
-    bli->tim_0.each( 250, [ this ] ( void ) -> void {
-        
-    } );
-};
+        inline float l( void ) const { return x - 2.5; }
+        inline float r( void ) const { return x + 2.5; }
+        inline float t( void ) const { return y - 2.5; }
+        inline float b( void ) const { return y + 2.5; }
+    } _PB;
+
+    struct _rachet_t {
+        float   y     = 0.0;
+        float   ivy   = 0.0;
+
+        void mov( float dy, float elapsed ) {
+            float ny = y + dy * 42.0 * elapsed;
+
+            if( ny - 11.0 < 0.0 ) ny = 11.0;
+            if( ny + 11.0 > ARENA_HEIGHT ) ny = ARENA_HEIGHT - 11.0;
+
+            ivy = dy * 12.0;
+            y = ny;
+        }
+
+        inline float t( void ) const { return y - 11.0; }
+        inline float b( void ) const { return y + 11.0; }
+    } _RL, _RR;
+
+    int _SL = 0, _SR = 0;
 
 GAME_MAIN_OVR{
     _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController );
 
+    int                      last_us = 0;
+    barra::dynamic_t         dyn;
+    _DYNAM::snapshot_token_t ss_tok{ dst: &dyn, blk: true };
+
+    auto rst_wait_2 = [ &, this ] ( int side ) -> void {
+        _PB.x = ARENA_WIDTH / 2.0;
+        _PB.y = ARENA_HEIGHT / 2.0;
+        _PB.vx = 40.0 * side;
+        _PB.vy = 0.0;
+
+        MAIN_LOOP_ON( Mode_Game ) { 
+            int now_ms = millis();
+            _RL.y = ARENA_HEIGHT / 2.0 + sin( now_ms / 400.0 ) * 16.0;
+            _RR.y = ARENA_HEIGHT / 2.0 + cos( now_ms / 460.0 ) * 16.0;
+
+            this->splash(); 
+
+            DYNAM.snapshot( &ss_tok ); 
+
+            if( dyn.karina.rls ) _SL = _SR = 0;
+
+            if( dyn.samantha.sw.dwn && dyn.rachel.sw.dwn ) break; 
+        }
+
+        _RL.y = _RR.y = ARENA_HEIGHT / 2.0;
+    };
+
+    rst_wait_2( 1 );
+
+l_loop_begin:
+    last_us = micros();
+
 MAIN_LOOP_ON( Mode_Game ) {
-    vTaskDelay( 1000 );
+    int now_us = micros();
+    float elapsed = ( float )( now_us - last_us ) / 1e6;
+    last_us = now_us;
+
+    DYNAM.snapshot( &ss_tok );
+
+    if( abs( dyn.samantha.y ) > 0.1 ) _RR.mov( -dyn.samantha.y, elapsed );
+    if( abs( dyn.rachel.y ) > 0.1 ) _RL.mov( -dyn.rachel.y, elapsed );
+
+    switch( this->pb_mov( elapsed ) ) {
+        case 0: break;
+
+        case -1: ++_SR; rst_wait_2( 1 ); goto l_loop_begin;
+        case 1: ++_SL; rst_wait_2( -1 ); goto l_loop_begin;
+    }
+
+    this->splash();
 }
 
 };
+
+    void splash( void ) const {
+        YUNA.clearDisplay();
+
+        YUNA.drawFastVLine( 63, 0, 7, SSD1306_WHITE );
+        YUNA.drawFastVLine( 64, 0, 7, SSD1306_WHITE );
+        YUNA.drawFastHLine( 0, 6, YUNA.WIDTH, SSD1306_WHITE );
+
+        for( int h = 9; h <= YUNA.HEIGHT; h += 5 ) {
+            YUNA.drawPixel( 63, h, SSD1306_WHITE );
+            YUNA.drawPixel( 64, h, SSD1306_WHITE );
+        }
+
+        YUNA.printf_av( YunaAV_TR, 58, 0, "%d", _SL );
+        YUNA.printf_av( YunaAV_TL, 69, 0, "%d", _SR );
+
+        YUNA.fillRect( ( int )_PB.l(), ARENA_Y_BEGIN + ( int )_PB.t(), 5, 5, SSD1306_WHITE );
+        YUNA.fillRect( 0, ARENA_Y_BEGIN + ( int )_RL.t(), 2, 23, SSD1306_WHITE );
+        YUNA.fillRect( 126, ARENA_Y_BEGIN + ( int )_RR.t(), 2, 23, SSD1306_WHITE );
+
+        YUNA.display();
+    }
+
+    int pb_mov( float elapsed ) {
+        _PB.x += _PB.vx * elapsed;
+        _PB.y += _PB.vy * elapsed;
+
+        auto y_collide = [ this ] ( const _rachet_t& r ) -> bool {
+            return _PB.b() >= r.t() && _PB.t() <= r.b(); 
+        };
+
+        if( _PB.r() <= 0.0 ) return -1;
+        if( _PB.l() >= 127.0 ) return 1;
+
+        if( _PB.l() <= 2.0 && y_collide( _RL ) && _PB.vx < 0.0 ) {
+            _PB.vx *= -1.0;
+            _PB.vy += _RL.ivy;
+        } else if( _PB.r() >= 125.0 && y_collide( _RR ) && _PB.vx > 0.0 ) {
+            _PB.vx *= -1.0;
+            _PB.vy += _RR.ivy;
+        }
+
+        if( _PB.t() <= 0.0 ) {
+            _PB.vy *= -1.0;
+        } else if( _PB.b() >= ARENA_HEIGHT) {
+            _PB.vy *= -1.0;
+        }
+
+        _PB.vx += 3.2 * elapsed * ( _PB.vx < 0.0 ? -1.0 : 1.0 );
+
+        return 0;
+    }
+
 } GAME_PONG;
 
 #pragma endregion GAMES
@@ -1406,9 +1544,9 @@ SPOT_LOOP_OVR{
     YUNA.setTextSize( 2 );
     YUNA.setCursor( _ICO_X + 16, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
     if( in_celsius ) {
-        YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.2f 'c", read );
+        YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.2f 'c", read );
     } else {
-        YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.2f 'f", read * 1.8 + 32.0 );
+        YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.2f 'f", read * 1.8 + 32.0 );
     }
     YUNA.setTextSize( 1 );
 };
@@ -1429,9 +1567,9 @@ SPOT_LOOP_OVR{
     YUNA.setTextSize( 2 );
     YUNA.setCursor( _ICO_X + 2, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
     switch( unit ) {
-        case 0: YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.1f hPa", read * 1e-2 ); break;
-        case 1: YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.2f bar", read * 1e-5 ); break;
-        case 2: YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.2f atm", read * 9.86923267e-6 ); break;
+        case 0: YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.1f hPa", read * 1e-2 ); break;
+        case 1: YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.2f bar", read * 1e-5 ); break;
+        case 2: YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.2f atm", read * 9.86923267e-6 ); break;
     }
     YUNA.setTextSize( 1 );
 };
@@ -1450,7 +1588,7 @@ SPOT_LOOP_OVR{
 
     YUNA.setTextSize( 2 );
     YUNA.setCursor( _ICO_X + 6, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
-    YUNA.printf_av( _CAGE_MX, _CAGE_MY, "%.2f m", read );
+    YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.2f m", read );
     YUNA.setTextSize( 1 );
 };
 } BRIDGE_ALTITUDE;
@@ -1472,7 +1610,7 @@ SPOT_LOOP_OVR{
         case _NAKSU::Unit_ELA: fmt = "%.2f ela"; break;
         case _NAKSU::Unit_Lux: fmt = "%.2f lux"; break;
     }
-    YUNA.printf_av( _CAGE_MX, _CAGE_MY, fmt, read );
+    YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, fmt, read );
 
     YUNA.setTextSize( 1 );
 };

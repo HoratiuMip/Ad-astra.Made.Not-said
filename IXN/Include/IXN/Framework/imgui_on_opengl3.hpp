@@ -42,6 +42,8 @@ public:
     typedef   std::function< DWORD( double ) >   frame_callback_t;
     frame_callback_t   loop   = nullptr;
 
+    std::atomic_bool   init_complete   = false;
+
 public:
     int main( int argc, char* argv[] ) {
     /* Setup */
@@ -84,6 +86,9 @@ public:
         
     /* Last checks */
         if( params.iconify ) glfwIconifyWindow( render.handle() );
+
+        init_complete.store( true, std::memory_order_seq_cst );
+        init_complete.notify_all();
 
         while( params.is_running.load( std::memory_order_relaxed ) && !glfwWindowShouldClose( render.handle() ) ) {
             glfwPollEvents();

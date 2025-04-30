@@ -2,7 +2,7 @@
 
 #include <warc-dev/common.hpp>
 #include <warc/earth-imm.hpp>
-#include <IXN/Device/barracuda-ctrl-nln-driver.hpp>
+#include <IXN/Device/barracuda-nln-driver.hpp>
 
 namespace warc { namespace dev {
 

@@ -478,14 +478,37 @@ static struct _SUSAN : public Adafruit_BMP280 {
 
 
 static struct _MIRU {
+    struct _wave_frag_t {
+        int   freq   = 0;
+        int   ms     = 0;
+    };
+
+    struct _wave_desc_t {
+        const _wave_frag_t*   frags        = NULL;
+        int                   frag_count   = 0;
+    };
+
     int init( void ) {
+        _wave_q = xQueueCreate( 1, sizeof( _wave_desc_t ) );
         return 0;
+    }
+
+    std::atomic_bool   _armed    = { false };
+    QueueHandle_t      _wave_q   = NULL;
+
+    inline int q_push( const _wave_desc_t* desc ) {
+        return xQueueSend( _wave_q, desc, portMAX_DELAY ) == pdPASS ? 0 : -1;
+    }
+
+    inline int q_push( const _wave_desc_t& desc ) {
+        return this->q_push( &desc );
     }
 
     inline _MIRU& write( int freq, int ms ) {
         this->arm( freq );
         vTaskDelay( ms );
-        return this->disarm();
+        this->disarm();
+        return *this;
     }
 
     inline _MIRU& write( int freq, int ms_on, int N, int ms_off ) {
@@ -517,16 +540,18 @@ static struct _MIRU {
         return this->pwm( 255 );
     }
 
-    inline _MIRU& arm( int freq = 0 ) {
+    inline int arm( int freq = 0 ) {
         ledcAttachChannel( GPIO::miru, freq, 8, uC_PWM_CHANNEL_MIRU );
         this->pwm( freq > 0 ? 127 : 255 );
-        return *this;
+        _armed.store( true, std::memory_order_seq_cst );
+        return 0;
     }
 
-    inline _MIRU& disarm( void ) {
+    inline int disarm( void ) {
         ledcDetach( GPIO::miru );
         pinMode( GPIO::miru, INPUT );
-        return *this;
+        _armed.store( false, std::memory_order_seq_cst );
+        return 0;
     }
 
     inline _MIRU& armed_make( int freq ) {
@@ -902,9 +927,10 @@ void setup( void ) {
 || |  | | | | | \|
 */ 
 enum FellowTask_ : int {
-    FellowTask_DynamScan     = ( 1 << 0 ),
-    FellowTask_InputReact    = ( 1 << 1 ),
-    FellowTask_LedController = ( 1 << 2 )
+    FellowTask_DynamScan      = ( 1 << 0 ),
+    FellowTask_InputReact     = ( 1 << 1 ),
+    FellowTask_LedController  = ( 1 << 2 ),
+    FellowTask_WaveController = ( 1 << 3 )
 };
 static struct _FELLOW_TASK {
     static void _func_wrap( void* func ) {
@@ -994,6 +1020,30 @@ for(;;) {
     BITNA.make( cmd );
 
     vTaskDelay( Ts );
+} } },
+
+FELLOW_TASK_wave_controller{ "wave_controller", 1024, Priority_AbvMain, [] ( void* ) static -> void {
+    _MIRU::_wave_desc_t   desc;
+
+for(;;) {
+    if( xQueueReceive( MIRU._wave_q, &desc, portMAX_DELAY ) != pdPASS ) {
+        vTaskDelay( 1000 ); continue;
+    }
+
+    bool was_armed = MIRU._armed.load( std::memory_order_seq_cst );
+
+    if( !was_armed ) MIRU.arm( desc.frags[ 0 ].freq );
+    else MIRU.armed_make( desc.frags[ 0 ].freq );
+
+    vTaskDelay( desc.frags[ 0 ].ms );
+
+    for( int idx = 1; idx < desc.frag_count; ++idx ) {
+        MIRU.armed_make( desc.frags[ idx ].freq );
+        vTaskDelay( desc.frags[ idx ].ms );
+    }
+
+    if( was_armed ) MIRU.flat();
+    else MIRU.disarm();
 } } };
 
 
@@ -1122,7 +1172,7 @@ struct _GAME : _SPOT {
 
 struct _GAME_HEART : _GAME {
 GAME_MAIN_OVR{
-    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_LedController );
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_LedController | FellowTask_WaveController );
     BITNA.target( Led_BLK );
 
     int buf_sz = YUNA.WIDTH;
@@ -1167,6 +1217,19 @@ struct _GAME_PONG : _GAME {
     inline static constexpr float   ARENA_WIDTH     = 127.0;
     inline static constexpr float   ARENA_HEIGHT    = 56.0;
 
+    inline static const _MIRU::_wave_frag_t   WAVE_PB_ARENA    = { freq: 130, ms: 80 };
+    inline static const _MIRU::_wave_frag_t   WAVE_PB_RACHET   = { freq: 190, ms: 80 };
+    inline static const _MIRU::_wave_frag_t   WAVE_START[ 3 ]  = {
+        _MIRU::_wave_frag_t{ freq: 200, ms: 200 },
+        _MIRU::_wave_frag_t{ freq: 250, ms: 200 },
+        _MIRU::_wave_frag_t{ freq: 300, ms: 200 },
+    };
+    inline static const _MIRU::_wave_frag_t   WAVE_POINT[ 3 ]  = {
+        _MIRU::_wave_frag_t{ freq: 300, ms: 200 },
+        _MIRU::_wave_frag_t{ freq: 250, ms: 200 },
+        _MIRU::_wave_frag_t{ freq: 200, ms: 200 },
+    };
+
     struct _ball_t {
         float   x    = 0.0;
         float   y    = 0.0;
@@ -1200,7 +1263,7 @@ struct _GAME_PONG : _GAME {
     int _SL = 0, _SR = 0;
 
 GAME_MAIN_OVR{
-    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController );
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController | FellowTask_WaveController );
 
     int                      last_us = 0;
     barra::dynamic_t         dyn;
@@ -1223,7 +1286,10 @@ GAME_MAIN_OVR{
 
             if( dyn.karina.rls ) _SL = _SR = 0;
 
-            if( dyn.samantha.sw.dwn && dyn.rachel.sw.dwn ) break; 
+            if( dyn.samantha.sw.dwn && dyn.rachel.sw.dwn ) {
+                MIRU.q_push( _MIRU::_wave_desc_t{ frags: WAVE_START, frag_count: 3 } ); 
+                break;
+            }
         }
 
         _RL.y = _RR.y = ARENA_HEIGHT / 2.0;
@@ -1231,7 +1297,7 @@ GAME_MAIN_OVR{
 
     rst_wait_2( 1 );
 
-l_loop_begin:
+l_loop_begin:   
     last_us = micros();
 
 MAIN_LOOP_ON( Mode_Game ) {
@@ -1286,21 +1352,28 @@ MAIN_LOOP_ON( Mode_Game ) {
             return _PB.b() >= r.t() && _PB.t() <= r.b(); 
         };
 
-        if( _PB.r() <= 0.0 ) return -1;
-        if( _PB.l() >= 127.0 ) return 1;
+        if( _PB.r() <= 0.0 ) {
+            MIRU.q_push( _MIRU::_wave_desc_t{ frags: WAVE_POINT, frag_count: 3 } );
+            return -1;
+        }
+        if( _PB.l() >= 127.0 ) {
+            MIRU.q_push( _MIRU::_wave_desc_t{ frags: WAVE_POINT, frag_count: 3 } );
+            return 1;
+        }
 
         if( _PB.l() <= 2.0 && y_collide( _RL ) && _PB.vx < 0.0 ) {
             _PB.vx *= -1.0;
             _PB.vy += _RL.ivy;
+            MIRU.q_push( _MIRU::_wave_desc_t{ frags: &WAVE_PB_RACHET, frag_count: 1 } );
         } else if( _PB.r() >= 125.0 && y_collide( _RR ) && _PB.vx > 0.0 ) {
             _PB.vx *= -1.0;
             _PB.vy += _RR.ivy;
+            MIRU.q_push( _MIRU::_wave_desc_t{ frags: &WAVE_PB_RACHET, frag_count: 1 } );
         }
 
-        if( _PB.t() <= 0.0 ) {
-            _PB.vy *= -1.0;
-        } else if( _PB.b() >= ARENA_HEIGHT) {
-            _PB.vy *= -1.0;
+        if( _PB.t() <= 0.0 || _PB.b() >= ARENA_HEIGHT ) {
+            _PB.vy *= -1.0; 
+            MIRU.q_push( _MIRU::_wave_desc_t{ frags: &WAVE_PB_ARENA, frag_count: 1 } );
         }
 
         _PB.vx += 3.2 * elapsed * ( _PB.vx < 0.0 ? -1.0 : 1.0 );
@@ -1843,11 +1916,12 @@ int _CONFIG_BRDG_MODE::bridge_W() {
 
 
 void main_brdg( void* arg ) {
-    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController );
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController | FellowTask_WaveController );
 
-    barra::dynamic_t         dyn    = {};
-    _DYNAM::snapshot_token_t ss_tok = { dst: &dyn, blk: true };
-    _bridge_dys_t            dys    = { level: dyn.tanya.lvl };
+    barra::dynamic_t         dyn      = {};
+    _DYNAM::snapshot_token_t ss_tok   = { dst: &dyn, blk: true };
+    _bridge_dys_t            dys      = { level: dyn.tanya.lvl };
+    _MIRU::_wave_frag_t      nav_wave = { freq: 120, ms: 80 };
 
     _SPOT::place( CONFIG_BRDG_MODE._nav.crt );
 
@@ -1863,6 +1937,7 @@ MAIN_LOOP_ON( Mode_Brdg ) {
     goto l_action;
     
 l_nav:
+    MIRU.q_push( _MIRU::_wave_desc_t{ frags: &nav_wave, frag_count: 1 } );
     _SPOT::place( CONFIG_BRDG_MODE._nav.crt );
     goto l_end;
 

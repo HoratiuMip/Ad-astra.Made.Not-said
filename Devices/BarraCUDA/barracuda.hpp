@@ -68,7 +68,7 @@ union {
 
     light_sensor_t    naksu;
 
-    potentiometer_t   kazuha;
+    potentiometer_t   tanya;
 };
 static_assert( sizeof( dynamic_t ) == 
     4*sizeof( switch_t )

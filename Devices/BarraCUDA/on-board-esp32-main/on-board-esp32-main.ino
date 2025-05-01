@@ -28,6 +28,12 @@ using namespace ixN::uC;
 #define uC_CORE_0 0
 #define uC_CORE_1 1
 
+#define uC_PWM_CHANNEL_BITNA_R   0
+#define uC_PWM_CHANNEL_BITNA_G   1
+#define uC_PWM_CHANNEL_BITNA_B   2
+#define uC_PWM_CHANNEL__UNUSED_3 3
+#define uC_PWM_CHANNEL_MIRU      4
+
 typedef   int8_t   GPIO_pin_t;
 
 enum Mode_ : int {
@@ -149,6 +155,8 @@ static struct _CONFIG_CTRL_MODE {
 
 
 struct GPIO { 
+    inline static const int     GND        = 0;
+    inline static const int     VCC        = 1;
     inline static const int     ADC_nmax   = 4095;
     inline static const float   ADC_fmax   = 4095.0f;
     inline static const int     DC_n100    = 255;
@@ -163,10 +171,10 @@ struct GPIO {
     inline static const GPIO_pin_t naksu = 15;
     /*                             |light */
 
-    inline static const GPIO_pin_t kazuha = 4;
+    inline static const GPIO_pin_t tanya = 4;
     /*                             |potentiometer */
 
-    inline static const GPIO_pin_t froggy = 16;
+    inline static const GPIO_pin_t miru = 16;
     /*                             |buzzer */
 
     inline static const GPIO_pin_t minju = 34;
@@ -195,27 +203,28 @@ struct GPIO {
         pinMode( winter,   INPUT_PULLUP );
 
         pinMode( naksu, INPUT );
-        pinMode( kazuha, INPUT );
+        pinMode( tanya, INPUT );
 
-        pinMode( froggy, OUTPUT ); A_W( froggy, DC_n100 );
+        pinMode( miru, INPUT );
 
         pinMode( minju, INPUT );
 
         pinMode( xabara, INPUT_PULLUP );
     
-        pinMode( bitna.r, OUTPUT ); pinMode( bitna.g, OUTPUT ); pinMode( bitna.b, OUTPUT );
+        ledcAttachChannel( bitna.r, 100, 8, uC_PWM_CHANNEL_BITNA_R );
+        ledcAttachChannel( bitna.g, 100, 8, uC_PWM_CHANNEL_BITNA_G );
+        ledcAttachChannel( bitna.b, 100, 8, uC_PWM_CHANNEL_BITNA_B );
 
         _printf( "ok.\n" );
 
         return 0;
     }
 
-    inline static int  D_R ( GPIO_pin_t pin )            { return digitalRead( pin ); }
-    inline static void D_W ( GPIO_pin_t pin, int level ) { digitalWrite( pin, level ); }
-    inline static int  A_R ( GPIO_pin_t pin )            { return analogRead( pin ); }
-    inline static void A_W ( GPIO_pin_t pin, int dc )    { analogWrite( pin, dc ); }
-    inline static void A_Wr( GPIO_pin_t pin, int res )   { analogWriteResolution( pin, res ); }
-    inline static void A_Wf( GPIO_pin_t pin, int freq )  { analogWriteFrequency( pin, freq ); }
+    inline static int  D_R ( GPIO_pin_t pin )               { return digitalRead( pin ); }
+    inline static void D_W ( GPIO_pin_t pin, int level )    { digitalWrite( pin, level ); }
+    inline static int  A_R ( GPIO_pin_t pin )               { return analogRead( pin ); }
+
+    inline static void make_HI( GPIO_pin_t pin ) { pinMode( pin, INPUT ); }
 
     /**
      * @brief Performs N analog reads on pin.
@@ -273,9 +282,9 @@ static struct _BITNA {
     Led_   _tar   = Led_BLK;
 
     inline void _set( Led_ led ) {
-        GPIO::A_W( GPIO::bitna.r, 255 - LED_CH_R( led.rgb ) );
-        GPIO::A_W( GPIO::bitna.g, 255 - LED_CH_G( led.rgb ) );
-        GPIO::A_W( GPIO::bitna.b, 255 - LED_CH_B( led.rgb ) );
+        ledcWrite( GPIO::bitna.r, 255 - LED_CH_R( led.rgb ) );
+        ledcWrite( GPIO::bitna.g, 255 - LED_CH_G( led.rgb ) );
+        ledcWrite( GPIO::bitna.b, 255 - LED_CH_B( led.rgb ) );
     }
     
     inline _BITNA& target( Led_ led ) {
@@ -468,26 +477,64 @@ static struct _SUSAN : public Adafruit_BMP280 {
 } SUSAN{ CONFIG.I2C_bus };
 
 
-static struct _FROGGY {
+static struct _MIRU {
     int init( void ) {
-        for( int n = 1; n <= 3; ++n ) {
-            GPIO::A_W( GPIO::froggy, GPIO::DC_n0 );
-            vTaskDelay( 100 );
-            GPIO::A_W( GPIO::froggy, GPIO::DC_n100 );
-            vTaskDelay( 100 );
-        }
         return 0;
     }
 
-    inline void sink( void ) {
-        GPIO::A_W( GPIO::froggy, GPIO::DC_n0 );
+    inline _MIRU& write( int freq, int ms ) {
+        this->arm( freq );
+        vTaskDelay( ms );
+        return this->disarm();
     }
 
-    inline void source( void ) {
-        GPIO::A_W( GPIO::froggy, GPIO::DC_n100 );
+    inline _MIRU& write( int freq, int ms_on, int N, int ms_off ) {
+        int n = 1;
+
+        this->arm( freq );
+
+    l_loop:
+        vTaskDelay( ms_on );
+        if( n >= N ) goto l_end;
+        ++n;
+
+        this->flat();
+        vTaskDelay( ms_off );
+        this->pwm();
+        goto l_loop;
+
+    l_end:
+        this->disarm();
+        return *this;
     }
 
-} FROGGY;
+    inline _MIRU& pwm( int dc = 127 ) {
+        ledcWrite( GPIO::miru, dc );
+        return *this;
+    }
+
+    inline _MIRU& flat( void ) {
+        return this->pwm( 255 );
+    }
+
+    inline _MIRU& arm( int freq = 0 ) {
+        ledcAttachChannel( GPIO::miru, freq, 8, uC_PWM_CHANNEL_MIRU );
+        this->pwm( freq > 0 ? 127 : 255 );
+        return *this;
+    }
+
+    inline _MIRU& disarm( void ) {
+        ledcDetach( GPIO::miru );
+        pinMode( GPIO::miru, INPUT );
+        return *this;
+    }
+
+    inline _MIRU& armed_make( int freq ) {
+        ledcWriteTone( GPIO::miru, freq );
+        return *this;
+    }
+
+} MIRU;
 
 
 
@@ -584,7 +631,7 @@ static struct _DYNAM : barra::dynamic_t {
             tar->naksu.lvl = _NAKSU::from_raw( GPIO::A_R( GPIO::naksu ) );
         }
         /* Potentiometer */ l_potentio: _DYNAM_SCAN_IF( 5, l_end ); {
-            tar->kazuha.lvl = analogRead( GPIO::kazuha ) / GPIO::ADC_fmax;
+            tar->tanya.lvl = analogRead( GPIO::tanya ) / GPIO::ADC_fmax;
         }
     l_end:
         return;
@@ -796,6 +843,9 @@ void setup( void ) {
 	CONFIG.I2C_bus->begin();
 	_printf( "ok.\n" );
 
+    _SETUP_ASSERT_OR_DEAD( MIRU.init() == 0 );
+    MIRU.write( 220, 100, 2, 100 );
+
     _SETUP_ASSERT_OR_DEAD( YUNA.init() == 0 );
     
     YUNA.print_w( ">/ i2c-bus >...\n" ); vTaskDelay( 300 );
@@ -817,7 +867,9 @@ void setup( void ) {
     if( count != 0 ) YUNA.print_w( '\n' );
     }
 
-    _FANCY_SETUP_ASSERT_OR_DEAD( FROGGY.init() == 0, ">/ [buzz-a]", 300 );
+    MIRU.write( 440, 100, 2, 100 );
+    YUNA.setCursor( 0, 0 );
+    YUNA.clear_w();
 
 	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ [mpu-6050]", 300 );
 
@@ -837,8 +889,10 @@ void setup( void ) {
     }
 
     _printf( LogLevel_Ok, "Init complete.\n" );
+
+    MIRU.write( 880, 100, 2, 100 );
+    YUNA.clear_w();
 	BITNA.blink( 9, Led_GRN, Led_BLK, 50, 50 );
-    YUNA.clear_w(); 
 }
 
 
@@ -1369,7 +1423,12 @@ MAIN_LOOP_ON( Mode_Ctrl ) {
 || |_\ |_| |\  | ._
 || |_| | \ |_\ |__|
 */ 
+struct _bridge_dys_t {
+    float&   level;
+};
+
 #define BRIDGE_SELECT_OVR virtual void select() override
+#define BRIDGE_DYS_OVR    virtual void give_dys( _bridge_dys_t* dys ) override
 struct _BRIDGE : _SPOT {
     _BRIDGE*      sup                                 = NULL;
     _BRIDGE*      subs[ _CONFIG_BRDG_MODE::STRIDE ]   = { ( memset( ( void* )subs, NULL, _CONFIG_BRDG_MODE::STRIDE * sizeof( void* ) ), ( _BRIDGE* )NULL ) };
@@ -1455,6 +1514,8 @@ struct _BRIDGE : _SPOT {
 
     virtual void select() {}
 
+    virtual void give_dys( _bridge_dys_t* dys ) {}
+
 } _BRIDGE_ROOT;
 
 #pragma region BRIDGES
@@ -1532,6 +1593,42 @@ BRIDGE_SELECT_OVR{
 };
 } BRIDGE_HEART;
 
+struct _BRIDGE_WAVE : _BRIDGE {
+    inline static constexpr int   FREQ_LOW    = 1;
+    inline static constexpr int   FREQ_HIGH   = 4'200;
+
+    bool   armed   = false;
+    int    freq    = FREQ_LOW;
+
+SPOT_BEGIN_OVR{ MIRU.disarm(); armed = false; };
+SPOT_END_OVR{ MIRU.disarm(); armed = false; };
+SPOT_LOOP_OVR{ 
+    YUNA.drawBitmap( 
+        _CAGE_MX - BARRA_MISC_DIS_ARMED_W/2, _CAGE_MY - BARRA_MISC_DIS_ARMED_H/2 - 10,
+        armed ? BARRA_MISC_ARMED : BARRA_MISC_DISARMED,
+        BARRA_MISC_DIS_ARMED_W, BARRA_MISC_DIS_ARMED_H, 
+        SSD1306_WHITE 
+    );
+    
+    YUNA.setTextSize( 2 );
+    YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY + 12, "%d Hz", freq );
+    YUNA.setTextSize( 1 );
+};
+BRIDGE_SELECT_OVR{
+    if( armed ^= true ) MIRU.arm( freq ); else MIRU.disarm();
+};
+BRIDGE_DYS_OVR{
+    static float last_level = 100.0;
+
+    if( abs( dys->level - last_level ) < 0.02 ) return;
+    last_level = dys->level;
+
+    freq = pow( dys->level, 2 ) * ( FREQ_HIGH - FREQ_LOW ) + FREQ_LOW;
+
+    if( armed ) MIRU.armed_make( freq );
+};
+} BRIDGE_WAVE;
+
 struct _BRIDGE_TEMPERATURE : _BRIDGE { 
     float   read         = 0.0;
     bool    in_celsius   = true;
@@ -1542,7 +1639,6 @@ SPOT_LOOP_OVR{
     } );
 
     YUNA.setTextSize( 2 );
-    YUNA.setCursor( _ICO_X + 16, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
     if( in_celsius ) {
         YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.2f 'c", read );
     } else {
@@ -1565,7 +1661,6 @@ SPOT_LOOP_OVR{
     } );
 
     YUNA.setTextSize( 2 );
-    YUNA.setCursor( _ICO_X + 2, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
     switch( unit ) {
         case 0: YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.1f hPa", read * 1e-2 ); break;
         case 1: YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.2f bar", read * 1e-5 ); break;
@@ -1587,7 +1682,6 @@ SPOT_LOOP_OVR{
     } );
 
     YUNA.setTextSize( 2 );
-    YUNA.setCursor( _ICO_X + 6, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
     YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.2f m", read );
     YUNA.setTextSize( 1 );
 };
@@ -1602,8 +1696,7 @@ SPOT_LOOP_OVR{
     } );
 
     YUNA.setTextSize( 2 );
-    YUNA.setCursor( _ICO_X + 6, ( _ICO_Y + BARRA_BRDG_ICO_H ) / 2 - BARRA_FONT_H );
-
+    
     const char* fmt = NULL;
     switch( _NAKSU::_unit ) {
         case _NAKSU::Unit_Raw: fmt = "%.0f raw"; break;
@@ -1662,6 +1755,7 @@ int _CONFIG_BRDG_MODE::init( void ) {
     BRIDGE_TOOLS.name = "tools";
     BRIDGE_TOOLS.sup = &BRIDGE_HOME;
     BRIDGE_TOOLS.subs[ 0 ] = &BRIDGE_HEART;
+    BRIDGE_TOOLS.subs[ 1 ] = &BRIDGE_WAVE;
 
     BRIDGE_GAMES.name = "games";
     BRIDGE_GAMES.sup = &BRIDGE_HOME;
@@ -1680,6 +1774,9 @@ int _CONFIG_BRDG_MODE::init( void ) {
 
     BRIDGE_HEART.name = "heart";
     BRIDGE_HEART.sup = &BRIDGE_TOOLS;
+
+    BRIDGE_WAVE.name = "wave";
+    BRIDGE_WAVE.sup = &BRIDGE_TOOLS;
 
     BRIDGE_TEMPERATURE.name = "temperature";
     BRIDGE_TEMPERATURE.sup = &BRIDGE_ENV;
@@ -1750,6 +1847,7 @@ void main_brdg( void* arg ) {
 
     barra::dynamic_t         dyn    = {};
     _DYNAM::snapshot_token_t ss_tok = { dst: &dyn, blk: true };
+    _bridge_dys_t            dys    = { level: dyn.tanya.lvl };
 
     _SPOT::place( CONFIG_BRDG_MODE._nav.crt );
 
@@ -1769,8 +1867,12 @@ l_nav:
     goto l_end;
 
 l_action:
-    if( dyn.giselle.rls || dyn.samantha.sw.rls || ( CONFIG_BRDG_MODE._nav.crt->subs[ 0 ] == NULL && dyn.samantha.edg.y == -1 ) ) 
+    if( dyn.samantha.sw.rls || ( CONFIG_BRDG_MODE._nav.crt->subs[ 0 ] == NULL && dyn.samantha.edg.y == -1 ) ) {
         CONFIG_BRDG_MODE._nav.crt->select();
+        goto l_end;
+    }
+
+    CONFIG_BRDG_MODE._nav.crt->give_dys( &dys );
 
 l_end:
     continue;

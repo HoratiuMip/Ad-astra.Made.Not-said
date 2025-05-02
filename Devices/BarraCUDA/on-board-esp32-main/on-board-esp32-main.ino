@@ -250,6 +250,8 @@ struct GPIO {
 #define Led_TRQ (Led_BLU|Led_GRN)
 #define Led_PRP (Led_RED|Led_BLU)
 #define Led_WHT (Led_RED|Led_GRN|Led_BLU)
+#define Led_ORANGE (LED_MAKE_RGB( 255, 63, 0 ))
+#define Led_PURPLE (LED_MAKE_RGB( 60, 0, 255))
 
 #define LED_CH_R( rgb ) ( ( rgb >> 16 ) & 0xFF )
 #define LED_CH_G( rgb ) ( ( rgb >> 8 ) & 0xFF )
@@ -541,13 +543,15 @@ static struct _MIRU {
     }
 
     inline int arm( int freq = 0 ) {
-        ledcAttachChannel( GPIO::miru, freq, 8, uC_PWM_CHANNEL_MIRU );
+        ledcAttachChannel( GPIO::miru, 10, 8, uC_PWM_CHANNEL_MIRU );
+        this->armed_make( freq );
         this->pwm( freq > 0 ? 127 : 255 );
         _armed.store( true, std::memory_order_seq_cst );
         return 0;
     }
 
     inline int disarm( void ) {
+        this->flat();
         ledcDetach( GPIO::miru );
         pinMode( GPIO::miru, INPUT );
         _armed.store( false, std::memory_order_seq_cst );
@@ -976,7 +980,7 @@ FELLOW_TASK_input_react{ "input_react", 1024, Priority_Aesth, [] ( void* ) stati
     barra::dynamic_t          dyn;
      _DYNAM::snapshot_token_t ss_tok                = { dst: &dyn, blk: true };
     int                       last_state            = 0;
-    Led_                      reacts[ REACT_COUNT ] = { Led_TRQ, Led_GRN, LED_MAKE_RGB( 255, 63, 0 ), Led_PRP, Led_BLU };
+    Led_                      reacts[ REACT_COUNT ] = { Led_TRQ, Led_GRN, Led_ORANGE, Led_PRP, Led_BLU };
     int                       react_at              = -1;
 
 for(;;) {
@@ -1128,7 +1132,7 @@ void loop() {
 
     xTaskCreate( &_SPOT::_main, "spot_main", 4096, NULL, Priority_SubMain, &_SPOT::_sync.handle );
 
-    attachInterrupt( digitalPinToInterrupt( GPIO::xabara ), [] ( void ) static -> void { 
+    attachInterrupt( GPIO::xabara, [] ( void ) static -> void { 
         CONFIG_BRDG_MODE.bridge_back();
     },
         RISING 
@@ -1497,9 +1501,12 @@ MAIN_LOOP_ON( Mode_Ctrl ) {
 || |_| | \ |_\ |__|
 */ 
 struct _bridge_dys_t {
-    float&   level;
+    barra::joystick_t&   js;
+    float&               level;
 };
 
+#define BRIDGE_BEGIN_OVR  virtual void begin() override
+#define BRIDGE_END_OVR    virtual void end() override
 #define BRIDGE_SELECT_OVR virtual void select() override
 #define BRIDGE_DYS_OVR    virtual void give_dys( _bridge_dys_t* dys ) override
 struct _BRIDGE : _SPOT {
@@ -1585,7 +1592,10 @@ struct _BRIDGE : _SPOT {
         YUNA.display();
     }
 
-    virtual void select() {}
+    virtual void begin( void ) {}
+    virtual void end( void ) {}
+
+    virtual void select( void ) {}
 
     virtual void give_dys( _bridge_dys_t* dys ) {}
 
@@ -1667,38 +1677,67 @@ BRIDGE_SELECT_OVR{
 } BRIDGE_HEART;
 
 struct _BRIDGE_WAVE : _BRIDGE {
-    inline static constexpr int   FREQ_LOW    = 1;
-    inline static constexpr int   FREQ_HIGH   = 4'200;
+    inline static constexpr int   FREQ_LOW[ 2 ]    = { 1, 20 };
+    inline static constexpr int   FREQ_HIGH[ 2 ]   = { 20, 4'200 };
 
-    bool   armed   = false;
-    int    freq    = FREQ_LOW;
+    int    freq    = 0;
+    bool   mode    = 0; 
 
-SPOT_BEGIN_OVR{ MIRU.disarm(); armed = false; };
-SPOT_END_OVR{ MIRU.disarm(); armed = false; };
+BRIDGE_BEGIN_OVR{ 
+    MIRU.disarm(); 
+};
+BRIDGE_END_OVR{ 
+    detachInterrupt( GPIO::miru );
+    MIRU.disarm(); 
+};
 SPOT_LOOP_OVR{ 
     YUNA.drawBitmap( 
-        _CAGE_MX - BARRA_MISC_DIS_ARMED_W/2, _CAGE_MY - BARRA_MISC_DIS_ARMED_H/2 - 10,
-        armed ? BARRA_MISC_ARMED : BARRA_MISC_DISARMED,
+        _CAGE_MX - BARRA_MISC_DIS_ARMED_W/2, _CAGE_MY - BARRA_MISC_DIS_ARMED_H/2 - 14,
+        MIRU._armed.load( std::memory_order_relaxed ) ? BARRA_MISC_ARMED : BARRA_MISC_DISARMED,
         BARRA_MISC_DIS_ARMED_W, BARRA_MISC_DIS_ARMED_H, 
         SSD1306_WHITE 
     );
+
+    YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%s", mode == 0 ? "prercision >" : "< range" );
     
     YUNA.setTextSize( 2 );
-    YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY + 12, "%d Hz", freq );
+    YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY + 14, "%d Hz", freq );
     YUNA.setTextSize( 1 );
 };
 BRIDGE_SELECT_OVR{
-    if( armed ^= true ) MIRU.arm( freq ); else MIRU.disarm();
+    if( MIRU._armed.load( std::memory_order_seq_cst ) == false ) {
+        MIRU.arm( freq ); 
+        attachInterrupt( GPIO::miru, [] ( void ) static -> void { BITNA.make( Led_ORANGE ); }, FALLING );
+    } else { 
+        detachInterrupt( GPIO::miru );
+        MIRU.disarm();
+    }
 };
 BRIDGE_DYS_OVR{
-    static float last_level = 100.0;
+    static float last_tuner = -1000.0;
 
-    if( abs( dys->level - last_level ) < 0.02 ) return;
-    last_level = dys->level;
+    if( dys->js.edg.is == 1 ) {
+        if( dys->js.edg.x == 1 && mode == 0 ) { mode = 1; last_tuner = -1000.0; }
+        else if( dys->js.edg.x == -1 && mode == 1 ) { mode = 0; last_tuner = -1000.0; } 
+    }
 
-    freq = pow( dys->level, 2 ) * ( FREQ_HIGH - FREQ_LOW ) + FREQ_LOW;
+    switch( mode ) {
+        case 0: {
+            freq = dys->level * ( FREQ_HIGH[ 0 ] - FREQ_LOW[ 0 ] ) + FREQ_LOW[ 0 ];
+            if( freq != last_tuner ) { last_tuner = freq; goto l_make; }
+        break; }
 
-    if( armed ) MIRU.armed_make( freq );
+        case 1: {
+            if( abs( dys->level - last_tuner ) < 0.02 ) break;
+
+            last_tuner = dys->level;
+            freq = pow( dys->level, 2 ) * ( FREQ_HIGH[ 1 ] - FREQ_LOW[ 1 ] ) + FREQ_LOW[ 1 ];
+        [[fallthrough]]; }
+
+        l_make: {
+            if( MIRU._armed.load( std::memory_order_relaxed ) ) MIRU.armed_make( freq );
+        }
+    }
 };
 } BRIDGE_WAVE;
 
@@ -1918,10 +1957,11 @@ int _CONFIG_BRDG_MODE::bridge_W() {
 void main_brdg( void* arg ) {
     _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController | FellowTask_WaveController );
 
-    barra::dynamic_t         dyn      = {};
-    _DYNAM::snapshot_token_t ss_tok   = { dst: &dyn, blk: true };
-    _bridge_dys_t            dys      = { level: dyn.tanya.lvl };
-    _MIRU::_wave_frag_t      nav_wave = { freq: 120, ms: 80 };
+    barra::dynamic_t         dyn            = {};
+    _DYNAM::snapshot_token_t ss_tok         = { dst: &dyn, blk: true };
+    _bridge_dys_t            dys            = { js: dyn.rachel, level: dyn.tanya.lvl };
+    _BRIDGE*                 prev_nav_crt   = &BRIDGE_HOME;
+    _MIRU::_wave_frag_t      nav_wave       = { freq: 160, ms: 80 };
 
     _SPOT::place( CONFIG_BRDG_MODE._nav.crt );
 
@@ -1930,6 +1970,7 @@ MAIN_LOOP_ON( Mode_Brdg ) {
 
     if( dyn.samantha.edg.is != 1 ) goto l_action;
 
+    prev_nav_crt = CONFIG_BRDG_MODE._nav.crt;
     if     ( dyn.samantha.edg.x == 1 )  { if( CONFIG_BRDG_MODE.bridge_E() == 0 ) goto l_nav; }
     else if( dyn.samantha.edg.x == -1 ) { if( CONFIG_BRDG_MODE.bridge_W() == 0 ) goto l_nav; }
     else if( dyn.samantha.edg.y == 1 )  { if( CONFIG_BRDG_MODE.bridge_N() == 0 ) goto l_nav; }
@@ -1937,7 +1978,9 @@ MAIN_LOOP_ON( Mode_Brdg ) {
     goto l_action;
     
 l_nav:
+    prev_nav_crt->end();
     MIRU.q_push( _MIRU::_wave_desc_t{ frags: &nav_wave, frag_count: 1 } );
+    CONFIG_BRDG_MODE._nav.crt->begin();
     _SPOT::place( CONFIG_BRDG_MODE._nav.crt );
     goto l_end;
 

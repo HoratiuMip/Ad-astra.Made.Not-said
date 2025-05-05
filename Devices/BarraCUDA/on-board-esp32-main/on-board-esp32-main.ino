@@ -7,13 +7,16 @@
 ======*/
 #include "../barracuda.hpp"
 
-#include <Wire.h>
-#include <MPU6050_WE.h>
+#include <Wire.h> /* I2C bus. */
+
+#include <MPU6050_WE.h> /* Gyro. */
 
 #define SSD1306_NO_SPLASH
 #include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <Adafruit_BMP280.h>
+#include <Adafruit_SSD1306.h> /* Display. */
+#include <Adafruit_BME280.h> /* Temperature/Pressure/Humidity/Altitude. */
+
+#include <DFRobot_BMM150.h> /* Magnetometer. */
 
 #include "../../IXN/common_utils.hpp"
 #define WJP_ARCHITECTURE_LITTLE
@@ -68,16 +71,21 @@ static struct _CONFIG {
 
     void ( *mains[ _Mode_Count ] )( void* );
 
-    std::atomic_int     mode         = { Mode_Brdg };
+    std::atomic_int     mode             = { Mode_Brdg };
 
-    TwoWire*            I2C_bus      = &Wire;
+    TwoWire*            I2C_bus          = &Wire;
 
-    SemaphoreHandle_t   init_sem     = { xSemaphoreCreateBinary() };
+    const int           I2C_addr_YUNA    = 0x3C;
+    const int           I2C_addr_GRAN    = MPU6050_WE::WHO_AM_I_CODE;
+    const int           I2C_addr_SUSAN   = 0x77;
+    const int           I2C_addr_CHIM    = 0x13;
 
-    int                 dyn_scan_T   = 20;
-    int                 spot_T       = 33;
+    SemaphoreHandle_t   init_sem         = { xSemaphoreCreateBinary() };
 
-    void*               _arg         = NULL;
+    int                 dyn_scan_T       = 20;
+    int                 spot_T           = 33;
+
+    void*               _arg             = NULL;
 
     Mode_ xchg_mode( Mode_ m, void* arg ) { _arg = arg; return ( Mode_ )mode.exchange( m, std::memory_order_seq_cst ); }
 
@@ -350,7 +358,7 @@ static struct _YUNA : public Adafruit_SSD1306 {
      * @returns `0` on success, negative otherwise.
      */
     int init( void ) {
-        if( !this->begin( SSD1306_SWITCHCAPVCC, 0x3C ) ) return -1;
+        if( !this->begin( SSD1306_SWITCHCAPVCC, CONFIG.I2C_addr_YUNA ) ) return -1;
         this->setFont( &BARRA_GFX_FONT );
         this->setTextColor( SSD1306_WHITE );
         this->setCursor( 0, 0 );
@@ -442,7 +450,7 @@ static struct _GRAN : public MPU6050_WE {
         return true;
     }
 
-} GRAN{ CONFIG.I2C_bus, MPU6050_WE::WHO_AM_I_CODE };
+} GRAN{ CONFIG.I2C_bus, CONFIG.I2C_addr_GRAN };
 
 
 static struct _NAKSU {
@@ -470,13 +478,38 @@ static struct _NAKSU {
 } NAKSU;
 
 
-static struct _SUSAN : public Adafruit_BMP280 {
+static struct _SUSAN : public Adafruit_BME280 {
     int init( void ) {
-        if( !this->Adafruit_BMP280::begin( 0x76 ) ) return -1;
+        if( !this->Adafruit_BME280::begin( CONFIG.I2C_addr_SUSAN, CONFIG.I2C_bus  ) ) return -1;
         return 0;
     }
 
-} SUSAN{ CONFIG.I2C_bus };
+} SUSAN{};
+
+
+static struct _CHIM : public DFRobot_BMM150_I2C {
+    using DFRobot_BMM150_I2C::DFRobot_BMM150_I2C;
+
+    int init( void ) {
+        if( this->DFRobot_BMM150_I2C::begin() != 0 ) return -1;
+
+        this->DFRobot_BMM150_I2C::setOperationMode( BMM150_POWERMODE_NORMAL );
+        this->DFRobot_BMM150_I2C::setPresetMode( BMM150_PRESETMODE_HIGHACCURACY );
+        this->DFRobot_BMM150_I2C::setRate( BMM150_DATA_RATE_10HZ );
+        this->DFRobot_BMM150_I2C::setMeasurementXYZ( MEASUREMENT_X_ENABLE, MEASUREMENT_Y_ENABLE, MEASUREMENT_Z_DISABLE );
+
+        return 0;
+    }
+
+    sBmm150MagData_t read( void ) {
+        return this->DFRobot_BMM150_I2C::getGeomagneticData();
+    }
+
+    float degs( void ) {
+        return this->DFRobot_BMM150_I2C::getCompassDegree();
+    }
+
+} CHIM{ CONFIG.I2C_bus, CONFIG.I2C_addr_CHIM };
 
 
 static struct _MIRU {
@@ -499,7 +532,7 @@ static struct _MIRU {
     QueueHandle_t      _wave_q   = NULL;
 
     inline int q_push( const _wave_desc_t* desc ) {
-        return xQueueSend( _wave_q, desc, portMAX_DELAY ) == pdPASS ? 0 : -1;
+        return xQueueSend( _wave_q, desc, 0 ) == pdPASS ? 0 : -1;
     }
 
     inline int q_push( const _wave_desc_t& desc ) {
@@ -898,11 +931,19 @@ void setup( void ) {
 
     MIRU.write( 440, 100, 2, 100 );
     YUNA.setCursor( 0, 0 );
-    YUNA.clear_w();
+    YUNA.clearDisplay();
+    YUNA.print_w( ">/ hardware >...\n" ); vTaskDelay( 300 );
 
 	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ [mpu-6050]", 300 );
 
-    _FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bmp-280]", 300 );
+    _FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bme-280]", 300 );
+
+    _FANCY_SETUP_ASSERT_OR_DEAD( CHIM.init() == 0, ">/ [bmm-150]", 300 );
+
+    MIRU.write( 660, 100, 2, 100 );
+    YUNA.setCursor( 0, 0 );
+    YUNA.clearDisplay();
+    YUNA.print_w( ">/ software >...\n" ); vTaskDelay( 300 );
 	
 	_FANCY_SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0, ">/ dynam", 300 );
 
@@ -1179,39 +1220,41 @@ GAME_MAIN_OVR{
     _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_LedController | FellowTask_WaveController );
     BITNA.target( Led_BLK );
 
-    int buf_sz = YUNA.WIDTH;
-    int buffer[ buf_sz ]; memset( buffer, 0, buf_sz * sizeof( int ) );
-    int buf_at = 0;
-
-    bool riding    = false;
-    int  last_t    = 0;
-    int  last_read = 0;
+    double flt    = 0.0;
+    double damp   = 0.0;
+    bool   riding = false;
 
 MAIN_LOOP_ON( Mode_Game ) {
     int read = GPIO::A_R( GPIO::minju );
 
-    int t = millis();
+    read -= 1800;
+    if( read < 0 ) read = 0;
 
-    float dr = ( float )( read - last_read ) / ( t - last_t );
-    last_read = read;
-    last_t = t;
+    flt = flt * 0.95 + read * 0.05;
+    damp = damp * 0.995 + read * 0.005;
 
-    Serial.print( 0 );
-    Serial.print( " " );
-    Serial.print( 4095 );
-    Serial.print( " " );
-    Serial.print( dr*100 );
-    Serial.print( " " );
-    Serial.println( read );
+    double diff = flt - damp;
+    if( diff < 0 ) diff = 0;
+    else diff = pow( diff, 2 );
 
-    if( dr * 100.0 < -80.0 && riding == false ) {
+    Serial.print( -100 );
+    Serial.print( " " );
+    Serial.print( 500 );
+    Serial.print( " " );
+    Serial.println( diff );
+
+    if( diff >= 300.0 && !riding ) {
+        static _MIRU::_wave_frag_t wave{ freq: 880, ms: 120 };
+
         riding = true;
+
         BITNA.make( Led_RED );
-    } else {
+        MIRU.q_push( _MIRU::_wave_desc_t{ frags: &wave, frag_count: 1 } );
+    } else if( diff <= 300.0 ) {
         riding = false;
     }
-
-    vTaskDelay( 30 );
+    
+    vTaskDelay( 10 );
 }
 };
 } GAME_HEART;
@@ -1667,14 +1710,20 @@ SPOT_LOOP_OVR{
 }; 
 } BRIDGE_SYSINFO;
 
-struct _BRIDGE_HEART : _BRIDGE {
+struct _BRIDGE_COMPASS : _BRIDGE { 
+    float   degrees   = 0.0;
+
 SPOT_LOOP_OVR{ 
-    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_HEART, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
+    bli->tim_0.each( 100, [ this ] ( void ) -> void {
+        degrees = CHIM.degs();
+    } );
+
+    YUNA.setTextSize( 2 );
+    YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.2f '", degrees );
+    YUNA.setTextSize( 1 );
 };
-BRIDGE_SELECT_OVR{
-    CONFIG.xchg_mode( Mode_Game, &GAME_HEART );
-};
-} BRIDGE_HEART;
+} BRIDGE_COMPASS;
+
 
 struct _BRIDGE_WAVE : _BRIDGE {
     inline static constexpr int   FREQ_LOW[ 2 ]    = { 1, 20 };
@@ -1741,6 +1790,15 @@ BRIDGE_DYS_OVR{
 };
 } BRIDGE_WAVE;
 
+struct _BRIDGE_HEART : _BRIDGE {
+SPOT_LOOP_OVR{ 
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_HEART, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
+};
+BRIDGE_SELECT_OVR{
+    CONFIG.xchg_mode( Mode_Game, &GAME_HEART );
+};
+} BRIDGE_HEART;
+
 struct _BRIDGE_TEMPERATURE : _BRIDGE { 
     float   read         = 0.0;
     bool    in_celsius   = true;
@@ -1785,12 +1843,25 @@ BRIDGE_SELECT_OVR{
 };
 } BRIDGE_PRESSURE;
 
+struct _BRIDGE_HUMIDITY : _BRIDGE { 
+    float   read   = 0.0;
+SPOT_LOOP_OVR{ 
+    bli->tim_0.each( 300, [ this ] ( void ) -> void {
+        read = SUSAN.readHumidity();
+    } );
+
+    YUNA.setTextSize( 2 );
+    YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.2f %%", read );
+    YUNA.setTextSize( 1 );
+};
+} BRIDGE_HUMIDITY;
+
 struct _BRIDGE_ALTITUDE : _BRIDGE { 
     float   read   = 0.0;
 
 SPOT_LOOP_OVR{ 
     bli->tim_0.each( 300, [ this ] ( void ) -> void {
-        read = SUSAN.readAltitude();
+        read = SUSAN.readAltitude( 1013.25 );
     } );
 
     YUNA.setTextSize( 2 );
@@ -1866,8 +1937,9 @@ int _CONFIG_BRDG_MODE::init( void ) {
 
     BRIDGE_TOOLS.name = "tools";
     BRIDGE_TOOLS.sup = &BRIDGE_HOME;
-    BRIDGE_TOOLS.subs[ 0 ] = &BRIDGE_HEART;
+    BRIDGE_TOOLS.subs[ 0 ] = &BRIDGE_COMPASS;
     BRIDGE_TOOLS.subs[ 1 ] = &BRIDGE_WAVE;
+    BRIDGE_TOOLS.subs[ 2 ] = &BRIDGE_HEART;
 
     BRIDGE_GAMES.name = "games";
     BRIDGE_GAMES.sup = &BRIDGE_HOME;
@@ -1878,23 +1950,32 @@ int _CONFIG_BRDG_MODE::init( void ) {
     BRIDGE_ENV.sup = &BRIDGE_HOME;
     BRIDGE_ENV.subs[ 0 ] = &BRIDGE_TEMPERATURE;
     BRIDGE_ENV.subs[ 1 ] = &BRIDGE_PRESSURE;
-    BRIDGE_ENV.subs[ 2 ] = &BRIDGE_ALTITUDE;
-    BRIDGE_ENV.subs[ 3 ] = &BRIDGE_LIGHT;
+    BRIDGE_ENV.subs[ 2 ] = &BRIDGE_HUMIDITY;
+    BRIDGE_ENV.subs[ 3 ] = &BRIDGE_ALTITUDE;
+    BRIDGE_ENV.subs[ 4 ] = &BRIDGE_LIGHT;
 
     BRIDGE_SYSINFO.name = "sysinfo";
     BRIDGE_SYSINFO.sup = &BRIDGE_HOME;
 
-    BRIDGE_HEART.name = "heart";
-    BRIDGE_HEART.sup = &BRIDGE_TOOLS;
+    BRIDGE_COMPASS.name = "compass";
+    BRIDGE_COMPASS.sup = &BRIDGE_TOOLS;
 
     BRIDGE_WAVE.name = "wave";
     BRIDGE_WAVE.sup = &BRIDGE_TOOLS;
+
+    BRIDGE_HEART.name = "heart";
+    BRIDGE_HEART.sup = &BRIDGE_TOOLS;
+
+    
 
     BRIDGE_TEMPERATURE.name = "temperature";
     BRIDGE_TEMPERATURE.sup = &BRIDGE_ENV;
 
     BRIDGE_PRESSURE.name = "pressure";
     BRIDGE_PRESSURE.sup = &BRIDGE_ENV;
+
+    BRIDGE_HUMIDITY.name = "humidity";
+    BRIDGE_HUMIDITY.sup = &BRIDGE_ENV;
 
     BRIDGE_ALTITUDE.name = "altitude";
     BRIDGE_ALTITUDE.sup = &BRIDGE_ENV;

@@ -1612,6 +1612,8 @@ MAIN_LOOP_ON( Mode_Ctrl ) {
 */ 
 struct _bridge_dys_t {
     barra::joystick_t&   js;
+    barra::switch_t&     sw_A;
+    barra::switch_t&     sw_B;
     float&               level;
 };
 
@@ -1794,6 +1796,10 @@ SPOT_LOOP_OVR{
 };
 BRIDGE_SELECT_OVR{
     SUZYQ.is_armed() ? SUZYQ.disarm( NULL ) : SUZYQ.arm( NULL );
+};
+BRIDGE_DYS_OVR{
+    if( dys->sw_B.prs ) SUZYQ.arm( NULL );
+    else if( dys->sw_B.rls ) SUZYQ.disarm( NULL );
 };
 } BRIDGE_LASER;
 
@@ -2130,7 +2136,7 @@ void main_brdg( void* arg ) {
 
     barra::dynamic_t         dyn            = {};
     _DYNAM::snapshot_token_t ss_tok         = { dst: &dyn, blk: true };
-    _bridge_dys_t            dys            = { js: dyn.rachel, level: dyn.tanya.lvl };
+    _bridge_dys_t            dys            = { js: dyn.rachel, sw_A: dyn.giselle, sw_B: dyn.ningning, level: dyn.tanya.lvl };
     _BRIDGE*                 prev_nav_crt   = &BRIDGE_HOME;
     _MIRU::_wave_frag_t      nav_wave       = { freq: 160, ms: 80 };
 

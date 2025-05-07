@@ -15,6 +15,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h> /* Display. */
 #include <Adafruit_BME280.h> /* Temperature/Pressure/Humidity/Altitude. */
+#include <Adafruit_seesaw.h> /* Digital GPIO extender. */
 
 #include <DFRobot_BMM150.h> /* Magnetometer. */
 
@@ -246,6 +247,52 @@ struct GPIO {
         return ( _T )acc / N;
     }
 
+};
+
+struct GPIO_DEX_0 {
+    inline static Adafruit_seesaw    _seesaw   = {};
+
+    inline static const GPIO_pin_t   suzyq     = 16;
+
+    static int init( void ) {
+        if( !_seesaw.begin() ) return -1;
+
+        _seesaw.pinMode( suzyq, OUTPUT );
+
+        return 0;
+    }
+
+    inline static int  D_R ( GPIO_pin_t pin )            { return _seesaw.digitalRead( pin ); }
+    inline static void D_W ( GPIO_pin_t pin, int level ) { _seesaw.digitalWrite( pin, level ); }
+};
+
+
+
+#define Is_ARMABLE__ARM_OVR virtual int _arm( void* arg ) override
+#define Is_ARMABLE__DISARM_OVR virtual int _disarm( void* arg ) override
+struct Is_ARMABLE {
+    std::atomic_bool   _armed   = { false };
+
+    inline bool is_armed( std::memory_order mo = std::memory_order_seq_cst ) {
+        return _armed.load( mo );
+    }
+
+    virtual int _arm( void* arg ) = 0;
+    virtual int _disarm( void* arg ) = 0;
+
+    inline int arm( void* arg ) {
+        bool was_armed = false;
+        if( !_armed.compare_exchange_strong( was_armed, true, std::memory_order_seq_cst ) ) return -1;
+
+        return this->_arm( arg );
+    }
+
+    inline int disarm( void* arg ) {
+        bool was_armed = true;
+        if( !_armed.compare_exchange_strong( was_armed, false, std::memory_order_seq_cst ) ) return -1;
+
+        return this->_disarm( arg );
+    }
 };
 
 
@@ -512,7 +559,7 @@ static struct _CHIM : public DFRobot_BMM150_I2C {
 } CHIM{ CONFIG.I2C_bus, CONFIG.I2C_addr_CHIM };
 
 
-static struct _MIRU {
+static struct _MIRU : Is_ARMABLE {
     struct _wave_frag_t {
         int   freq   = 0;
         int   ms     = 0;
@@ -528,7 +575,6 @@ static struct _MIRU {
         return 0;
     }
 
-    std::atomic_bool   _armed    = { false };
     QueueHandle_t      _wave_q   = NULL;
 
     inline int q_push( const _wave_desc_t* desc ) {
@@ -540,16 +586,16 @@ static struct _MIRU {
     }
 
     inline _MIRU& write( int freq, int ms ) {
-        this->arm( freq );
+        this->arm( &freq );
         vTaskDelay( ms );
-        this->disarm();
+        this->disarm( NULL );
         return *this;
     }
 
     inline _MIRU& write( int freq, int ms_on, int N, int ms_off ) {
         int n = 1;
 
-        this->arm( freq );
+        this->arm( &freq );
 
     l_loop:
         vTaskDelay( ms_on );
@@ -562,7 +608,7 @@ static struct _MIRU {
         goto l_loop;
 
     l_end:
-        this->disarm();
+        this->disarm( NULL );
         return *this;
     }
 
@@ -575,19 +621,19 @@ static struct _MIRU {
         return this->pwm( 255 );
     }
 
-    inline int arm( int freq = 0 ) {
+    Is_ARMABLE__ARM_OVR{
+        int freq = *( int* )arg;
+
         ledcAttachChannel( GPIO::miru, 10, 8, uC_PWM_CHANNEL_MIRU );
         this->armed_make( freq );
         this->pwm( freq > 0 ? 127 : 255 );
-        _armed.store( true, std::memory_order_seq_cst );
         return 0;
     }
 
-    inline int disarm( void ) {
+    Is_ARMABLE__DISARM_OVR{
         this->flat();
         ledcDetach( GPIO::miru );
         pinMode( GPIO::miru, INPUT );
-        _armed.store( false, std::memory_order_seq_cst );
         return 0;
     }
 
@@ -597,6 +643,24 @@ static struct _MIRU {
     }
 
 } MIRU;
+
+
+static struct _SUZYQ : Is_ARMABLE {
+    int init( void ) {
+        return 0;
+    }
+
+    Is_ARMABLE__ARM_OVR{
+        GPIO_DEX_0::D_W( GPIO_DEX_0::suzyq, GPIO::VCC );
+        return 0;
+    }
+
+    Is_ARMABLE__DISARM_OVR{
+        GPIO_DEX_0::D_W( GPIO_DEX_0::suzyq, GPIO::GND );
+        return 0;
+    }
+
+} SUZYQ;
 
 
 
@@ -894,6 +958,8 @@ l_test_end:
 #define _SETUP_ASSERT_OR_DEAD( c ) if( !(c) ) { _printf( LogLevel_Critical, "SETUP ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n" ); _dead(); }
 #define _FANCY_SETUP_ASSERT_OR_DEAD( c, s, d ) { YUNA.print_w( s ); _SETUP_ASSERT_OR_DEAD( c ); YUNA.print_w( " ~ok\n" ); vTaskDelay( d ); }
 void setup( void ) {
+    static constexpr int FANCY_DELAY_MS = 100;
+
     _SETUP_ASSERT_OR_DEAD( GPIO::init() == 0 );
 
 	BITNA.blink( 9, Led_BLK, Led_RED, 50, 50 );
@@ -910,7 +976,7 @@ void setup( void ) {
 
     _SETUP_ASSERT_OR_DEAD( YUNA.init() == 0 );
     
-    YUNA.print_w( ">/ i2c-bus >...\n" ); vTaskDelay( 300 );
+    YUNA.print_w( ">/ i2c-bus >...\n" ); vTaskDelay( FANCY_DELAY_MS );
     {
     static constexpr int PER_ROW = 5;
     int count = 0;
@@ -920,7 +986,7 @@ void setup( void ) {
 
         if( status != 0 ) continue;
 
-        YUNA.printf_w( "0x%s%x ", ( addr < 16 ? "0" : "" ), addr ); vTaskDelay( 300 );
+        YUNA.printf_w( "0x%s%x ", ( addr < 16 ? "0" : "" ), addr ); vTaskDelay( FANCY_DELAY_MS );
         if( ++count == PER_ROW ) {
             YUNA.print_w( '\n' );
             count = 0;
@@ -932,22 +998,23 @@ void setup( void ) {
     MIRU.write( 440, 100, 2, 100 );
     YUNA.setCursor( 0, 0 );
     YUNA.clearDisplay();
-    YUNA.print_w( ">/ hardware >...\n" ); vTaskDelay( 300 );
+    YUNA.print_w( ">/ hardware >...\n" ); vTaskDelay( FANCY_DELAY_MS );
 
-	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ [mpu-6050]", 300 );
+	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ [mpu-6050]", FANCY_DELAY_MS );
+    _FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bme-280]", FANCY_DELAY_MS );
+    _FANCY_SETUP_ASSERT_OR_DEAD( CHIM.init() == 0, ">/ [bmm-150]", FANCY_DELAY_MS );
 
-    _FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bme-280]", 300 );
-
-    _FANCY_SETUP_ASSERT_OR_DEAD( CHIM.init() == 0, ">/ [bmm-150]", 300 );
+    _FANCY_SETUP_ASSERT_OR_DEAD( GPIO_DEX_0::init() == 0, ">/ [tiny-416]", FANCY_DELAY_MS );
+    _FANCY_SETUP_ASSERT_OR_DEAD( SUZYQ.init() == 0, ">/ [kyp-008]", FANCY_DELAY_MS );
 
     MIRU.write( 660, 100, 2, 100 );
     YUNA.setCursor( 0, 0 );
     YUNA.clearDisplay();
-    YUNA.print_w( ">/ software >...\n" ); vTaskDelay( 300 );
+    YUNA.print_w( ">/ software >...\n" ); vTaskDelay( FANCY_DELAY_MS );
 	
-	_FANCY_SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0, ">/ dynam", 300 );
+	_FANCY_SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0, ">/ dynam", FANCY_DELAY_MS );
 
-    _FANCY_SETUP_ASSERT_OR_DEAD( CONFIG.init() == 0, ">/ config", 300 );
+    _FANCY_SETUP_ASSERT_OR_DEAD( CONFIG.init() == 0, ">/ config", FANCY_DELAY_MS );
 
     _printf( LogLevel_Info, "Scanning for tests request.\n" );
     DYNAM.scan( Scan_Switches );
@@ -1075,9 +1142,9 @@ for(;;) {
         vTaskDelay( 1000 ); continue;
     }
 
-    bool was_armed = MIRU._armed.load( std::memory_order_seq_cst );
+    bool was_armed = MIRU.is_armed();
 
-    if( !was_armed ) MIRU.arm( desc.frags[ 0 ].freq );
+    if( !was_armed ) MIRU.arm( const_cast< int* >( &desc.frags[ 0 ].freq ) );
     else MIRU.armed_make( desc.frags[ 0 ].freq );
 
     vTaskDelay( desc.frags[ 0 ].ms );
@@ -1088,7 +1155,7 @@ for(;;) {
     }
 
     if( was_armed ) MIRU.flat();
-    else MIRU.disarm();
+    else MIRU.disarm( NULL );
 } } };
 
 
@@ -1710,6 +1777,26 @@ SPOT_LOOP_OVR{
 }; 
 } BRIDGE_SYSINFO;
 
+struct _BRIDGE_LASER : _BRIDGE {
+BRIDGE_BEGIN_OVR{ 
+    SUZYQ.disarm( NULL ); 
+};
+BRIDGE_END_OVR{ 
+    SUZYQ.disarm( NULL );
+};
+SPOT_LOOP_OVR{ 
+    YUNA.drawBitmap( 
+        _CAGE_MX - BARRA_MISC_DIS_ARMED_W/2, _CAGE_MY - BARRA_MISC_DIS_ARMED_H/2,
+        SUZYQ.is_armed( std::memory_order_relaxed ) ? BARRA_MISC_ARMED : BARRA_MISC_DISARMED,
+        BARRA_MISC_DIS_ARMED_W, BARRA_MISC_DIS_ARMED_H, 
+        SSD1306_WHITE 
+    );
+};
+BRIDGE_SELECT_OVR{
+    SUZYQ.is_armed() ? SUZYQ.disarm( NULL ) : SUZYQ.arm( NULL );
+};
+} BRIDGE_LASER;
+
 struct _BRIDGE_COMPASS : _BRIDGE { 
     float   degrees   = 0.0;
 
@@ -1724,7 +1811,6 @@ SPOT_LOOP_OVR{
 };
 } BRIDGE_COMPASS;
 
-
 struct _BRIDGE_WAVE : _BRIDGE {
     inline static constexpr int   FREQ_LOW[ 2 ]    = { 1, 20 };
     inline static constexpr int   FREQ_HIGH[ 2 ]   = { 20, 4'200 };
@@ -1733,16 +1819,16 @@ struct _BRIDGE_WAVE : _BRIDGE {
     bool   mode    = 0; 
 
 BRIDGE_BEGIN_OVR{ 
-    MIRU.disarm(); 
+    MIRU.disarm( NULL ); 
 };
 BRIDGE_END_OVR{ 
     detachInterrupt( GPIO::miru );
-    MIRU.disarm(); 
+    MIRU.disarm( NULL ); 
 };
 SPOT_LOOP_OVR{ 
     YUNA.drawBitmap( 
         _CAGE_MX - BARRA_MISC_DIS_ARMED_W/2, _CAGE_MY - BARRA_MISC_DIS_ARMED_H/2 - 14,
-        MIRU._armed.load( std::memory_order_relaxed ) ? BARRA_MISC_ARMED : BARRA_MISC_DISARMED,
+        MIRU.is_armed( std::memory_order_relaxed ) ? BARRA_MISC_ARMED : BARRA_MISC_DISARMED,
         BARRA_MISC_DIS_ARMED_W, BARRA_MISC_DIS_ARMED_H, 
         SSD1306_WHITE 
     );
@@ -1754,12 +1840,12 @@ SPOT_LOOP_OVR{
     YUNA.setTextSize( 1 );
 };
 BRIDGE_SELECT_OVR{
-    if( MIRU._armed.load( std::memory_order_seq_cst ) == false ) {
-        MIRU.arm( freq ); 
+    if( MIRU.is_armed() == false ) {
+        MIRU.arm( &freq ); 
         attachInterrupt( GPIO::miru, [] ( void ) static -> void { BITNA.make( Led_ORANGE ); }, FALLING );
     } else { 
         detachInterrupt( GPIO::miru );
-        MIRU.disarm();
+        MIRU.disarm( NULL );
     }
 };
 BRIDGE_DYS_OVR{
@@ -1784,7 +1870,7 @@ BRIDGE_DYS_OVR{
         [[fallthrough]]; }
 
         l_make: {
-            if( MIRU._armed.load( std::memory_order_relaxed ) ) MIRU.armed_make( freq );
+            if( MIRU.is_armed( std::memory_order_relaxed ) ) MIRU.armed_make( freq );
         }
     }
 };
@@ -1937,9 +2023,10 @@ int _CONFIG_BRDG_MODE::init( void ) {
 
     BRIDGE_TOOLS.name = "tools";
     BRIDGE_TOOLS.sup = &BRIDGE_HOME;
-    BRIDGE_TOOLS.subs[ 0 ] = &BRIDGE_COMPASS;
-    BRIDGE_TOOLS.subs[ 1 ] = &BRIDGE_WAVE;
-    BRIDGE_TOOLS.subs[ 2 ] = &BRIDGE_HEART;
+    BRIDGE_TOOLS.subs[ 0 ] = &BRIDGE_LASER;
+    BRIDGE_TOOLS.subs[ 1 ] = &BRIDGE_COMPASS;
+    BRIDGE_TOOLS.subs[ 2 ] = &BRIDGE_WAVE;
+    BRIDGE_TOOLS.subs[ 3 ] = &BRIDGE_HEART;
 
     BRIDGE_GAMES.name = "games";
     BRIDGE_GAMES.sup = &BRIDGE_HOME;
@@ -1956,6 +2043,9 @@ int _CONFIG_BRDG_MODE::init( void ) {
 
     BRIDGE_SYSINFO.name = "sysinfo";
     BRIDGE_SYSINFO.sup = &BRIDGE_HOME;
+
+    BRIDGE_LASER.name = "laser";
+    BRIDGE_LASER.sup = &BRIDGE_TOOLS;
 
     BRIDGE_COMPASS.name = "compass";
     BRIDGE_COMPASS.sup = &BRIDGE_TOOLS;

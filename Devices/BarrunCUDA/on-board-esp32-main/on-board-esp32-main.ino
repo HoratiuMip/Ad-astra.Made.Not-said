@@ -19,6 +19,8 @@
 
 #include <DFRobot_BMM150.h> /* Magnetometer. */
 
+#include <RCWL_1X05.h> /* Sonar. */
+
 #include "../../IXN/common_utils.hpp"
 #define WJP_ARCHITECTURE_LITTLE
 #include "../../IXN/Driver/wjp_on_bths.hpp"
@@ -77,9 +79,10 @@ static struct _CONFIG {
     TwoWire*            I2C_bus               = &Wire;
 
     const int           I2C_addr_YUNA         = 0x3C;
-    const int           I2C_addr_GRAN         = MPU6050_WE::WHO_AM_I_CODE;
+    const int           I2C_addr_GRAN         = 0x68;
     const int           I2C_addr_SUSAN        = 0x77;
     const int           I2C_addr_CHIM         = 0x13;
+    const int           I2C_addr_GOLANI       = 0x57;
     const int           I2C_addr_GPIO_DEX_0   = 0x49;
 
     SemaphoreHandle_t   init_sem              = { xSemaphoreCreateBinary() };
@@ -187,9 +190,6 @@ struct GPIO {
     inline static const GPIO_pin_t miru = 16;
     /*                             |buzzer */
 
-    inline static const GPIO_pin_t minju = 34;
-    /*                             |pulse */
-
     inline static const GPIO_pin_t xabara = 17;
     /*                             |bridge */
 
@@ -216,8 +216,6 @@ struct GPIO {
         pinMode( tanya, INPUT );
 
         pinMode( miru, INPUT );
-
-        pinMode( minju, INPUT );
 
         pinMode( xabara, INPUT_PULLUP );
     
@@ -253,18 +251,25 @@ struct GPIO {
 struct GPIO_DEX_0 {
     inline static Adafruit_seesaw    _seesaw   = { CONFIG.I2C_bus };
 
-    inline static const GPIO_pin_t   suzyq     = 16;
+    inline static const GPIO_pin_t  suzyq  = 16;
+    /*                              |laser */
+
+    inline static const GPIO_pin_t  minju = 15;
+    /*                              |pulse */
 
     static int init( void ) {
         if( !_seesaw.begin( CONFIG.I2C_addr_GPIO_DEX_0 ) ) return -1;
 
         _seesaw.pinMode( suzyq, OUTPUT );
 
+        _seesaw.pinMode( minju, INPUT );
+
         return 0;
     }
 
     inline static int  D_R ( GPIO_pin_t pin )            { return _seesaw.digitalRead( pin ); }
     inline static void D_W ( GPIO_pin_t pin, int level ) { _seesaw.digitalWrite( pin, level ); }
+    inline static int  A_R ( GPIO_pin_t pin )            { return _seesaw.analogRead( pin ); }
 };
 
 
@@ -664,6 +669,19 @@ static struct _SUZYQ : Is_ARMABLE {
 } SUZYQ;
 
 
+static struct _GOLANI : RCWL_1X05 {
+    using RCWL_1X05::RCWL_1X05;
+
+    int init( void ) {
+        if( !this->begin( CONFIG.I2C_bus, CONFIG.I2C_addr_GOLANI ) ) return -1;
+
+        this->setMode( RCWL_1X05::oneShot );
+
+        return 0;
+    }
+} GOLANI;
+
+
 
 #define _DYNAM_SCAN_IF( bit, jmp_lbl ) if( ( flags & ( 1 << bit ) ) == 0 ) goto jmp_lbl;
 enum Scan_ : int {
@@ -1007,6 +1025,7 @@ void setup( void ) {
 
     _FANCY_SETUP_ASSERT_OR_DEAD( GPIO_DEX_0::init() == 0, ">/ [tiny-416]", FANCY_DELAY_MS );
     _FANCY_SETUP_ASSERT_OR_DEAD( SUZYQ.init() == 0, ">/ [kyp-008]", FANCY_DELAY_MS );
+    _FANCY_SETUP_ASSERT_OR_DEAD( GOLANI.init() == 0, ">/ [hc-sr04]", FANCY_DELAY_MS );
 
     MIRU.write( 660, 100, 2, 100 );
     YUNA.setCursor( 0, 0 );
@@ -1288,41 +1307,43 @@ GAME_MAIN_OVR{
     _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_LedController | FellowTask_WaveController );
     BITNA.target( Led_BLK );
 
-    double flt    = 0.0;
-    double damp   = 0.0;
-    bool   riding = false;
+    const int    Ts     = 10;
+    double       flt    = 0.0;
+    double       damp   = 0.0;
+    bool         riding = false;
 
 MAIN_LOOP_ON( Mode_Game ) {
-    int read = GPIO::A_R( GPIO::minju );
+    for( int i = 0; i <= 20; ++i ) {
+    int read = GPIO_DEX_0::A_R( i);
 
-    read -= 1800;
-    if( read < 0 ) read = 0;
+    // read -= 1800;
+    // if( read < 0 ) read = 0;
 
-    flt = flt * 0.95 + read * 0.05;
-    damp = damp * 0.995 + read * 0.005;
+    // flt = flt * 0.95 + read * 0.05;
+    // damp = damp * 0.995 + read * 0.005;
 
-    double diff = flt - damp;
-    if( diff < 0 ) diff = 0;
-    else diff = pow( diff, 2 );
+    // double diff = flt - damp;
+    // if( diff < 0 ) diff = 0;
+    // else diff = pow( diff, 2 );
 
     Serial.print( -100 );
     Serial.print( " " );
-    Serial.print( 500 );
+    Serial.print( 1500 );
     Serial.print( " " );
-    Serial.println( diff );
+    Serial.println( read ); }
 
-    if( diff >= 300.0 && !riding ) {
-        static _MIRU::_wave_frag_t wave{ freq: 880, ms: 120 };
+    // if( diff >= 300.0 && !riding ) {
+    //     static _MIRU::_wave_frag_t wave{ freq: 880, ms: 120 };
 
-        riding = true;
+    //     riding = true;
 
-        BITNA.make( Led_RED );
-        MIRU.q_push( _MIRU::_wave_desc_t{ frags: &wave, frag_count: 1 } );
-    } else if( diff <= 300.0 ) {
-        riding = false;
-    }
+    //     BITNA.make( Led_RED );
+    //     MIRU.q_push( _MIRU::_wave_desc_t{ frags: &wave, frag_count: 1 } );
+    // } else if( diff <= 300.0 ) {
+    //     riding = false;
+    // }
     
-    vTaskDelay( 10 );
+    vTaskDelay( Ts );
 }
 };
 } GAME_HEART;
@@ -1787,9 +1808,11 @@ BRIDGE_BEGIN_OVR{
 BRIDGE_END_OVR{ 
     SUZYQ.disarm( NULL );
 };
-SPOT_LOOP_OVR{ 
+SPOT_LOOP_OVR{
+    YUNA.drawBitmap( _ICO_X + 2, _ICO_Y + 6, BARRA_BRDG_ICO_LASER, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
+
     YUNA.drawBitmap( 
-        _CAGE_MX - BARRA_MISC_DIS_ARMED_W/2, _CAGE_MY - BARRA_MISC_DIS_ARMED_H/2,
+        _CAGE_MX - BARRA_MISC_DIS_ARMED_W/2, _CAGE_MY - BARRA_MISC_DIS_ARMED_H/2 - 16,
         SUZYQ.is_armed( std::memory_order_relaxed ) ? BARRA_MISC_ARMED : BARRA_MISC_DISARMED,
         BARRA_MISC_DIS_ARMED_W, BARRA_MISC_DIS_ARMED_H, 
         SSD1306_WHITE 
@@ -1803,6 +1826,21 @@ BRIDGE_DYS_OVR{
     else if( dys->sw_B.rls ) SUZYQ.disarm( NULL );
 };
 } BRIDGE_LASER;
+
+struct _BRIDGE_SONAR : _BRIDGE { 
+    int   mms   = 0.0;
+
+SPOT_LOOP_OVR{ 
+    bli->tim_0.each( 100, [ this ] ( void ) -> void {
+        int read = GOLANI.read();
+        mms = read != 0 ? read : mms;
+    } );
+
+    YUNA.setTextSize( 2 );
+    YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%d mm", mms );
+    YUNA.setTextSize( 1 );
+};
+} BRIDGE_SONAR;
 
 struct _BRIDGE_COMPASS : _BRIDGE { 
     float   degrees   = 0.0;
@@ -2031,9 +2069,10 @@ int _CONFIG_BRDG_MODE::init( void ) {
     BRIDGE_TOOLS.name = "tools";
     BRIDGE_TOOLS.sup = &BRIDGE_HOME;
     BRIDGE_TOOLS.subs[ 0 ] = &BRIDGE_LASER;
-    BRIDGE_TOOLS.subs[ 1 ] = &BRIDGE_COMPASS;
-    BRIDGE_TOOLS.subs[ 2 ] = &BRIDGE_WAVE;
-    BRIDGE_TOOLS.subs[ 3 ] = &BRIDGE_HEART;
+    BRIDGE_TOOLS.subs[ 1 ] = &BRIDGE_SONAR;
+    BRIDGE_TOOLS.subs[ 2 ] = &BRIDGE_COMPASS;
+    BRIDGE_TOOLS.subs[ 3 ] = &BRIDGE_WAVE;
+    BRIDGE_TOOLS.subs[ 4 ] = &BRIDGE_HEART;
 
     BRIDGE_GAMES.name = "games";
     BRIDGE_GAMES.sup = &BRIDGE_HOME;
@@ -2053,6 +2092,9 @@ int _CONFIG_BRDG_MODE::init( void ) {
 
     BRIDGE_LASER.name = "laser";
     BRIDGE_LASER.sup = &BRIDGE_TOOLS;
+
+    BRIDGE_SONAR.name = "sonar";
+    BRIDGE_SONAR.sup = &BRIDGE_TOOLS;
 
     BRIDGE_COMPASS.name = "compass";
     BRIDGE_COMPASS.sup = &BRIDGE_TOOLS;

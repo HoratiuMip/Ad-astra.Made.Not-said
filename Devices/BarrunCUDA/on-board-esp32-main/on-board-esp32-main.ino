@@ -72,21 +72,22 @@ static struct _CONFIG {
 
     void ( *mains[ _Mode_Count ] )( void* );
 
-    std::atomic_int     mode             = { Mode_Brdg };
+    std::atomic_int     mode                  = { Mode_Brdg };
 
-    TwoWire*            I2C_bus          = &Wire;
+    TwoWire*            I2C_bus               = &Wire;
 
-    const int           I2C_addr_YUNA    = 0x3C;
-    const int           I2C_addr_GRAN    = MPU6050_WE::WHO_AM_I_CODE;
-    const int           I2C_addr_SUSAN   = 0x77;
-    const int           I2C_addr_CHIM    = 0x13;
+    const int           I2C_addr_YUNA         = 0x3C;
+    const int           I2C_addr_GRAN         = MPU6050_WE::WHO_AM_I_CODE;
+    const int           I2C_addr_SUSAN        = 0x77;
+    const int           I2C_addr_CHIM         = 0x13;
+    const int           I2C_addr_GPIO_DEX_0   = 0x49;
 
-    SemaphoreHandle_t   init_sem         = { xSemaphoreCreateBinary() };
+    SemaphoreHandle_t   init_sem              = { xSemaphoreCreateBinary() };
 
-    int                 dyn_scan_T       = 20;
-    int                 spot_T           = 33;
+    int                 dyn_scan_T            = 20;
+    int                 spot_T                = 33;
 
-    void*               _arg             = NULL;
+    void*               _arg                  = NULL;
 
     Mode_ xchg_mode( Mode_ m, void* arg ) { _arg = arg; return ( Mode_ )mode.exchange( m, std::memory_order_seq_cst ); }
 
@@ -250,12 +251,12 @@ struct GPIO {
 };
 
 struct GPIO_DEX_0 {
-    inline static Adafruit_seesaw    _seesaw   = {};
+    inline static Adafruit_seesaw    _seesaw   = { CONFIG.I2C_bus };
 
     inline static const GPIO_pin_t   suzyq     = 16;
 
     static int init( void ) {
-        if( !_seesaw.begin() ) return -1;
+        if( !_seesaw.begin( CONFIG.I2C_addr_GPIO_DEX_0 ) ) return -1;
 
         _seesaw.pinMode( suzyq, OUTPUT );
 

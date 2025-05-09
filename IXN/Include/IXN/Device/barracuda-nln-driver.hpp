@@ -10,7 +10,7 @@
 #include <IXN/network.hpp>
 
 
-#include "../../../../Devices/BarraCUDA/barracuda.hpp"
+#include "../../../../Devices/BarrunCUDA/barracuda.hpp"
 
 #define WJP_ENVIRONMENT_MINGW
 #define WJP_ARCHITECTURE_LITTLE

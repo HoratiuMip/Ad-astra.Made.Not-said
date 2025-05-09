@@ -74,7 +74,7 @@ _WARC_PROTECTED:
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_astro_ref_vernal_equinox_ts );
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_astro_ref_first_january_ts );
 
-    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_dev_barracuda_controller );
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_dev_barruncuda_controller );
 
 public:
     int main( int argc, char* argv[] );

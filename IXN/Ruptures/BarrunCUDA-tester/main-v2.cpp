@@ -596,7 +596,7 @@ int main( int argc, char** argv ) {
         "Naksu - Light Sensor", &BARCUD.dynamic.naksu
     } );
     DASHBOARD.emplace_back( new POTENTIOMETER_BOARD{
-        "Kazuha - Potentiometer", &BARCUD.dynamic.kazuha
+        "Tanya - Potentiometer", &BARCUD.dynamic.tanya
     } );
     DASHBOARD.emplace_back( new ACCEL_GYRO_BOARD{
         "Gran - Accel & Gyro", &BARCUD.dynamic.gran

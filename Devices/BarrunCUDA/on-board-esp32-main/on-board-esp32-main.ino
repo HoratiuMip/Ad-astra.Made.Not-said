@@ -193,7 +193,7 @@ struct GPIO {
     inline static const GPIO_pin_t xabara = 17;
     /*                             |bridge */
 
-    inline static struct { const GPIO_pin_t r, g, b; } bitna{ r: 13, g: 14, b: 12 };
+    inline static struct { const GPIO_pin_t r, g, b, x; } bitna{ r: 13, g: 14, b: 12, x: LED_BUILTIN };
     /*                                                 |led */
 
     /**
@@ -222,6 +222,7 @@ struct GPIO {
         ledcAttachChannel( bitna.r, 100, 8, uC_PWM_CHANNEL_BITNA_R );
         ledcAttachChannel( bitna.g, 100, 8, uC_PWM_CHANNEL_BITNA_G );
         ledcAttachChannel( bitna.b, 100, 8, uC_PWM_CHANNEL_BITNA_B );
+        pinMode( bitna.x, OUTPUT );
 
         _printf( "ok.\n" );
 
@@ -341,6 +342,21 @@ struct Led_ {
 };
 
 static struct _BITNA {
+    inline void x_set( void ) { 
+        GPIO::D_W( GPIO::bitna.x, GPIO::VCC );
+    }
+
+    inline void x_reset( void ) {
+        GPIO::D_W( GPIO::bitna.x, GPIO::GND );
+    }
+
+    void x_blink( int N, int ms_on, int ms_off, bool keep_on ) {
+        for( int n = 1; n <= N; ++n ) {
+            this->x_set(); vTaskDelay( ms_on ); this->x_reset(); vTaskDelay( ms_off );
+        }
+        if( keep_on ) this->x_set();
+    }
+
     Led_   _crt   = Led_BLK;
     Led_   _tar   = Led_BLK;
 
@@ -861,35 +877,6 @@ else { js.edg.axis = is##axis = 0; }
 
 
 
-struct {
-
-  int loop( void ) {
-    if( !CONFIG_CTRL_MODE.wjpblu.available() ) return 0;
-
-    WJP_RESOLVE_RECV_INFO info;
-    if( int ret = CONFIG_CTRL_MODE.wjpblu.resolve_recv( &info ); ret <= 0 ) {
-      _printf( LogLevel_Error, "Protocol breach: %s.\n ", WJP_err_strs[ info.err ] );
-      return ret;
-    }
-
-    if( info.nakr != NULL ) {
-      _printf( LogLevel_Info, "Responded with NAK on seq (%d), op (%d). Reson: %s.\n ", ( int )info.recv_head._dw1.seq, ( int )info.recv_head._dw0.op, info.nakr );
-      return 0;
-    }
-
-    switch( info.recv_head._dw0.op ) {
-      case WJPOp_Ping: {
-        _printf( LogLevel_Info, "Ping'd back on sequence (%d).\n", ( int )info.recv_head._dw1.seq );
-      break; }
-    }
-
-    return 0;
-  }
-
-} COM;
-
-
-
 void _dead( void ) {
   CONFIG_CTRL_MODE.wjpblu.end();
   Wire.end();
@@ -1025,7 +1012,7 @@ void setup( void ) {
 
     _FANCY_SETUP_ASSERT_OR_DEAD( GPIO_DEX_0::init() == 0, ">/ [tiny-416]", FANCY_DELAY_MS );
     _FANCY_SETUP_ASSERT_OR_DEAD( SUZYQ.init() == 0, ">/ [kyp-008]", FANCY_DELAY_MS );
-    _FANCY_SETUP_ASSERT_OR_DEAD( GOLANI.init() == 0, ">/ [hc-sr04]", FANCY_DELAY_MS );
+    //_FANCY_SETUP_ASSERT_OR_DEAD( GOLANI.init() == 0, ">/ [hc-sr04]", FANCY_DELAY_MS );
 
     MIRU.write( 660, 100, 2, 100 );
     YUNA.setCursor( 0, 0 );
@@ -1536,7 +1523,7 @@ void main_game( void* arg ) {
 || |     |   |_| |
 || |__   |   | \ |__
 */ 
-static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 3 ] = {
+static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 4 ] = {
 { 
 	str_id: "BITNA_CRT", 
 	sz: 1, 
@@ -1549,7 +1536,7 @@ static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 3 ] = {
 	str_id: "GRAN_ACC_RANGE", 
 	sz: 1, 
 	WJP_QGSTBL_READ_WRITE, 
-	qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )args.addr ) ? NULL : "GRAN_ACC_INVALID_RANGE"; },
+	qset_func: [] WJP_QSET_LAMBDA{ return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )args.addr ) ? NULL : "GRAN_ACC_INVALID_RANGE"; },
 	qget_func: NULL,
 	src: NULL
 },
@@ -1557,9 +1544,22 @@ static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 3 ] = {
 	str_id: "GRAN_GYR_RANGE", 
 	sz: 1, 
 	WJP_QGSTBL_READ_WRITE, 
-	qset_func: [] WJP_QSET_LAMBDA { return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )args.addr ) ? NULL : "GRAN_GYR_INVALID_RANGE"; },
+	qset_func: [] WJP_QSET_LAMBDA{ return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )args.addr ) ? NULL : "GRAN_GYR_INVALID_RANGE"; },
 	qget_func: NULL,
 	src: NULL
+},
+{
+    str_id: "DYNAM",
+    sz: sizeof( barra::dynamic_t ),
+    WJP_QGSTBL_READ_ONLY,
+    qset_func: NULL,
+    qget_func: [] WJP_QGET_LAMBDA{
+        static barra::dynamic_t         dyn;
+        static _DYNAM::snapshot_token_t ss_tok{ dst: &dyn, blk: true };
+
+        return NULL;
+    },
+    src: NULL
 }
 };
 
@@ -1572,17 +1572,40 @@ int _CONFIG_CTRL_MODE::init( void ) {
     return wjpblu.init( 0 );
 }
 
+int wjp_loop( void ) {
+    if( !CONFIG_CTRL_MODE.wjpblu.available() ) return 0;
+
+    WJP_RESOLVE_RECV_INFO info;
+    if( int ret = CONFIG_CTRL_MODE.wjpblu.resolve_recv( &info ); ret <= 0 ) {
+        _printf( LogLevel_Error, "Protocol breach: %s.\n ", WJP_err_strs[ info.err ] );
+        return ret;
+    }
+
+    if( info.nakr != NULL ) {
+        _printf( LogLevel_Info, "Responded with NAK on seq (%d), op (%d). Reason: %s.\n ", ( int )info.recv_head._dw1.seq, ( int )info.recv_head._dw0.op, info.nakr );
+        return 0;
+    }
+
+    switch( info.recv_head._dw0.op ) {
+        case WJPOp_Ping: {
+            _printf( LogLevel_Info, "Ping'd back on sequence (%d).\n", ( int )info.recv_head._dw1.seq );
+        break; }
+    }
+
+    return 0;
+}
+
 std::function< int( void ) >   ctrl_loop_procs[]   = {
-  /* 0b00 */ [] () -> bool {
+  /* 0b00 */ [] () static -> bool {
     _printf( LogLevel_Info, "Disconnected from device.\n" );
     CONFIG_CTRL_MODE._conn_rst = true;
     _printf( LogLevel_Info, "Ready to relink...\n" );
-    BITNA.blink( 9, Led_BLU, Led_BLK, 50, 50 );
+    BITNA.x_blink( 9, 50, 50, false );
     return true;
   },
-  /* 0b01 */ [] () -> bool {
-    if( COM.loop() != 0 ) {
-      BITNA.blink( 10, Led_RED, Led_BLK, 100, 500 );
+
+  /* 0b01 */ [] () static -> bool {
+    if( wjp_loop() != 0 ) {
       CONFIG_CTRL_MODE.wjpblu.disconnect();
       return true;
     }
@@ -1602,26 +1625,29 @@ std::function< int( void ) >   ctrl_loop_procs[]   = {
 
     return true;
   },
-  /* 0b10 */ [] () -> bool {
-    BITNA.blink( 1, Led_BLU, Led_BLK, 100, 500 );
+
+  /* 0b10 */ [] () static -> bool {
+    BITNA.x_blink( 1, 100, 500, false );
     return true;
   },
-  /* 0b11 */ [] () -> bool {
+
+  /* 0b11 */ [] () static -> bool {
     CONFIG_CTRL_MODE._conn_rst = false;
     _printf( LogLevel_Info, "Connected to device.\n" );
-    BITNA.blink( 9, Led_BLK, Led_BLU, 50, 50 );
+    BITNA.x_blink( 9, 50, 50, true );
     return true;
   }
 };
 
 void main_ctrl( void* arg ) {
-    _FELLOW_TASK::require( FellowTask_DynamScan );
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController );
 
     CONFIG_CTRL_MODE.wjpblu.begin( barra::DEVICE_NAME );    
 
 MAIN_LOOP_ON( Mode_Ctrl ) {
     ctrl_loop_procs[ ( CONFIG_CTRL_MODE._conn_rst << 1 ) | CONFIG_CTRL_MODE.wjpblu.connected() ]();
 } 
+    ctrl_loop_procs[ 0b00 ]();
 
     CONFIG_CTRL_MODE.wjpblu.end();
 }
@@ -1765,17 +1791,14 @@ BRIDGE_SELECT_OVR{
 };
 } BRIDGE_BTH;
 
-struct _BRIDGE_INFO : _BRIDGE { 
+struct _BRIDGE_FORGERY : _BRIDGE { 
 SPOT_LOOP_OVR{ 
-    float x = ( float )bli->ms / 320.0;
-    int yo = ( sin( x ) + 0.23*sin( x*3 ) + 0.06*sin( x*5 ) ) * 9.0;
-
-    YUNA.drawBitmap( _ICO_X, _ICO_Y + yo, BARRA_BRDG_ICO_INFO, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
+    YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_FORGERY, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 };
 BRIDGE_SELECT_OVR{
     
 };
-} BRIDGE_INFO;
+} BRIDGE_FORGERY;
 
 struct _BRIDGE_TOOLS : _BRIDGE { 
 SPOT_LOOP_OVR{ 
@@ -1832,8 +1855,8 @@ struct _BRIDGE_SONAR : _BRIDGE {
 
 SPOT_LOOP_OVR{ 
     bli->tim_0.each( 100, [ this ] ( void ) -> void {
-        int read = GOLANI.read();
-        mms = read != 0 ? read : mms;
+        // int read = GOLANI.read();
+        // mms = read != 0 ? read : mms;
     } );
 
     YUNA.setTextSize( 2 );
@@ -2053,14 +2076,14 @@ int _CONFIG_BRDG_MODE::init( void ) {
     _BRIDGE_ROOT.sub_idx = 1;
     _BRIDGE_ROOT.subs[ 0 ] = &BRIDGE_BTH;
     _BRIDGE_ROOT.subs[ 1 ] = &BRIDGE_HOME;
-    _BRIDGE_ROOT.subs[ 2 ] = &BRIDGE_INFO;
+    _BRIDGE_ROOT.subs[ 2 ] = &BRIDGE_FORGERY;
 
     BRIDGE_BTH.name = "bluetooth";
 
-    BRIDGE_INFO.name = "info";
+    BRIDGE_FORGERY.name = "forgery";
 
     BRIDGE_HOME.name = "";
-    BRIDGE_HOME.sup = BRIDGE_BTH.sup = BRIDGE_INFO.sup = &_BRIDGE_ROOT;
+    BRIDGE_HOME.sup = BRIDGE_BTH.sup = BRIDGE_FORGERY.sup = &_BRIDGE_ROOT;
     BRIDGE_HOME.subs[ 0 ] = &BRIDGE_TOOLS;
     BRIDGE_HOME.subs[ 1 ] = &BRIDGE_GAMES;
     BRIDGE_HOME.subs[ 2 ] = &BRIDGE_ENV;

@@ -69,24 +69,36 @@ public:
 
         _imm_control_th = std::thread( [ imm, this ] () -> void { 
             while( this->DEVICE::_engaged.load( std::memory_order_relaxed ) ) {
-                BAR_PROTO_RESOLVE_RECV_INFO info;
+                WJP_RESOLVE_RECV_INFO info;
                 int status = this->ixN::Dev::BarracudaCTRL::trust_resolve_recv( &info );
 
                 if( status <= 0 ) {
                     _eligible.store( false, std::memory_order_release );
-                    WARC_ECHO_RT_THIS_WARNING << "Read fault ( " << status << " ), retrying in " << read_error_timeout_s << "s.";
-                    std::this_thread::sleep_for( std::chrono::seconds( read_error_timeout_s ) );
+
+                l_retry_conn:
+                    if( this->DEVICE::_engaged.load( std::memory_order_relaxed ) == false ) break;
+
+                    WARC_ECHO_RT_THIS_ERROR << "Connection lost to the BarrunCUDA controller. Retrying in " << read_error_timeout_s << " s...";
+                    std::this_thread::sleep_for( std::chrono::seconds{ read_error_timeout_s } );
+                    
+                    this->ixN::Dev::BarracudaCTRL::disconnect( 0 );
+                    std::this_thread::sleep_for( std::chrono::seconds{ 1 } );
+
+                    status = this->ixN::Dev::BarracudaCTRL::connect( ixN::Dev::BARRACUDA_CTRL_FLAG_TRUST_INVOKER );
+                    if( status != 0 ) goto l_retry_conn;
+
                     continue;
+                } else {
+                    _eligible.store( true, std::memory_order_release );
                 }
-                _eligible.store( true, std::memory_order_release );
 
                 auto& dy_st = this->dynamic;
 
                 auto trigger = [ imm ] ( const auto& sw, const imm::EARTH_CTRL_PARAMS::DRAIN& drain ) -> void {
                     if( sw.prs ) imm->ctrl().trigger( drain );
                 };
-                trigger( dy_st.giselle, imm->ctrl().idxs.cin_r2r );
-                trigger( dy_st.karina, imm->ctrl().idxs.cnt_2t );
+                trigger( dy_st.karina, imm->ctrl().idxs.cin_r2r );
+                trigger( dy_st.giselle, imm->ctrl().idxs.cnt_2t );
                 trigger( dy_st.ningning, imm->ctrl().idxs.sat_high_2t );
             }
         } );

@@ -41,7 +41,7 @@ static struct _INTERNAL {
         { "--astro-ref-vernal-equinox-ts",     0b111, 1, &MAIN::_parse_proc_astro_ref_vernal_equinox_ts },
         { "--astro-ref-first-january-ts",      0b111, 1, &MAIN::_parse_proc_astro_ref_first_january_ts },
 
-        { "--dev-barracuda-ctrl",              0b111, 0, &MAIN::_parse_proc_dev_barracuda_controller }
+        { "--dev-barruncuda",                  0b111, 0, &MAIN::_parse_proc_dev_barruncuda_controller }
     };
     const int optc = sizeof( opts ) / sizeof( OPT );
 
@@ -321,8 +321,8 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_first_january_ts ) {
 }
 
 inline static dev::BARRACUDA_CONTROLLER* ptrr = nullptr;
-WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_dev_barracuda_controller ) {
-    _WARC_IXN_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_dev_barracuda_controller()" );
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_dev_barruncuda_controller ) {
+    _WARC_IXN_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_dev_barruncuda_controller()" );
    
     int status = dev::push_device( barra::DEVICE_NAME, ixN::HVEC< dev::BARRACUDA_CONTROLLER >::allocc() );
     WARC_ASSERT_RT( status == 0, "Could not push the device in the device reservation station.", status, status );

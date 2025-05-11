@@ -668,6 +668,8 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Mesh3" );
 
 public:
+    Mesh3() = default;
+
     Mesh3( const std::filesystem::path& root_dir, std::string_view prefix, DWORD flags, _ENGINE_COMMS_ECHO_ARG ) 
     : model{ "model", glm::mat4{ 1.0 }, echo },
       Kd{ "Kd", glm::vec3{}, echo }

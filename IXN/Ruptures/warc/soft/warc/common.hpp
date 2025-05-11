@@ -69,7 +69,7 @@ inline struct _GLOBAL {
     std::filesystem::path   root_dir   = ".";
 } _global;
 
-#define WARC_ROOT_DIR ( _global.root_dir )
+#define WARC_ROOT_DIR ( warc::_global.root_dir )
 #define WARC_IMM_ROOT_DIR ( WARC_ROOT_DIR/"imm" )
 #define WARC_DATA_ROOT_DIR ( WARC_ROOT_DIR/"data" )
 

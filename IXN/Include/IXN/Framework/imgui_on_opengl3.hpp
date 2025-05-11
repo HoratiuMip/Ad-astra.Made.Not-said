@@ -31,18 +31,47 @@ public:
         DWORD              runtime_begin_flags   = 0; 
         DWORD              runtime_end_flags     = 0;
 
+        void*              arg                   = nullptr;
+
         const char*        title                 = "ixN::Fwk::ImGui_on_OpenGL3";
         int                width                 = 64;
         int                height                = 64;
         glm::vec4          clear_color           = { 0.05, 0.05, 0.1, 1.0 };
         bool               iconify               = false;
+
+        int                lens_scheme           = 0;
     } params;
 
+    struct {
+        Uniform3< glm::mat4 >   view   = { "view", glm::mat4{ 1.0 } };
+        Uniform3< glm::mat4 >   proj   = { "proj", glm::mat4{ 1.0 } };
+    } uniforms;
+
 public:
-    typedef   std::function< DWORD( double ) >   frame_callback_t;
-    frame_callback_t   loop   = nullptr;
+    typedef   std::function< DWORD( double, void* ) >   frame_callback_t;
+    typedef   std::function< DWORD( void* ) >           init_callback_t;
+
+public:
+    frame_callback_t   loop            = nullptr;
+    init_callback_t    init            = nullptr;
 
     std::atomic_bool   init_complete   = false;
+    std::atomic_bool   init_hold       = true;
+
+    Render3            render          = {};
+    Lens3              lens            = { glm::vec3( 0.0, 0.0, 3.0 ), glm::vec3( 0.0, 0.0, 0.0 ), glm::vec3( 0.0, 1.0, 0.0 ) };
+
+public:
+    void Wait_init_complete( void ) {
+        init_complete.wait( false, std::memory_order_acquire );
+        glfwMakeContextCurrent( render.handle() );
+    }
+
+    void Release_init_hold( void ) {
+        glfwMakeContextCurrent( nullptr );
+        init_hold.store( false, std::memory_order_release );
+        init_hold.notify_one();
+    }
 
 public:
     int main( int argc, char* argv[] ) {
@@ -51,7 +80,7 @@ public:
             ixN::comms( ixN::EchoLevel_Error ) << "GLFW error code ( " << err << " ): " << desc << ".";
         } );
 
-        if( int ret = ixN::begin_runtime( argc, argv, params.runtime_begin_flags, nullptr, nullptr ); ret != 0 ) return ret;
+        if( DWORD status = ixN::begin_runtime( argc, argv, params.runtime_begin_flags, nullptr, nullptr ); status != 0 ) return status;
     
     /* GLFW window */
         glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 4 );
@@ -62,7 +91,9 @@ public:
         glfwSetWindowPos( window, 50, 50 );
         IXN_ASSERT( window != nullptr, -1 );
         glfwMakeContextCurrent( window );
-        ixN::Render3 render( window );
+        new ( &render ) Render3{ window };
+
+        glfwSetWindowUserPointer( render.handle(), params.arg );
 
     /* ImGui */
         IMGUI_CHECKVERSION();
@@ -87,8 +118,15 @@ public:
     /* Last checks */
         if( params.iconify ) glfwIconifyWindow( render.handle() );
 
-        init_complete.store( true, std::memory_order_seq_cst );
+    /* Client sync */
+        if( init ) if( init( params.arg ) != 0 ) goto l_end;
+
+        glfwMakeContextCurrent( nullptr );
+        init_complete.store( true, std::memory_order_release);
         init_complete.notify_all();
+
+        init_hold.wait( true, std::memory_order_acquire );
+        glfwMakeContextCurrent( render.handle() );
 
         while( params.is_running.load( std::memory_order_relaxed ) && !glfwWindowShouldClose( render.handle() ) ) {
             glfwPollEvents();
@@ -105,8 +143,8 @@ public:
             render.clear( params.clear_color );
 
             static ixN::Ticker frame_tick;
-            if( this->loop( frame_tick.lap() ) != 0 ) params.is_running.store( false, std::memory_order_seq_cst );
-            
+            if( this->loop( frame_tick.lap(), params.arg ) != 0 ) params.is_running.store( false, std::memory_order_seq_cst );
+            ImGui::ShowDemoWindow();
             ImGui::Render();
 
             ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
@@ -118,6 +156,7 @@ public:
             render.swap();
         }
 
+    l_end:
         params.is_running.store( false, std::memory_order_seq_cst );
 
         ImGui_ImplOpenGL3_Shutdown();

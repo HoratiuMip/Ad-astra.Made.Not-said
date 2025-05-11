@@ -1249,7 +1249,7 @@ public:
     }
 
     static void env_to( Vec2 vec ) {
-        env_to( pull_normal_axis( vec ) );
+        SetCursorPos( vec.x + Env::w(.5), -vec.y + Env::h(.5) );
     }
 
     static void env_to( Crd2 crd ) {

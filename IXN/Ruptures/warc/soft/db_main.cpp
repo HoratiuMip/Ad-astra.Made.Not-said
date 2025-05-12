@@ -12,6 +12,7 @@
 #include <bsoncxx/json.hpp>
 #include <bsoncxx/document/view.hpp>
 #include <bsoncxx/document/element.hpp>
+#include <bsoncxx/builder/basic/array.hpp>
 #include <mongocxx/client.hpp>
 #include <mongocxx/instance.hpp>
 #include <mongocxx/gridfs/bucket.hpp>
@@ -345,46 +346,52 @@ public:
     typedef   std::deque< bsoncxx::document::value >   DocsContainer;
 
 _WARC_PROTECTED:
-    ixN::SPtr< DocsContainer >   _docs        = nullptr;
+    ixN::SPtr< DocsContainer >   _docs          = nullptr;
 
-    std::atomic_bool             _proc_hold   = true;   /* Negligibly affected by false sharing. */
-    std::atomic_bool             _proc_done   = true;
+    std::atomic_bool             _sig_refresh   = false;
 
-    std::string                  _flt_alias   = "";
-
-public:
-    void proc_release( void ) {
-        _proc_done.store( false, std::memory_order_release );
-        _proc_hold.store( false, std::memory_order_release );
-        _proc_hold.notify_one();
-    }
-
-    void proc_done( void ) {
-        _proc_hold.store( true, std::memory_order_release );
-        _proc_done.store( true, std::memory_order_release );
-        _proc_done.notify_one();
-    }
+    std::string                  _flt_alias     = "";
+    std::pair< int, int >        _flt_years     = { 1900, 2100 };
+    bool                         _flt_years_r   = false;
 
 public:
+    void sig_proc( void ) {
+        _sig_refresh.store( true, std::memory_order_release );
+        _sig_refresh.notify_one();
+    }
+
     virtual int proc( void ) override {
         using bsoncxx::builder::basic::make_document; 
+        using bsoncxx::builder::basic::make_array;
         using bsoncxx::builder::basic::kvp;
 
         for(; HQ::that->is_running() ;) {
-            _proc_hold.wait( true );
-            _docs = std::make_shared< DocsContainer >();
+            _sig_refresh.wait( false );
+            ixN::SPtr< DocsContainer > docs{ new DocsContainer{} };
 
             try {
-                mongocxx::cursor cursor = _collection.find( make_document( kvp( "alias", make_document( kvp( "$regex", _flt_alias.c_str() ) ) ) ) );
+                mongocxx::cursor cursor = _collection.find( 
+                    make_document( 
+                        kvp( "alias", make_document( kvp( "$regex", _flt_alias.c_str() ) ) ),
+                        kvp( "$expr", make_document( kvp( "$and", make_array(
+                            make_document( kvp( "$gte", make_array( make_document( kvp( "$year", "$launch" ) ), _flt_years.first ) ) ),
+                            make_document( kvp( "$lte", make_array( make_document( kvp( "$year", "$launch" ) ), _flt_years_r ? _flt_years.second : _flt_years.first ) ) )
+                        ) ) ) )
+                    ) 
+                );
 
                 for( auto&& doc : cursor ) {
-                    _docs->emplace_back( std::move( doc ) );
+                    docs->emplace_back( std::move( doc ) );
                 }
+
+                _docs = std::move( docs );
+
             } catch( std::exception& exc ) {
                 WARC_ECHO_RT_ERROR << exc.what();
             }
             
-            this->proc_done();
+            _sig_refresh.store( false, std::memory_order_release );
+            _sig_refresh.notify_all();
         }
 
         return 0;
@@ -404,62 +411,126 @@ public:
         ImGui::NewLine(); ImGui::Separator();
 
         ImGui::SeparatorText( "Filters" );
-        ImGui::InputText( "Alias", &_flt_alias, ImGuiInputTextFlags_None );
+        ImGui::SetNextItemWidth( 300.0 ); 
+        ImGui::BulletText( "Alias" ); ImGui::SameLine(); 
+        ImGui::InputTextWithHint( "##Alias", "Regex here...", &_flt_alias, ImGuiInputTextFlags_EnterReturnsTrue );
+        ImGui::Separator();
+        ImGui::BulletText( "Year(s)" ); ImGui::SameLine(); 
+        ImGui::SetNextItemWidth( 100.0 ); ImGui::DragInt( "##After", &_flt_years.first, 0.2, 1900, _flt_years_r ? _flt_years.second - 1 : 2099 ); ImGui::SameLine();
+        if( _flt_years_r ) {
+            ImGui::SetNextItemWidth( 100.0 ); ImGui::DragInt( "##Before", &_flt_years.second, 0.2, _flt_years.first + 1, 2100 ); ImGui::SameLine();
+        }
+        if( ImGui::Checkbox( "Range", &_flt_years_r ) && _flt_years_r ) {
+            _flt_years.second = _flt_years.first + 1;
+        }
 
         ImGui::NewLine(); ImGui::Separator();
-        if( ImGui::Button( "Apply filters" ) ) {
-            this->proc_release();
+        if( ImGui::Button( "Query" ) ) {
+            this->sig_proc();
         }
-        if( _flt_alias.empty() && ImGui::IsItemHovered( ImGuiHoveredFlags_DelayNone ) && ImGui::BeginTooltip() ) {
+        if( 
+            ( 
+                _flt_alias.empty() 
+                || 
+                ( _flt_years_r && abs( _flt_years.first - _flt_years.second ) >= 10 )
+            ) 
+            && ImGui::IsItemHovered( ImGuiHoveredFlags_DelayNone ) && ImGui::BeginTooltip() 
+        ) {
             ImGui::TextColored( ImVec4{ 1.0, 0.0, 0.0, 1.0 }, "CAUTION" );
             ImGui::Separator();
-            ImGui::Text( "Applying full empty filters will retrieve all the documents in the collection. Proceed?" );
+            ImGui::Text( "Querying these filters may retrieve a lot of the documents in the collection. Proceed?" );
             ImGui::EndTooltip();
         }
         ImGui::NewLine(); ImGui::Separator();
 
-        if( !_proc_done.load( std::memory_order_acquire ) ) goto l_not_ready; {
-        ixN::SPtr< DocsContainer > docs = _docs; if( !docs || docs->empty() ) goto l_not_ready; {
-        
+        ixN::SPtr< DocsContainer > docs = _docs; if( !docs || docs->empty() ) goto l_not_ready; 
+    {   
         ImGui::NewLine(); ImGui::Separator();
 
-        if( ImGui::BeginTable( "Satellites", 4, ImGuiTableFlags_None ) ) {
-            ImGui::TableSetupColumn( "NORAD id", ImGuiTableColumnFlags_DefaultSort, 0.0, 0 );
-            ImGui::TableSetupColumn( "Alias",    ImGuiTableColumnFlags_None, 0.0, 1 );
-            ImGui::TableSetupColumn( "Downlink", ImGuiTableColumnFlags_None, 0.0, 1 );
-            ImGui::TableSetupColumn( "Action",   ImGuiTableColumnFlags_NoSort, 0.0, 2 );
+        if( ImGui::BeginTable( "Satellites", 6, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Borders | ImGuiTableFlags_ScrollY ) ) {
+            ImGui::TableSetupColumn( "NORAD id", ImGuiTableColumnFlags_AngledHeader, 0.0, 0 );
+            ImGui::TableSetupColumn( "Alias",    ImGuiTableColumnFlags_AngledHeader, 0.0, 1 );
+            ImGui::TableSetupColumn( "Downlink", ImGuiTableColumnFlags_AngledHeader, 0.0, 2 );
+            ImGui::TableSetupColumn( "Status",   ImGuiTableColumnFlags_AngledHeader, 0.0, 3 );
+            ImGui::TableSetupColumn( "Launch",   ImGuiTableColumnFlags_AngledHeader, 0.0, 4 );
+            ImGui::TableSetupColumn( "Action",   ImGuiTableColumnFlags_AngledHeader, 0.0, 5 );
 
+            ImGui::TableSetupScrollFreeze( 0, 1 );
+
+            ImGui::TableSetBgColor( ImGuiTableBgTarget_RowBg0, IM_COL32( 56.0, 56.0, 56.0, 255 ) );
             ImGui::TableAngledHeadersRow();
-            ImGui::TableHeadersRow();
+           
+            static double t = 0.0; t += elapsed;
 
             int sat_count = 0;
 
             for( auto& doc : *docs ) {
                 ++sat_count;
-                
+
                 ImGui::TableNextRow( ImGuiTableRowFlags_None );
 
+                int gs = ( sin( 2.0*t + PI / 4.0 * sat_count ) + 1.0 ) / 2.0 * 56.0;
+                ImGui::TableSetBgColor( ImGuiTableBgTarget_RowBg0, IM_COL32( gs, gs, gs, 255 ) );               
+
+                ImGui::PushID( sat_count );
+
                 ImGui::TableSetColumnIndex( 0 );
-                ImGui::Text( "%d", ( int )doc[ "norad_id"].get_int32() );
+                ImGui::Text( " %d ", ( int )doc[ "norad_id"].get_int32() );
                         
                 ImGui::TableSetColumnIndex( 1 );
-                ImGui::Text( "%s", doc[ "alias" ].get_string().value.data() );
+                ImGui::Text( " %s ", doc[ "alias" ].get_string().value.data() );
 
                 ImGui::TableSetColumnIndex( 2 );
-                ImGui::Text( "%.4f", ( float )doc[ "downlink" ].get_double() );
-            
-                ImGui::TableSetColumnIndex( 3 ); 
-                ImGui::Button( "View" );
+                ImGui::Text( " %.4f [MHz] ", ( float )doc[ "downlink" ].get_double() );
+
+                ImGui::TableSetColumnIndex( 3 ); {
+                    switch( doc[ "status" ].get_int32() ) {
+                        case sat::STATUS_UNKNOWN:  ImGui::TextColored( ImVec4{ 1.0, 0.0, 0.0, 1.0 }, "UNKNOWN" ); break;
+                        case sat::STATUS_IN_ORBIT: ImGui::TextColored( ImVec4{ 0.0, 1.0, 0.0, 1.0 }, "IN ORBIT" ); break;
+                        case sat::STATUS_DECAYED:  ImGui::TextColored( ImVec4{ 1.0, 0.5, 0.0, 1.0 }, "DECAYED" ); break;
+                    }
+                }
+
+                ImGui::TableSetColumnIndex( 4 );
+                std::chrono::system_clock::time_point launch_tp{ std::chrono::milliseconds{ doc[ "launch" ].get_date().to_int64() } };
+                std::time_t launch_tt = std::chrono::system_clock::to_time_t( launch_tp );
+                std::tm* launch_date = std::gmtime( &launch_tt );
+                ImGui::Text( " %d ", 1900 + launch_date->tm_year );
+                
+                ImGui::TableSetColumnIndex( 5 ); 
+                if( ImGui::Button( "Edit" ) ) {
+
+                }
+                ImGui::PushStyleColor( ImGuiCol_Button,        ImVec4{ 0.2, 0.2, 0.2, 1.0 } );
+                ImGui::PushStyleColor( ImGuiCol_ButtonHovered, ImVec4{ 0.4, 0.4, 0.4, 1.0 } );
+                ImGui::PushStyleColor( ImGuiCol_ButtonActive,  ImVec4{ 0.0, 0.0, 0.0, 1.0 } );
+                ImGui::SameLine();
+                if( ImGui::Button( "3D" ) ) {
+
+                }
+                ImGui::PopStyleColor( 3 );
+                ImGui::PushStyleColor( ImGuiCol_Button,        ImVec4{ 0.5, 0.0, 0.0, 1.0 } );
+                ImGui::PushStyleColor( ImGuiCol_ButtonHovered, ImVec4{ 0.8, 0.0, 0.0, 1.0 } );
+                ImGui::PushStyleColor( ImGuiCol_ButtonActive,  ImVec4{ 0.3, 0.0, 0.0, 1.0 } );
+                ImGui::SameLine();
+                if( ImGui::Button( "Drop" ) ) {
+
+                }
+                ImGui::PopStyleColor( 3 );
+
+                ImGui::PopID();
             }
 
-            ImGui::EndTable(); ImGui::NewLine(); ImGui::Separator();
+            ImGui::EndTable();
 
             ImGui::Text( "Item count: %d", sat_count );
+            ImGui::NewLine(); ImGui::Separator();
         }
 
         goto l_end;
     
-    } } l_not_ready:
+    } 
+    l_not_ready:
         ImGui::TextColored( ImVec4{ 1.0, 0.5, 0.0, 1.0 }, "No items ready or no match for current filters." );
 
     l_end:

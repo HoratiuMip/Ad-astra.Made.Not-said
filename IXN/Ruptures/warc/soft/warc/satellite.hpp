@@ -31,4 +31,13 @@ enum NORAD_ID : int64_t {
 };
 
 
+enum STATUS : int32_t {
+    STATUS_UNKNOWN  = 0,
+    STATUS_IN_ORBIT = 1,
+    STATUS_DECAYED  = 2,
+
+    _STATUS_FORCE_DWORD = 0x7F'FF'FF'FF
+};
+
+
 } };

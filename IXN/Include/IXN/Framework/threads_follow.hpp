@@ -91,8 +91,9 @@ public:
         ui.params.title = "ixN::Fwk::Thread_follow";
         ui.params.iconify = true;
         ui.params.is_running = true;
+        ui.init_hold = false;
 
-        ui.loop = [ & ] ( double elapsed ) -> DWORD {
+        ui.loop = [ & ] ( double elapsed, void* ) -> DWORD {
             std::unique_lock lock{ _infos_mtx };
 
             float x = -100.0;

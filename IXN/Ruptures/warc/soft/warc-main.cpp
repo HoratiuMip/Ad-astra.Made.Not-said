@@ -22,7 +22,7 @@ static struct _INTERNAL {
         int           least_argc;
         int           ( MAIN::*proc )( int, char**, const char* );
 
-    } opts[ 14 ] = {
+    } opts[ 15 ] = {
         { "--root-dir",                        0b001, 1, &MAIN::_parse_proc_root_dir },
 
         { "--from-config",                     0b001, 1, &MAIN::_parse_proc_from_config },
@@ -41,7 +41,9 @@ static struct _INTERNAL {
         { "--astro-ref-vernal-equinox-ts",     0b111, 1, &MAIN::_parse_proc_astro_ref_vernal_equinox_ts },
         { "--astro-ref-first-january-ts",      0b111, 1, &MAIN::_parse_proc_astro_ref_first_january_ts },
 
-        { "--dev-barruncuda",                  0b111, 0, &MAIN::_parse_proc_dev_barruncuda_controller }
+        { "--dev-barruncuda",                  0b111, 0, &MAIN::_parse_proc_dev_barruncuda_controller },
+
+        { "--database",                        0b001, 0, &MAIN::_parse_proc_database }
     };
     const int optc = sizeof( opts ) / sizeof( OPT );
 
@@ -320,7 +322,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_first_january_ts ) {
     return 0;
 }
 
-inline static dev::BARRACUDA_CONTROLLER* ptrr = nullptr;
+
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_dev_barruncuda_controller ) {
     _WARC_IXN_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_dev_barruncuda_controller()" );
    
@@ -329,6 +331,16 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_dev_barruncuda_controller ) {
 
     _ixt_init_flags |= ixN::BEGIN_RUNTIME_FLAG_INIT_NETWORK | ixN::BEGIN_RUNTIME_FLAG_INIT_NETWORK_CONTINUE_IF_FAULT;
     WARC_ECHO_RT_OK << "Pushed the device in the device reservation station.";
+    return 0;
+}
+
+
+WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_database ) {
+    _WARC_IXN_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_database()" );
+    
+    _database = true;
+    
+    WARC_ECHO_RT_OK << "Will launch the database interface.";
     return 0;
 }
 
@@ -527,10 +539,12 @@ int MAIN::main( int argc, char* argv[] ) {
             return imm::EARTH_SAT_UPDATE_RESULT_OK;
         } );
         
-        this->_earth->main( argc, argv, [ & ] () -> int {
+        status |= this->_earth->main( argc, argv, [ & ] () -> int {
             dev::engage_devices( *this );
             return 0;
         } );
+    } else if( _database ) {
+        status |= database::main( argc, argv );
     }
 
 

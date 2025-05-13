@@ -6,6 +6,7 @@
 #include <warc/n2yo.hpp>
 #include <warc/earth-imm.hpp>
 #include <warc/astro.hpp>
+#include <warc/database.hpp>
 
 #include <IXN/descriptor.hpp>
 #include <IXN/file-manip.hpp>
@@ -33,6 +34,8 @@ _WARC_PROTECTED:
 
     n2yo::_N2YO                _n2yo             = {};
     ixN::SPtr< imm::EARTH >    _earth            = nullptr;   
+
+    bool                       _database         = false;
 
 _WARC_PROTECTED:
     int _parse_opts( int argc, char* argv[] );
@@ -75,6 +78,8 @@ _WARC_PROTECTED:
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_astro_ref_first_january_ts );
 
     WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_dev_barruncuda_controller );
+
+    WARC_MAIN_PARSE_PROC_FUNC( _parse_proc_database );
 
 public:
     int main( int argc, char* argv[] );

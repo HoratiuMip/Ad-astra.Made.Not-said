@@ -4,22 +4,11 @@
 > 
 |
 ======*/
-#include <warc/common.hpp>
-
-#include <warc-db/collections.hpp>
-#include <IXN/Framework/imgui_on_opengl3.hpp>
-
-#include <bsoncxx/json.hpp>
-#include <bsoncxx/document/view.hpp>
-#include <bsoncxx/document/element.hpp>
-#include <bsoncxx/builder/basic/array.hpp>
-#include <mongocxx/client.hpp>
-#include <mongocxx/instance.hpp>
-#include <mongocxx/gridfs/bucket.hpp>
+#include <warc/database.hpp>
 
 
 
-namespace warc { namespace db {
+namespace warc { namespace database {
 
 
 
@@ -346,55 +335,85 @@ public:
     typedef   std::deque< bsoncxx::document::value >   DocsContainer;
 
 _WARC_PROTECTED:
-    ixN::SPtr< DocsContainer >   _docs          = nullptr;
+    ixN::SPtr< DocsContainer >                               _docs          = nullptr;
 
-    std::atomic_bool             _sig_refresh   = false;
+    std::atomic< void(*)( HQAgentSatellites*, std::any ) >   _sig_refresh   = nullptr;
+    std::any                                                 _sig_arg       = 0;
 
-    std::string                  _flt_alias     = "";
-    std::pair< int, int >        _flt_years     = { 1900, 2100 };
-    bool                         _flt_years_r   = false;
+    std::string                                              _flt_alias     = "";
+    std::pair< int, int >                                    _flt_years     = { 1957, 2025 };
+    bool                                                     _flt_years_r   = true;
+
+    bool                                                     _read_only     = true;
+    ixN::Ticker                                              _drop_tick     = {};
+    inline static constexpr float                            _DROP_DELAY    = 3.6;
+    bool                                                     _dropping      = false;
 
 public:
-    void sig_proc( void ) {
-        _sig_refresh.store( true, std::memory_order_release );
+    void sig_proc( void( *proc )( HQAgentSatellites*, std::any ), std::any arg = 0 ) {
+        _sig_arg = std::move( arg );
+        _sig_refresh.store( proc, std::memory_order_release );
         _sig_refresh.notify_one();
     }
 
     virtual int proc( void ) override {
-        using bsoncxx::builder::basic::make_document; 
-        using bsoncxx::builder::basic::make_array;
-        using bsoncxx::builder::basic::kvp;
-
         for(; HQ::that->is_running() ;) {
-            _sig_refresh.wait( false );
-            ixN::SPtr< DocsContainer > docs{ new DocsContainer{} };
+            _sig_refresh.wait( nullptr );
 
             try {
-                mongocxx::cursor cursor = _collection.find( 
-                    make_document( 
-                        kvp( "alias", make_document( kvp( "$regex", _flt_alias.c_str() ) ) ),
-                        kvp( "$expr", make_document( kvp( "$and", make_array(
-                            make_document( kvp( "$gte", make_array( make_document( kvp( "$year", "$launch" ) ), _flt_years.first ) ) ),
-                            make_document( kvp( "$lte", make_array( make_document( kvp( "$year", "$launch" ) ), _flt_years_r ? _flt_years.second : _flt_years.first ) ) )
-                        ) ) ) )
-                    ) 
-                );
-
-                for( auto&& doc : cursor ) {
-                    docs->emplace_back( std::move( doc ) );
-                }
-
-                _docs = std::move( docs );
-
+                ( _sig_refresh.exchange( nullptr, std::memory_order_release ) )( this, std::move( _sig_arg ) );
             } catch( std::exception& exc ) {
                 WARC_ECHO_RT_ERROR << exc.what();
             }
             
-            _sig_refresh.store( false, std::memory_order_release );
             _sig_refresh.notify_all();
         }
 
         return 0;
+    }
+
+_WARC_PROTECTED:
+    static void _proc_query_filters( HQAgentSatellites* that, [[maybe_unused]]std::any ) {
+        using bsoncxx::builder::basic::make_document; 
+        using bsoncxx::builder::basic::make_array;
+        using bsoncxx::builder::basic::kvp;
+
+        ixN::comms( ixN::EchoLevel_Pending, "Refreshing collection entries." );
+
+        ixN::SPtr< DocsContainer > docs{ new DocsContainer{} };
+
+        mongocxx::cursor cursor = that->_collection.find( 
+            make_document( 
+                kvp( "alias", make_document( kvp( "$regex", that->_flt_alias.c_str() ) ) ),
+                kvp( "$expr", make_document( kvp( "$and", make_array(
+                    make_document( kvp( "$gte", make_array( make_document( kvp( "$year", "$launch" ) ), that->_flt_years.first ) ) ),
+                    make_document( kvp( "$lte", make_array( make_document( kvp( "$year", "$launch" ) ), that->_flt_years_r ? that->_flt_years.second : that->_flt_years.first ) ) )
+                ) ) ) )
+            ) 
+        );
+
+        for( auto&& doc : cursor ) {
+            docs->emplace_back( std::move( doc ) );
+        }
+
+        ixN::comms( ixN::EchoLevel_Ok, "Refresh collection entries." );
+
+        that->_docs = std::move( docs );
+    }
+
+    static void _proc_drop_doc( HQAgentSatellites* that, std::any arg ) {
+        using bsoncxx::builder::stream::document;
+        using bsoncxx::builder::stream::finalize;
+
+        auto oid = std::any_cast< bsoncxx::oid >( arg );
+
+        ixN::comms( ixN::EchoLevel_Pending, "Dropping [{}].", oid.to_string() );
+
+        that->_collection.delete_one( ( document{} << "_id" << oid << finalize ).view() );
+
+        ixN::comms( ixN::EchoLevel_Pending, "Dropped [{}].", oid.to_string()  );
+
+        that->sig_proc( &_proc_query_filters );
     }
 
 public:
@@ -416,9 +435,9 @@ public:
         ImGui::InputTextWithHint( "##Alias", "Regex here...", &_flt_alias, ImGuiInputTextFlags_EnterReturnsTrue );
         ImGui::Separator();
         ImGui::BulletText( "Year(s)" ); ImGui::SameLine(); 
-        ImGui::SetNextItemWidth( 100.0 ); ImGui::DragInt( "##After", &_flt_years.first, 0.2, 1900, _flt_years_r ? _flt_years.second - 1 : 2099 ); ImGui::SameLine();
+        ImGui::SetNextItemWidth( 100.0 ); ImGui::DragInt( "##After", &_flt_years.first, 0.2, 1957, _flt_years_r ? _flt_years.second - 1 : 2024 ); ImGui::SameLine();
         if( _flt_years_r ) {
-            ImGui::SetNextItemWidth( 100.0 ); ImGui::DragInt( "##Before", &_flt_years.second, 0.2, _flt_years.first + 1, 2100 ); ImGui::SameLine();
+            ImGui::SetNextItemWidth( 100.0 ); ImGui::DragInt( "##Before", &_flt_years.second, 0.2, _flt_years.first + 1, 2025 ); ImGui::SameLine();
         }
         if( ImGui::Checkbox( "Range", &_flt_years_r ) && _flt_years_r ) {
             _flt_years.second = _flt_years.first + 1;
@@ -426,12 +445,12 @@ public:
 
         ImGui::NewLine(); ImGui::Separator();
         if( ImGui::Button( "Query" ) ) {
-            this->sig_proc();
+            this->sig_proc( &_proc_query_filters );
         }
         if( 
             ( 
                 _flt_alias.empty() 
-                || 
+                &&
                 ( _flt_years_r && abs( _flt_years.first - _flt_years.second ) >= 10 )
             ) 
             && ImGui::IsItemHovered( ImGuiHoveredFlags_DelayNone ) && ImGui::BeginTooltip() 
@@ -441,6 +460,14 @@ public:
             ImGui::Text( "Querying these filters may retrieve a lot of the documents in the collection. Proceed?" );
             ImGui::EndTooltip();
         }
+        
+        ImGui::SameLine();
+        if( ImGui::Button( "+" ) ) {
+
+        }
+
+        ImGui::SameLine(); ImGui::Checkbox( "Read only", &_read_only );
+
         ImGui::NewLine(); ImGui::Separator();
 
         ixN::SPtr< DocsContainer > docs = _docs; if( !docs || docs->empty() ) goto l_not_ready; 
@@ -498,9 +525,10 @@ public:
                 ImGui::Text( " %d ", 1900 + launch_date->tm_year );
                 
                 ImGui::TableSetColumnIndex( 5 ); 
-                if( ImGui::Button( "Edit" ) ) {
+                if( !_read_only && ImGui::Button( "Edit" ) ) {
 
                 }
+
                 ImGui::PushStyleColor( ImGuiCol_Button,        ImVec4{ 0.2, 0.2, 0.2, 1.0 } );
                 ImGui::PushStyleColor( ImGuiCol_ButtonHovered, ImVec4{ 0.4, 0.4, 0.4, 1.0 } );
                 ImGui::PushStyleColor( ImGuiCol_ButtonActive,  ImVec4{ 0.0, 0.0, 0.0, 1.0 } );
@@ -509,12 +537,27 @@ public:
 
                 }
                 ImGui::PopStyleColor( 3 );
+
                 ImGui::PushStyleColor( ImGuiCol_Button,        ImVec4{ 0.5, 0.0, 0.0, 1.0 } );
                 ImGui::PushStyleColor( ImGuiCol_ButtonHovered, ImVec4{ 0.8, 0.0, 0.0, 1.0 } );
                 ImGui::PushStyleColor( ImGuiCol_ButtonActive,  ImVec4{ 0.3, 0.0, 0.0, 1.0 } );
                 ImGui::SameLine();
-                if( ImGui::Button( "Drop" ) ) {
+                if( !_read_only ) {
+                    if( ImGui::Button( "Drop" ) ) { _dropping = false; }
+                    if( !_dropping && ImGui::IsItemClicked() ) { _dropping = true; _drop_tick.lap(); }
+                    
+                    if( _dropping && ImGui::IsItemHovered( ImGuiHoveredFlags_None ) ) {
+                        float elapsed = _drop_tick.peek_lap();
 
+                        ImGui::BeginTooltip();
+                        ImGui::ProgressBar( elapsed / _DROP_DELAY, ImVec2{ 86, 0 }, "Dropping..." );
+                        ImGui::EndTooltip();
+
+                        if( elapsed >= _DROP_DELAY ) {
+                            _dropping = false;
+                            this->sig_proc( &_proc_drop_doc, doc[ "_id" ].get_oid().value );
+                        }
+                    }
                 }
                 ImGui::PopStyleColor( 3 );
 
@@ -663,28 +706,21 @@ public:
 
 
 
-}; };
-
-
-
 int main( int argc, char* argv[] ) {  
-    _WARC_IXN_COMPONENT_DESCRIPTOR( "warc-db-main" );
-
-    WARC_ASSERT_RT( argc >= 2, "No root directory specified. Aborting.", -1, -1 );
-    WARC_ROOT_DIR = argv[ 1 ];
-
-    warc::db::Imm imm{ argc, argv };
-    warc::db::HQ hq{ "mongodb://localhost:27017", &imm };
+    Imm imm{ argc, argv };
+    HQ hq{ "mongodb://localhost:27017", &imm };
 
     imm.push( &hq );
 
-    warc::db::HQAgentSatellites hqa_sat{ hq.database };
-    warc::db::HQAgentImages     hqa_img{ hq.database };
-    warc::db::HQAgentEvents     hqa_evt{ hq.database };
-    warc::db::HQAgentCloudheads hqa_cdh{ hq.database };
-    warc::db::HQAgentNotes      hqa_not{ hq.database };
+    HQAgentSatellites hqa_sat{ hq.database };
+    HQAgentImages     hqa_img{ hq.database };
+    HQAgentEvents     hqa_evt{ hq.database };
+    HQAgentCloudheads hqa_cdh{ hq.database };
+    HQAgentNotes      hqa_not{ hq.database };
 
-    warc::db::HQAgentGridFS     hqa_gfs{ hq.database };
+    HQAgentGridFS     hqa_gfs{ hq.database };
 
     return hq.main();
 }
+
+}; };

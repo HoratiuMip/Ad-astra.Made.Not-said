@@ -144,7 +144,7 @@ public:
 
             static ixN::Ticker frame_tick;
             if( this->loop( frame_tick.lap(), params.arg ) != 0 ) params.is_running.store( false, std::memory_order_seq_cst );
-            ImGui::ShowDemoWindow();
+            // ImGui::ShowDemoWindow();
             ImGui::Render();
 
             ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );

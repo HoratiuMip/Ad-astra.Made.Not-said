@@ -1,22 +1,35 @@
-/*===== WARC Database - Collections - Vatca "Mipsan" Tudor-Horatiu
+/*===== WARC Database - Vatca "Mipsan" Tudor-Horatiu
 |
 |=== DESCRIPTION
-> Wrappers for the database colletcions entries.
+> 
 |
 ======*/
-#pragma once
-
 #include <warc/common.hpp>
 #include <warc/satellite.hpp>
 
+#include <IXN/Framework/imgui_on_opengl3.hpp>
+
+#include <bsoncxx/json.hpp>
+#include <bsoncxx/json.hpp>
 #include <bsoncxx/oid.hpp>
+#include <bsoncxx/types.hpp>
+#include <bsoncxx/builder/stream/document.hpp>
+#include <bsoncxx/builder/stream/helpers.hpp>
+#include <bsoncxx/document/view.hpp>
+#include <bsoncxx/document/element.hpp>
+#include <bsoncxx/builder/basic/array.hpp>
+#include <mongocxx/client.hpp>
+#include <mongocxx/instance.hpp>
+#include <mongocxx/gridfs/bucket.hpp>
 
-namespace warc { namespace db {
+#include <any>
 
 
-#define WARC_DB_STR WARC_STR"::db"
-_WARC_IXN_COMPONENT_DESCRIPTOR( WARC_DB_STR );
+namespace warc { namespace database {
 
+
+#define WARC_DATABASE_STR WARC_STR"::DATABASE"
+_WARC_IXN_COMPONENT_DESCRIPTOR( WARC_DATABASE_STR );
 
 
 struct InstalledAntenna {
@@ -25,7 +38,6 @@ struct InstalledAntenna {
     std::string    rating;
     int            acquisition_count;
 };
-
 
 enum RigEventLevel_ : ixN::UBYTE {
     RigEventLevel_Info,
@@ -44,7 +56,6 @@ struct RigEvent {
     bsoncxx::oid     source;
     std::string      state;
 };
-
 
 enum CloudheadType_ : ixN::UBYTE {
     /* Banned from any DB access. */
@@ -74,7 +85,6 @@ struct Cloudhead {
     int              image_count;
 };
 
-
 struct Decoding {
     bsoncxx::oid                   oid;
     std::string                    description;
@@ -84,7 +94,6 @@ struct Decoding {
     std::unique_ptr< ixN::BYTE >   data;
     std::string                    format;
 };
-
 
 struct Satellite {
     bsoncxx::oid    oid;
@@ -97,7 +106,6 @@ struct Satellite {
     double          avg_alt;           /* [km] */
 };
 
-
 struct Note {
     bsoncxx::oid   oid;
     bsoncxx::oid   source;
@@ -107,4 +115,7 @@ struct Note {
 };
 
 
-} };
+int main( int argc, char* argv[] );
+
+
+}; };

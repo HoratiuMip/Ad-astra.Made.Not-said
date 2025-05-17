@@ -8,8 +8,8 @@
 
 namespace barra {
 
-const char* const DEVICE_NAME = "BarraCUDA-CTRL";
-const wchar_t* const DEVICE_NAME_W = L"BarraCUDA-CTRL";
+const char* const DEVICE_NAME = "BarrunCUDA";
+const wchar_t* const DEVICE_NAME_W = L"BarrunCUDA";
 
 
 struct switch_t {

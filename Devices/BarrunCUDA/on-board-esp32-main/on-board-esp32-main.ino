@@ -190,6 +190,9 @@ struct GPIO {
     inline static const GPIO_pin_t miru = 16;
     /*                             |buzzer */
 
+    inline static const GPIO_pin_t minju = 34;
+    /*                             | analog multiplexer */
+
     inline static const GPIO_pin_t xabara = 17;
     /*                             |bridge */
 
@@ -216,6 +219,8 @@ struct GPIO {
         pinMode( tanya, INPUT );
 
         pinMode( miru, INPUT );
+
+        pinMode( minju, INPUT );
 
         pinMode( xabara, INPUT_PULLUP );
     
@@ -255,15 +260,10 @@ struct GPIO_DEX_0 {
     inline static const GPIO_pin_t  suzyq  = 16;
     /*                              |laser */
 
-    inline static const GPIO_pin_t  minju = 15;
-    /*                              |pulse */
-
     static int init( void ) {
         if( !_seesaw.begin( CONFIG.I2C_addr_GPIO_DEX_0 ) ) return -1;
 
         _seesaw.pinMode( suzyq, OUTPUT );
-
-        _seesaw.pinMode( minju, INPUT );
 
         return 0;
     }
@@ -350,9 +350,10 @@ static struct _BITNA {
         GPIO::D_W( GPIO::bitna.x, GPIO::GND );
     }
 
-    void x_blink( int N, int ms_on, int ms_off, bool keep_on ) {
+    void x_blink( int N, int ms_on, int ms_off, bool keep_on, bool strip ) {
         for( int n = 1; n <= N; ++n ) {
-            this->x_set(); vTaskDelay( ms_on ); this->x_reset(); vTaskDelay( ms_off );
+            this->x_set(); if( strip ) this->make( Led_BLU ); vTaskDelay( ms_on ); 
+            this->x_reset(); if( strip ) this->make( Led_BLK ); vTaskDelay( ms_off );
         }
         if( keep_on ) this->x_set();
     }
@@ -1300,38 +1301,37 @@ GAME_MAIN_OVR{
     bool         riding = false;
 
 MAIN_LOOP_ON( Mode_Game ) {
-    for( int i = 0; i <= 20; ++i ) {
-    int read = GPIO_DEX_0::A_R( i);
+    int read = GPIO::A_R( GPIO::minju );
 
-    // read -= 1800;
-    // if( read < 0 ) read = 0;
+    read -= 1800;
+    if( read < 0 ) read = 0;
 
-    // flt = flt * 0.95 + read * 0.05;
-    // damp = damp * 0.995 + read * 0.005;
+    flt = flt * 0.95 + read * 0.05;
+    damp = damp * 0.995 + read * 0.005;
 
-    // double diff = flt - damp;
-    // if( diff < 0 ) diff = 0;
-    // else diff = pow( diff, 2 );
+    double diff = flt - damp;
+    if( diff < 0 ) diff = 0;
+    else diff = pow( diff, 2 );
 
     Serial.print( -100 );
     Serial.print( " " );
     Serial.print( 1500 );
     Serial.print( " " );
-    Serial.println( read ); }
+    Serial.println( read );
 
-    // if( diff >= 300.0 && !riding ) {
-    //     static _MIRU::_wave_frag_t wave{ freq: 880, ms: 120 };
+    if( diff >= 300.0 && !riding ) {
+        static _MIRU::_wave_frag_t wave{ freq: 880, ms: 120 };
 
-    //     riding = true;
+        riding = true;
 
-    //     BITNA.make( Led_RED );
-    //     MIRU.q_push( _MIRU::_wave_desc_t{ frags: &wave, frag_count: 1 } );
-    // } else if( diff <= 300.0 ) {
-    //     riding = false;
-    // }
+        BITNA.make( Led_RED );
+        MIRU.q_push( _MIRU::_wave_desc_t{ frags: &wave, frag_count: 1 } );
+    } else if( diff <= 300.0 ) {
+        riding = false;
+    }
     
     vTaskDelay( Ts );
-}
+  }
 };
 } GAME_HEART;
 
@@ -1600,7 +1600,8 @@ std::function< int( void ) >   ctrl_loop_procs[]   = {
     _printf( LogLevel_Info, "Disconnected from device.\n" );
     CONFIG_CTRL_MODE._conn_rst = true;
     _printf( LogLevel_Info, "Ready to relink...\n" );
-    BITNA.x_blink( 9, 50, 50, false );
+    BITNA.x_blink( 9, 50, 50, false, true );
+    YUNA.drawBitmap( 0, 0, BARRA_BTH_SEARCH_STATIC, 91, 64, SSD1306_WHITE ); YUNA.display();
     return true;
   },
 
@@ -1627,14 +1628,20 @@ std::function< int( void ) >   ctrl_loop_procs[]   = {
   },
 
   /* 0b10 */ [] () static -> bool {
-    BITNA.x_blink( 1, 100, 500, false );
+    BITNA.x_blink( 1, 100, 500, false, true );
+
+    YUNA.drawRect( 91, 0, 37, 64, SSD1306_BLACK );
+    YUNA.drawBitmap( 103, 0, BARRA_BTH_SEARCH_DYNAMIC, 13, 64, SSD1306_WHITE );
+    YUNA.display();
+
     return true;
   },
 
   /* 0b11 */ [] () static -> bool {
     CONFIG_CTRL_MODE._conn_rst = false;
     _printf( LogLevel_Info, "Connected to device.\n" );
-    BITNA.x_blink( 9, 50, 50, true );
+    YUNA.drawBitmap( 0, 0, BARRA_BTH_CONNECTED, 128, 64, SSD1306_WHITE ); YUNA.display();
+    BITNA.x_blink( 9, 50, 50, true, true );
     return true;
   }
 };

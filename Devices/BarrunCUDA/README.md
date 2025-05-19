@@ -4,6 +4,8 @@ The "How does it hold together?" makeshift joystick controller, with only one qu
 
 Dedicated to his impossible love, by its founder, the hopeless romantic, https://github.com/nyjucu.
 
+Quick demo [here](https://www.youtube.com/shorts/fO5yGtDo8sk).
+
 ## Overview
 What started as a simple bluetooth controller, now has become a portable electronic bomb-looking multi-tool, including:
 > - `Control` - the original purpose of the device, as your good ol' joystick controller.

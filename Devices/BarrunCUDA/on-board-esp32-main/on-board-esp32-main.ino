@@ -435,6 +435,8 @@ static struct _YUNA : public Adafruit_SSD1306 {
         this->setTextWrap( false );
 		this->setTextSize( 1 );
         this->clearDisplay();
+
+        //Adafruit_SSD1306::buffer = Adafruit_SSD1306::buffer;
         
         return 0;
     }
@@ -1255,7 +1257,12 @@ void loop() {
     );
 
     for(;;) {
-        CONFIG.mains[ CONFIG.mode.load( std::memory_order_seq_cst ) ]( CONFIG._arg ); 
+        Mode_ mode = ( Mode_ )CONFIG.mode.load( std::memory_order_seq_cst );
+
+        if( mode != Mode_Brdg ) BITNA.x_set(); else BITNA.x_reset();
+
+        CONFIG.mains[ ( int )mode ]( CONFIG._arg ); 
+
         _SPOT::place( NULL );
         YUNA.clear_w();
     }
@@ -1563,10 +1570,39 @@ static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 4 ] = {
 }
 };
 
+static WJP_IBRSTBL_ENTRY wjp_IBRSTBL[ 1 ] = {
+{
+    mem: nullptr,
+    sz: sizeof( WJP_HEAD ) + sizeof( barra::dynamic_t ),
+    out_fnc: [] WJP_IBRST_OUT_LAMBDA { 
+        static struct _PACKET : WJP_HEAD { 
+            _PACKET() {
+                WJP_HEAD::_dw0.op  = WJPOp_IBurst;
+                WJP_HEAD::_dw1.seq = 0;
+                WJP_HEAD::_dw3.sz  = sizeof( barra::dynamic_t ); 
+            }
+            barra::dynamic_t   dyn;
+        } packet;
+        static _DYNAM::snapshot_token_t ss_tok{ dst: &packet.dyn, blk: true };
+
+        DYNAM.snapshot( &ss_tok );
+        return &packet;
+    },
+    WJP_IBRST_PACKED,
+    WJP_IBRST_DIR_OUT,
+    WJPIBrstStatus_Engaged
+}
+};
+
 int _CONFIG_CTRL_MODE::init( void ) {
 	wjpblu.bind_qgstbl( WJP_QGSTBL{ 
       	entries: wjp_QGSTBL, 
       	count: sizeof( wjp_QGSTBL ) / sizeof( WJP_QGSTBL_ENTRY ) 
+    } );
+
+    wjpblu.bind_ibrstbl( WJP_IBRSTBL{
+        entries: wjp_IBRSTBL,
+        count: sizeof( wjp_IBRSTBL ) / sizeof( WJP_IBRSTBL_ENTRY )
     } );
 
     return wjpblu.init( 0 );
@@ -1597,11 +1633,14 @@ int wjp_loop( void ) {
 
 std::function< int( void ) >   ctrl_loop_procs[]   = {
   /* 0b00 */ [] () static -> bool {
-    _printf( LogLevel_Info, "Disconnected from device.\n" );
     CONFIG_CTRL_MODE._conn_rst = true;
-    _printf( LogLevel_Info, "Ready to relink...\n" );
-    BITNA.x_blink( 9, 50, 50, false, true );
-    YUNA.drawBitmap( 0, 0, BARRA_BTH_SEARCH_STATIC, 91, 64, SSD1306_WHITE ); YUNA.display();
+    
+    BITNA.x_blink( 9, 50, 50, false, false );
+
+    YUNA.clearDisplay();
+    YUNA.drawBitmap( 0, 0, BARRA_BTH_SEARCH_STATIC, 91, 64, SSD1306_WHITE ); 
+    YUNA.display();
+
     return true;
   },
 
@@ -1611,37 +1650,35 @@ std::function< int( void ) >   ctrl_loop_procs[]   = {
       return true;
     }
 
-    static struct _PACKET : WJP_HEAD { 
-        _PACKET() {
-            WJP_HEAD::_dw0.op  = WJPOp_IBurst;
-            WJP_HEAD::_dw1.seq = 0;
-            WJP_HEAD::_dw3.sz  = sizeof( barra::dynamic_t ); 
-        }
-        barra::dynamic_t   dyn;
-    } packet;
-    static _DYNAM::snapshot_token_t ss_tok{ dst: &packet.dyn, blk: true };
-    
-    DYNAM.snapshot( &ss_tok );
-    CONFIG_CTRL_MODE.wjpblu.trust_burst( &packet, sizeof( packet ), 0 );
+    CONFIG_CTRL_MODE.wjpblu.resolve_ibrst( 0, 0 );
 
     return true;
   },
 
   /* 0b10 */ [] () static -> bool {
-    BITNA.x_blink( 1, 100, 500, false, true );
+    static constexpr int SPLASH_OFS_AMP = 10;
+    static int           splash_ofs     = 0;
+    static bool          splash_dir     = 0;
 
-    YUNA.drawRect( 91, 0, 37, 64, SSD1306_BLACK );
-    YUNA.drawBitmap( 103, 0, BARRA_BTH_SEARCH_DYNAMIC, 13, 64, SSD1306_WHITE );
+    if( abs( splash_ofs += splash_dir ? 1 : -1 ) >= SPLASH_OFS_AMP ) splash_dir ^= 1; 
+
+    YUNA.fillRect( 91, 0, 37, 64, SSD1306_BLACK );
+    YUNA.drawBitmap( 103 + splash_ofs, 0, BARRA_BTH_SEARCH_DYNAMIC, 13, 64, SSD1306_WHITE );
     YUNA.display();
+
+    BITNA.x_blink( 1, 100, 500, false, true );
 
     return true;
   },
 
   /* 0b11 */ [] () static -> bool {
     CONFIG_CTRL_MODE._conn_rst = false;
-    _printf( LogLevel_Info, "Connected to device.\n" );
-    YUNA.drawBitmap( 0, 0, BARRA_BTH_CONNECTED, 128, 64, SSD1306_WHITE ); YUNA.display();
-    BITNA.x_blink( 9, 50, 50, true, true );
+    
+    BITNA.x_blink( 9, 50, 50, true, false );
+
+    YUNA.drawBitmap( 0, 0, BARRA_BTH_CONNECTED, 128, 64, SSD1306_WHITE, SSD1306_BLACK ); 
+    YUNA.display();
+
     return true;
   }
 };
@@ -1651,6 +1688,7 @@ void main_ctrl( void* arg ) {
 
     CONFIG_CTRL_MODE.wjpblu.begin( barra::DEVICE_NAME );    
 
+    ctrl_loop_procs[ 0b00 ]();
 MAIN_LOOP_ON( Mode_Ctrl ) {
     ctrl_loop_procs[ ( CONFIG_CTRL_MODE._conn_rst << 1 ) | CONFIG_CTRL_MODE.wjpblu.connected() ]();
 } 

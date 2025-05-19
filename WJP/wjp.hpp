@@ -101,9 +101,28 @@ struct WJP_QGSTBL {
 /*
 |>  INDEXED BURST ======
 */
+#define WJP_IBRST_DIR_IN 0
+#define WJP_IBRST_DIR_OUT 1
+#define WJP_IBRST_DIR_INOUT 2
+
+#define WJP_IBRST_UNPACKED 0
+#define WJP_IBRST_PACKED 1
+
+typedef   std::function< void*( void ) >   WJP_IBRST_OUT_FUNC;
+
+#define WJP_IBRST_OUT_LAMBDA ( void ) -> void*
+
+typedef   int   WJPIBrstStatus_;
+#define WJPIBrstStatus_Disengaged 0
+#define WJPIBrstStatus_Engaged -1
+
 struct WJP_IBRSTBL_ENTRY {
-    void*     dst;
-    int32_t   sz;
+    void*                mem           = nullptr;
+    int32_t              sz            = 0;
+    WJP_IBRST_OUT_FUNC   out_fnc       = nullptr;
+    unsigned int         dir     : 2;
+    bool                 packed;
+    int                  _status       = WJPIBrstStatus_Disengaged;
 };
 
 struct WJP_IBRSTBL {
@@ -533,7 +552,7 @@ struct WJP_DEVICE {
         _WJP_ASSERT_CTX_INFO( context->info->recv_head._dw3.sz <= entry->sz, WJPErr_Size, -1 );
 
         _WJP_RR_ASSERT_RECV(
-            _srwrap.recv( WJP_BUFFER{ addr: entry->dst, sz: context->info->recv_head._dw3.sz }, 0 ), 
+            _srwrap.recv( WJP_BUFFER{ addr: entry->mem, sz: context->info->recv_head._dw3.sz }, 0 ), 
             context->info->recv_head._dw3.sz, 
             WJPErr_Recv
         );
@@ -613,8 +632,22 @@ struct WJP_DEVICE {
         return _srwrap.send( WJP_CBUFFER{ addr: str, sz: strlen( str ) }, 0 ) == strlen( str );
     }
 
-    int trust_burst( const void* src, int32_t sz, int flags ) {
-        return _srwrap.send( WJP_CBUFFER{ addr: src, sz: sz }, flags );
+    int resolve_ibrst( int entry_index, int flags ) {
+        WJP_IBRSTBL_ENTRY* entry = &_ibrstbl.entries[ entry_index ];
+
+        if( entry->_status == WJPIBrstStatus_Disengaged ) return 0;
+        if( entry->_status > 0 ) --entry->_status;
+
+        if( entry->mem != nullptr ) {
+            return -1;
+        } else if( entry->out_fnc != nullptr ) {
+            if( entry->packed )
+                return _srwrap.send( WJP_CBUFFER{ addr: entry->out_fnc(), sz: entry->sz }, flags );
+            else
+                return -1;
+        } 
+
+        return -1;
     }
 
 /*

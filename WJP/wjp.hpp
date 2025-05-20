@@ -20,36 +20,39 @@
         #warning "[ WJP ] Endianess of target architecture not specified. Defaulting to little endian."
     #endif
 #endif
-
+    const int16_t WJP_CTRL_ALTERNATE_BIT = 1 << 15;
 
 enum WJPOp_ : int8_t {
-    WJPOp_Null   = 0x0,
+    WJPOp_Null        = 0x00,
 
-    WJPOp_Ack    = 0x1,
-    WJPOp_Nak    = 0x2,
+    WJPOp_Ack         = 0x01,
+    WJPOp_Nak         = 0x02,
 
-    WJPOp_Ping   = 0xb,
+    WJPOp_Ping        = 0x0b,
     
-    WJPOp_QSet   = 0xc,
-    WJPOp_QGet   = 0xd,
+    WJPOp_QSet        = 0x0c,
+    WJPOp_QGet        = 0x0d,
 
-    WJPOp_IBurst = -0xb,
+    WJPOp_IBurst      = -0x0b,
+    WJPOp_IBurstCtrl  = -0x0c,
 
     _WJPOp_FORCE_BYTE = 0x7f
 };
 
 struct WJP_HEAD {
-    constexpr WJP_HEAD() { _dw0._sig_b0 = 0x57; _dw0._sig_b1 = 0x4a, _dw0._sig_b2 = 0x50; _dw0.op = WJPOp_Null; }
+    WJP_HEAD() { _dw0._sig_b0 = 0x57; _dw0._sig_b1 = 0x4a, _dw0._sig_b2 = 0x50; _dw0.op = WJPOp_Null; }
 
     union {
         struct{ int8_t _sig_b0, _sig_b1, _sig_b2; int8_t op; } _dw0;
         int32_t                                                sig;
     };
-    struct{ int16_t _reserved; int16_t seq = 0; }              _dw1;
-    struct{ int32_t _reserved; }                               _dw2;
+    struct{ int16_t ctrl = 0; int16_t seq = 0; }               _dw1;
+    struct{ int32_t _reserved = 0; }                           _dw2;
     struct { int32_t sz = 0;  }                                _dw3;
 
     _WJP_forceinline bool is_signed( void ) { return ( sig & WJP_SIG_MSK ) == WJP_SIG; }
+
+    _WJP_forceinline bool is_alternate( void ) { return _dw1.ctrl & WJP_CTRL_ALTERNATE_BIT; }
 };
 static_assert( sizeof( WJP_HEAD ) == 4*sizeof( int32_t ) );
 
@@ -101,6 +104,14 @@ struct WJP_QGSTBL {
 /*
 |>  INDEXED BURST ======
 */
+#define WJP_IBRST_CTRL_ENGAGE_MSK ((1<<1)|(1<<0))
+enum WJPIbrstCtrlEngage_ : int8_t {
+    WJPIbrstCtrlEngage_Terminate    = 0b00,
+    WJPIbrstCtrlEngage_AutoThrottle = 0b01,
+
+    _WJPIbrstCtrlEngage_FORCE_BYTE = 0x7f
+};
+
 #define WJP_IBRST_DIR_IN 0
 #define WJP_IBRST_DIR_OUT 1
 #define WJP_IBRST_DIR_INOUT 2
@@ -190,43 +201,49 @@ enum WJPSendMethod_ {
 
 enum WJPErr_ : int {
     /* No error. */
-    WJPErr_None       = 0,
+    WJPErr_None        = 0,
 
     /* The received header is missing the WJP signature. */
-    WJPErr_NotSigned  = 1,
+    WJPErr_NotSigned   = 1,
 
     /* Error during reception. */
-    WJPErr_Recv       = 2,
+    WJPErr_Recv        = 2,
 
     /* Error during transmission. */
-    WJPErr_Send       = 3,
+    WJPErr_Send        = 3,
 
     /* The received packet has no resolver waiting for it. */
-    WJPErr_NoResolver = 4,
+    WJPErr_NoResolver  = 4,
 
     /* The received packet is out of sequence. */
-    WJPErr_Sequence   = 5,
+    WJPErr_Sequence    = 5,
 
     /* The received packet reports a wrong size. */
-    WJPErr_Size       = 6,
+    WJPErr_Size        = 6,
 
     /* Either the host or the endpoint ended the connection. */
-    WJPErr_ConnReset  = 7,
+    WJPErr_ConnReset   = 7,
 
     /* The received packet has an unidentifiable id. */
-    WJPErr_NoEntry    = 8,
+    WJPErr_NoEntry     = 8,
 
     /* The host forced the wake of the waiting thread. */
-    WJPErr_Forced     = 9,
+    WJPErr_Forced      = 9,
 
     /* The receive function wrap did not read the byte count requested by WJP. */
-    WJPErr_CountRecv  = 10,
+    WJPErr_CountRecv   = 10,
 
     /* The send function wrap did not write the byte count requested by WJP. */
-    WJPErr_CountSend  = 11,
+    WJPErr_CountSend   = 11,
 
     /* The received packet has an invalid operation code. */
-    WJPErr_InvalidOp  = 12
+    WJPErr_InvalidOp   = 12,
+
+    /* The received packet has an invalid control bits combination. */
+    WJPErr_InvalidCtrl = 13,
+
+    /* The received packet has an invalid alternate size argument. */
+    WJPErr_AltSize     = 14
 };
 const char* WJP_err_strs[] = {
     "WJPErr_None",
@@ -241,7 +258,9 @@ const char* WJP_err_strs[] = {
     "WJPErr_Forced",
     "WJPErr_CountRecv",
     "WJPErr_CountSend",
-    "WJPErr_InvalidOp"
+    "WJPErr_InvalidOp",
+    "WJPErr_InvalidCtrl",
+    "WJPErr_AltSize"
 };
 
 struct WJP_RESOLVE_RECV_INFO {
@@ -506,6 +525,7 @@ struct WJP_DEVICE {
     }
 
     _WJP_forceinline int _resolve_acknak( _WJP_RECV_CONTEXT* context ) {
+        _WJP_ASSERT_CTX_INFO( context->info->recv_head._dw3.sz >= 0, WJPErr_Size, -1 );
         _WJP_ASSERT_CTX_INFO( !_resolvers.empty(), WJPErr_NoResolver, -1 );
 
         _WJP_RESOLVER& resolver = _resolvers.front();
@@ -547,6 +567,8 @@ struct WJP_DEVICE {
     }
 
     _WJP_forceinline int _resolve_iburst( _WJP_RECV_CONTEXT* context ) {
+        _WJP_ASSERT_CTX_INFO( context->info->recv_head._dw3.sz >= 0, WJPErr_Size, -1 );
+
         WJP_IBRSTBL_ENTRY* entry = _ibrstbl[ context->info->recv_head._dw1.seq ];
         _WJP_ASSERT_CTX_INFO( entry != nullptr, WJPErr_NoEntry, -1 );
         _WJP_ASSERT_CTX_INFO( context->info->recv_head._dw3.sz <= entry->sz, WJPErr_Size, -1 );
@@ -555,6 +577,33 @@ struct WJP_DEVICE {
             _srwrap.recv( WJP_BUFFER{ addr: entry->mem, sz: context->info->recv_head._dw3.sz }, 0 ), 
             context->info->recv_head._dw3.sz, 
             WJPErr_Recv
+        );
+
+        return 1;
+    }
+
+    _WJP_forceinline int _resolve_iburst_control( _WJP_RECV_CONTEXT* context ) {
+        _WJP_ASSERT_CTX_INFO( context->info->recv_head.is_alternate(), WJPErr_InvalidCtrl, -1 );
+
+        WJP_IBRSTBL_ENTRY* entry = _ibrstbl[ context->info->recv_head._dw3.sz ];
+        _WJP_ASSERT_CTX_INFO( entry != nullptr, WJPErr_NoEntry, -1 );
+
+        switch( ( WJPIbrstCtrlEngage_ )( context->info->recv_head._dw1.ctrl & WJP_IBRST_CTRL_ENGAGE_MSK ) ) {
+            case WJPIbrstCtrlEngage_Terminate: {
+                entry->_status = WJPIBrstStatus_Disengaged; 
+            goto l_ack; }
+
+            case WJPIbrstCtrlEngage_AutoThrottle:  {
+                entry->_status = WJPIBrstStatus_Engaged;
+            goto l_ack; }
+
+            default: _WJP_ASSERT_CTX_INFO( false, WJPErr_InvalidCtrl, -1 ); 
+        }
+
+    l_ack:
+        _WJP_RR_ASSERT__SEND( 
+            _send<>( nullptr, 0, WJPOp_Ack, context->info->recv_head._dw1.seq, 0, WJPSendMethod_Direct ),
+            WJPErr_Send
         );
 
         return 1;
@@ -571,7 +620,6 @@ struct WJP_DEVICE {
         );
 
         _WJP_ASSERT_CTX_INFO( context->info->recv_head.is_signed(), WJPErr_NotSigned, -1 );
-        _WJP_ASSERT_CTX_INFO( context->info->recv_head._dw3.sz >= 0, WJPErr_Size, -1 );
 
         switch( context->info->recv_head._dw0.op ) {
             case WJPOp_Ping: {
@@ -590,6 +638,9 @@ struct WJP_DEVICE {
 
             case WJPOp_IBurst: {
                 _WJP_RR_ASSERT_AGENT( this->_resolve_iburst( context ) );
+            break; }
+            case WJPOp_IBurstCtrl: {
+                _WJP_RR_ASSERT_AGENT( this->_resolve_iburst_control( context ) );
             break; }
         }
 
@@ -616,6 +667,25 @@ struct WJP_DEVICE {
         return ret;
     }
 
+    int wait_back_head_xchg(
+        WJP_WAIT_BACK_INFO* info,
+        WJP_HEAD*           head,
+        int                 flags
+    ) {
+        _WJP_RESOLVER& resolver = _resolvers.emplace( _WJP_RESOLVER{
+            seq:  _seq_acq(),
+            dst:  WJP_BUFFER{ addr: nullptr, sz: 0 },
+            info: info
+        } );
+
+        head->_dw1.seq = resolver.seq;
+
+        int ret = _srwrap.send( WJP_CBUFFER{ addr: head, sz: sizeof( WJP_HEAD ) }, flags );
+        _WJP_WB_ASSERT__SEND( ret, WJPErr_Send );
+
+        return ret;
+    }
+
     void force_waiting_resolvers() {
         _resolvers.for_each( [] ( _WJP_RESOLVER& resolver ) -> void {
             strcpy( resolver.info->nakr, WJP_err_strs[ WJPErr_Forced ] );
@@ -632,8 +702,31 @@ struct WJP_DEVICE {
         return _srwrap.send( WJP_CBUFFER{ addr: str, sz: strlen( str ) }, 0 ) == strlen( str );
     }
 
-    int resolve_ibrst( int entry_index, int flags ) {
-        WJP_IBRSTBL_ENTRY* entry = &_ibrstbl.entries[ entry_index ];
+/*
+|>  WRAPPERS ======
+*/
+    //_WJP_forceinline int qget( WJP_WAIT_BACK_INFO* info, WJP_BUFFER )
+
+    int ibrst_ctrl( WJP_WAIT_BACK_INFO* info, int16_t index, int16_t ctrl, int flags ) {
+        WJP_HEAD head = {};
+
+        head._dw0.op   = WJPOp_IBurstCtrl;
+        head._dw1.ctrl = ctrl | WJP_CTRL_ALTERNATE_BIT;
+        head._dw3.sz   = index;
+
+        return this->wait_back_head_xchg( info, &head, flags );
+    }
+
+    inline int ibrst_terminate( WJP_WAIT_BACK_INFO* info, int16_t index, int flags ) {
+        return this->ibrst_ctrl( info, index, ( int16_t )WJPIbrstCtrlEngage_Terminate, flags );
+    }
+
+    inline int ibrst_auto_throttle_engage( WJP_WAIT_BACK_INFO* info, int16_t index, int flags ) {
+        return this->ibrst_ctrl( info, index, ( int16_t )WJPIbrstCtrlEngage_AutoThrottle, flags );
+    }
+
+    int ibrst( int16_t index, int flags ) {
+        WJP_IBRSTBL_ENTRY* entry = &_ibrstbl.entries[ index ];
 
         if( entry->_status == WJPIBrstStatus_Disengaged ) return 0;
         if( entry->_status > 0 ) --entry->_status;
@@ -649,11 +742,6 @@ struct WJP_DEVICE {
 
         return -1;
     }
-
-/*
-|>  WRAPPERS ======
-*/
-    //_WJP_forceinline int qget( WJP_WAIT_BACK_INFO* info, WJP_BUFFER )
 
 };
 

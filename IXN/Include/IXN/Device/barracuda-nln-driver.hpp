@@ -33,12 +33,21 @@ public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Dev::BarracudaCTRL" );
 
 public:
-    barra::dynamic_t     dynamic                = {};
+    barra::dynamic_t           dynamic         = {};
 
 _ENGINE_PROTECTED:
-    bool                       _trust_invk            = false;
-    std::atomic_int16_t        _wjp_seq               = { 0 };
-    WJP_IBRSTBL_ENTRY          _brstbl_entry          = { dst: &dynamic, sz: sizeof( dynamic ) };
+    bool                       _trust_invk     = false;
+    std::atomic_int16_t        _wjp_seq        = { 0 };
+
+    WJP_IBRSTBL_ENTRY          _brstbl_entry   = {
+        mem: &dynamic,
+        sz: sizeof( barra::dynamic_t ),
+        out_fnc: nullptr,
+        dir: WJP_IBRST_UNPACKED,
+        packed: WJP_IBRST_DIR_IN,
+        _status: WJPIBrstStatus_Engaged
+    };
+
     char                       _wjp_recv_buf[ 256 ];
 
 public:

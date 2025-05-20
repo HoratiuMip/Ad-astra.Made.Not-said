@@ -153,6 +153,18 @@ public:
             BARCUD.breach();
         }
 
+        ImGui::Separator();
+        if( ImGui::Button( "ENGAGE BURST" ) ) {
+            WJP_WAIT_BACK_INFO info;
+            BARCUD.ibrst_auto_throttle_engage( &info, 0, 0 );
+        }
+
+        ImGui::SameLine( 0, 30 );
+        if( ImGui::Button( "DISENGAGE BURST" ) ) {
+            WJP_WAIT_BACK_INFO info;
+            BARCUD.ibrst_terminate( &info, 0, 0 );
+        }
+
         ImGui::SeparatorText( "This controller session." );
 
         ImGui::BulletText( "Up time: %.1fs.", STATS.tkr.peek_lap() );

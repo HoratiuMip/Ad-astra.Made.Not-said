@@ -1590,7 +1590,7 @@ static WJP_IBRSTBL_ENTRY wjp_IBRSTBL[ 1 ] = {
     },
     WJP_IBRST_PACKED,
     WJP_IBRST_DIR_OUT,
-    WJPIBrstStatus_Engaged
+    WJPIBrstStatus_Disengaged
 }
 };
 
@@ -1650,7 +1650,7 @@ std::function< int( void ) >   ctrl_loop_procs[]   = {
       return true;
     }
 
-    CONFIG_CTRL_MODE.wjpblu.resolve_ibrst( 0, 0 );
+    CONFIG_CTRL_MODE.wjpblu.ibrst( 0, 0 );
 
     return true;
   },

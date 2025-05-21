@@ -61,7 +61,7 @@ static_assert( sizeof( WJP_HEAD ) == 4*sizeof( int32_t ) );
 |>  QUICK GET/SET ======
 */
 #define WJP_QSET_LAMBDA ( WJP_BUFFER args ) -> const char*
-#define WJP_QGET_LAMBDA ( void* dest, WJP_BUFFER args ) -> const char*
+#define WJP_QGET_LAMBDA ( void* dst, WJP_BUFFER args ) -> const char*
 
 #define WJP_QGSTBL_READ_WRITE 0
 #define WJP_QGSTBL_READ_ONLY  1
@@ -298,6 +298,9 @@ struct _WJP_RECV_CONTEXT {
  */
 typedef   std::function< int16_t( void ) >   WJP_SEQ_ACQ_FUNC;
 
+typedef   std::function< int( _WJP_RECV_CONTEXT* ) > WJP_RECV_FWD_FUNC;
+#define WJP_RECV_FWD_LAMBDA ( _WJP_RECV_CONTEXT* context ) -> int
+
 struct WJP_DEVICE {
 /*
 |>  FIELDS ======
@@ -306,6 +309,7 @@ struct WJP_DEVICE {
     WJP_BUFFER                                _recv_buf    = {};
 
     WJP_SEQ_ACQ_FUNC                          _seq_acq     = nullptr;
+    WJP_RECV_FWD_FUNC                         _recv_fwd    = nullptr;
 
     WJP_QGSTBL                                _qgstbl      = {};
     WJP_IBRSTBL                               _ibrstbl     = {};
@@ -321,6 +325,7 @@ struct WJP_DEVICE {
     void bind_recv_buf( const WJP_BUFFER& buf ) { _recv_buf = buf; }
 
     void bind_seq_acq( const WJP_SEQ_ACQ_FUNC& seq_acq ) { _seq_acq = seq_acq; }
+    void bind_recv_fwd( const WJP_RECV_FWD_FUNC& recv_fwd ) { _recv_fwd = recv_fwd; }
 
     void bind_qgstbl( const WJP_QGSTBL& qgstbl ) { _qgstbl = qgstbl; }
     void bind_ibrstbl( const WJP_IBRSTBL& ibrstbl ) { _ibrstbl = ibrstbl; }
@@ -621,6 +626,9 @@ struct WJP_DEVICE {
 
         _WJP_ASSERT_CTX_INFO( context->info->recv_head.is_signed(), WJPErr_NotSigned, -1 );
 
+        WJP_RECV_FWD_FUNC recv_fwd = _recv_fwd;
+        if( recv_fwd && recv_fwd( context ) != 0 ) goto l_end;
+
         switch( context->info->recv_head._dw0.op ) {
             case WJPOp_Ping: {
                 _WJP_RR_ASSERT_AGENT( this->_resolve_ping( context ) );
@@ -644,6 +652,7 @@ struct WJP_DEVICE {
             break; }
         }
 
+    l_end:
         return context->recv_count;
     }
 

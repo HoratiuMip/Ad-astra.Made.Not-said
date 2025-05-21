@@ -22,7 +22,7 @@
 #endif 
 
 
-#define _WJP_SUICIDE ( *( int* )-1 = *( int* )0 )
+#define _WJP_SUICIDE
 
 
 /*
@@ -56,9 +56,6 @@ struct _WJP_INTERLOCKED_BOOL {
 #if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_UC )
     _WJP_forceinline bool read( _WJP_MEM_ORD_DFT_ARG ) { return _flag.load( mem_ord ); }
     _WJP_forceinline void write( bool flag, _WJP_MEM_ORD_DFT_ARG ) { return _flag.store( flag, mem_ord ); }
-#else
-    _WJP_forceinline bool read( _WJP_MEM_ORD_DFT_ARG ) { _WJP_SUICIDE; }
-    _WJP_forceinline void write( bool flag, _WJP_MEM_ORD_DFT_ARG ) { _WJP_SUICIDE; }
 #endif
 
 /* Signal/Wait. */
@@ -67,10 +64,11 @@ struct _WJP_INTERLOCKED_BOOL {
     _WJP_forceinline void sig_all() { _flag.notify_all(); }
 
     _WJP_forceinline void wait( bool flag ) { _flag.wait( flag ); }
-#else
-    _WJP_forceinline void sig_one() { _WJP_SUICIDE; }
-    _WJP_forceinline void sig_all() { _WJP_SUICIDE; }
-    _WJP_forceinline void wait( bool flag ) { _WJP_SUICIDE; }
+
+#elif defined( WJP_ENVIRONMENT_UC )
+    _WJP_forceinline void sig_one() {}
+    _WJP_forceinline void sig_all() {}
+    _WJP_forceinline void wait( bool flag ) {}
 #endif
 
 /* Internal only. */

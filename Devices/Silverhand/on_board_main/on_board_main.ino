@@ -36,6 +36,8 @@
 #include "../../IXN/Driver/wjp_on_bths.hpp"
 using namespace ixN::uC;
 
+#include "../../BarrunCUDA/barracuda.hpp"
+
 
 static struct GPIO {
 	GPIO()
@@ -133,17 +135,12 @@ struct RELAY {
 
 struct MODE_BTH {
 	int init( void ) {
-		return wjpblu.init( 0 );
+		if( wjpblu.init( 0 ) != 0 ) return -1;
+		if( wjpblu.begin( "Silverhand" ) != 0 ) return -1;
+		return 0;
 	}
 
 	WJP_on_BluetoothSerial   wjpblu   = {};
-
-	int proc( bool* running ) {
-		wjpblu.BluetoothSerial::begin( "Silverhand", true );
-    while( !wjpblu.connected() )
-		  wjpblu.connect( "BarrunCUDA" );
-		return 0;
-	}
 
 } mode_bth;
 
@@ -198,11 +195,34 @@ void setup( void ) {
 
 	if( gpio.init() != 0 ) _dead();
 
-	//if( mode_bth.init() != 0 ) _dead();
+	if( mode_bth.init() != 0 ) _dead();
 }
 
 
 void loop( void ) {
+	if( !mode_bth.wjpblu.connected() ) return;
+
+	static barra::dynamic_t dyn;
+
+	WJP_WAIT_BACK_INFO info;
+
+	mode_bth.wjpblu.wait_back( &info, WJPOp_QGet, WJP_CBUFFER{ addr: "DYNAM", sz: strlen( "DYNAM" ) + 1 }, WJP_BUFFER{ addr: &dyn, sz: sizeof( barra::dynamic_t ) }, WJPSendMethod_Direct );
+	while( info.resolved.read() == false ) {
+		WJP_RESOLVE_RECV_INFO recv_info;
+		mode_bth.wjpblu.resolve_recv( &recv_info );
+	}
+
+	if( abs( dyn.samantha.x ) > 1.0 ) {
+		Serial.print( "TX error:" ); Serial.println( dyn.samantha.x );
+		return;
+	}
+
+	if( abs( dyn.samantha.x ) > 0.8 ) {
+		digitalWrite( LED_BUILTIN, HIGH );
+	} else {
+		digitalWrite( LED_BUILTIN, LOW );
+	}
+
 	KB::scan();
 
 	RELAY::make( gpio.R5, KB::btns[ 3 ].down );
@@ -213,6 +233,4 @@ void loop( void ) {
 
 	RELAY::make( gpio.R1, KB::btns[ 6 ].down );
 	RELAY::make( gpio.R2, KB::btns[ 8 ].down );
-
-	delay( 100 );
 }

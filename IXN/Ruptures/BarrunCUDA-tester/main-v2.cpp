@@ -12,6 +12,7 @@
 #include <IXN/tempo.hpp>
 
 #include <imgui.h>
+#include <imgui_stdlib.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
@@ -157,12 +158,14 @@ public:
         if( ImGui::Button( "ENGAGE BURST" ) ) {
             WJP_WAIT_BACK_INFO info;
             BARCUD.ibrst_auto_throttle_engage( &info, 0, 0 );
+            info.resolved.wait( false );
         }
 
         ImGui::SameLine( 0, 30 );
         if( ImGui::Button( "DISENGAGE BURST" ) ) {
             WJP_WAIT_BACK_INFO info;
             BARCUD.ibrst_terminate( &info, 0, 0 );
+            info.resolved.wait( false );
         }
 
         ImGui::SeparatorText( "This controller session." );
@@ -537,6 +540,91 @@ public:
 
 };
 
+class FORWARD_BOARD : public _BOARD {
+public:
+    FORWARD_BOARD( const std::string& name )
+    : _BOARD{ name }
+    {
+        _dev_th = std::thread( &FORWARD_BOARD::_dev_main, this );
+    }
+
+protected:
+    ixN::BTH_SOCKET    _sock   = {};
+
+    std::thread        _dev_th;
+    std::string        _dev_name   = "";
+
+protected:
+    void _dev_main( void ) {
+        while( G_is_running() ) {
+            if( !_sock.connected() ) {
+                std::this_thread::sleep_for( std::chrono::seconds{ 1 } );
+                continue;
+            }
+
+            WJP_HEAD head;
+
+            if( _sock.itr_recv( &head, sizeof( WJP_HEAD ), 0 ) <= 0 || !head.is_signed() ) {
+                _sock.disconnect( 0 );
+                continue;
+            } 
+
+            if( head.is_alternate() || head._dw3.sz == 0 ) {
+                BARCUD._srwrap.send( WJP_CBUFFER{ addr: &head, sz: sizeof( WJP_HEAD ) }, 0 );
+            } else {
+                int tot_sz = sizeof( WJP_HEAD ) + head._dw3.sz;
+                char buffer[ tot_sz ];
+
+                if( _sock.itr_recv( buffer + sizeof( WJP_HEAD ), head._dw3.sz, 0 ) <= 0 ) {
+                    _sock.disconnect( 0 );
+                    continue;
+                }
+
+                memcpy( buffer, &head, sizeof( WJP_HEAD ) );
+
+                BARCUD._srwrap.send( WJP_CBUFFER{ addr: buffer, sz: tot_sz }, 0 );
+            }
+        }
+    }
+
+public:
+    virtual void frame( void ) override {
+        ImGui::SetNextWindowSize( { 0, 0 }, ImGuiCond_Once );
+        ImGui::Begin( _BOARD::name.c_str(), nullptr, ImGuiWindowFlags_None );
+
+
+        ImGui::SeparatorText( "Device name." );
+        if( ImGui::InputTextWithHint( "##Alias", "Name here...", &_dev_name, ImGuiInputTextFlags_EnterReturnsTrue ) ) {
+            if( _sock.connected() || _dev_name.empty() ) _sock.disconnect( 0 );
+
+            std::wstring wname{ _dev_name.begin(), _dev_name.end() };
+            if( _sock.connect( wname ) == 0 ) {
+                BARCUD.bind_recv_fwd( [ &, this ] WJP_RECV_FWD_LAMBDA{
+                    if( context->info->recv_head.is_alternate() || context->info->recv_head._dw3.sz == 0 ) {
+                        _sock.itr_send( &context->info->recv_head, sizeof( WJP_HEAD ), 0 );
+                    } else {
+                        int tot_sz = sizeof( WJP_HEAD ) + context->info->recv_head._dw3.sz;
+                        char buffer[ tot_sz ];
+
+                        BARCUD._srwrap.recv( WJP_BUFFER{ addr: buffer + sizeof( WJP_HEAD ), sz:  context->info->recv_head._dw3.sz }, 0 );
+
+                        memcpy( buffer, &context->info->recv_head, sizeof( WJP_HEAD ) );
+
+                        if( _sock.itr_send( buffer, tot_sz, 0 ) < 0 ) {
+                            _sock.disconnect();
+                        }
+                    }
+
+                    return -1;
+                } );
+            }
+        }
+
+        ImGui::End();
+    }
+
+};
+
 
 
 int main( int argc, char** argv ) {
@@ -618,6 +706,9 @@ int main( int argc, char** argv ) {
     } );
     DASHBOARD.emplace_back( new RENDER_BOARD{
         "Render", &render
+    } );
+    DASHBOARD.emplace_back( new FORWARD_BOARD{
+        "Forward"
     } );
 
     IXN_ASSERT( BARCUD.bind().open( 0 ) == 0, -1 );

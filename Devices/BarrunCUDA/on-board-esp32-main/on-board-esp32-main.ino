@@ -1563,6 +1563,9 @@ static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 4 ] = {
     qget_func: [] WJP_QGET_LAMBDA{
         static barra::dynamic_t         dyn;
         static _DYNAM::snapshot_token_t ss_tok{ dst: &dyn, blk: true };
+        
+        DYNAM.snapshot( &ss_tok );
+        memcpy( dst, &dyn, sizeof( barra::dynamic_t ) );
 
         return NULL;
     },
@@ -1572,7 +1575,7 @@ static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 4 ] = {
 
 static WJP_IBRSTBL_ENTRY wjp_IBRSTBL[ 1 ] = {
 {
-    mem: nullptr,
+    mem: NULL,
     sz: sizeof( WJP_HEAD ) + sizeof( barra::dynamic_t ),
     out_fnc: [] WJP_IBRST_OUT_LAMBDA { 
         static struct _PACKET : WJP_HEAD { 
@@ -1634,6 +1637,8 @@ int wjp_loop( void ) {
 std::function< int( void ) >   ctrl_loop_procs[]   = {
   /* 0b00 */ [] () static -> bool {
     CONFIG_CTRL_MODE._conn_rst = true;
+
+    CONFIG_CTRL_MODE.wjpblu._ibrstbl[ 0 ]->_status = WJPIBrstStatus_Disengaged;
     
     BITNA.x_blink( 9, 50, 50, false, false );
 

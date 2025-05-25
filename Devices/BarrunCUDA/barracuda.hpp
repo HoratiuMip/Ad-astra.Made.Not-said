@@ -11,6 +11,9 @@ namespace barra {
 const char* const DEVICE_NAME = "BarrunCUDA";
 const wchar_t* const DEVICE_NAME_W = L"BarrunCUDA";
 
+constexpr float JS_HYST_LOW = 0.8;
+constexpr float JS_HYST_HIGH = 0.9;
+
 
 struct switch_t {
     uint8_t   dwn       : 1;

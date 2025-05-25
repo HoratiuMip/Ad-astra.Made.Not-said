@@ -811,12 +811,10 @@ static struct _DYNAM : barra::dynamic_t {
     }
 
     inline void q_scan( int flags ) {
-        barra::dynamic_t* tar = &_q[ _seq ^ 1 ].buffer;  
-
-        this->_scan( flags, tar );
+        this->_scan( flags, &( barra::dynamic_t& )*this );
     
-        xQueueReceive( _q[ _seq ^ 1 ].handle, &_q[ _seq ].buffer, portMAX_DELAY );
-        xQueueOverwrite( _q[ _seq ].handle, &_q[ _seq ].buffer );
+        xQueueReset( _q[ _seq ^ 1 ].handle );
+        xQueueOverwrite( _q[ _seq ].handle, &( barra::dynamic_t& )*this );
 
         _seq ^= 1;
     }
@@ -835,8 +833,8 @@ static struct _DYNAM : barra::dynamic_t {
             return 0;
         }
 
-        _DYNAM::_resolve_cmp_js( tok->_xjtt[ 0 ], tok->_yjtt[ 0 ], tok->dst->samantha, 0.8, 0.9 );
-        _DYNAM::_resolve_cmp_js( tok->_xjtt[ 1 ], tok->_yjtt[ 1 ], tok->dst->rachel, 0.8, 0.9 );
+        _DYNAM::_resolve_cmp_js( tok->_xjtt[ 0 ], tok->_yjtt[ 0 ], tok->dst->samantha );
+        _DYNAM::_resolve_cmp_js( tok->_xjtt[ 1 ], tok->_yjtt[ 1 ], tok->dst->rachel );
 
         _DYNAM::_resolve_cmp_sw( sws[ 0 ], tok->dst->samantha.sw );
         _DYNAM::_resolve_cmp_sw( sws[ 1 ], tok->dst->rachel.sw ); 
@@ -866,10 +864,10 @@ static struct _DYNAM : barra::dynamic_t {
     }
 
 #define _DYNAM_RESOLVE_CMP_JS_AXIS( jtt, axis ) \
-if( jtt == HIGH && ( js.axis >= th_high || js.axis <= -th_high ) ) { jtt = LOW; js.edg.axis = js.axis >= th_high ? 1 : -1; is##axis = 1; } \
-else if( jtt == LOW && abs( js.axis ) <= th_low ) { jtt = HIGH; js.edg.axis = 0; is##axis = 1; } \
+if( jtt == HIGH && ( js.axis >= barra::JS_HYST_HIGH || js.axis <= -barra::JS_HYST_HIGH ) ) { jtt = LOW; js.edg.axis = js.axis >= barra::JS_HYST_HIGH ? 1 : -1; is##axis = 1; } \
+else if( jtt == LOW && abs( js.axis ) <= barra::JS_HYST_LOW ) { jtt = HIGH; js.edg.axis = 0; is##axis = 1; } \
 else { js.edg.axis = is##axis = 0; }
-    inline static void _resolve_cmp_js( uint8_t& xjtt, uint8_t& yjtt, barra::joystick_t& js, float th_low, float th_high ) {
+    inline static void _resolve_cmp_js( uint8_t& xjtt, uint8_t& yjtt, barra::joystick_t& js ) {
         bool isx = false, isy = false;
         _DYNAM_RESOLVE_CMP_JS_AXIS( xjtt, x );
         _DYNAM_RESOLVE_CMP_JS_AXIS( yjtt, y );
@@ -881,6 +879,8 @@ else { js.edg.axis = is##axis = 0; }
 
 
 void _dead( void ) {
+  portDISABLE_INTERRUPTS();
+  vTaskSuspendAll();
   CONFIG_CTRL_MODE.wjpblu.end();
   Wire.end();
   while( 1 ) BITNA.blink( 1, Led_RED, Led_BLK, 1000, 1000 );
@@ -888,84 +888,8 @@ void _dead( void ) {
 
 
 
-int do_tests( void ) {
-    _printf( LogLevel_Info, "Beginning tests.\n" );
-
-    bool in_test    = false;
-    int  test_count = 0;
-
-    const auto _get_test = [] () static -> int8_t {
-        DYNAM.scan( Scan_Switches );
-        return ( DYNAM.giselle.dwn << 3 ) | ( DYNAM.karina.dwn << 2 ) | ( DYNAM.ningning.dwn << 1 ) | DYNAM.winter.dwn;
-    };
-
-    const auto _begin = [ &in_test ] ( const char* test_name ) -> void {
-        _printf( LogLevel_Info, "Acknowledged test [ %s ]...", test_name );
-        BITNA.blink( 10, Led_YLW, Led_BLK, 50, 50 );
-        in_test = true;
-    };
-    const auto _end = [ &in_test ] () -> void {
-        BITNA.blink( 10, Led_YLW, Led_BLK, 50, 50 );
-        _printf( " ok.\n" );
-        in_test = false;
-    };
-
-    YUNA.print_w( ">/ test" );
-
-
-    TaskHandle_t animation; xTaskCreate( [] ( void* arg ) static -> void { 
-            bool& in_test  = *( bool* )arg;
-            int   at       = 1;
-
-            int x = YUNA.getCursorX(), y = YUNA.getCursorY();
-
-            for(;;) {
-                YUNA.print_w( '.' );
-                vTaskDelay( 300 );
-
-                if( at++ < 5 ) continue;
-
-                at = 1;
-                YUNA.fillRect( x, y, 20, 5, SSD1306_BLACK );
-                YUNA.setCursor( x, y );
-            }
-        }, 
-        "test_display_animation", 4096, &in_test, Priority_Aesth, &animation 
-    );
-
-l_test_begin: {
-    BITNA.blink( 1, Led_YLW, Led_BLK, 100, 500 );
-    int8_t test = _get_test();
-
-    switch( test ) {
-        case 0b0000: goto l_test_begin;
-        case 0b0110: goto l_test_end;
-
-        case 0b1000: { _begin( "BITNA - LED color cycle" ); 
-            for( int ch = 0; ch <= 2; ++ch ) {
-                for( int val = 0; val <= 255; ++val ) { BITNA( LED_MAKE_CH( ch, val ) ); vTaskDelay( 4 ); }
-                for( int val = 255; val >= 0; --val ) { BITNA( LED_MAKE_CH( ch, val ) ); vTaskDelay( 4 ); }
-            }
-        _end(); break; }
-
-        default: goto l_test_begin;
-    }
-
-    ++test_count;
-    goto l_test_begin;
-}
-l_test_end:
-    _printf( LogLevel_Info, "Tests ended. Completed (%d) tests.\n", test_count ) ;
-
-    vTaskDelete( animation );
-    YUNA.printf_w( " >done(%d)", test_count );
-    return test_count;
-}
-
-
-
 #define _SETUP_ASSERT_OR_DEAD( c ) if( !(c) ) { _printf( LogLevel_Critical, "SETUP ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n" ); _dead(); }
-#define _FANCY_SETUP_ASSERT_OR_DEAD( c, s, d ) { YUNA.print_w( s ); _SETUP_ASSERT_OR_DEAD( c ); YUNA.print_w( " ~ok\n" ); vTaskDelay( d ); }
+#define _FANCY_SETUP_ASSERT_OR_DEAD( c, s ) { YUNA.print_w( s ); _SETUP_ASSERT_OR_DEAD( c ); YUNA.print_w( " ~ok\n" ); vTaskDelay( FANCY_DELAY_MS ); }
 void setup( void ) {
     static constexpr int FANCY_DELAY_MS = 100;
 
@@ -981,7 +905,7 @@ void setup( void ) {
 	_printf( "ok.\n" );
 
     _SETUP_ASSERT_OR_DEAD( MIRU.init() == 0 );
-    MIRU.write( 220, 100, 2, 100 );
+    MIRU.write( 440, 100, 1, 0 );
 
     _SETUP_ASSERT_OR_DEAD( YUNA.init() == 0 );
     
@@ -1004,42 +928,60 @@ void setup( void ) {
     if( count != 0 ) YUNA.print_w( '\n' );
     }
 
-    MIRU.write( 440, 100, 2, 100 );
-    YUNA.setCursor( 0, 0 );
-    YUNA.clearDisplay();
+    MIRU.write( 440, 100, 1, 0 );
+    YUNA.setCursor( 0, 0 ); YUNA.clearDisplay();
     YUNA.print_w( ">/ hardware >...\n" ); vTaskDelay( FANCY_DELAY_MS );
 
-	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ [mpu-6050]", FANCY_DELAY_MS );
-    _FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bme-280]", FANCY_DELAY_MS );
-    _FANCY_SETUP_ASSERT_OR_DEAD( CHIM.init() == 0, ">/ [bmm-150]", FANCY_DELAY_MS );
+	_FANCY_SETUP_ASSERT_OR_DEAD( GRAN.init() == 0, ">/ [mpu-6050]" );
+    _FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bme-280]" );
+    _FANCY_SETUP_ASSERT_OR_DEAD( CHIM.init() == 0, ">/ [bmm-150]" );
 
-    _FANCY_SETUP_ASSERT_OR_DEAD( GPIO_DEX_0::init() == 0, ">/ [tiny-416]", FANCY_DELAY_MS );
-    _FANCY_SETUP_ASSERT_OR_DEAD( SUZYQ.init() == 0, ">/ [kyp-008]", FANCY_DELAY_MS );
-    //_FANCY_SETUP_ASSERT_OR_DEAD( GOLANI.init() == 0, ">/ [hc-sr04]", FANCY_DELAY_MS );
+    MIRU.write( 440, 100, 1, 0 );
+    YUNA.setCursor( 0, 0 ); YUNA.clearDisplay();
+    YUNA.print_w( ">/ hardware >...\n" ); vTaskDelay( FANCY_DELAY_MS );
 
-    MIRU.write( 660, 100, 2, 100 );
-    YUNA.setCursor( 0, 0 );
-    YUNA.clearDisplay();
+    _FANCY_SETUP_ASSERT_OR_DEAD( GPIO_DEX_0::init() == 0, ">/ [tiny-416]" );
+    _FANCY_SETUP_ASSERT_OR_DEAD( SUZYQ.init() == 0, ">/ [kyp-008]" );
+    //_FANCY_SETUP_ASSERT_OR_DEAD( GOLANI.init() == 0, ">/ [hc-sr04]" );
+
+    MIRU.write( 440, 100, 1, 0 );
+    YUNA.setCursor( 0, 0 ); YUNA.clearDisplay();
     YUNA.print_w( ">/ software >...\n" ); vTaskDelay( FANCY_DELAY_MS );
 	
-	_FANCY_SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0, ">/ dynam", FANCY_DELAY_MS );
+	_FANCY_SETUP_ASSERT_OR_DEAD( DYNAM.init() == 0, ">/ dynam" );
 
-    _FANCY_SETUP_ASSERT_OR_DEAD( CONFIG.init() == 0, ">/ config", FANCY_DELAY_MS );
+    _FANCY_SETUP_ASSERT_OR_DEAD( CONFIG.init() == 0, ">/ config" );
 
-    _printf( LogLevel_Info, "Scanning for tests request.\n" );
-    DYNAM.scan( Scan_Switches );
-    if( DYNAM.ningning.dwn ) {
-        do_tests();
-    } else if( DYNAM.giselle.dwn ) {
-        YUNA.print_w( "/ jmp mode ctrl." );
-        CONFIG.mode.store( Mode_Ctrl );
+    srand( GPIO::A_R( GPIO::samantha.x ) + GPIO::A_R( GPIO::rachel.x ) );
+
+    YUNA.setCursor( 0, 0 ); YUNA.clearDisplay();
+    BITNA.make( Led_ORANGE );
+    YUNA.print_w( ">/ boot int... " );
+    MIRU.write( 80, 10, 10, 100 );
+
+    if( GPIO::D_R( GPIO::xabara ) == GPIO::GND ) {
+        YUNA.print_w( "yes\n");
+
+        while( GPIO::D_R( GPIO::xabara ) == GPIO::GND ) { 
+            BITNA.blink( 1, Led_BLK, Led_ORANGE, 50, 200 ); 
+        }
+
+        DYNAM.scan( Scan_Switches );
+
+        if( DYNAM.giselle.dwn ) {
+            YUNA.print_w( "/> jmp mode ctrl\n" );
+            CONFIG.mode.store( Mode_Ctrl );
+        }
+
+    } else {
+        YUNA.print_w( "no\n");
     }
 
     _printf( LogLevel_Ok, "Init complete.\n" );
 
-    MIRU.write( 880, 100, 2, 100 );
-    YUNA.clear_w();
-	BITNA.blink( 9, Led_GRN, Led_BLK, 50, 50 );
+    YUNA.print_w( ">/ boot ok" );
+    MIRU.write( 440, 100, 3, 100 );
+	BITNA.blink( 3, Led_TRQ, Led_BLK, 50, 50 );
 }
 
 
@@ -1091,9 +1033,7 @@ for(;;) {
 } } },
 
 FELLOW_TASK_input_react{ "input_react", 1024, Priority_Aesth, [] ( void* ) static -> void {
-    /* Given a single threshold, the joystick area around it may cause flicker. Use hysteresis to mitigate. */
-    static constexpr float REACT_THRESHOLD = 0.8;
-    static constexpr int   REACT_COUNT     = 5;
+    static constexpr int   REACT_COUNT   = 5;
 
     barra::dynamic_t          dyn;
      _DYNAM::snapshot_token_t ss_tok                = { dst: &dyn, blk: true };
@@ -1111,8 +1051,8 @@ for(;;) {
 
     for( auto& js : dyn.joysticks ) { 
         ( crt_state |=  js.sw.dwn ) <<= 1;
-        ( crt_state |=  abs( js.x ) >= REACT_THRESHOLD ) <<= 1;
-        ( crt_state |=  abs( js.y ) >= REACT_THRESHOLD ) <<= 1;
+        ( crt_state |=  abs( js.x ) >= barra::JS_HYST_LOW ) <<= 1;
+        ( crt_state |=  abs( js.y ) >= barra::JS_HYST_LOW ) <<= 1;
     }
 
     if( crt_state != 0 && last_state != crt_state ) 
@@ -1512,6 +1452,20 @@ MAIN_LOOP_ON( Mode_Game ) {
     }
 
 } GAME_PONG;
+
+struct _GAME_SNAKE : _GAME {
+GAME_MAIN_OVR{
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController | FellowTask_WaveController );
+
+    barra::dynamic_t         dyn;
+    _DYNAM::snapshot_token_t ss_tok{ dst: &dyn, blk: true };
+
+MAIN_LOOP_ON( Mode_Game ) {
+    
+}
+
+};
+} GAME_SNAKE;
 
 #pragma endregion GAMES
 
@@ -2114,6 +2068,9 @@ struct _BRIDGE_SNAKE : _BRIDGE {
 SPOT_LOOP_OVR{ 
     YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_SNAKE, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 }; 
+BRIDGE_SELECT_OVR{
+    CONFIG.xchg_mode( Mode_Game, &GAME_SNAKE );
+};
 } BRIDGE_SNAKE;
 
 #pragma endregion BRIDGES

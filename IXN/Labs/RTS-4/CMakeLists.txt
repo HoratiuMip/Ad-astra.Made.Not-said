@@ -4,6 +4,10 @@ cmake_minimum_required( VERSION 3.30.0 )
 # target_link_libraries( "RTS-4" PUBLIC "IXN" ) 
 # target_link_libraries( "RTS-4" PUBLIC "ImGUI" ) 
 
-add_executable( "test_2" main_test_2.cpp )
-target_link_libraries( "test_2" PUBLIC "IXN" ) 
-target_link_libraries( "test_2" PUBLIC "ImGUI" ) 
+# add_executable( "test_2" main_test_2.cpp )
+# target_link_libraries( "test_2" PUBLIC "IXN" ) 
+# target_link_libraries( "test_2" PUBLIC "ImGUI" ) 
+
+add_executable( "test_3" main_test_3.cpp )
+target_link_libraries( "test_3" PUBLIC "IXN" ) 
+target_link_libraries( "test_3" PUBLIC "ImGUI" ) 

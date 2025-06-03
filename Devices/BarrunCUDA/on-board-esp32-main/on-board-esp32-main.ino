@@ -289,14 +289,14 @@ struct Is_ARMABLE {
 
     inline int arm( void* arg ) {
         bool was_armed = false;
-        if( !_armed.compare_exchange_strong( was_armed, true, std::memory_order_seq_cst ) ) return -1;
+        if( !_armed.compare_exchange_strong( was_armed, true, std::memory_order_seq_cst ) ) return 0;
 
         return this->_arm( arg );
     }
 
     inline int disarm( void* arg ) {
         bool was_armed = true;
-        if( !_armed.compare_exchange_strong( was_armed, false, std::memory_order_seq_cst ) ) return -1;
+        if( !_armed.compare_exchange_strong( was_armed, false, std::memory_order_seq_cst ) ) return 0;
 
         return this->_disarm( arg );
     }
@@ -530,7 +530,7 @@ static struct _NAKSU {
         Unit_Raw, Unit_ELA, Unit_Lux, UNIT_COUNT
     };
 
-    inline static Unit_   _unit   = Unit_Raw;
+    inline static Unit_   _unit   = Unit_ELA;
 
     static float from_raw( float raw ) {
         switch( _unit ) {
@@ -650,7 +650,7 @@ static struct _MIRU : Is_ARMABLE {
         int freq = *( int* )arg;
 
         ledcAttachChannel( GPIO::miru, 10, 8, uC_PWM_CHANNEL_MIRU );
-        this->armed_make( freq );
+        this->make( freq );
         this->pwm( freq > 0 ? 127 : 255 );
         return 0;
     }
@@ -662,7 +662,7 @@ static struct _MIRU : Is_ARMABLE {
         return 0;
     }
 
-    inline _MIRU& armed_make( int freq ) {
+    inline _MIRU& make( int freq ) {
         ledcWriteTone( GPIO::miru, freq );
         return *this;
     }
@@ -1051,8 +1051,8 @@ for(;;) {
 
     for( auto& js : dyn.joysticks ) { 
         ( crt_state |=  js.sw.dwn ) <<= 1;
-        ( crt_state |=  abs( js.x ) >= barra::JS_HYST_LOW ) <<= 1;
-        ( crt_state |=  abs( js.y ) >= barra::JS_HYST_LOW ) <<= 1;
+        ( crt_state |=  abs( js.x ) >= barra::JS_HYST_HIGH ) <<= 1;
+        ( crt_state |=  abs( js.y ) >= barra::JS_HYST_HIGH ) <<= 1;
     }
 
     if( crt_state != 0 && last_state != crt_state ) 
@@ -1092,20 +1092,16 @@ for(;;) {
         vTaskDelay( 1000 ); continue;
     }
 
-    bool was_armed = MIRU.is_armed();
-
-    if( !was_armed ) MIRU.arm( const_cast< int* >( &desc.frags[ 0 ].freq ) );
-    else MIRU.armed_make( desc.frags[ 0 ].freq );
+    MIRU.arm( const_cast< int* >( &desc.frags[ 0 ].freq ) );
 
     vTaskDelay( desc.frags[ 0 ].ms );
 
     for( int idx = 1; idx < desc.frag_count; ++idx ) {
-        MIRU.armed_make( desc.frags[ idx ].freq );
+        MIRU.make( desc.frags[ idx ].freq );
         vTaskDelay( desc.frags[ idx ].ms );
     }
 
-    if( was_armed ) MIRU.flat();
-    else MIRU.disarm( NULL );
+    MIRU.disarm( NULL );
 } } };
 
 
@@ -1469,7 +1465,6 @@ MAIN_LOOP_ON( Mode_Game ) {
 
 #pragma endregion GAMES
 
-
 int _CONFIG_GAME_MODE::init( void ) {
 	return 0;
 }
@@ -1643,7 +1638,7 @@ std::function< int( void ) >   ctrl_loop_procs[]   = {
 };
 
 void main_ctrl( void* arg ) {
-    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController );
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController | FellowTask_WaveController );
 
     CONFIG_CTRL_MODE.wjpblu.begin( barra::DEVICE_NAME );    
 
@@ -1822,11 +1817,11 @@ SPOT_LOOP_OVR{
 };
 } BRIDGE_ENV;
 
-struct _BRIDGE_SYSINFO : _BRIDGE { 
+struct _BRIDGE_CHILL : _BRIDGE { 
 SPOT_LOOP_OVR{ 
     YUNA.drawBitmap( _ICO_X, _ICO_Y, BARRA_BRDG_ICO_SYSINFO, BARRA_BRDG_ICO_W, BARRA_BRDG_ICO_H, SSD1306_WHITE );
 }; 
-} BRIDGE_SYSINFO;
+} BRIDGE_CHILL;
 
 struct _BRIDGE_LASER : _BRIDGE {
 BRIDGE_BEGIN_OVR{ 
@@ -1891,11 +1886,13 @@ struct _BRIDGE_WAVE : _BRIDGE {
     bool   mode    = 0; 
 
 BRIDGE_BEGIN_OVR{ 
+    FELLOW_TASK_wave_controller.suspend();
     MIRU.disarm( NULL ); 
 };
 BRIDGE_END_OVR{ 
     detachInterrupt( GPIO::miru );
     MIRU.disarm( NULL ); 
+    FELLOW_TASK_wave_controller.resume();
 };
 SPOT_LOOP_OVR{ 
     YUNA.drawBitmap( 
@@ -1942,7 +1939,7 @@ BRIDGE_DYS_OVR{
         [[fallthrough]]; }
 
         l_make: {
-            if( MIRU.is_armed( std::memory_order_relaxed ) ) MIRU.armed_make( freq );
+            if( MIRU.is_armed( std::memory_order_relaxed ) ) MIRU.make( freq );
         }
     }
 };
@@ -2040,11 +2037,10 @@ SPOT_LOOP_OVR{
     
     const char* fmt = NULL;
     switch( _NAKSU::_unit ) {
-        case _NAKSU::Unit_Raw: fmt = "%.0f raw"; break;
-        case _NAKSU::Unit_ELA: fmt = "%.2f ela"; break;
-        case _NAKSU::Unit_Lux: fmt = "%.2f lux"; break;
+        case _NAKSU::Unit_Raw: fmt = "%.0f raw"; YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, fmt, read );         break;
+        case _NAKSU::Unit_ELA: fmt = "%.2f%%";   YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, fmt, read * 100.0 ); break;
+        case _NAKSU::Unit_Lux: fmt = "%.2f lux"; YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, fmt, read );         break;
     }
-    YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, fmt, read );
 
     YUNA.setTextSize( 1 );
 };
@@ -2073,6 +2069,49 @@ BRIDGE_SELECT_OVR{
 };
 } BRIDGE_SNAKE;
 
+struct _BRIDGE_MP3 : _BRIDGE {
+    inline static const _MIRU::_wave_frag_t   WAVE_AT_DOOMS_GATE[ 28 ]  = {
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 164, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 146, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 130, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 116, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 123, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 130, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 164, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 146, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 130, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 82, ms: 272 },
+        _MIRU::_wave_frag_t{ freq: 68, ms: 672 }
+    };
+
+SPOT_LOOP_OVR{ 
+    
+};
+BRIDGE_SELECT_OVR{
+    MIRU.q_push( _MIRU::_wave_desc_t{ frags: WAVE_AT_DOOMS_GATE, frag_count: 28 } );
+};
+BRIDGE_DYS_OVR{
+    
+};
+} BRIDGE_MP3;
+
 #pragma endregion BRIDGES
 
 
@@ -2094,7 +2133,7 @@ int _CONFIG_BRDG_MODE::init( void ) {
     BRIDGE_HOME.subs[ 0 ] = &BRIDGE_TOOLS;
     BRIDGE_HOME.subs[ 1 ] = &BRIDGE_GAMES;
     BRIDGE_HOME.subs[ 2 ] = &BRIDGE_ENV;
-    BRIDGE_HOME.subs[ 3 ] = &BRIDGE_SYSINFO;
+    BRIDGE_HOME.subs[ 3 ] = &BRIDGE_CHILL;
 
     BRIDGE_TOOLS.name = "tools";
     BRIDGE_TOOLS.sup = &BRIDGE_HOME;
@@ -2117,8 +2156,9 @@ int _CONFIG_BRDG_MODE::init( void ) {
     BRIDGE_ENV.subs[ 3 ] = &BRIDGE_ALTITUDE;
     BRIDGE_ENV.subs[ 4 ] = &BRIDGE_LIGHT;
 
-    BRIDGE_SYSINFO.name = "sysinfo";
-    BRIDGE_SYSINFO.sup = &BRIDGE_HOME;
+    BRIDGE_CHILL.name = "chill";
+    BRIDGE_CHILL.sup = &BRIDGE_HOME;
+    BRIDGE_CHILL.subs[ 0 ] = &BRIDGE_MP3;
 
     BRIDGE_LASER.name = "laser";
     BRIDGE_LASER.sup = &BRIDGE_TOOLS;
@@ -2134,8 +2174,6 @@ int _CONFIG_BRDG_MODE::init( void ) {
 
     BRIDGE_HEART.name = "heart";
     BRIDGE_HEART.sup = &BRIDGE_TOOLS;
-
-    
 
     BRIDGE_TEMPERATURE.name = "temperature";
     BRIDGE_TEMPERATURE.sup = &BRIDGE_ENV;
@@ -2157,6 +2195,9 @@ int _CONFIG_BRDG_MODE::init( void ) {
 
     BRIDGE_SNAKE.name = "snake";
     BRIDGE_SNAKE.sup = &BRIDGE_GAMES;
+
+    BRIDGE_MP3.name = "mp3";
+    BRIDGE_MP3.sup = &BRIDGE_CHILL;
 
     return 0;
 }
@@ -2212,6 +2253,7 @@ void main_brdg( void* arg ) {
     _bridge_dys_t            dys            = { js: dyn.rachel, sw_A: dyn.giselle, sw_B: dyn.ningning, level: dyn.tanya.lvl };
     _BRIDGE*                 prev_nav_crt   = &BRIDGE_HOME;
     _MIRU::_wave_frag_t      nav_wave       = { freq: 160, ms: 80 };
+    _MIRU::_wave_frag_t      sel_wave       = { freq: 200, ms: 80 };
 
     _SPOT::place( CONFIG_BRDG_MODE._nav.crt );
 
@@ -2236,6 +2278,7 @@ l_nav:
 
 l_action:
     if( dyn.samantha.sw.rls || ( CONFIG_BRDG_MODE._nav.crt->subs[ 0 ] == NULL && dyn.samantha.edg.y == -1 ) ) {
+        MIRU.q_push( _MIRU::_wave_desc_t{ frags: &sel_wave, frag_count: 1 } );
         CONFIG_BRDG_MODE._nav.crt->select();
         goto l_end;
     }

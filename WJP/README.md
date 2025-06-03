@@ -3,7 +3,7 @@ An `ISO/OSI PRESENTATION LAYER ( STACK LAYER 6 )` protocol which assures stable 
 
 > Initially developed to provide a "`plug-n-play`" behaviour for a wireless joystick controller, it has now became a solid `PRESENTATION` protocol capable of exchanging data quickly, detecting any protocol breaches and working with memory swiftly.
 
-> ![wjp_sketch](https://github.com/user-attachments/assets/254d060f-0311-48b5-aeb7-8849671d29bf)
+> ![WJP](https://github.com/user-attachments/assets/00c05698-dba6-40ca-857e-313afe16b768)
 
 The examples and samples in this manual are from the `BarraCUDA` controller's on-board/driver source code/sketches, since it was there when they were written.
 

@@ -45,7 +45,7 @@ struct Combiner : ixN::Descriptor {
 
 struct Combiner_all : Combiner {
     IXN_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Combiner_all" );
-    Combiner_all() : Combiner{ "All combinations." } {}
+    Combiner_all() : Combiner{ "Toate combinatiile." } {}
 
     virtual void brute( const Params& params ) override {
         std::function< bool( int, int ) > itr_pos = [ & ] ( int pos, int lim ) -> bool {
@@ -73,7 +73,7 @@ struct Combiner_all : Combiner {
 
 struct Combiner_all_length : Combiner {
     IXN_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Combiner_all_length" );
-    Combiner_all_length() : Combiner{ "All combinations, length known." } {}
+    Combiner_all_length() : Combiner{ "Toate combinatiile, lungime cunoscuta." } {}
 
     virtual void brute( const Params& params ) override {
         std::function< bool( int ) > itr_pos = [ & ] ( int pos ) -> bool {
@@ -100,13 +100,25 @@ struct Combiner_all_length : Combiner {
 
 struct Combiner_common : Combiner {
     IXN_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "Combiner_common" );
-    Combiner_common() : Combiner{ "Combinations of common words." } {
+    Combiner_common() : Combiner{ "Combinatia cuvintelor uzuale." } {
         for( int year = 1980; year <= 2025; ++year )
             commons.emplace_back( std::to_string( year ) );
     }
 
     std::vector< std::string >   commons   = {
-        "tudor", "email", "bank", "123", "home", "pufi"
+        "tudor", "teodor",
+        "acasa", "email", "mail", "birou",
+        "pufi", "bobita", "azor",
+        "om", "femeie", "barbat", "copil", "prieten", "prietena", "familie", "mama", "tata", "frate", "sora",
+        "casa", "usa", "fereastra", "scaun", "masa", "pat", "carte", "telefon", "cheie",
+        "soare", "luna", "stea", "apa", "foc", "copac", "floare", "munte", "plaja",
+        "zi", "noapte", "dimineata", "seara", "luna", "an", "ceas",
+        "mancare", "apa", "paine", "lapte", "cafea", "ceai", "carne", "ou", "fruct",
+        "drum", "oras", "sat", "scoala", "magazin", "masina", "avion", "tren",
+        "123", "1", "2003", "2004", "2005", "2025", "567",
+        "1234", "1111", "0000", "2024", "2025", "1900", "2000", "1990", "1989",
+        "112", "911", "1010", "1212", "777", "999", "314", "007", "69", "86",
+        "0800", "4321", "2468", "1357", "0101", "2001", "1001", "1918", "1980", "2020"
     };
 
     virtual void brute( const Params& params ) override {
@@ -165,10 +177,10 @@ int input_cb( ImGuiInputTextCallbackData* ) {
     return 0;
 }
 
-ixN::DWORD loop( double elapsed ) {
-    ImGui::Begin( "Brute_pass", nullptr );
+ixN::DWORD loop( double elapsed, [[maybe_unused]]void* ) {
+    ImGui::Begin( "##brute_pass", nullptr );
     
-    ImGui::SeparatorText( "Your password" );
+    ImGui::SeparatorText( "Parola" );
     ImGui::SetNextItemWidth( 300 );
     ImGui::InputText( "##your_password", &input_pass, ImGuiInputTextFlags_CallbackEdit, input_cb );
 
@@ -212,5 +224,6 @@ int main( int argc, char* argv[] ) {
     fwk.params.iconify = true;
     fwk.params.is_running = true;
     fwk.loop = loop;
+    fwk.init_hold = false;
     return fwk.main( argc, argv );
 }

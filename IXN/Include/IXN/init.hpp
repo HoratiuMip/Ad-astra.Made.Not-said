@@ -16,7 +16,8 @@ namespace _ENGINE_NAMESPACE {
 
 inline static struct {
 #if defined( _ENGINE_OS_WINDOWS )
-    WSADATA    wsa_data;
+    std::atomic_bool   _wsa_data_flag   = { false };
+    WSADATA            wsa_data;
 #endif
 } RUNTIME;
 
@@ -44,8 +45,10 @@ inline DWORD begin_runtime( int argc, char* argv[], DWORD flags, void* in, void*
 
             if( !( flags & BEGIN_RUNTIME_FLAG_INIT_NETWORK_CONTINUE_IF_FAULT ) ) goto l_begin_abort;
         }
+        
+        RUNTIME._wsa_data_flag = true;
+        comms( EchoLevel_Ok ) << "Network WSA init complete.";
     }
-    comms( EchoLevel_Ok ) << "Network WSA init complete.";
 #endif
 
 #if defined( _ENGINE_GL_OPEN_GL )
@@ -71,12 +74,14 @@ inline DWORD end_runtime( int argc, char* argv[], DWORD flags, void* arg, void**
     DWORD fault_crt = 0;
 
 #if defined( _ENGINE_OS_WINDOWS )
-    comms() << "Network WSA clean...";
-    if( WSACleanup() != 0 ) {
-        ++fault_crt;
-        comms( EchoLevel_Error ) << "Network WSA clean fault ( " << WSAGetLastError() << " ).";
-    } else {
-        comms( EchoLevel_Ok ) << "Network WSA clean complete.";
+    if( RUNTIME._wsa_data_flag ) {
+        comms() << "Network WSA clean...";
+        if( WSACleanup() != 0 ) {
+            ++fault_crt;
+            comms( EchoLevel_Error ) << "Network WSA clean fault ( " << WSAGetLastError() << " ).";
+        } else {
+            comms( EchoLevel_Ok ) << "Network WSA clean complete.";
+        }
     }
 #endif
 

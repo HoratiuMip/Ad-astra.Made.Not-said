@@ -43,7 +43,7 @@ int main() {
     "[ 9 ]          - stop all.\n"
     "[ 0 ]          - exit.\n";
 
-    auto crs = OS::console.crs();
+    auto crs = OS::console.cursor();
     std::cout << menu_str;
     
     for( auto cmd = std::tolower( _getch() ); cmd != '0'; cmd = std::tolower( _getch() ) ) {

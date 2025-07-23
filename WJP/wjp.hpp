@@ -27,7 +27,7 @@ enum WJPOp_ : int8_t {
     WJPOp_Ack         = 0x01,
     WJPOp_Nak         = 0x02,
 
-    WJPOp_Ping        = 0x0b,
+    WJPOp_Heart       = 0x0b,
     
     WJPOp_QSet        = 0x0c,
     WJPOp_QGet        = 0x0d,
@@ -37,6 +37,9 @@ enum WJPOp_ : int8_t {
 
     _WJPOp_FORCE_BYTE = 0x7f
 };
+
+#define WJP_PHASE_LOCK_STR "WJPPHASE"
+#define WJP_PHASE_LOCK_STR_LEN strlen( WJP_PHASE_LOCK_STR )
 
 struct WJP_HEAD {
     WJP_HEAD() { _dw0._sig_b0 = 0x57; _dw0._sig_b1 = 0x4a, _dw0._sig_b2 = 0x50; _dw0.op = WJPOp_Null; }
@@ -492,7 +495,7 @@ struct WJP_DEVICE {
 
 #define _WJP_RR_NAK_IF( c, r ) { if( c ) { return this->_nak( context, r ); } }
 
-    _WJP_forceinline int _resolve_ping( _WJP_RECV_CONTEXT* context ) {
+    _WJP_forceinline int _resolve_heart( _WJP_RECV_CONTEXT* context ) {
         _WJP_RR_ASSERT__SEND( 
             _send<>( nullptr, 0, WJPOp_Ack, context->info->recv_head._dw1.seq, 0, WJPSendMethod_Direct ), 
             WJPErr_Send 
@@ -681,8 +684,8 @@ struct WJP_DEVICE {
         if( recv_fwd && recv_fwd( context ) != 0 ) goto l_end;
 
         switch( context->info->recv_head._dw0.op ) {
-            case WJPOp_Ping: {
-                _WJP_RR_ASSERT_AGENT( this->_resolve_ping( context ) );
+            case WJPOp_Heart: {
+                _WJP_RR_ASSERT_AGENT( this->_resolve_heart( context ) );
             break; }
 
             case WJPOp_QGet: [[fallthrough]];
@@ -819,13 +822,17 @@ struct WJP_DEVICE {
     }
 
 /*
-|>  HIGH LEVEL ======
+|>  XO ======
 */
-    int hl_ping( WJP_WAIT_BACK_INFO* info, int flags ) {
+    int XO_phase_lock( WJP_WAIT_BACK_INFO* info, int flags = 0 ) {
+        
+    }
+
+    int XO_heart( WJP_WAIT_BACK_INFO* info, int flags = 0 ) {
         WJP_HEAD head = {};
 
         head.set_alternate();
-        head._dw0.op = WJPOp_Ping;
+        head._dw0.op = WJPOp_Heart;
 
         return this->wait_back_head_xchg( info, &head, flags );
     }

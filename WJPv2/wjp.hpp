@@ -1,5 +1,5 @@
 #pragma once
-/*===== Warp Joint Protocol - Vatca "Mipsan" Tudor-Horatiu
+/*===== Warp Joint Protocol v2 - Vatca "Mipsan" Tudor-Horatiu
 |
 |=== DESCRIPTION
 > Yes.
@@ -19,7 +19,7 @@
     #endif
 #endif
 
-#define WJP_HCTL_ALTERNATE_BIT ( 1 << 7 );
+#define WJP_HCTL_ALTERNATE_BIT ( 1 << 7 )
 
 enum WJPOp_ : int8_t {
     WJPOp_Null        = 0x00,

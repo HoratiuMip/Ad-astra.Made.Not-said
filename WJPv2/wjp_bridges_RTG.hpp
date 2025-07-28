@@ -10,6 +10,8 @@
 
 /* Concurrent. */
 template< typename _T > struct WJP_Interlocked : WJP_BRIDGE_Interlocked< _T > {
+    WJP_Interlocked( _T flag ) : _flag{ flag } {}
+
 #if defined( _WJP_SEMANTICS_STL_ATOMICS )
     std::atomic< _T >   _flag;
 #else
@@ -17,11 +19,15 @@ template< typename _T > struct WJP_Interlocked : WJP_BRIDGE_Interlocked< _T > {
 #endif
 
 #if defined( _WJP_SEMANTICS_STL_ATOMICS )
-    _WJP_forceinline _T read( _WJP_MEM_ORD_DFT_ARG ) override { return _flag.load( mem_ord ); }
-    _WJP_forceinline void write( _T flag, _WJP_MEM_ORD_DFT_ARG ) override { return _flag.store( flag, mem_ord ); }
+    _WJP_forceinline _T read( WJP_MEM_ORD_DFT_ARG ) override { return _flag.load( mem_ord ); }
+    _WJP_forceinline void write( _T flag, WJP_MEM_ORD_DFT_ARG ) override { return _flag.store( flag, mem_ord ); }
+
+    _WJP_forceinline _T fetch_add( _T arg, WJP_MEM_ORD_DFT_ARG ) override { return _flag.fetch_add( arg, mem_ord ); }
 #else
-    _WJP_forceinline _T read( _WJP_MEM_ORD_DFT_ARG ) override { return _flag; }
-    _WJP_forceinline void write( _T flag, _WJP_MEM_ORD_DFT_ARG ) override { return _flag = flag; }
+    _WJP_forceinline _T read( WJP_MEM_ORD_DFT_ARG ) override { return _flag; }
+    _WJP_forceinline void write( _T flag, WJP_MEM_ORD_DFT_ARG ) override { return _flag = flag; }
+
+    _WJP_forceinline _T fetch_add( _T arg, WJP_MEM_ORD_DFT_ARG ) override { return _flag++; }
 #endif
 
 #if defined( _WJP_SEMANTICS_STL_ATOMICS_SIGNALABLE )
@@ -56,12 +62,6 @@ struct WJP_Mutex : WJP_BRIDGE_Mutex {
 
 /* Containers. */
 template< typename _T > struct WJP_CircularQueue : WJP_BRIDGE_Queue< _T > {
-    #if defined( _WJP_SEMANTICS_STL_FUNCTION )
-        typedef   std::function< void( _T& ) >   for_each_cb_t;
-    #else
-        typedef   void ( *for_each_cb_t )( _T& );
-    #endif
-
     WJP_MDsc< _T >   _mdsc   = {};
     int              _head   = 0;
     int              _tail   = 0;
@@ -100,8 +100,10 @@ template< typename _T > struct WJP_CircularQueue : WJP_BRIDGE_Queue< _T > {
         return this->empty() ? nullptr : this->front();
     }
 
-    _WJP_forceinline void clear( void ) override {
-        while( this->pop() == 0 );
+    _WJP_forceinline int clear( void ) override {
+        int count = 0;
+        while( this->pop() != nullptr ) ++count;
+        return count;
     }
 
     _WJP_forceinline _T* front( void ) override {

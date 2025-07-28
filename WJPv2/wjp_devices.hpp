@@ -1,213 +1,16 @@
 #pragma once
-/*===== Warp Joint Protocol v2 - Vatca "Mipsan" Tudor-Horatiu
+/*===== Warp Joint Protocol v2 - Devices - Vatca "Mipsan" Tudor-Horatiu
 |
 |=== DESCRIPTION
 > Yes.
 |
 ======*/
-#include "wjp_internals.hpp"
+#include "wjp_core.hpp"
+#include "wjp_bridges.hpp"
+#include "wjp_structs.hpp"
 
+#include "wjp_bridges_RTG.hpp"
 
-#if defined( WJP_ARCHITECTURE_BIG ) 
-    const int32_t WJP_SIG     = 0x574a5000; 
-    const int32_t WJP_SIG_MSK = 0xffffff00;
-#else
-    const int32_t WJP_SIG     = 0x00504a57;
-    const int32_t WJP_SIG_MSK = 0x00ffffff;
-    #if !defined( WJP_ARCHITECTURE_LITTLE )
-        #warning "[ WJP ] Endianess of target architecture not specified. Defaulting to little endian."
-    #endif
-#endif
-
-#define WJP_HCTL_ALTERNATE_BIT ( 1 << 7 )
-
-enum WJPOp_ : int8_t {
-    WJPOp_Null        = 0x00,
-
-    WJPOp_Ack         = 0x01,
-    WJPOp_Nak         = 0x02,
-
-    WJPOp_Heart       = 0x0b,
-    
-    WJPOp_QSet        = 0x0c,
-    WJPOp_QGet        = 0x0d,
-
-    WJPOp_IBurst      = -0x0b,
-    WJPOp_IBurstCtl   = -0x0c,
-
-    _WJPOp_FORCE_BYTE = 0x7f
-};
-
-#define WJP_PHASE_LOCK_STR "WJPPHASE"
-#define WJP_PHASE_LOCK_STR_LEN strlen( WJP_PHASE_LOCK_STR )
-
-struct WJP_HEAD {
-    WJP_HEAD() { _dw0._sig_b0 = 0x57; _dw0._sig_b1 = 0x4a, _dw0._sig_b2 = 0x50; _dw0.op = WJPOp_Null; }
-
-    union {
-        struct{ int8_t _sig_b0, _sig_b1, _sig_b2; int8_t op; } _dw0;
-        int32_t                                                sig;
-    };
-    struct{ uint8_t hctl = 0; uint8_t octl = 0; int16_t seq = 0; }   _dw1;
-    struct{ int32_t arg = 0; }                                       _dw2;
-    struct { int32_t sz = 0;  }                                      _dw3;
-
-    _WJP_forceinline bool is_signed( void ) { return ( sig & WJP_SIG_MSK ) == WJP_SIG; }
-
-    _WJP_forceinline bool is_alternate( void ) { return _dw1.hctl & WJP_HCTL_ALTERNATE_BIT; }
-    _WJP_forceinline void set_alternate( void ) { _dw1.hctl |= WJP_HCTL_ALTERNATE_BIT; }
-    _WJP_forceinline void reset_alternate( void ) { _dw1.hctl &= ~WJP_HCTL_ALTERNATE_BIT;}
-};
-static_assert( sizeof( WJP_HEAD ) == 4*sizeof( int32_t ) );
-
-
-/*
-|>  QUICK GET/SET ======
-*/
-#define WJP_QSET_LAMBDA ( WJP_BUFFER args ) -> const char*
-#define WJP_QGET_LAMBDA ( void* dst, WJP_BUFFER args ) -> const char*
-
-#define WJP_QGSTBL_READ_WRITE 0
-#define WJP_QGSTBL_READ_ONLY  1
-
-/**
- * @brief Called by WJP when the endpoint requests a QSet.
- * @returns The reason why the QSet was NOT acknowledged, as a NULL-terminated string, or NULL if the QSet was acknowledged.
- * @param WJP_BUFFER: The QSet arguments.
- */
-#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_RTOS )
-    typedef   std::function< const char*( WJP_BUFFER ) >   WJP_QGSTBL_QSET_FUNC;
-#else
-    typedef   const char* ( *WJP_QGSTBL_QSET_FUNC )( WJP_BUFFER );
-#endif
-/**
- * @brief Called by WJP when the endpoint requests a QGet.
- * @returns The reason why the QGet was NOT acknowledged, as a NULL-terminated string, or NULL if the QGet was acknowledged.
- * @param void*: The beginning address of where to write the data corresponding to the QGet request. The length, in bytes, of the writable area is specified in the QGSTBL_ENTRY, by the host.
- * @param WJP_BUFFER: The QGet arguments.
- */
-#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_RTOS )
-    typedef   std::function< const char*( void*, WJP_BUFFER ) >   WJP_QGSTBL_QGET_FUNC;
-#else
-    typedef   const char* ( *WJP_QGSTBL_QGET_FUNC )( void*, WJP_BUFFER );
-#endif
-
-struct WJP_QGSTBL_ENTRY {
-    const char*            str_id;
-    int32_t                sz;
-    const bool             read_only;    
-    WJP_QGSTBL_QSET_FUNC   qset_func;
-    WJP_QGSTBL_QGET_FUNC   qget_func;     
-    void*                  src;    
-};
-
-struct WJP_QGSTBL {
-    WJP_QGSTBL_ENTRY*   entries   = nullptr;
-    int                 count     = 0;
-
-    WJP_QGSTBL_ENTRY* query( const char* str_id ) {
-        for( int idx = 0; idx < count; ++idx ) {
-            if( strcmp( entries[ idx ].str_id, str_id ) == 0 ) return &entries[ idx ];
-        }
-        return nullptr;
-    }
-};
-
-/*
-|>  INDEXED BURST ======
-*/
-#define WJP_IBRST_CTRL_ENGAGE_MSK ((1<<1)|(1<<0))
-enum WJPIbrstCtrlEngage_ : int8_t {
-    WJPIbrstCtrlEngage_Terminate    = 0b00,
-    WJPIbrstCtrlEngage_AutoThrottle = 0b01,
-
-    _WJPIbrstCtrlEngage_FORCE_BYTE = 0x7f
-};
-
-#define WJP_IBRST_DIR_IN 0
-#define WJP_IBRST_DIR_OUT 1
-#define WJP_IBRST_DIR_INOUT 2
-
-#define WJP_IBRST_UNPACKED 0
-#define WJP_IBRST_PACKED 1
-
-#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_RTOS )
-    typedef   std::function< void*( void ) >   WJP_IBRST_OUT_FUNC;
-#else
-    typedef   void* ( *WJP_IBRST_OUT_FUNC )( void );
-#endif
-
-#define WJP_IBRST_OUT_LAMBDA ( void ) -> void*
-
-typedef   int   WJPIBrstStatus_;
-#define WJPIBrstStatus_Disengaged 0
-#define WJPIBrstStatus_Engaged -1
-
-struct WJP_IBRSTBL_ENTRY {
-    void*                mem           = nullptr;
-    int32_t              sz            = 0;
-    WJP_IBRST_OUT_FUNC   out_fnc       = nullptr;
-    unsigned int         dir     : 2;
-    bool                 packed;
-    int                  _status       = WJPIBrstStatus_Disengaged;
-};
-
-struct WJP_IBRSTBL {
-    WJP_IBRSTBL_ENTRY*   entries   = nullptr;
-    int                  count     = 0;
-
-    WJP_IBRSTBL_ENTRY* operator [] ( int idx ) {
-        if( idx >= count || idx < 0 ) return nullptr;
-        return &entries[ idx ];
-    }
-};
-
-/*
-|>  SEND/RECV ======
-*/
-#define WJP_SEND_LAMBDA ( WJP_CBUFFER src, int flags ) -> int
-#define WJP_RECV_LAMBDA ( WJP_BUFFER dst, int flags ) -> int
-
-#define WJP_NO_HEAD  0
-#define WJP_HAS_HEAD 1
-
-/**
- * @brief Called by WJP when the protocol needs to send data to the endpoint.
- * @warning This function must guarantee that all the requested bytes are sent.
- * @returns The count of sent bytes, or a negative value in case of an error and zero in case of a connection reset.
- * @param const_void*: The beginning address of the data to be sent.
- * @param int32_t: The length, in bytes, of the data to be sent.
- * @param int: Flags.
- */
-#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_RTOS )
-    typedef   std::function< int( WJP_CBUFFER, int ) >   WJP_SEND_FUNC;
-#else
-    typedef   int ( *WJP_SEND_FUNC )( WJP_CBUFFER, int );
-#endif
-/**
- * @brief Called by WJP when the protocol needs to receive data from the endpoint.
- * @warning This function must guarantee that all the requested bytes are received.
- * @returns The count of receive bytes, or a negative value in case of an error and zero in case of a connection reset.
- * @param void*: The beginning address of where to receive the data.
- * @param int32_t: The length, in bytes, of the data to be received.
- * @param int: Flags.
- */
-#if defined( WJP_ENVIRONMENT_MINGW ) || defined( WJP_ENVIRONMENT_RTOS )
-    typedef   std::function< int( WJP_BUFFER, int ) >    WJP_RECV_FUNC;
-#else
-    typedef   int ( *WJP_RECV_FUNC )( WJP_BUFFER, int );
-#endif
-
-struct WJP_SRWRAP {
-#if defined WJP_ENVIRONMENT_AVR
-    WJP_SRWRAP() = default;
-    WJP_SRWRAP( WJP_SEND_FUNC s, WJP_RECV_FUNC r ) : send{ s }, recv{ r } {}
-#endif
-
-
-    WJP_SEND_FUNC   send    = nullptr;
-    WJP_RECV_FUNC   recv    = nullptr;
-};
 
 enum WJPSendMethod_ {
     /* Make a call to send for each source. */
@@ -229,77 +32,6 @@ enum WJPSendMethod_ {
 #define _WJP_ASSERT_INFO( c, e, r ) if( !( c ) ) { info->err = e; return ( r ); }
 #define _WJP_ASSERT_CTX_INFO( c, e, r ) if( !( c ) ) { context->info->err = e; return ( r ); }
 
-enum WJPErr_ : int {
-    /* No error. */
-    WJPErr_None        = 0x0,
-
-    /* The received header is missing the WJP signature. */
-    WJPErr_NotSigned   = 0x1,
-
-    /* Error during reception. */
-    WJPErr_Recv        = 0x2,
-
-    /* Error during transmission. */
-    WJPErr_Send        = 0x3,
-
-    /* The received packet has no resolver waiting for it. */
-    WJPErr_NoResolver  = 0x4,
-
-    /* The received packet is out of sequence. */
-    WJPErr_Sequence    = 0x5,
-
-    /* The received packet reports a wrong size. */
-    WJPErr_Size        = 0x6,
-
-    /* Either the host or the endpoint ended the connection. */
-    WJPErr_ConnReset   = 0x7,
-
-    /* The received packet has an unidentifiable id. */
-    WJPErr_NoEntry     = 0x8,
-
-    /* The host forced the wake of the waiting thread. */
-    WJPErr_Forced      = 0x9,
-
-    /* The receive function wrap did not read the byte count requested by WJP. */
-    WJPErr_CountRecv   = 0xa,
-
-    /* The send function wrap did not write the byte count requested by WJP. */
-    WJPErr_CountSend   = 0xb,
-
-    /* The received packet has an invalid operation code. */
-    WJPErr_InvalidOp   = 0xc,
-
-    /* The received packet has an invalid head control bits combination. */
-    WJPErr_InvalidHctl = 0xd,
-
-    /* The received packet has an invalid operation control bits combination. */
-    WJPErr_InvalidOctl = 0xe,
-
-    /* The received packet has an invalid alternate size argument. */
-    WJPErr_AltSize     = 0xf,
-
-    /* A queue is full and the operation cannot be completed. */
-    WJPErr_QueueFull   = 0x10
-};
-const char* WJP_err_strs[] = {
-    "WJPErr_None",
-    "WJPErr_NotSigned",
-    "WJPErr_Recv",
-    "WJPErr_Send",
-    "WJPErr_NoResolver",
-    "WJPErr_Sequence",
-    "WJPErr_Size",
-    "WJPErr_ConnReset",
-    "WJPErr_NoEntry",
-    "WJPErr_Forced",
-    "WJPErr_CountRecv",
-    "WJPErr_CountSend",
-    "WJPErr_InvalidOp",
-    "WJPErr_InvalidHctl",
-    "WJPErr_InvalidOctl",
-    "WJPErr_AltSize",
-    "WJPErr_QueueFull"
-};
 
 struct WJP_RESOLVE_RECV_INFO {
     WJP_HEAD      recv_head    = {};
@@ -356,9 +88,6 @@ struct _WJP_RECV_CONTEXT {
 #define WJP_RECV_FWD_LAMBDA ( _WJP_RECV_CONTEXT* context ) -> int
 
 struct WJP_DEVICE {
-/*
-|>  FIELDS ======
-*/
     WJP_SRWRAP                             _srwrap      = {};
     WJP_BUFFER                             _recv_buf    = {};
 
@@ -840,3 +569,55 @@ struct WJP_DEVICE {
 
 };
 
+
+struct WJP_WACK_Info_RTG {
+    WJP_Interlocked< bool >   resolved     = { false };
+    int                       recv_count   = 0;
+    WJPErr_                   err_this     = WJPErr_None;
+    WJPErr_                   err_that     = WJPErr_None;
+};
+
+struct WJP_WACK_Resolver_RTG {
+#if deinfed( _WJP_SEMANTICS_AGGREGATES_REQUIRE_CONSTRUCTOR )
+    WJP_WACK_Resolver_RTG() = default;
+
+    WJP_WACK_Resolver_RTG( WJP_WACK_Info_RTG* info_, int16_t noun_ )
+    : info{ info_ }, noun{ noun_ } {}
+#endif
+
+    WJP_WACK_Info_RTG*    info   = nullptr;
+    int16_t               noun   = 0;
+};
+
+struct WJP_DEVICE_Cat_1_RTG {
+    WJP_BRIDGE_InterMech*                        _inter_mech      = nullptr;
+
+    WJP_Interlocked< int16_t >                   _wack_nouner     = { 0 };
+
+    WJP_CircularQueue< WJP_WACK_Resolver_RTG >   _resolvers       = {};
+
+    WJP_Mutex                                    _mtx_resolvers   = {};
+    WJP_Mutex                                    _mtx_send        = {};
+
+    void*                                        _arg             = nullptr;
+
+#define WJP_ASSERT_OR( c ) if( !(c) )
+#define WJP_INTER_MECH_INFO_ERR( s, e ) { info->err_this = ( (s) == 0 ? WJPErr_ConnReset : (e) ); } 
+
+    int WACK_alternate( WJP_Head* head, WJP_WACK_Info_RTG* info, int flags ) {
+        head->set_alternate();
+
+        WJP_ScopedLock lock_resolvers{ &_mtx_resolvers };
+        _resolvers.push( WJP_WACK_Resolver_RTG{ info: info, noun: _wack_nouner.fetch_add( 1, WJP_MEM_ORD_RELEASE ) } );
+
+        WJP_ScopedLock lock_send{ &_mtx_send };
+        lock_resolvers.release();
+        int status = _inter_mech->send( WJP_MDsc_v{ addr: ( void* )head, sz: sizeof( WJP_Head ) }, flags, _arg );
+
+        WJP_ASSERT_OR( status == sizeof( WJP_Head ) ) {
+            WJP_INTER_MECH_INFO_ERR( status, WJPErr_Send );
+        }
+
+        return status;
+    }
+};

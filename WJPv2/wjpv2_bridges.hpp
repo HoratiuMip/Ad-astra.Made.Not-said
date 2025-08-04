@@ -1,10 +1,12 @@
+#ifndef WJPV2_BRIDGES_HPP
+#define WJPV2_BRIDGES_HPP
 /*===== Warp Joint Protocol v2 - Bridges - Vatca "Mipsan" Tudor-Horatiu
 |
 |=== DESCRIPTION
 > 
 |
 ======*/
-#include "wjp_core.hpp"
+#include "wjpv2_core.hpp"
 
 
 /**
@@ -30,11 +32,11 @@ template< typename _T > struct WJP_BRIDGE_Interlocked {
     /**
      * @brief Called to signal one thread waiting on the underlying memory via hold().
      */
-    virtual void sig_one( void ) = 0;
+    virtual void signal( void ) = 0;
     /**
      * @brief Called to signal all threads waiting on the underlying memory via hold().
      */
-    virtual void sig_all( void ) = 0;
+    virtual void broadcast( void ) = 0;
 
     /**
      * @brief Block the current thread if the underlying memory compares equal with the argument, until signaled.
@@ -68,9 +70,9 @@ struct WJP_BRIDGE_Mutex {
  */
 template< typename _T > struct WJP_BRIDGE_Queue {
 #if defined( _WJP_SEMANTICS_STL_FUNCTION )
-    typedef   std::function< void( _T& ) >   for_each_cb_t;
+    typedef   std::function< void( _T* ) >   for_each_cb_t;
 #else
-    typedef   void ( *for_each_cb_t )( _T& );
+    typedef   void ( *for_each_cb_t )( _T* );
 #endif
 
     /**
@@ -83,11 +85,18 @@ template< typename _T > struct WJP_BRIDGE_Queue {
      * @returns Pointer to the pushed value.
      */
     virtual _T* push( _T&& arg ) = 0;
+
     /**
      * @brief Pop from the front of the queue.
-     * @returns Pointer to the immediately following value, or NULL if queue empty.
+     * @returns Pointer to the immediately following value, or NULL if queue now empty.
      */
     virtual _T* pop( void ) = 0;
+
+    /**
+     * @brief Pop from the end of the queue.
+     */
+    virtual void trim( void ) = 0;
+
     /**
      * @brief Clear the entire queue.
      * @returns The count of popped values, effectively the queue size before the call.
@@ -98,6 +107,7 @@ template< typename _T > struct WJP_BRIDGE_Queue {
      * @brief Pointer to the front value of the queue.
      */
     virtual _T* front( void ) = 0;
+
     /**
      * @brief Execute given callback for each value in the queue.
      */
@@ -122,3 +132,6 @@ struct WJP_BRIDGE_InterMech {
      */
     virtual int recv( WJP_MDsc_v mdsc, int flags, void* arg ) = 0;
 };
+
+
+#endif

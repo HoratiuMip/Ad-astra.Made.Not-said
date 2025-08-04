@@ -1,11 +1,13 @@
+#ifndef WJPV2_STRUCTS_HPP
+#define WJPV2_STRUCTS_HPP
 /*===== Warp Joint Protocol v2 - Structures - Vatca "Mipsan" Tudor-Horatiu
 |
 |=== DESCRIPTION
 > 
 |
 ======*/
-#include "wjp_core.hpp"
-#include "wjp_bridges.hpp"
+#include "wjpv2_core.hpp"
+#include "wjpv2_bridges.hpp"
 
 
 struct WJP_ScopedLock {
@@ -15,7 +17,7 @@ struct WJP_ScopedLock {
         this->acquire();
     }
 
-    ~_WJP_ScopedLock() {
+    ~WJP_ScopedLock() {
         if( _acqd == true ) this->release();
     }
 
@@ -27,3 +29,5 @@ struct WJP_ScopedLock {
     _WJP_forceinline bool try_acquire( void ) { return _acqd = _mtx->try_acquire(); }
 };
 
+
+#endif

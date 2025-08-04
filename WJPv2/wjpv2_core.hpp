@@ -1,3 +1,5 @@
+#ifndef WJPV2_CORE_HPP
+#define WJPV2_CORE_HPP
 /*===== Warp Joint Protocol v2 - Core - Vatca "Mipsan" Tudor-Horatiu
 |
 |=== DESCRIPTION
@@ -79,11 +81,11 @@
 
 
 #if defined( WJP_ARCHITECTURE_BIG ) 
-    #define WJP_SIG     0x574a5000; 
-    #define WJP_SIG_MSK 0xffffff00;
+    const int32_t WJP_SIG     = 0x574a5000;
+    const int32_t WJP_SIG_MSK = 0xffffff00;
 #else
-    #define WJP_SIG     0x00504a57;
-    #define WJP_SIG_MSK 0x00ffffff;
+    const int32_t WJP_SIG     = 0x00504a57;
+    const int32_t WJP_SIG_MSK = 0x00ffffff;
     #if !defined( WJP_ARCHITECTURE_LITTLE )
         #warning "[ WJP ] Endianess of target architecture not specified. Defaulting to little endian."
     #endif
@@ -91,7 +93,7 @@
 
 
 #define WJP_HEAD_HCTL_ALTERNATE_BIT ( 1 << 7 )
-#define WJP_HEAD_HCTL_EXTERN_VERB_BIT ( 1 << 0 )
+#define WJP_HEAD_HCTL_EXTERN_VERB_BIT ( 1 << 6 )
 
 
 enum WJPVerb_ : int8_t {
@@ -125,21 +127,21 @@ typedef   WJP_MDsc< void >   WJP_MDsc_v;
 
 
 struct WJP_Head {
-    WJP_Head() { _dw0._sig_b0 = 0x57; _dw0._sig_b1 = 0x4a, _dw0._sig_b2 = 0x50; _dw0.op = WJPVerb_Null; }
+    WJP_Head() { _dw0._sig_b0 = 0x57; _dw0._sig_b1 = 0x4a, _dw0._sig_b2 = 0x50; _dw0.verb = WJPVerb_Null; }
 
     union{
         struct{ int8_t _sig_b0, _sig_b1, _sig_b2; int8_t verb; } _dw0;
         int32_t                                                  sig;
     };
     struct{ uint8_t hctl = 0; uint8_t vctl = 0; int16_t noun = 0; }   _dw1;
-    struct{ union{ int32_t arg = 0; int32_t arg0; } }                 _dw2;
-    struct{ union{ int32_t sz = 0; int32_t arg1; } }                  _dw3;
+    struct{ union{ int32_t arg = 0; int32_t arg0; }; }                _dw2;
+    struct{ union{ int32_t sz = 0; int32_t arg1; }; }                 _dw3;
 
     _WJP_forceinline bool is_signed( void ) { return ( sig & WJP_SIG_MSK ) == WJP_SIG; }
 
-    _WJP_forceinline bool is_alternate( void ) { return _dw1.hctl & WJP_HCTL_ALTERNATE_BIT; }
-    _WJP_forceinline void set_alternate( void ) { _dw1.hctl |= WJP_HCTL_ALTERNATE_BIT; }
-    _WJP_forceinline void reset_alternate( void ) { _dw1.hctl &= ~WJP_HCTL_ALTERNATE_BIT; }
+    _WJP_forceinline bool is_alternate( void ) { return _dw1.hctl & WJP_HEAD_HCTL_ALTERNATE_BIT; }
+    _WJP_forceinline void set_alternate( void ) { _dw1.hctl |= WJP_HEAD_HCTL_ALTERNATE_BIT; }
+    _WJP_forceinline void reset_alternate( void ) { _dw1.hctl &= ~WJP_HEAD_HCTL_ALTERNATE_BIT; }
 
     _WJP_forceinline bool is_extern_verb( void ) { return _dw1.hctl & WJP_HEAD_HCTL_EXTERN_VERB_BIT; }
     _WJP_forceinline void set_extern_verb( void ) { _dw1.hctl |= WJP_HEAD_HCTL_EXTERN_VERB_BIT; }
@@ -220,3 +222,5 @@ const char* WJP_err_strs[] = {
     "WJPErr_QueueFull"
 };
 
+
+#endif

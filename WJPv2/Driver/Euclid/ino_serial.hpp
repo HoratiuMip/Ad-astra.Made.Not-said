@@ -11,14 +11,14 @@ struct _WJP_INTER_MECH_InoSerial : WJP_BRIDGE_InterMech {
         return _serial->write( ( char* )mdsc.addr, mdsc.sz ) == mdsc.sz ? mdsc.sz : -1;
     }
 
-    _WJP_forceinline int recv( WJP_MDsc_v mdsc, int flags, void* arg ) override {
+    _WJP_forceinline int recv( WJP_MDsc_v mdsc, int flags, void* arg ) override { int cnt = 0;
         for( int b = 0; b < mdsc.sz; ++b ) {
             int r = _serial->read();
             if( r == -1 ) { --b; continue; }
-            ( ( char* )mdsc.addr )[ b ] = ( char )r;
+            ( ( char* )mdsc.addr )[ b ] = ( char )r; ++cnt;
         }
       
-        return mdsc.sz;
+        return cnt;
     }
 };
 

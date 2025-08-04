@@ -137,7 +137,7 @@ struct WJP_Head {
     struct{ union{ int32_t arg = 0; int32_t arg0; }; }                _dw2;
     struct{ union{ int32_t sz = 0; int32_t arg1; }; }                 _dw3;
 
-    _WJP_forceinline bool is_signed( void ) { return ( sig & WJP_SIG_MSK ) == WJP_SIG; }
+    _WJP_forceinline bool is_signed( void ) { return _dw0._sig_b0 == 0x57 && _dw0._sig_b1 == 0x4a && _dw0._sig_b2 == 0x50; }
 
     _WJP_forceinline bool is_alternate( void ) { return _dw1.hctl & WJP_HEAD_HCTL_ALTERNATE_BIT; }
     _WJP_forceinline void set_alternate( void ) { _dw1.hctl |= WJP_HEAD_HCTL_ALTERNATE_BIT; }

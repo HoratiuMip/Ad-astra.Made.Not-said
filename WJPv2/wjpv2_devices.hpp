@@ -77,6 +77,8 @@ struct WJP_DEVICE_Euclid_RTG {
 
         _WJP_ASSERT_OR( res != nullptr ) { info->err = WJPErr_QueueFull; return -1; }
 
+        head->_dw1.noun = res->noun;
+
         WJP_ScopedLock lock_send{ &_mtx_send };
         int status = _inter_mech->send( WJP_MDsc_v{ addr: ( void* )head, sz: sizeof( WJP_Head ) }, flags, _arg );
 

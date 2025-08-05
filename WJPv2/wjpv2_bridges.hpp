@@ -152,6 +152,8 @@ struct WJP_BRIDGE_LMHIReceiver {
 
     virtual int when_wbck( Params* params, void* _arg ) = 0;
 
+    virtual int when_ack( Params* params, void* _arg ) { }
+
     virtual int when_brst( Params* params, void* _arg ) = 0;
 };
 

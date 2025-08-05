@@ -106,11 +106,11 @@ enum WJPVerb_ : int8_t {
 
     WJPVerb_Heart       = 0x03,
     
-    WJPVerb_QBufSet     = 0x0a,
-    WJPVerb_QBufGet     = 0x0b,
+    WJPVerb_QBufSet     = 0x10,
+    WJPVerb_QBufGet     = 0x11,
 
-    WJPVerb_IBurst      = 0x1a,
-    WJPVerb_IBurstCtl   = 0x1b,
+    WJPVerb_IBurst      = 0x12,
+    WJPVerb_IBurstCtl   = 0x13,
 
     _WJPVerb_FORCE_BYTE = 0x7f
 };

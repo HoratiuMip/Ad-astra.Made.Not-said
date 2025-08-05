@@ -200,20 +200,33 @@ endif()
 # ImGUI pre. ----------------------------------
 if( IXN_IMGUI ) 
     set( _imgui_source_files "" )
-    file( GLOB files_paths "${IXN_EXCOM_ROOT_DIR}/ImGUI/*" )
+
+    file( GLOB files_paths "${IXN_EXCOM_ROOT_DIR}/ImGui/*" )
     
     foreach( file_path ${files_paths} )
         string( REGEX MATCH "[a-zA-Z_0-9]+\.cpp$" file_path ${file_path} )
         
         if( file_path )
             message( STATUS "Detected ImGUI source file: ${file_path}" )
-            list( APPEND _imgui_source_files "${IXN_EXCOM_ROOT_DIR}/ImGUI/${file_path}" )
+            list( APPEND _imgui_source_files "${IXN_EXCOM_ROOT_DIR}/ImGui/${file_path}" )
+        endif()
+    endforeach()
+
+    file( GLOB files_paths "${IXN_EXCOM_ROOT_DIR}/ImPlot/*" )
+    
+    foreach( file_path ${files_paths} )
+        string( REGEX MATCH "[a-zA-Z_0-9]+\.cpp$" file_path ${file_path} )
+        
+        if( file_path )
+            message( STATUS "Detected ImPlot source file: ${file_path}" )
+            list( APPEND _imgui_source_files "${IXN_EXCOM_ROOT_DIR}/ImPlot/${file_path}" )
         endif()
     endforeach()
 
     message( STATUS "Creating the ImGUI library..." )
-    include_directories( "${IXN_EXCOM_ROOT_DIR}/ImGUI/" )
-    include_directories( "${IXN_EXCOM_ROOT_DIR}/ImGUI/backends/" )
+    include_directories( "${IXN_EXCOM_ROOT_DIR}/ImGui/" )
+    include_directories( "${IXN_EXCOM_ROOT_DIR}/ImGui/backends/" )
+    include_directories( "${IXN_EXCOM_ROOT_DIR}/ImPlot/" )
     add_library( "ImGUI" STATIC ${_imgui_source_files} )
 endif()
 

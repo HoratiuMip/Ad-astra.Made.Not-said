@@ -99,7 +99,7 @@ struct WJP_DEVICE_Euclid_RTG {
     }
 
     /**
-     * @brief Send the head to the endpoint.
+     * @brief Burst the head to the endpoint.
      * @attention This function sets: ALTERNATE.
      */
     int BRST_head( WJP_Head* head, int flags ) {
@@ -153,6 +153,40 @@ struct WJP_DEVICE_Euclid_RTG {
     }
 
     /**
+     * @brief Burst the head with the payload to the endpoint.
+     * @details If payload.addr is NULL, the device assumes that the payload immediately follows the head, thus calling send() once.
+     * @attention This function sets: SZ.
+     * @attention This function resets: ALTERNATE | ACK_REQ.
+     */
+    int BRST_payload( WJP_Head* head, WJP_WBCK_Info_RTG* info, WJP_MDsc_v payload, int flags ) {
+        head->reset_alternate();
+        head->reset_ack_req();
+
+        head->_dw3.sz = payload.sz;
+
+        WJP_ScopedLock lock_send{ &_mtx_send };
+        int status = 0;
+        
+        if( payload.addr == nullptr ) {
+            status = _inter_mech->send( WJP_MDsc_v{ addr: ( void* )head, sz: payload.sz + ( int32_t )sizeof( WJP_Head ) }, flags, _arg );
+            _WJP_ASSERT_OR( status == sizeof( WJP_Head ) + payload.sz ) goto l_err;
+        } else {
+            status = _inter_mech->send( WJP_MDsc_v{ addr: ( void* )&head, sz: sizeof( WJP_Head ) }, flags, _arg );
+            _WJP_ASSERT_OR( status == sizeof( WJP_Head ) ) goto l_err;
+
+            status = _inter_mech->send( payload, flags, _arg );
+            _WJP_ASSERT_OR( status == payload.sz ) goto l_err;
+        }
+        goto l_ok;
+
+    l_err:
+        _WJP_INTER_MECH_INFO_ERR( status, WJPErr_Send ); 
+
+    l_ok:
+        return status;
+    }
+
+    /**
      * @brief Resolve one incoming packet.
      */
     int RSLV_head( WJP_RSLV_Info_RTG* info, int flags ) {
@@ -177,7 +211,7 @@ struct WJP_DEVICE_Euclid_RTG {
 
             case WJPVerb_Ack: 
             case WJPVerb_Nak: {
-                _WJP_ASSERT_AGENT( this->_resolve_wbck( context ) );
+                _WJP_ASSERT_AGENT( this->_resolve_ack( context ) );
             break; }
 
             l_lmhi: {
@@ -207,11 +241,9 @@ struct WJP_DEVICE_Euclid_RTG {
         return 1;
     }
 
-    _WJP_forceinline int _resolve_wbck( _WJP_RSLV_Context_RTG* context ) {
+    _WJP_forceinline int _resolve_ack( _WJP_RSLV_Context_RTG* context ) {
         auto* res = _resolvers.front();
-
         _WJP_ASSERT_OR( res != nullptr ) { context->info->err = WJPErr_NoResolver; return -1; }
-
         _WJP_ASSERT_OR( res->noun == context->info->head._dw1.noun ) { context->info->err = WJPErr_Sequence; return -1; }
 
         switch( context->info->head._dw1.hctl ) {
@@ -249,7 +281,18 @@ struct WJP_DEVICE_Euclid_RTG {
             _WJP_ASSERT_OR( status == params.head_in->_dw3.sz ) { context->info->err = WJPErr_Recv; return status; }
 
             params.payload_in.addr = _recv_buffer.addr;
-            params.payload_in.sz = params.head_in->_dw3.sz;
+            params.payload_in.sz   = params.head_in->_dw3.sz;
+        }
+
+        if( params.head_in->_dw0.verb == WJPVerb_Ack || params.head_in->_dw0.verb == WJPVerb_Nak ) {
+            auto* res = _resolvers.front();
+            _WJP_ASSERT_OR( res != nullptr ) { context->info->err = WJPErr_NoResolver; return -1; }
+            _WJP_ASSERT_OR( res->noun == params.head_in->_dw1.noun ) { context->info->err = WJPErr_Sequence; return -1; }
+
+            status = _lmhi_receiver->when_ack( &params, _arg );
+
+            WJP_ScopedLock lock_resolvers{ &_mtx_resolvers }; _resolvers.pop();
+            goto l_end;
         }
 
         if( params.head_in->is_ack_req() ) {
@@ -260,11 +303,17 @@ struct WJP_DEVICE_Euclid_RTG {
 
             head_out._dw0.verb = ( status == 0 ) ? WJPVerb_Ack : WJPVerb_Nak;
             head_out._dw1.noun = params.head_in->_dw1.noun;
+            //head_out.set_lmhi();
             
             status = this->BRST_head( &head_out, context->flags );
             _WJP_ASSERT_OR( status == sizeof( WJP_Head ) ) { context->info->err = WJPErr_Send; return status; }
+            goto l_end;
+        } else {
+            status = _lmhi_receiver->when_brst( &params, _arg );
+            goto l_end;
         }
 
+    l_end:
         return 1;
     }
 
@@ -299,12 +348,21 @@ struct WJP_DEVICE_Euclid_RTG {
     }
 
     /**
-     * @brief
+     * @brief LMHI a packed payload for which an ACK is required.
      * @attention This function sets: LMHI
      */
     _WJP_forceinline int XO_LMHI_payload_ack_packed( WJP_WBCK_Info_RTG* info, WJP_Head*  head, int32_t payload_sz, int flags = 0 ) {
         head->set_lmhi();
         return this->WBCK_payload( head, info, WJP_MDsc_v{ addr: nullptr, sz: payload_sz  }, flags );
+    }
+
+    /**
+     * @brief LMHI a packed payload for which an ACK is NOT required.
+     * @attention This function sets: LMHI
+     */
+    _WJP_forceinline int XO_LMHI_payload_nak_packed( WJP_WBCK_Info_RTG* info, WJP_Head*  head, int32_t payload_sz, int flags = 0 ) {
+        head->set_lmhi();
+        return this->BRST_payload( head, info, WJP_MDsc_v{ addr: nullptr, sz: payload_sz  }, flags );
     }
 };
 

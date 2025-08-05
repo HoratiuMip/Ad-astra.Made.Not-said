@@ -93,7 +93,9 @@
 
 
 #define WJP_HEAD_HCTL_ALTERNATE_BIT ( 1 << 7 )
-#define WJP_HEAD_HCTL_EXTERN_VERB_BIT ( 1 << 6 )
+#define WJP_HEAD_HCTL_LMHI_BIT ( 1 << 6 )
+
+#define WJP_HEAD_VCTL_ACK_REQ_BIT ( 1 << 7 )
 
 
 enum WJPVerb_ : int8_t {
@@ -104,8 +106,8 @@ enum WJPVerb_ : int8_t {
 
     WJPVerb_Heart       = 0x03,
     
-    WJPVerb_QSet        = 0x0a,
-    WJPVerb_QGet        = 0x0b,
+    WJPVerb_QBufSet     = 0x0a,
+    WJPVerb_QBufGet     = 0x0b,
 
     WJPVerb_IBurst      = 0x1a,
     WJPVerb_IBurstCtl   = 0x1b,
@@ -126,6 +128,17 @@ template< typename _T > struct WJP_MDsc {
 typedef   WJP_MDsc< void >   WJP_MDsc_v;
 
 
+#define _WJP_HEAD_HCTL_I_S_R( name, bit ) \
+    _WJP_forceinline bool is_##name( void ) { return _dw1.hctl & bit; } \
+    _WJP_forceinline void set_##name( void ) { _dw1.hctl |= bit; } \
+    _WJP_forceinline void reset_##name( void ) { _dw1.hctl &= ~bit; }
+
+#define _WJP_HEAD_VCTL_I_S_R( name, bit ) \
+    _WJP_forceinline bool is_##name( void ) { return _dw1.vctl & bit; } \
+    _WJP_forceinline void set_##name( void ) { _dw1.vctl |= bit; } \
+    _WJP_forceinline void reset_##name( void ) { _dw1.vctl &= ~bit; }
+
+
 struct WJP_Head {
     WJP_Head() { _dw0._sig_b0 = 0x57; _dw0._sig_b1 = 0x4a, _dw0._sig_b2 = 0x50; _dw0.verb = WJPVerb_Null; }
 
@@ -137,17 +150,14 @@ struct WJP_Head {
     struct{ union{ int32_t arg = 0; int32_t arg0; }; }                _dw2;
     struct{ union{ int32_t sz = 0; int32_t arg1; }; }                 _dw3;
 
-    _WJP_forceinline bool is_signed( void ) { return _dw0._sig_b0 == 0x57 && _dw0._sig_b1 == 0x4a && _dw0._sig_b2 == 0x50; }
+    _WJP_forceinline bool is_signed( void ) { return ( sig & WJP_SIG_MSK ) == WJP_SIG; }
 
-    _WJP_forceinline bool is_alternate( void ) { return _dw1.hctl & WJP_HEAD_HCTL_ALTERNATE_BIT; }
-    _WJP_forceinline void set_alternate( void ) { _dw1.hctl |= WJP_HEAD_HCTL_ALTERNATE_BIT; }
-    _WJP_forceinline void reset_alternate( void ) { _dw1.hctl &= ~WJP_HEAD_HCTL_ALTERNATE_BIT; }
+    _WJP_HEAD_HCTL_I_S_R( alternate, WJP_HEAD_HCTL_ALTERNATE_BIT )
+    _WJP_HEAD_HCTL_I_S_R( lmhi, WJP_HEAD_HCTL_LMHI_BIT )
 
-    _WJP_forceinline bool is_extern_verb( void ) { return _dw1.hctl & WJP_HEAD_HCTL_EXTERN_VERB_BIT; }
-    _WJP_forceinline void set_extern_verb( void ) { _dw1.hctl |= WJP_HEAD_HCTL_EXTERN_VERB_BIT; }
-    _WJP_forceinline void reset_extern_verb( void ) { _dw1.hctl &= ~WJP_HEAD_HCTL_EXTERN_VERB_BIT; }
+    _WJP_HEAD_VCTL_I_S_R( ack_req, WJP_HEAD_VCTL_ACK_REQ_BIT )
 };
-static_assert( sizeof( WJP_Head ) == 4*sizeof( int32_t ) );
+static_assert( sizeof( WJP_Head ) == 16 );
 
 
 enum WJPErr_ : int {
@@ -175,11 +185,11 @@ enum WJPErr_ : int {
     /* Either the host or the endpoint ended the connection. */
     WJPErr_ConnReset   = 0x7,
 
-    /* The received packet has an unidentifiable id. */
-    WJPErr_NoEntry     = 0x8,
+    /* The received packet can not be routed to any procedure. */
+    WJPErr_DeadEnd     = 0x8,
 
     /* The host forced the wake of the waiting thread. */
-    WJPErr_Forced      = 0x9,
+    WJPErr_Drained     = 0x9,
 
     /* The receive function wrap did not read the byte count requested by WJP. */
     WJPErr_CountRecv   = 0xa,
@@ -196,11 +206,8 @@ enum WJPErr_ : int {
     /* The received packet has an invalid operation control bits combination. */
     WJPErr_InvalidOctl = 0xe,
 
-    /* The received packet alternate bit is wrong. */
-    WJPErr_Alternate   = 0xf,
-
     /* A queue is full and the operation cannot be completed. */
-    WJPErr_QueueFull   = 0x10
+    WJPErr_QueueFull   = 0xf
 };
 const char* WJP_err_strs[] = {
     "WJPErr_None",
@@ -218,7 +225,6 @@ const char* WJP_err_strs[] = {
     "WJPErr_InvalidVerb",
     "WJPErr_InvalidHctl",
     "WJPErr_InvalidOctl",
-    "WJPErr_Alternate",
     "WJPErr_QueueFull"
 };
 

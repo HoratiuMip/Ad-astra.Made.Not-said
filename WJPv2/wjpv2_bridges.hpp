@@ -131,6 +131,28 @@ struct WJP_BRIDGE_InterMech {
      * @returns The count of requested bytes to receive. Negative for errors, zero for connection reset.
      */
     virtual int recv( WJP_MDsc_v mdsc, int flags, void* arg ) = 0;
+
+    /**
+     * @brief Clear all buffers so the connection becomes like a fresh one.
+     * @returns 0 on success, negative otherwise.
+     */
+    virtual int drain( int flags, void* arg ) = 0;
+};
+
+/**
+ * @brief Bridge over Let Me Handle It functionality.
+ */
+struct WJP_BRIDGE_LMHIReceiver {
+    struct Params {
+        WJP_Head*    head_in       = nullptr;
+        WJP_Head*    head_out      = nullptr;
+        WJP_MDsc_v   payload_in    = {};
+        WJP_MDsc_v   payload_out   = {};
+    };
+
+    virtual int when_wbck( Params* params, void* _arg ) = 0;
+
+    virtual int when_brst( Params* params, void* _arg ) = 0;
 };
 
 

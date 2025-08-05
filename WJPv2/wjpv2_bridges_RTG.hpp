@@ -131,7 +131,7 @@ template< typename _T > struct WJP_CircularQueue : WJP_BRIDGE_Queue< _T > {
         int head = _head;
         int span = _span;
 
-        while( span-- >= 0 ) {
+        while( span-- > 0 ) {
             cb( &_mdsc.addr[ head++ ] );
             if( head >= _mdsc.sz ) head = 0;
         }

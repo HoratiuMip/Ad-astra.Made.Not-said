@@ -105,6 +105,7 @@ enum WJPVerb_ : int8_t {
     WJPVerb_Nak         = 0x02,
 
     WJPVerb_Heart       = 0x03,
+    WJPVerb_PhaseLock   = 0x04,
     
     WJPVerb_QBufSet     = 0x10,
     WJPVerb_QBufGet     = 0x11,
@@ -207,7 +208,10 @@ enum WJPErr_ : int {
     WJPErr_InvalidOctl = 0xe,
 
     /* A queue is full and the operation cannot be completed. */
-    WJPErr_QueueFull   = 0xf
+    WJPErr_QueueFull   = 0xf,
+
+    /* Phase lock loop exceeded maximum byte count. */
+    WJPErr_PhaseLock   = 0x10
 };
 const char* WJP_err_strs[] = {
     "WJPErr_None",
@@ -225,7 +229,8 @@ const char* WJP_err_strs[] = {
     "WJPErr_InvalidVerb",
     "WJPErr_InvalidHctl",
     "WJPErr_InvalidOctl",
-    "WJPErr_QueueFull"
+    "WJPErr_QueueFull",
+    "WJPErr_PhaseLock"
 };
 
 

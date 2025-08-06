@@ -20,6 +20,10 @@ struct WJP_WBCK_Info_RTG {
     WJPErr_                   err          = WJPErr_None;
 };
 
+struct WJP_BRST_Info_RTG {
+    WJPErr_   err   = WJPErr_None;
+};
+
 struct WJP_RSLV_Info_RTG {
     WJP_Head   head         = {};
     int        sent_count   = 0;
@@ -50,6 +54,13 @@ struct WJP_WBCK_Resolver_RTG {
 };
 
 struct WJP_DEVICE_Euclid_RTG {
+    inline static const unsigned char _PHASE_BUFFER[ 16 ] = {
+        'W', 'J', 'P',
+        0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+        'W', 'J', 'P'
+    };
+    inline static const int _PHASE_BUFFER_SIZE = 16;
+
     WJP_BRIDGE_InterMech*                        _inter_mech      = nullptr;
 
     WJP_Interlocked< int16_t >                   _wbck_nouner     = { 0 };
@@ -62,6 +73,8 @@ struct WJP_DEVICE_Euclid_RTG {
     void*                                        _arg             = nullptr;
 
     WJP_BRIDGE_LMHIReceiver*                     _lmhi_receiver   = nullptr;
+
+    int                                          _phase_lock      = 0;
 
     WJP_MDsc_v                                   _recv_buffer     = {};
 
@@ -102,7 +115,7 @@ struct WJP_DEVICE_Euclid_RTG {
      * @brief Burst the head to the endpoint.
      * @attention This function sets: ALTERNATE.
      */
-    int BRST_head( WJP_Head* head, int flags ) {
+    int BRST_head( WJP_Head* head, WJP_BRST_Info_RTG* info, int flags ) {
         head->set_alternate();
 
         WJP_ScopedLock lock_send{ &_mtx_send };
@@ -158,7 +171,7 @@ struct WJP_DEVICE_Euclid_RTG {
      * @attention This function sets: SZ.
      * @attention This function resets: ALTERNATE | ACK_REQ.
      */
-    int BRST_payload( WJP_Head* head, WJP_WBCK_Info_RTG* info, WJP_MDsc_v payload, int flags ) {
+    int BRST_payload( WJP_Head* head, WJP_BRST_Info_RTG* info, WJP_MDsc_v payload, int flags ) {
         head->reset_alternate();
         head->reset_ack_req();
 
@@ -194,10 +207,29 @@ struct WJP_DEVICE_Euclid_RTG {
         context->info = info;
         context->flags = flags;
        
-        int status = _inter_mech->recv( WJP_MDsc_v{ addr: &context->info->head, sz: sizeof( WJP_Head ) }, flags, _arg );
+        int status = 0;
+        
+        if( _phase_lock == 0 ) [[likely]] {
+            status = _inter_mech->recv( WJP_MDsc_v{ addr: &context->info->head, sz: sizeof( WJP_Head ) }, flags, _arg );
+            _WJP_ASSERT_OR( status == sizeof( WJP_Head ) ) { _WJP_INTER_MECH_INFO_ERR( status, WJPErr_Recv ); return status; }
+        } else {
+            int idx = 0;
 
-        _WJP_ASSERT_OR( status == sizeof( WJP_Head ) ) { _WJP_INTER_MECH_INFO_ERR( status, WJPErr_Recv ); return status; }
+            while( idx < _PHASE_BUFFER_SIZE ) {
+                unsigned char byte;
+                status = _inter_mech->recv( WJP_MDsc_v{ addr: ( void* )&byte, sz: 1 }, flags, _arg );
+                _WJP_ASSERT_OR( status == 1 ) { _WJP_INTER_MECH_INFO_ERR( status, WJPErr_Recv ); return status; }
 
+                _WJP_ASSERT_OR( --_phase_lock > 0 ) { info->err = WJPErr_PhaseLock; return -1; } 
+
+                if( byte != _PHASE_BUFFER[ idx ] ) { idx = 0; continue; }
+                ++idx;
+            }
+
+            _phase_lock = 0;
+            return 1;
+        }
+   
         context->recv_count = sizeof( WJP_Head );
 
         _WJP_ASSERT_OR( context->info->head.is_signed() ) { context->info->err = WJPErr_NotSigned; return -1; }
@@ -207,6 +239,10 @@ struct WJP_DEVICE_Euclid_RTG {
         switch( context->info->head._dw0.verb ) {
             case WJPVerb_Heart: {
                 _WJP_ASSERT_AGENT( this->_resolve_heart( context ) );
+            break; }
+
+            case WJPVerb_PhaseLock: {
+                _WJP_ASSERT_AGENT( this->_resolve_phase_lock( context ) );
             break; }
 
             case WJPVerb_Ack: 
@@ -224,20 +260,26 @@ struct WJP_DEVICE_Euclid_RTG {
     }
 
     _WJP_forceinline int _resolve_heart( _WJP_RSLV_Context_RTG* context ) {
-        _WJP_ASSERT_OR( context->info->head.is_alternate() ) {
-            context->info->err = WJPErr_InvalidHctl;
-            return -1;
-        }
+        _WJP_ASSERT_OR( context->info->head.is_alternate() ) { context->info->err = WJPErr_InvalidHctl; return -1; }
 
         WJP_Head head{};
         head._dw0.verb = WJPVerb_Ack;
         head._dw1.noun = context->info->head._dw1.noun;
         
-        int status = this->BRST_head( &head, context->flags );
-
+        int status = this->BRST_head( &head, nullptr, context->flags );
         _WJP_ASSERT_OR( status == sizeof( WJP_Head ) ) { _WJP_INTER_MECH_CTX_INFO_ERR( status, WJPErr_Send ); return status; }
 
         context->info->sent_count = sizeof( WJP_Head );
+        return 1;
+    }
+
+    _WJP_forceinline int _resolve_phase_lock( _WJP_RSLV_Context_RTG* context ) {
+        _WJP_ASSERT_OR( context->info->head.is_alternate() ) { context->info->err = WJPErr_InvalidHctl; return -1; }
+
+        int status = _inter_mech->send( WJP_MDsc_v{ addr: ( void* )_PHASE_BUFFER, sz: _PHASE_BUFFER_SIZE }, context->flags, _arg );
+        _WJP_ASSERT_OR( status == _PHASE_BUFFER_SIZE ) { _WJP_INTER_MECH_CTX_INFO_ERR( status, WJPErr_Send ); return status; }
+
+        context->info->sent_count = _PHASE_BUFFER_SIZE;
         return 1;
     }
 
@@ -305,7 +347,7 @@ struct WJP_DEVICE_Euclid_RTG {
             head_out._dw1.noun = params.head_in->_dw1.noun;
             //head_out.set_lmhi();
             
-            status = this->BRST_head( &head_out, context->flags );
+            status = this->BRST_head( &head_out, nullptr, context->flags );
             _WJP_ASSERT_OR( status == sizeof( WJP_Head ) ) { context->info->err = WJPErr_Send; return status; }
             goto l_end;
         } else {
@@ -328,6 +370,18 @@ struct WJP_DEVICE_Euclid_RTG {
         _resolvers.clear();
        
         return _inter_mech->drain( flags, _arg );
+    }
+
+    _WJP_forceinline int XO_phase_lock( WJP_BRST_Info_RTG* info, int phases = 1500, int flags = 0 ) {
+        WJP_Head head{};
+        head._dw0.verb = WJPVerb_PhaseLock;
+
+        _phase_lock = phases;
+
+        int status = this->BRST_head( &head, info, flags );
+        _WJP_ASSERT_OR( status == sizeof( WJP_Head ) ) { _WJP_INTER_MECH_INFO_ERR( status, WJPErr_Send ); _phase_lock = 0; }
+
+        return status;
     }
 
     /**
@@ -360,7 +414,7 @@ struct WJP_DEVICE_Euclid_RTG {
      * @brief LMHI a packed payload for which an ACK is NOT required.
      * @attention This function sets: LMHI
      */
-    _WJP_forceinline int XO_LMHI_payload_nak_packed( WJP_WBCK_Info_RTG* info, WJP_Head*  head, int32_t payload_sz, int flags = 0 ) {
+    _WJP_forceinline int XO_LMHI_payload_nak_packed( WJP_BRST_Info_RTG* info, WJP_Head*  head, int32_t payload_sz, int flags = 0 ) {
         head->set_lmhi();
         return this->BRST_payload( head, info, WJP_MDsc_v{ addr: nullptr, sz: payload_sz  }, flags );
     }

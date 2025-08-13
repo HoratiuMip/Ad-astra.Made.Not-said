@@ -97,13 +97,27 @@ struct TRACK_DRIVE {
     }
 
 
-    STATUS test_sequence_1( float pwr, int ms ) {
+    STATUS test_seq_1( float pwr, int ms ) {
         this->halt();
         this->right_fwd( pwr ); vTaskDelay( ms ); this->right_halt();
         this->right_bck( pwr ); vTaskDelay( ms ); this->right_halt();
         this->left_fwd( pwr ); vTaskDelay( ms ); this->left_halt();
         this->left_bck( pwr ); vTaskDelay( ms ); this->left_halt();
         return 0;
+    }
+
+    STATUS test_seq_2( float pwr, int ms ) {
+        this->halt();
+        this->right_fwd( pwr ); this->left_bck( pwr );
+        vTaskDelay( ms );
+        this->halt();
+    }
+
+    STATUS test_seq_3( float pwr, int ms ) {
+        this->halt();
+        this->left_fwd( pwr ); this->right_bck( pwr );
+        vTaskDelay( ms );
+        this->halt();
     }
 
 };

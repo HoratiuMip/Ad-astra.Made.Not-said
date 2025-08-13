@@ -11,6 +11,10 @@
 RP_NAMESPACE {
 
 
+struct RING_MECH {
+    virtual STATUS when_message( std::string_view content ) = 0;
+};
+
 struct RING_DRIVE {
     const struct PIN_MAP {
         PIN   i_uart_rx;
@@ -28,6 +32,7 @@ struct RING_DRIVE {
     {}
 
     HardwareSerial*   _port     = nullptr;
+    RING_MECH*        _mech     = nullptr;
     TaskHandle_t      _h_main   = NULL;
 
 
@@ -73,7 +78,7 @@ struct RING_DRIVE {
         line = that->_port->readStringUntil( '\n' ); line.trim();
 
         if( line.startsWith( "+CMT:" ) ) {
-            Serial.println( that->_port->readStringUntil( '\n' ) );
+            that->_mech->when_message( that->_port->readStringUntil( '\n' ).c_str() );
         }
        
         goto l_check_uart;

@@ -13,7 +13,7 @@
 RP_NAMESPACE {
 
 
-struct COMMAND_LINE_INTERPRETER {
+struct COMMAND_LINE_INTERPRETER : RING_MECH {
     inline static constexpr int    TOKEN_BUFFER_SIZE   = 6;
     inline static constexpr char   TOKEN_SEPARATOR     = ' ';
 
@@ -31,7 +31,9 @@ struct COMMAND_LINE_INTERPRETER {
 
     COMMAND_LINE_INTERPRETER( TRACK_DRIVE* track_drive, RING_DRIVE* ring_drive )
     : _track_drive{ track_drive }, _ring_drive{ ring_drive }
-    {}
+    {
+        _ring_drive->_mech = ( RING_MECH* )this;
+    }
 
     TRACK_DRIVE*   _track_drive   = nullptr;
     RING_DRIVE*    _ring_drive    = nullptr;
@@ -95,19 +97,24 @@ struct COMMAND_LINE_INTERPRETER {
     }
 
     _RP_CLI_ROUTE_FUNC( _track_test ) { _RP_CLI_ASSERT_TOK_COUNT_GE( 1, "track test <test_number> <args>..." );
-        switch( atoi( tokens[ 0 ].c_str() ) ) {
-            case 1: {
-                _RP_CLI_ASSERT_TOK_COUNT_GE( 3, "track test 1 <power> <duration_ms>" );
-
-                float pwr = atof( tokens[ 1 ].c_str() ); _RP_CLI_ASSERT_ARG( pwr >= 0.0 && pwr <= 1.0, "Track power shall be between 0.0 and 1.0." );
-                int   ms  = atoi( tokens[ 2 ].c_str() ); _RP_CLI_ASSERT_ARG( ms >= 0 && ms <= 10000, "Maximum track duration is 10 seconds." );
-
-                _track_drive->test_sequence_1( pwr, ms ); 
-                return { 0, "Track test 1 complete." };
-            }
+        switch( _RP_CLI_HASH_TOK_0  ) {
+            case 0x974cc8a8: return _RP_CLI_DIVE_ROUTE( _track_test_seq );
         }
 
-        return { -1, "Invalid track test number." };
+        return { -1, "Invalid track test." };
+    }
+
+    _RP_CLI_ROUTE_FUNC( _track_test_seq ) { _RP_CLI_ASSERT_TOK_COUNT_GE( 3, "track test seq <seq_number> <power> <duration_ms>"  );
+        float pwr = atof( tokens[ 1 ].c_str() ); _RP_CLI_ASSERT_ARG( pwr >= 0.0 && pwr <= 1.0, "Track power shall be between 0.0 and 1.0." );
+        int   ms  = atoi( tokens[ 2 ].c_str() ); _RP_CLI_ASSERT_ARG( ms >= 0 && ms <= 10000, "Maximum track duration is 10 seconds." );
+
+        switch( atoi( tokens[ 0 ].c_str() ) ) {
+            case 1: _track_drive->test_seq_1( pwr, ms ); return { 0, "Track test seq 1 complete." };
+            case 2: _track_drive->test_seq_2( pwr, ms ); return { 0, "Track test seq 2 complete." };
+            case 3: _track_drive->test_seq_3( pwr, ms ); return { 0, "Track test seq 3 complete." };
+        }
+
+        return { -1, "Invalid track test seq number." };
     }
 
 /**
@@ -126,6 +133,12 @@ struct COMMAND_LINE_INTERPRETER {
         }
 
         return { -1, "No such drive." };
+    }
+
+
+    STATUS when_message( std::string_view content ) override {
+        this->exec( content );
+        return 0;
     }
 
 };

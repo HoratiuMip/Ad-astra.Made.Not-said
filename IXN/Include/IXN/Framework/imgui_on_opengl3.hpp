@@ -16,7 +16,6 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <implot.h>
-//#include <implot.h>
 
 #include <atomic>
 
@@ -110,8 +109,6 @@ public:
         imgui.style.WindowRounding = 0.0f; 
         imgui.style.Colors[ ImGuiCol_WindowBg ].w = 1.0f;  
         imgui.style.WindowPadding = { 10, 10 };
-
-        ImGui::StyleColorsDark();
 
         ImGui_ImplGlfw_InitForOpenGL( render.handle(), true );
         ImGui_ImplOpenGL3_Init();

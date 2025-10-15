@@ -55,27 +55,27 @@ struct TRACK_DRIVE {
     }
 
 
-    RP_inline STATUS right_fwd_raw( int pwm_dc ) {
+    RP_inline STATUS right_fwd_raw( PWM pwm ) {
         analogWrite( _pin_map.q_right_bck, 0x0 );
-        analogWrite( _pin_map.q_right_fwd, pwm_dc );
+        analogWrite( _pin_map.q_right_fwd, min( pwm, Miru.FLASH.Track.PWM_LIMIT ) );
         return 0;
     }
 
-    RP_inline STATUS right_bck_raw( int pwm_dc ) {
+    RP_inline STATUS right_bck_raw( PWM pwm ) {
         analogWrite( _pin_map.q_right_fwd, 0x0 );
-        analogWrite( _pin_map.q_right_bck, pwm_dc );
+        analogWrite( _pin_map.q_right_bck, min( pwm, Miru.FLASH.Track.PWM_LIMIT ) );
         return 0;
     }
 
-    RP_inline STATUS left_fwd_raw( int pwm_dc ) {
+    RP_inline STATUS left_fwd_raw( PWM pwm ) {
         analogWrite( _pin_map.q_left_bck, 0x0 );
-        analogWrite( _pin_map.q_left_fwd, pwm_dc );
+        analogWrite( _pin_map.q_left_fwd, min( pwm, Miru.FLASH.Track.PWM_LIMIT ) );
         return 0;
     }
 
-    RP_inline STATUS left_bck_raw( int pwm_dc ) {
+    RP_inline STATUS left_bck_raw( PWM pwm ) {
         analogWrite( _pin_map.q_left_fwd, 0x0 );
-        analogWrite( _pin_map.q_left_bck, pwm_dc );
+        analogWrite( _pin_map.q_left_bck, min( pwm, Miru.FLASH.Track.PWM_LIMIT ) );
         return 0;
     }
 
@@ -97,7 +97,7 @@ struct TRACK_DRIVE {
     }
 
 
-    STATUS test_seq_1( float pwr, int ms ) {
+    STATUS seq_1( float pwr, int ms ) {
         this->halt();
         this->right_fwd( pwr ); vTaskDelay( ms ); this->right_halt();
         this->right_bck( pwr ); vTaskDelay( ms ); this->right_halt();
@@ -106,16 +106,30 @@ struct TRACK_DRIVE {
         return 0;
     }
 
-    STATUS test_seq_2( float pwr, int ms ) {
+    STATUS seq_2( float pwr, int ms ) {
         this->halt();
         this->right_fwd( pwr ); this->left_bck( pwr );
         vTaskDelay( ms );
         this->halt();
     }
 
-    STATUS test_seq_3( float pwr, int ms ) {
+    STATUS seq_3( float pwr, int ms ) {
         this->halt();
         this->left_fwd( pwr ); this->right_bck( pwr );
+        vTaskDelay( ms );
+        this->halt();
+    }
+
+    STATUS seq_4( float pwr, int ms ) {
+        this->halt();
+        this->left_fwd( pwr ); this->right_fwd( pwr );
+        vTaskDelay( ms );
+        this->halt();
+    }
+
+    STATUS seq_5( float pwr, int ms ) {
+        this->halt();
+        this->left_bck( pwr ); this->right_bck( pwr );
         vTaskDelay( ms );
         this->halt();
     }

@@ -47,8 +47,8 @@ struct WJP_DRIVER_EUCLID_InoSerial_RTG : protected _WJP_INTER_MECH_InoSerial, pr
     using WJP_DEVICE_Euclid_RTG::XO_LMHI_payload_ack_packed;
     using WJP_DEVICE_Euclid_RTG::XO_LMHI_payload_nak_packed;
 
-    int init( int baud ) {
-        _WJP_INTER_MECH_InoSerial::_serial->begin( baud );
+    int init( int baud, int config ) {
+        _WJP_INTER_MECH_InoSerial::_serial->begin( baud, config );
         this->_WJP_INTER_MECH_InoSerial::drain( 0, nullptr );
         return 0;
     }

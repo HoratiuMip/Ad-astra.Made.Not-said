@@ -1,0 +1,1 @@
+#define A113_OSP_IMPLEMENTED

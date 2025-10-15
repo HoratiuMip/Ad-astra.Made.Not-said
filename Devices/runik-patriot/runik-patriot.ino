@@ -6,8 +6,9 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include "drives/track-drive.hpp"
-#include "drives/ring-drive.hpp"
+#include "drives/track.hpp"
+#include "drives/ring.hpp"
+#include "drives/blue.hpp"
 #include "drives/command-line-interpreter.hpp"
 
 
@@ -26,26 +27,43 @@ rp::RING_DRIVE RingDrive{ rp::RING_DRIVE::PIN_MAP{
     &Serial2
 };
 
+rp::BLUE_DRIVE BlueDrive{};
+
 rp::COMMAND_LINE_INTERPRETER CommandLineInterpreter{
     &TrackDrive, &RingDrive
 };
 
 
 void setup( void ) {
-    esp_log_level_set( "*", ESP_LOG_NONE );
-
-    Serial.begin( 19200 ); 
-    Serial.println( "[ Runik-Patriot ]: Hello there!" );
-
     rp::STATUS status = 0;
 
-    RP_SETUP_ASSERT( "rp::Miru", "MIRU", rp::Miru.init( true ) );
-    RP_SETUP_ASSERT( "rp::TrackDrive", "TRACK", TrackDrive.init() );
-    RP_SETUP_ASSERT( "rp::RingDrive", "RING", RingDrive.init() );
+    rp::Echo.init();
+    rp::Echo.inf( "Booting..." );
+
+    RP_ASSERT_OR( rp::Miru.init( rp::MIRU::INIT_ARGS{
+        reset_flash: true
+    } ) == 0 ) {
+        rp::Echo.err( "Master init error." );    
+        return;
+    };
+
+    TrackDrive.init();
+    //RingDrive.init();
+    BlueDrive.init( "rp-3000" );
+
+    rp::Echo.inf( "Boot ok." );
 }
 
 void loop( void ) { 
     vTaskDelay( 100 );
+
+    if( BlueDrive._port.connected() ) {
+        auto line = BlueDrive.recv_string( 2'000'000 );
+
+        if( !line.empty() ) {
+            CommandLineInterpreter.exec( line );
+        }
+    }
 
     if( !Serial.available() ) return;
 

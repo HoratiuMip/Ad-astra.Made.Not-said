@@ -37,7 +37,7 @@ struct RING_DRIVE {
 
 
     STATUS init( void ) {
-        _port->begin( Miru.FLASH.RingDrive.SIM_MODULE_BAUD_RATE, SERIAL_8N1, _pin_map.i_uart_rx, _pin_map.q_uart_tx, false, Miru.FLASH.RingDrive.SIM_MODULE_TIMEOUT );
+        _port->begin( Miru.FLASH.Ring.SIM_MODULE_BAUD_RATE, SERIAL_8N1, _pin_map.i_uart_rx, _pin_map.q_uart_tx, false, Miru.FLASH.Ring.SIM_MODULE_TIMEOUT );
 
         RP_ASSERT_OR( xTaskCreate( &RING_DRIVE::_main, "RingDrive_Main", 4096, ( void* )this, TaskPriority_Current, &_h_main ) == pdPASS ) {
             return -1;
@@ -59,7 +59,7 @@ struct RING_DRIVE {
 
     l_reset:
         that->reset();
-        vTaskDelay( Miru.FLASH.RingDrive.BOOT_HOLD_MS );
+        vTaskDelay( Miru.FLASH.Ring.BOOT_HOLD_MS );
 
 
     l_config:
@@ -70,7 +70,7 @@ struct RING_DRIVE {
 
     l_ok:
     for(;;) {
-        vTaskDelay( Miru.FLASH.RingDrive.MAIN_LOOP_DELAY_MS );
+        vTaskDelay( Miru.FLASH.Ring.MAIN_LOOP_DELAY_MS );
         
     l_check_uart: 
         if( !that->_port->available() ) continue;
@@ -109,7 +109,7 @@ struct RING_DRIVE {
 
         for( int itr = 1; itr <= SIM_MODULE_PER_LINE_ITERATION_COUNT; ++itr ) {
             line = _port->readStringUntil( '\n' ); line.trim();
-            if( line.length() == 0 ) continue;
+            if( line.length() == 0 ) { continue; }
             
             if( line.equals( SIM_MODULE_OK_STR ) ) { 
                 if( response.empty() || response == SIM_MODULE_ERROR_STR ) response = SIM_MODULE_OK_STR; 
@@ -121,14 +121,14 @@ struct RING_DRIVE {
         }
 
     l_end:
-        return valid ? response : "INVALID";
+        return valid ? response : response;
     }
 
 
     RP_inline void reset( void ) {
         pinMode( _pin_map.q_reset, OUTPUT );
         digitalWrite( _pin_map.q_reset, LOW );
-        vTaskDelay( Miru.FLASH.RingDrive.RESET_PIN_HOLD_MS );
+        vTaskDelay( Miru.FLASH.Ring.RESET_PIN_HOLD_MS );
         pinMode( _pin_map.q_reset, INPUT );
     }
 

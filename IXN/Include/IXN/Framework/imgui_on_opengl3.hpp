@@ -38,6 +38,7 @@ public:
         int                height                = 64;
         glm::vec4          clear_color           = { 0.05, 0.05, 0.1, 1.0 };
         bool               iconify               = false;
+        bool               maximize              = false;
 
         int                lens_scheme           = 0;
     } params;
@@ -87,10 +88,15 @@ public:
         glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 1 );
         glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );
         glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
-        GLFWwindow* window = glfwCreateWindow( params.width, params.height, params.title, nullptr, nullptr);
-        glfwSetWindowPos( window, 50, 50 );
+        glfwWindowHint( GLFW_RESIZABLE, GL_TRUE );
+        glfwWindowHint( GLFW_DECORATED, GL_TRUE );
+        if( params.maximize ) glfwWindowHint( GLFW_MAXIMIZED, GL_TRUE );
+
+        GLFWwindow* window = glfwCreateWindow( params.width, params.height, params.title, nullptr, nullptr );
+
         IXN_ASSERT( window != nullptr, -1 );
         glfwMakeContextCurrent( window );
+
         new ( &render ) Render3{ window };
 
         glfwSetWindowUserPointer( render.handle(), params.arg );

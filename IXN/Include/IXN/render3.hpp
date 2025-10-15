@@ -996,8 +996,8 @@ public:
 
         stbi_set_flip_vertically_on_load( true );
 
-        glewExperimental = GL_TRUE; 
-        glewInit();
+        //glewExperimental = GL_TRUE; 
+        //glewInit();
 
         echo( this, EchoLevel_Ok ) << "Created.";
     }

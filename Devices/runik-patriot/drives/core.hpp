@@ -6,47 +6,39 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#define RP_NAMESPACE namespace rp
-
-#define RP_inline inline
+#include "core-defs.hpp"
 
 RP_NAMESPACE {
 
 
-typedef   uint8_t   PIN;
-typedef   int       STATUS;
+inline struct ECHO {
+    void init( void ) {
+        esp_log_level_set( "*", ESP_LOG_INFO ); 
+        Serial.begin( 19200 );
+    }
+    
+    template< typename ...Args > RP_inline void err( const char* fmt, Args&&... args ) {
+        ESP_LOGE( TAG, fmt, std::forward< Args >( args )... );
+    }
 
-enum TaskPriority_ {
-    TaskPriority_Idle = tskIDLE_PRIORITY,
+    template< typename ...Args > RP_inline void wrn( const char* fmt, Args&&... args ) {
+        ESP_LOGW( TAG, fmt, std::forward< Args >( args )... );
+    }
 
-    TaskPriority_WhenFeelingLikeIt,
-    TaskPriority_Effect,
-    TaskPriority_Current,
-    TaskPriority_Urgent
+    template< typename ...Args > RP_inline void inf( const char* fmt, Args&&... args ) {
+        ESP_LOGI( TAG, fmt, std::forward< Args >( args )... );
+    }
+
+} Echo;
+
+
+struct Drive {
+    std::atomic_int8_t   _ref_count   = { 0 };
+
+    bool online( void ) {
+        return _ref_count.load( std::memory_order_relaxed ) > 0;
+    }
 };
-
-
-};
-
-
-#define RP_ASSERT_OR( c ) if( !(c) )
-#define RP_SETUP_ASSERT( dl, ds, c ) { \
-    Serial.print( dl ); Serial.print( "... " ); \
-    if( ( status = (c) ) == 0 ) { \
-        Serial.println( "OK." ); \
-    } else { \
-        Serial.println( "ERR." ); \
-    } \
-}
-
-
-#include <string>
-#include <tuple>
-
-#include <EEPROM.h>
-
-
-RP_NAMESPACE {
 
 
 inline struct MIRU {
@@ -55,7 +47,11 @@ inline struct MIRU {
 
         struct {
             char   BYTE[ 4 ]   = { 'M', 'I', 'R', 'U' };
-        } ThisControl;
+        } General;
+
+        struct Track {
+            [[hot]]int16_t   PWM_LIMIT   = 200;
+        } Track;
 
         struct {
             int32_t   SIM_MODULE_BAUD_RATE   = 9600;
@@ -63,7 +59,7 @@ inline struct MIRU {
             int16_t   MAIN_LOOP_DELAY_MS     = 1000;
             int16_t   RESET_PIN_HOLD_MS      = 2000;
             int16_t   BOOT_HOLD_MS           = 10000;
-        } RingDrive;
+        } Ring;
 
         STATUS init( bool reset ) {
             RP_ASSERT_OR( EEPROM.begin( BYTE_COUNT ) == true ) return -1;
@@ -76,7 +72,7 @@ inline struct MIRU {
         STATUS read( void ) {
             EEPROM.get( 0, *this ); 
 
-            RP_ASSERT_OR( ThisControl.BYTE[ 0 ] == 'M' && ThisControl.BYTE[ 1 ] == 'I' && ThisControl.BYTE[ 2 ] == 'R' && ThisControl.BYTE[ 3 ] == 'U' ) {
+            RP_ASSERT_OR( General.BYTE[ 0 ] == 'M' && General.BYTE[ 1 ] == 'I' && General.BYTE[ 2 ] == 'R' && General.BYTE[ 3 ] == 'U' ) {
                 return -1;
             }
             return 0;
@@ -89,11 +85,28 @@ inline struct MIRU {
         
     } FLASH;
 
-    STATUS init( bool reset_flash ) {
+    struct INIT_ARGS {
+        bool reset_flash;
+    };
+
+    STATUS init( const INIT_ARGS& args ) {
         STATUS status = 0;
-        status |= FLASH.init( reset_flash );
+
+    #if RP_CONFIG_FLAG_DEINIT_INO
+        status = this->_ino_deinit();
+    #endif
+
+        status = FLASH.init( args.reset_flash );
+
         return status;
     }
+
+#if RP_CONFIG_FLAG_DEINIT_INO
+    STATUS _ino_deinit( void ) {
+        esp_task_wdt_deinit();
+        return 0;
+    }
+#endif
 
 } Miru;
 

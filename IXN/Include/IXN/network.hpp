@@ -49,7 +49,7 @@ public:
             crt += ret;
         } while( crt < count );
 
-        IXN_ASSERT_ET( crt == count, -1, "Recv overflow." ); /* This should never happen. */
+        IXN_ASSERT_ET( crt == count, -1, "Recv malfunction." ); /* This should never happen. */
         return crt;
     }
 
@@ -62,7 +62,7 @@ public:
             crt += ret;
         } while( crt < count );
 
-        IXN_ASSERT_ET( crt == count, -1, "Send overflow." ); /* This should never happen. */
+        IXN_ASSERT_ET( crt == count, -1, "Send malfunction." ); /* This should never happen. */
         return count;
     }
 
@@ -70,9 +70,97 @@ public:
 
 
 
-class INET_SOCKET : public SOCKET {
+class INET_IPv4_SOCKET : public SOCKET {
 public:
-    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "INET_SOCKET" );
+    _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "INET_IPv4_SOCKET" );
+
+public:
+    typedef   int32_t   addr_t;
+
+public: 
+    struct addr_str_t { char buf[ sizeof( addr_t ) * 3 + 4 ] = { '\0' }; /* max 3 chars per byte, 3 dots between them, NULL terminator */ };
+
+public:
+    static addr_str_t* addr2str( addr_str_t* dst, addr_t addr ) {
+        DWORD buf_idx = 0;
+        for( DWORD b_idx = sizeof( addr ) - 1; b_idx > 0; --b_idx ) { /* little endian assumed */
+            UBYTE& b = ( ( UBYTE* )&addr )[ b_idx ];
+
+            itoa( ( int )b,  &dst->buf[ buf_idx ], 10 );
+            buf_idx += 3; dst->buf[ buf_idx ] = '.'; ++buf_idx;
+        }
+        dst->buf[ buf_idx ] = '\0';
+        return dst;
+    }
+    inline static addr_str_t addr2str( addr_t addr ) {
+        addr_str_t ret = {}; addr2str( &ret, addr ); return ret;
+    }
+
+public:
+    addr_str_t   addr_str   = {};
+
+public:
+    #if defined( _ENGINE_OS_WINDOWS )
+        DWORD connect( addr_t addr, _ENGINE_COMMS_ECHO_RT_ARG ) {
+            #if WARC_INET_TLS == 1
+        int          status        = -1;
+        _SOCKET      socket_raw    = _SOCKET{};
+        sockaddr_in  socket_desc   = {};
+        char*        err           = nullptr; 
+
+        struct _BAD_EXIT {
+            std::function< void() >   proc;
+            ~_BAD_EXIT() { if( proc != nullptr ) proc(); } 
+        } bad_exit{ proc: [ &, this ] () -> void {
+            if( socket_raw != _SOCKET{} )
+                closesocket( socket_raw );
+            this->_kill_conn();
+        } };
+
+        this->_struct_name += BRIDGE::pretty( addr, port );
+
+
+        WARC_ASSERT_RT_THIS( addr != nullptr, "Address is NULL.", -1, ; );
+        WARC_ASSERT_RT_THIS( this->_port == INET_PORT_HTTPS, "As of now, port must be HTTPS.", -1, ; );
+
+
+        this->_addr = addr;
+        
+        socket_raw = socket( AF_INET, SOCK_STREAM, 0 );
+        WARC_ASSERT_RT_THIS( socket_raw >= 0, "Socket creation fault.", socket_raw, ; );
+
+        memset( &socket_desc, 0, sizeof( sockaddr_in ) );
+
+        socket_desc.sin_family      = AF_INET;
+        socket_desc.sin_addr.s_addr = inet_addr( this->_addr.c_str() );
+        socket_desc.sin_port        = htons( this->_port ); 
+        
+        WARC_ECHO_RT_THIS_PENDING << "Connecting...";
+        status = connect( socket_raw, ( sockaddr* )&socket_desc, sizeof( sockaddr_in ) );
+        WARC_ASSERT_RT_THIS( status == 0, "Server connection general fault.", status, ; );
+
+        this->_ssl = SSL_new( _internal.ssl_context );
+        err = ERR_error_string( ERR_get_error(), 0 );
+        WARC_ASSERT_RT_THIS( this->_ssl != nullptr, err ? err : "SSL creation fault.", -1, ; );
+
+        this->_socket = socket_raw;
+        SSL_set_fd( this->_ssl, this->_socket );
+
+        WARC_ECHO_RT_THIS_PENDING << "TLS probing...";
+        status = SSL_connect( this->_ssl );
+        WARC_ASSERT_RT_THIS( status > 0, "Secure handshake fault.", -1, ; );
+
+        bad_exit.proc = nullptr;
+        WARC_ECHO_RT_THIS_OK << "Secure socket created, using " << SSL_get_cipher( this->_ssl ) << ".\n";
+    #endif
+
+        return 0;
+    }
+
+    DWORD disconnect( _ENGINE_COMMS_ECHO_RT_ARG ) {
+        return 0;
+    }
+#endif
 
 };
 
@@ -82,14 +170,14 @@ class BTH_SOCKET : public SOCKET {
 public:
     _ENGINE_DESCRIPTOR_STRUCT_NAME_OVERRIDE( "BTH_SOCKET" );
 
-/*=== DECLS ===*/ public: 
+public: 
     struct addr_str_t { char buf[ sizeof( BTH_ADDR ) * 3 ] = { '\0' }; /* 3 chars per byte ( 4 high bits, 4 low bits, : ), NULL terminator */ };
 
 public:
     addr_str_t   addr_str   = {};
 
-/*=== ADDR UTILS ===*/ public:
-    addr_str_t* addr2str( addr_str_t* dst, BTH_ADDR addr ) {
+public:
+    static addr_str_t* addr2str( addr_str_t* dst, BTH_ADDR addr ) {
         DWORD buf_idx = -1;
         for( DWORD b_idx = sizeof( addr ) - 1; b_idx > 0; --b_idx ) { /* little endian assumed */
             UBYTE& b = ( ( UBYTE* )&addr )[ b_idx ];
@@ -101,11 +189,11 @@ public:
         dst->buf[ buf_idx ] = '\0';
         return dst;
     }
-    inline addr_str_t addr2str( BTH_ADDR addr ) {
-        addr_str_t ret = {}; this->addr2str( &ret, addr ); return ret;
+    inline static addr_str_t addr2str( BTH_ADDR addr ) {
+        addr_str_t ret = {}; addr2str( &ret, addr ); return ret;
     }
 
-    DWORD dev_name2addr( BTH_ADDR* addr, std::wstring_view name, addr_str_t* out_addr_str, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    static DWORD dev_name2addr( BTH_ADDR* addr, std::wstring_view name, addr_str_t* out_addr_str ) {
         BLUETOOTH_DEVICE_SEARCH_PARAMS bt_dev_sp = {
             dwSize:               sizeof( BLUETOOTH_DEVICE_SEARCH_PARAMS ),
             fReturnAuthenticated: true,
@@ -123,26 +211,26 @@ public:
         };
 
         HBLUETOOTH_DEVICE_FIND bt_dev_find = BluetoothFindFirstDevice( &bt_dev_sp, &bt_dev_info );
-        IXN_ASSERT_ET( bt_dev_find != NULL, -1, "No bluetooth devices paired to this machine." );
+        IXN_ASSERT_C( bt_dev_find != NULL, -1, "No bluetooth devices paired to this machine." );
 
         do {
             if( name != bt_dev_info.szName ) continue;
             
             *addr = bt_dev_info.Address.ullLong;
 
-            echo( this, EchoLevel_Ok ) << "Bluetooth device \"" << std::string{ name.begin(), name.end() } << "\" found at " << ( ( out_addr_str != nullptr ) ? *this->addr2str( out_addr_str, *addr ) : this->addr2str( *addr ) ).buf << "."; 
+            comms( EchoLevel_Ok ) << "Bluetooth device \"" << std::string{ name.begin(), name.end() } << "\" found at " << ( ( out_addr_str != nullptr ) ? *addr2str( out_addr_str, *addr ) : addr2str( *addr ) ).buf << "."; 
             return 0;
 
         } while( BluetoothFindNextDevice( bt_dev_find, &bt_dev_info ) );
 
-        echo( this, EchoLevel_Error ) << "Bluetooth device \"" << std::string{ name.begin(), name.end() } << "\" is not paired with this machine.";
+        comms( EchoLevel_Error ) << "Bluetooth device \"" << std::string{ name.begin(), name.end() } << "\" is not paired with this machine.";
         return -1;
     }
-    inline BTH_ADDR dev_name2addr( std::wstring_view name, addr_str_t* addr_str, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        BTH_ADDR ret = {}; this->dev_name2addr( &ret, name, addr_str, echo ); return ret;
+    inline static BTH_ADDR dev_name2addr( std::wstring_view name, addr_str_t* addr_str ) {
+        BTH_ADDR ret = {}; dev_name2addr( &ret, name, addr_str ); return ret;
     }
 
-/*=== CONNECT ===*/ public:
+public:
 #if defined( _ENGINE_OS_WINDOWS )
     DWORD connect( BTH_ADDR addr, _ENGINE_COMMS_ECHO_RT_ARG ) {
         this->addr2str( &this->addr_str, addr );
@@ -167,7 +255,7 @@ public:
     inline DWORD connect( std::wstring_view name, _ENGINE_COMMS_ECHO_RT_ARG ) {
         BTH_ADDR addr; 
 
-        DWORD ret = this->dev_name2addr( &addr, name, &this->addr_str, echo );
+        DWORD ret = dev_name2addr( &addr, name, &this->addr_str );
         IXN_ASSERT( ret == 0, ret );
 
         return this->connect( addr, echo );

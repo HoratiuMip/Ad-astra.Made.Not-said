@@ -1,0 +1,48 @@
+@A113_GENERATED_FILE_CAUTION_MSG@
+#pragma once
+/**
+ * @file: BRp/descriptor.hpp.in
+ * @brief: 
+ * @details
+ * @authors: Vatca "Mipsan" Tudor-Horatiu
+ */
+
+
+#define A113_VERSION_MAJOR @A113_VERSION_MAJOR@
+#define A113_VERSION_MINOR @A113_VERSION_MINOR@
+#define A113_VERSION_PATCH @A113_VERSION_PATCH@
+#define A113_VERSION_STRING "@A113_VERSION_STRING@"
+
+#define A113_inline inline
+#define A113_BR_FNC
+#define A113_OS_FNC
+
+#define A113_PROTECTED protected
+
+#define A113_ASSERT_OR( cond ) if( false == (cond) )
+
+
+#include <cstdint>
+#include <cstring>
+#include <stdio.h>
+#include <stdlib.h>
+
+
+namespace A113 {
+
+
+typedef   int   RESULT;
+
+
+struct BUFFER {
+    typedef   int   n_t;
+
+    char*   ptr   = nullptr;
+    n_t     n     = 0;    
+};
+
+
+};
+
+
+

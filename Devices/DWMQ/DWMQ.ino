@@ -20,23 +20,31 @@ dwmq::RELAY_GRID RelayGrid{
         Q_power:    GPIO_NUM_25,
         Q_blue:     GPIO_NUM_27,
         Q_vol_up:   GPIO_NUM_33,
-        Q_vol_down: GPIO_NUM_26
+        Q_vol_down: GPIO_NUM_26,
+        Q_fans:     GPIO_NUM_19
     }
 };
 
+dwmq::HEAT_SINK HeatSink{ {} };
+
 dwmq::HYPERVISOR Hypervisor{
     dwmq::HYPERVISOR::PIN_MAP{
+        I_toggle_fans: GPIO_NUM_4
     },
     &IrRemote,
-    &RelayGrid
+    &RelayGrid,
+    &HeatSink
 };
 
+
 void setup( void ) {
-    dwmq::Miruna.init();
+    vTaskDelay( 2000 );
+    vTaskPrioritySet( NULL, dwmq::TaskPriority_Current );
+    dwmq::Mirun.init();
     Hypervisor.init();
 }
 
 void loop( void ) {
-    vTaskDelay( 1000 );
+    vTaskDelay( 3200 );
 }
 

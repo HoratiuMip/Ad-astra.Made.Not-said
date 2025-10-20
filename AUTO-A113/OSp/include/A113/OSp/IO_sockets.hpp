@@ -15,32 +15,40 @@
 namespace A113 { namespace OSp {
 
 
-class IPv4_TCP_socket : public BRp::IO_port {
-public:
 #ifdef A113_TARGET_OS_WINDOWS
     typedef   ::SOCKET   socket_t;
+
+    inline constexpr socket_t   NULL_SOCKET   = INVALID_SOCKET;
 #endif 
 
+
+class IPv4_TCP_socket : public BRp::IO_port {
 A113_PROTECTED:
     struct {
         std::atomic_bool       alive      = { false };
-        socket_t               sock       = {};
+        socket_t               sock       = NULL_SOCKET;
         BRp::ipv4_addr_str_t   addr_str   = {};
-        uint32_t               addr       = 0x0;
-        uint16_t               port       = 0x0;
+        BRp::ipv4_addr_t       addr       = 0x0;
+        BRp::ipv4_port_t       port       = 0x0;
     } _conn;
 
 public:
-    RESULT connect( uint32_t addr, uint16_t port );
-    RESULT connect( const char* addr_str, uint16_t port );
+    A113_inline const char* addr_c_str( void ) { return _conn.addr_str.buf; }
+    A113_inline BRp::ipv4_port_t port( void ) { return _conn.port; }
 
 public:
-    RESULT listen( uint16_t port );
+    RESULT uplink( BRp::ipv4_addr_t addr_, BRp::ipv4_port_t port_ );
+    RESULT uplink( const char* addr_str_, BRp::ipv4_port_t port_ );
+
+    RESULT downlink( void );
 
 public:
-    virtual RESULT read( const BUFFER& buf ) override;
+    RESULT listen( BRp::ipv4_port_t port_ );
 
-    virtual RESULT write( const BUFFER& buf ) override;
+public:
+    virtual RESULT read( const BUFFER& buf_ ) override;
+
+    virtual RESULT write( const BUFFER& buf_ ) override;
 };
 
 

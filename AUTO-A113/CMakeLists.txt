@@ -76,7 +76,11 @@ if( A113_Opt_TargetPlate_OS )
 endif()
 
 
-add_executable( main "main.cpp" )
-target_link_libraries( main PUBLIC A113_OSp )
-target_include_directories( main PUBLIC ${A113_IncludeRoot} )
+foreach( framework ${A113_MAKE_FRAMEWORKS} )
+    add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/Framework/${framework}" )
+endforeach()
+
+foreach( rupture ${A113_MAKE_RUPTURES} )
+    add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/Ruptures/${rupture}" )
+endforeach()
 

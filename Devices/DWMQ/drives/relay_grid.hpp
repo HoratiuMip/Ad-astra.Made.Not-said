@@ -20,6 +20,7 @@ public:
         gpio_num_t   Q_blue;
         gpio_num_t   Q_vol_up;
         gpio_num_t   Q_vol_down;
+        gpio_num_t   Q_fans;
     } _pin_map;
 
     RELAY_GRID( const PIN_MAP& pin_map )
@@ -29,11 +30,12 @@ public:
         gpio_reset_pin( _pin_map.Q_blue ); 
         gpio_reset_pin( _pin_map.Q_vol_up ); 
         gpio_reset_pin( _pin_map.Q_vol_down ); 
+        gpio_reset_pin( _pin_map.Q_fans ); 
     }
 
 public:
     status_t init( void ) {
-        return 0;
+        return 0x0;
     }
 
 protected:
@@ -47,19 +49,21 @@ protected:
     }
 
 public:
-    void toggle_power( void ) {
+    DWMQ_inline void impulse_power( void ) {
         this->_close( _pin_map.Q_power );
-        vTaskDelay( Miruna.Config.RelayGrid.power_hold_ms );
+        vTaskDelay( Mirun.Config.RelayGrid.POWER_HOLD_MS );
         this->_open( _pin_map.Q_power );
     }
 
-    void blue_enable( void ) {
-        this->_close( _pin_map.Q_blue );
-    }
+#define _DWMQ_RELAY_GRID_QOPS( field ) \
+    DWMQ_inline void engage_##field( void ) { this->_close( _pin_map.Q_##field ); } \
+    DWMQ_inline void disengage_##field( void ) { this->_open( _pin_map.Q_##field ); } \
+    DWMQ_inline void toggle_##field( void ) { if( 0x1 & ( GPIO.enable >> _pin_map.Q_##field ) ) this->disengage_##field(); else this->engage_##field(); }
 
-    void blue_disable( void ) {
-        this->_open( _pin_map.Q_blue );
-    }
+    _DWMQ_RELAY_GRID_QOPS( blue )
+    _DWMQ_RELAY_GRID_QOPS( vol_up )
+    _DWMQ_RELAY_GRID_QOPS( vol_down )
+    _DWMQ_RELAY_GRID_QOPS( fans )
 
 };
 

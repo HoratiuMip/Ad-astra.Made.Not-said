@@ -25,10 +25,28 @@
 
 namespace A113 { namespace OSp {
 
+inline struct _LOG_BUNDLE {
+    const char*   fmt_default   = "[ %H:%M.%S ] [ %n ] [ %^%l%$ ] %v";
 
-inline std::shared_ptr< spdlog::logger >   Log   = nullptr;
+    std::shared_ptr< spdlog::logger >   Default   = nullptr;
+    std::shared_ptr< spdlog::logger >   IO        = nullptr;
+
+    A113_inline spdlog::logger* operator -> () { return Default.operator->(); }
+
+    void make_default( std::shared_ptr< spdlog::logger >& logger_ ) {
+        if( nullptr != logger_ ) { logger_->set_pattern( fmt_default ); logger_->set_level( spdlog::level::debug ); }
+    }
+
+} Log;
 
 
+enum InitFlags_ {
+    InitFlags_None = 0x0,
+    InitFlags_Sockets
+};
+struct init_args_t {
+    int   flags   = InitFlags_None;
+};
 class INTERNAL {
 A113_PROTECTED:
     struct {
@@ -39,20 +57,18 @@ A113_PROTECTED:
     } _Data;
 
 public:
-    enum InitFlags_ {
-        InitFlag_None = 0x0,
-        InitFlag_Sockets
-    };
-    struct init_args_t {
-        int   flags   = InitFlag_None;
-    };
-    RESULT init( int argc, char* argv[], const init_args_t& args );
+    RESULT init( int argc_, char* argv_[], const init_args_t& args_ );
 
 }; inline INTERNAL Internal;
 
+A113_inline RESULT init( int argc_, char* argv_[], const init_args_t& args_ ) {
+    return Internal.init( argc_, argv_, args_ );
+}
+
+
 struct ON_FNC_EXIT {
     typedef   std::function< void() >   proc_t;
-    ON_FNC_EXIT( proc_t proc ) : _proc{ ( proc_t&& )proc } {}
+    ON_FNC_EXIT( proc_t proc_ ) : _proc{ ( proc_t&& )proc_ } {}
     std::function< void() >   _proc;
     ~ON_FNC_EXIT() { if( nullptr != _proc ) _proc(); } 
     A113_inline void drop( void ) { _proc = nullptr; }

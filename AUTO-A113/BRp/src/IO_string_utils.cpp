@@ -14,7 +14,7 @@ A113_BR_FNC void ipv4_addr_str_t::make_zero( void ) {
     strcpy( buf, "0.0.0.0" );
 }
 
-A113_BR_FNC void ipv4_addr_str_t::from_ptr( uint32_t addr, ipv4_addr_str_t* ptr ) {
+A113_BR_FNC void ipv4_addr_str_t::from_ptr( ipv4_addr_t addr_, ipv4_addr_str_t* ptr_ ) {
     int n = 0x0;
 #ifdef A113_TARGET_END_BIG
     for( int bi = 0x3; bi >= 0x0; --bi )
@@ -22,25 +22,25 @@ A113_BR_FNC void ipv4_addr_str_t::from_ptr( uint32_t addr, ipv4_addr_str_t* ptr 
     for( int bi = 0x0; bi < 0x4; ++bi )  
 #endif
     {
-        unsigned char b = ( ( unsigned char* )&addr )[ bi ];
-        n += snprintf( ptr->buf + n, 0x4, "%u", b );
-        *( ptr->buf + n ) = '.';
+        unsigned char b = ( ( unsigned char* )&addr_ )[ bi ];
+        n += snprintf( ptr_->buf + n, 0x4, "%u", b );
+        *( ptr_->buf + n ) = '.';
         ++n;
     }
-    ptr->buf[ n - 1 ] = ptr->buf[ BUF_SIZE - 1 ] = '\0';
+    ptr_->buf[ n - 1 ] = ptr_->buf[ BUF_SIZE - 1 ] = '\0';
 }
 
-A113_BR_FNC ipv4_addr_str_t ipv4_addr_str_t::from( uint32_t addr ) {
+A113_BR_FNC ipv4_addr_str_t ipv4_addr_str_t::from( ipv4_addr_t addr_ ) {
     ipv4_addr_str_t res = {};
-    ipv4_addr_str_t::from_ptr( addr, &res );
+    ipv4_addr_str_t::from_ptr( addr_, &res );
     return res;
 } 
 
-A113_BR_FNC uint32_t ipv4_addr_str_t::from( const char* addr_str ) {
-    char aux[ BUF_SIZE ] = { '\0' }; strncpy( aux, addr_str, BUF_SIZE - 1 );
+A113_BR_FNC ipv4_addr_t ipv4_addr_str_t::from( const char* addr_str_ ) {
+    char aux[ BUF_SIZE ] = { '\0' }; strncpy( aux, addr_str_, BUF_SIZE - 1 );
 
-    uint32_t result = 0x0;
-    char*    head   = aux;
+    ipv4_addr_t result = 0x0;
+    char*       head   = aux;
 
     for( int bi = 0x0; bi < 0x4; ++bi ) {
         char* dot = strchr( head, '.' );

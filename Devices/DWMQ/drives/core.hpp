@@ -41,34 +41,45 @@ enum TaskPriority_ {
 #include <tuple>
 #include <atomic>
 
+#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+#include <esp_log.h>
 #include <esp_task_wdt.h>
 #include <driver/gpio.h>
+#include <soc/gpio_struct.h>
+#include <driver/uart.h>
 
 #include <EEPROM.h>
 #include <BluetoothSerial.h>
+#include <Wire.h>
 
 
 DWMQ_NAMESPACE {
 
 
-class MIRUNA {
+class MIRUN {
 public:
     struct ECHO {
         void init( void ) {
-            Serial.begin( 115200 );
             esp_log_level_set( "*", ESP_LOG_INFO ); 
+            Serial.begin( 115200 );
         }
         
         template< typename ...Args > DWMQ_inline void err( const char* fmt, Args&&... args ) {
-            ESP_LOGE( TAG, fmt, std::forward< Args >( args )... );
+            Serial.printf( "%s [ error ] -> ", TAG );
+            Serial.printf( fmt, std::forward< Args >( args )... );
+            Serial.println();
         }
 
         template< typename ...Args > DWMQ_inline void wrn( const char* fmt, Args&&... args ) {
-            ESP_LOGW( TAG, fmt, std::forward< Args >( args )... );
+            Serial.printf( "%s [ warning ] -> ", TAG );
+            Serial.printf( fmt, std::forward< Args >( args )... );
+            Serial.println();
         }
 
         template< typename ...Args > DWMQ_inline void inf( const char* fmt, Args&&... args ) {
-            ESP_LOGI( TAG, fmt, std::forward< Args >( args )... );
+            Serial.printf( "%s [ info ] -> ", TAG );
+            Serial.printf( fmt, std::forward< Args >( args )... );
+            Serial.println();
         }
 
     } Echo;
@@ -76,35 +87,54 @@ public:
 public:
     struct CONFIG {
         struct IR_REMOTE {
-            static constexpr ir_signal_t   signal_toggle_power    = 0xFFC23D;
-            static constexpr ir_signal_t   signal_blue_enable     = 0xFF02FD;
-            static constexpr ir_signal_t   signal_blue_disable    = 0xFF22DD;
-            static constexpr ir_signal_t   signal_vol_up          = 0xFFA857;
-            static constexpr ir_signal_t   signal_vol_down        = 0xFFE01F;
+            static constexpr ir_signal_t   SIG_IMPULSE_POWER    = 0xffc23d;
+            static constexpr ir_signal_t   SIG_BLUE_ENGAGE      = 0xff18e7;
+            static constexpr ir_signal_t   SIG_BLUE_DISENGAGE   = 0xff30cf;
+            static constexpr ir_signal_t   SIG_BLUE_TOGGLE      = 0xff02fd;
+            static constexpr ir_signal_t   SIG_FANS_ENGAGE      = 0xff38c7;
+            static constexpr ir_signal_t   SIG_FANS_DISENGAGE   = 0xff10ef;
+            static constexpr ir_signal_t   SIG_FANS_TOGGLE      = 0xff22dd;
+            static constexpr ir_signal_t   SIG_VOL_UP           = 0xffa857;
+            static constexpr ir_signal_t   SIG_VOL_DOWN         = 0xffe01f;
 
-            static constexpr int           stack_main             = 4096;
-            
-            static constexpr int           after_signal_hold_ms   = 1000;
+            static constexpr int           BEFORE_ENTRY_US      = 1000000;
 
+            static constexpr int           STACK_MAIN           = 4096;
+    
         } IrRemote;
 
         struct RELAY_GRID {
-            static constexpr int   power_hold_ms   = 500; 
+            static constexpr int   POWER_HOLD_MS   = 500; 
 
         } RelayGrid;
+
+        struct HEAT_SINK {
+            static constexpr int   STACK_MAIN   = 4096;
+        } HeatSink;
+
+        struct HYPERVISOR {
+            static constexpr int   VOL_KEEP_ALIVE_US   = 300000;
+        } HV;
+
+        TwoWire*   I2C_bus   = nullptr;
 
     } Config;
 
 public:
     status_t init( void ) {
         Echo.init();
+        Echo.inf( "Preparing to dance..." );
 
         esp_task_wdt_deinit();
 
+        Config.I2C_bus = &Wire;
+        Config.I2C_bus->begin();
+
+        Echo.inf( "Ready to dance." );
         return 0;
     }
 
-} Miruna;
+} Mirun;
 
 
 };

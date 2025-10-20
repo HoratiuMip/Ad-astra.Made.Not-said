@@ -1,0 +1,35 @@
+<diagram program="umletino" version="15.1"><zoom_level>11</zoom_level><help_text>Space for diagram notes</help_text><element><id>UMLNote</id><coordinates><x>99</x><y>198</y><w>297</w><h>33</h></coordinates><panel_attributes>General structure
+fontsize=18
+bg=white</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>176</x><y>286</y><w>176</w><h>44</h></coordinates><panel_attributes>AGN
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>176</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>0
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>220</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>1
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>264</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>2
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>308</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>3
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>99</x><y>242</y><w>77</w><h>44</h></coordinates><panel_attributes>BYTE
+bg=white
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>352</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>4
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>704</x><y>286</y><w>176</w><h>44</h></coordinates><panel_attributes>N
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>396</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>5
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>440</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>6
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>484</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>7
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>440</x><y>286</y><w>88</w><h>44</h></coordinates><panel_attributes>ACT
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>880</x><y>242</y><w>198</w><h>44</h></coordinates><panel_attributes>${N} bytes
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>880</x><y>286</y><w>198</w><h>44</h></coordinates><panel_attributes>PAYLOAD
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>528</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>8
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>616</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>10
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>572</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>9
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>660</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>11
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>396</x><y>286</y><w>44</w><h>44</h></coordinates><panel_attributes>CTL
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>704</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>12
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>748</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>13
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>792</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>14
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>836</x><y>242</y><w>44</w><h>44</h></coordinates><panel_attributes>15
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>528</x><y>286</y><w>176</w><h>44</h></coordinates><panel_attributes>ARG
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>176</x><y>330</y><w>176</w><h>44</h></coordinates><panel_attributes>_dw0
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>352</x><y>330</y><w>176</w><h>44</h></coordinates><panel_attributes>_dw1
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>528</x><y>330</y><w>176</w><h>44</h></coordinates><panel_attributes>_dw2
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>704</x><y>330</y><w>176</w><h>44</h></coordinates><panel_attributes>_dw3
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>352</x><y>286</y><w>44</w><h>44</h></coordinates><panel_attributes>_
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>1078</x><y>242</y><w>33</w><h>132</h></coordinates><panel_attributes>EOP
+valign=center</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLNote</id><coordinates><x>99</x><y>143</y><w>297</w><h>33</h></coordinates><panel_attributes>bg=black
+EOP = End Of Packet.</panel_attributes><additional_attributes></additional_attributes></element></diagram>

@@ -7,6 +7,7 @@
  */
 
 #include <A113/BRp/descriptor.hpp>
+#include <A113/BRp/IO_port.hpp>
 
 namespace A113 { namespace BRp {
 
@@ -17,10 +18,11 @@ struct ipv4_addr_str_t {
     char   buf[ BUF_SIZE ]   = { '\0' }; 
 
     void make_zero( void );
+    void make_null( void ) { buf[ 0 ] = { '\0' }; }
 
-    static void from_ptr( uint32_t addr, ipv4_addr_str_t* ptr );
-    static ipv4_addr_str_t from( uint32_t addr );
-    static uint32_t from( const char* addr_str );
+    static void from_ptr( ipv4_addr_t addr, ipv4_addr_str_t* ptr );
+    static ipv4_addr_str_t from( ipv4_addr_t addr );
+    static ipv4_addr_t from( const char* addr_str );
 
     operator char* () { return buf; }
 };

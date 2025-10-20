@@ -47,10 +47,22 @@ target_link_libraries( A113_OSp
     PUBLIC spdlog
     PUBLIC glm
     PUBLIC glfw
+    PUBLIC nlohmann_json
 )
 target_include_directories( A113_OSp
     PUBLIC "${_chain_dir}/spdlog/include"
     PUBLIC "${_chain_dir}/glm"
     PUBLIC "${_chain_dir}/glfw/include"
+    PUBLIC "${_chain_dir}/nlohmann_json/include"
 )
 
+
+## Utilities
+set( _all_includes_str "" )
+file( GLOB _include_files RELATIVE "${CMAKE_CURRENT_LIST_DIR}/include/" "${CMAKE_CURRENT_LIST_DIR}/include/A113/OSp/*.hpp" )
+
+foreach( include_file ${_include_files} )
+    string( APPEND _all_includes_str "#include <${include_file}>\n" )
+endforeach()
+
+configure_file( "${CMAKE_CURRENT_LIST_DIR}/include/A113/OSp/OSp.hpp.in" "${CMAKE_CURRENT_LIST_DIR}/include/A113/OSp/OSp.hpp" )

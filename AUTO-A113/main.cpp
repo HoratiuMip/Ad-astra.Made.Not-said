@@ -1,9 +1,12 @@
 #include <A113/OSp/IO_sockets.hpp>
+using namespace A113::OSp;
+
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+
 #include <thread>
 #include <string>
 #include <iostream>
-
-using namespace A113::OSp;
 
 int main( int argc, char* argv[] ) {
     Internal.init( argc, argv, { flags: INTERNAL::InitFlag_Sockets } );

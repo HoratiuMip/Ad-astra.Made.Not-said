@@ -18,6 +18,10 @@
 #endif
 
 
+#define _WJP_forceinline inline
+#define _WJP_ASSERT_OR( c ) if( !(c) )
+
+
 #define WJP_HEAD_CTL_PAYLOAD_BIT ( 1 << 0 )
 #define WJP_HEAD_CTL_LMHI_BIT ( 1 << 1 )
 
@@ -63,10 +67,10 @@ enum WJPErr_ : int {
     WJPErr_Align       = 0x1,
 
     /* Error during reception. */
-    WJPErr_Recv        = 0x2,
+    WJPErr_RX          = 0x2,
 
     /* Error during transmission. */
-    WJPErr_Send        = 0x3,
+    WJPErr_TX          = 0x3,
 
     /* The received packet reports a wrong size. */
     WJPErr_N           = 0x4,
@@ -83,8 +87,8 @@ enum WJPErr_ : int {
 const char* WJP_err_strs[] = {
     "WJPErr_None",
     "WJPErr_Align",
-    "WJPErr_Recv",
-    "WJPErr_Send",
+    "WJPErr_RX",
+    "WJPErr_TX",
     "WJPErr_N",
     "WJPErr_Reset",
     "WJPErr_Act",
@@ -101,26 +105,26 @@ struct WJP_InterMech {
      * @warning This function MUST guarantee that all the requested bytes are sent, or return an error code elsewise. NO in-between.
      * @returns The count of requested bytes to send. Negative for errors, zero for connection reset.
      */
-    virtual int send( WJP_MDsc mdsc_ ) = 0;
+    virtual int mech_send( WJP_MDsc mdsc_ ) = 0;
 
     /**
      * @brief Called to receive bytes over the wire.
      * @warning This function MUST guarantee that all the requested bytes are receive, or return an error code elsewise. NO in-between.
      * @returns The count of requested bytes to receive. Negative for errors, zero for connection reset.
      */
-    virtual int recv( WJP_MDsc mdsc_ ) = 0;
+    virtual int mech_recv( WJP_MDsc mdsc_ ) = 0;
 };
 
 
 struct WJP_LMHIReceiver {
     struct Layout {
-        WJP_Head*    head_in       = nullptr;
-        WJP_Head*    head_out      = nullptr;
+        WJP_Head     head_in       = {};
+        WJP_Head     head_out      = {};
         WJP_MDsc     payload_in    = {};
         WJP_MDsc     payload_out   = {};
     };
 
-    virtual int when_recv( Layout* layout_ ) = 0;
+    virtual int lmhi_when_recv( Layout* layout_ ) = 0;
 };
 
 

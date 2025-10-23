@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <functional>
+#include <memory>
 
 #ifdef A113_TARGET_OS_WINDOWS
     #include <winsock2.h>
@@ -25,16 +26,18 @@
 
 namespace A113 { namespace OSp {
 
-inline struct _LOG_BUNDLE {
-    const char*   fmt_default   = "[ %H:%M.%S ] [ %n ] [ %^%l%$ ] %v";
 
+template< typename _T > using HPtr< _T > = std::shared_ptr< _T >;
+
+
+inline struct _LOG_BUNDLE {
     std::shared_ptr< spdlog::logger >   Default   = nullptr;
     std::shared_ptr< spdlog::logger >   IO        = nullptr;
 
     A113_inline spdlog::logger* operator -> () { return Default.operator->(); }
 
     void make_default( std::shared_ptr< spdlog::logger >& logger_ ) {
-        if( nullptr != logger_ ) { logger_->set_pattern( fmt_default ); logger_->set_level( spdlog::level::debug ); }
+        if( nullptr != logger_ ) { logger_->set_level( spdlog::level::debug ); }
     }
 
 } Log;

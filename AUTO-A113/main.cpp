@@ -1,4 +1,4 @@
-#include <A113/OSp/IO_sockets.hpp>
+#include <A113/OSp/hyper_net.hpp>
 using namespace A113::OSp;
 
 #include <nlohmann/json.hpp>
@@ -9,34 +9,32 @@ using json = nlohmann::json;
 #include <iostream>
 
 int main( int argc, char* argv[] ) {
-    Internal.init( argc, argv, { flags: INTERNAL::InitFlag_Sockets } );
+    A113::OSp::init( argc, argv, { flags: InitFlags_None } );
 
-    auto th1 = std::thread{ [] () -> void {
-        IPv4_TCP_socket socket;
-        socket.listen( 80 );
+    int flag = 0x0;
 
-        char msg[ 5 ]; msg[ 4 ] = 0;
-        A113::BUFFER buf{ msg, 4 };
-        while( 1 ) {
-            socket.basic_read_loop( buf );
-            spdlog::info( "{}", msg );
-        }
-    } };
+    HyperNet_Executor hnex{ "Net0", true };
+    hnex.push_sink( new HyperNet_Sink{ { name: "p0" } } );
+    hnex.push_sink( new HyperNet_Sink{ { name: "p1" } } );
+    hnex.push_drain( new HyperNet_Drain_Lambda{ { name: "t0" }, [ & ] ( HyperNet_Token* tok_ ) -> A113::RESULT {
+        return flag & 1;
+    } } );
+    hnex.push_drain( new HyperNet_Drain_Lambda{ { name: "t1" }, [ & ] ( HyperNet_Token* tok_ ) -> A113::RESULT {
+        return ( flag & 1 ) == 0;
+    } } );
 
-    std::this_thread::sleep_for( std::chrono::seconds( 2 ) );
+    hnex.bind_SDS( "p0", "t0", "p1" );
+    hnex.bind_SDS( "p1", "t1", "p0" );
+    hnex.insert( "p0", new HyperNet_Token{} );
 
-    auto th2 = std::thread{ [] () -> void {
-        IPv4_TCP_socket socket;
-        socket.connect( "127.0.0.1", 80 );
-        while( 1 ) {
-            std::string s;
-            std::cin>>s;
-            
-            socket.basic_write_loop( { ptr: s.data(), n: 4 } );
-        }
-    } };
+    auto th = std::thread{ [ & ] ( void ) -> void {
+    for(;;) {
+        hnex.clock( 0.0 );
+    } } };
 
-    th1.join(); th2.join();
+    for(;;) {
+        std::this_thread::sleep_for( std::chrono::seconds{ 2 } ); ++flag;
+    }
 
     return 0;
 }

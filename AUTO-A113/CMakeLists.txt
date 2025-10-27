@@ -84,3 +84,9 @@ foreach( rupture ${A113_MAKE_RUPTURES} )
     add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/Ruptures/${rupture}" )
 endforeach()
 
+
+add_executable( "main" "${CMAKE_CURRENT_LIST_DIR}/main.cpp" )
+target_link_libraries( main 
+    PUBLIC A113_BRp
+    PUBLIC A113_OSp 
+)

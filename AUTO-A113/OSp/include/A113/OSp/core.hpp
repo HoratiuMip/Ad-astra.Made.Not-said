@@ -13,7 +13,12 @@
 
 #include <atomic>
 #include <functional>
+#include <list>
+#include <map>
 #include <memory>
+#include <set>
+#include <string>
+#include <string_view>
 
 #ifdef A113_TARGET_OS_WINDOWS
     #include <winsock2.h>
@@ -27,7 +32,12 @@
 namespace A113 { namespace OSp {
 
 
-template< typename _T > using HPtr< _T > = std::shared_ptr< _T >;
+template< typename _T >
+struct HPtr : public std::shared_ptr< _T > {
+    using std::shared_ptr< _T >::shared_ptr;
+
+    HPtr( _T* ptr_ ) { this->reset( ptr_ ); }
+};
 
 
 inline struct _LOG_BUNDLE {
@@ -62,10 +72,10 @@ A113_PROTECTED:
 public:
     RESULT init( int argc_, char* argv_[], const init_args_t& args_ );
 
-}; inline INTERNAL Internal;
+}; inline INTERNAL _Internal;
 
 A113_inline RESULT init( int argc_, char* argv_[], const init_args_t& args_ ) {
-    return Internal.init( argc_, argv_, args_ );
+    return _Internal.init( argc_, argv_, args_ );
 }
 
 

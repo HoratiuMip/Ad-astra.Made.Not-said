@@ -8,4 +8,5 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #include <A113/OSp/OSp.hpp>
 #include <A113/OSp/core.hpp>
 #include <A113/OSp/hyper_net.hpp>
+#include <A113/OSp/render3.hpp>
 

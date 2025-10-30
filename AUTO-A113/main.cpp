@@ -2,6 +2,7 @@
 using namespace A113::OSp;
 
 #include <nlohmann/json.hpp>
+#include <A113/OSp/render3.hpp>
 using json = nlohmann::json;
 
 #include <thread>
@@ -14,18 +15,18 @@ int main( int argc, char* argv[] ) {
     int flag = 0x0;
 
     HyperNet_Executor hnex{ "Net0", true };
-    hnex.push_sink( new HyperNet_Sink{ { name: "p0" } } );
-    hnex.push_sink( new HyperNet_Sink{ { name: "p1" } } );
-    hnex.push_drain( new HyperNet_Drain_Lambda{ { name: "t0" }, [ & ] ( HyperNet_Token* tok_ ) -> A113::RESULT {
+    hnex.push_sink( new HyperNet_Sink{ { str_id: "p0" } } );
+    hnex.push_sink( new HyperNet_Sink{ { str_id: "p1" } } );
+    hnex.push_drain( new HyperNet_Drain_Lambda{ { str_id: "t0" }, [ & ] ( HyperNet_Token* tok_ ) -> A113::RESULT {
         return flag & 1;
     } } );
-    hnex.push_drain( new HyperNet_Drain_Lambda{ { name: "t1" }, [ & ] ( HyperNet_Token* tok_ ) -> A113::RESULT {
+    hnex.push_drain( new HyperNet_Drain_Lambda{ { str_id: "t1" }, [ & ] ( HyperNet_Token* tok_ ) -> A113::RESULT {
         return ( flag & 1 ) == 0;
     } } );
 
     hnex.bind_SDS( "p0", "t0", "p1" );
-    hnex.bind_SDS( "p1", "t1", "p0" );
-    hnex.insert( "p0", new HyperNet_Token{} );
+    hnex.bind_SD( "p1", "t1" );
+    hnex.inject( "p0", new HyperNet_Token{} );
 
     auto th = std::thread{ [ & ] ( void ) -> void {
     for(;;) {

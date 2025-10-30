@@ -77,7 +77,7 @@ endif()
 
 
 foreach( framework ${A113_MAKE_FRAMEWORKS} )
-    add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/Framework/${framework}" )
+    add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/Fwk/${framework}" )
 endforeach()
 
 foreach( rupture ${A113_MAKE_RUPTURES} )

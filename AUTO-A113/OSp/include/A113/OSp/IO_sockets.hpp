@@ -23,7 +23,7 @@ namespace A113 { namespace OSp {
 
 
 class IPv4_TCP_socket : public BRp::IO_port {
-A113_PROTECTED:
+_A113_PROTECTED:
     struct {
         std::atomic_bool       alive      = { false };
         socket_t               sock       = NULL_SOCKET;

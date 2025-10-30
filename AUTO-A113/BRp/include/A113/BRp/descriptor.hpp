@@ -21,8 +21,8 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #define A113_BR_FNC
 #define A113_OS_FNC
 
-#define A113_PROTECTED protected
-#define A113_PRIVATE   private
+#define _A113_PROTECTED protected
+#define _A113_PRIVATE   private
 
 #define A113_ASSERT_OR( cond ) if( false == (cond) )
 

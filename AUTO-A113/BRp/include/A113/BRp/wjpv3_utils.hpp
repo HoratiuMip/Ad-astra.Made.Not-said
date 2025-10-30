@@ -26,14 +26,14 @@ public:
         *( WJP_Head* )_tx_buf.ptr = WJP_Head{};
     }
 
-A113_PROTECTED:
+_A113_PROTECTED:
     IO_port*   _io_port   = nullptr;
     BUFFER     _tx_buf    = {};
 
 public:
     A113_inline void bind_TX_buffer( BUFFER buf_ ) { _tx_buf = buf_; }
 
-A113_PRIVATE:
+_A113_PRIVATE:
     virtual int mech_send( WJP_MDsc mdsc_ ) final override {
         return _io_port->basic_write_loop( { mdsc_.addr, mdsc_.sz } );
     }
@@ -71,7 +71,7 @@ public:
     : WJPv3_LMHIPayload_on< IO_PORT_T >{ { _tx_buf, TX_BUF_SZ }, { _rx_buf, RX_BUF_SZ } }
     {}
 
-A113_PROTECTED:
+_A113_PROTECTED:
     char   _tx_buf[ TX_BUF_SZ ];
     char   _rx_buf[ RX_BUF_SZ ];
 

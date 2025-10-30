@@ -12,11 +12,14 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 #include <atomic>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <list>
 #include <map>
 #include <memory>
 #include <set>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 
@@ -33,10 +36,13 @@ namespace A113 { namespace OSp {
 
 
 template< typename _T >
-struct HPtr : public std::shared_ptr< _T > {
+struct HVEC : public std::shared_ptr< _T > {
     using std::shared_ptr< _T >::shared_ptr;
+    using std::shared_ptr< _T >::operator=;
 
-    HPtr( _T* ptr_ ) { this->reset( ptr_ ); }
+    HVEC( const std::shared_ptr< _T >&  ptr_ ) : std::shared_ptr< _T >{ ptr_ } {}
+    HVEC( std::shared_ptr< _T >&& ptr_ ) : std::shared_ptr< _T >{ std::move( ptr_ ) } {}
+    HVEC( _T* ptr_ ) { this->reset( ptr_ ); }
 };
 
 
@@ -52,6 +58,17 @@ inline struct _LOG_BUNDLE {
 
 } Log;
 
+class PRZ_logz_stuff {
+public:
+    PRZ_logz_stuff() = default;
+    PRZ_logz_stuff( const char* logger_name_ ) : _Log{ spdlog::stdout_color_mt( logger_name_ ) } {}
+    PRZ_logz_stuff( HVEC< spdlog::logger > other_ ) : _Log{ std::move( other_ ) } {}
+
+public:
+    HVEC< spdlog::logger >   _Log   = nullptr;
+};
+
+
 
 enum InitFlags_ {
     InitFlags_None = 0x0,
@@ -61,7 +78,7 @@ struct init_args_t {
     int   flags   = InitFlags_None;
 };
 class INTERNAL {
-A113_PROTECTED:
+_A113_PROTECTED:
     struct {
     #ifdef A113_TARGET_OS_WINDOWS
         WSADATA   wsa_data;

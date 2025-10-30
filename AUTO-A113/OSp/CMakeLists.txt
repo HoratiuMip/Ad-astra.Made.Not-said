@@ -9,9 +9,33 @@ A113_Fnc_CloneRepo( "https://github.com/gabime/spdlog.git" "v1.15.3" spdlog "${_
 # OpenGL
 A113_Fnc_CloneRepo( "https://github.com/g-truc/glm.git" "1.0.1" glm "${_chain_dir}" )
 A113_Fnc_CloneRepo( "https://github.com/glfw/glfw.git" "3.4" glfw "${_chain_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/Perlmint/glew-cmake.git" "glew-cmake-2.2.0" glew "${_chain_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/nothings/stb.git" "" stb "${_chain_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/tinyobjloader/tinyobjloader.git" "v1.0.6" tinyobj "${_chain_dir}" )
 
 # JSON
 A113_Fnc_CloneRepo( "https://github.com/nlohmann/json.git" "v3.12.0" nlohmann_json "${_chain_dir}")
+
+# Dear ImGUI
+A113_Fnc_CloneRepo( "https://github.com/ocornut/imgui.git" "v1.91.9-docking" imgui "${_chain_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/epezent/implot.git" "v0.16" implot "${_chain_dir}" )
+
+
+file( GLOB _imgui_source_files "${_chain_dir}/imgui/*.cpp" )
+add_library( ImGui STATIC 
+    ${_imgui_source_files} 
+    "${_chain_dir}/imgui/misc/cpp/imgui_stdlib.cpp" 
+    "${_chain_dir}/imgui/backends/imgui_impl_opengl3.cpp" 
+)
+target_include_directories( ImGui 
+    PUBLIC "${_chain_dir}/imgui/" 
+    PUBLIC "${_chain_dir}/imgui/misc/cpp/"
+    PUBLIC "${_chain_dir}/imgui/backends/"
+)
+file( GLOB _implot_source_files "${_chain_dir}/implot/*.cpp" )
+add_library( ImPlot STATIC ${_implot_source_files} )
+target_include_directories( ImPlot PUBLIC "${_chain_dir}/imgui/" )
+target_include_directories( ImPlot PUBLIC "${_chain_dir}/implot/" )
 
 
 ## Build A113.
@@ -47,13 +71,21 @@ target_link_libraries( A113_OSp
     PUBLIC spdlog
     PUBLIC glm
     PUBLIC glfw
+    PUBLIC libglew_static
     PUBLIC nlohmann_json
+    PUBLIC ImGui
+    PUBLIC ImPlot
 )
 target_include_directories( A113_OSp
     PUBLIC "${_chain_dir}/spdlog/include"
     PUBLIC "${_chain_dir}/glm"
     PUBLIC "${_chain_dir}/glfw/include"
+    PUBLIC "${_chain_dir}/glew/include"
+    PUBLIC "${_chain_dir}/stb"
+    PUBLIC "${_chain_dir}/tinyobj"
     PUBLIC "${_chain_dir}/nlohmann_json/include"
+    PUBLIC "${_chain_dir}/imgui"
+    PUBLIC "${_chain_dir}/implot"
 )
 
 

@@ -30,14 +30,13 @@ public:
 
         void*              arg                   = nullptr;
 
-        const char*        title                 = "ixN::Fwk::ImGui_on_OpenGL3";
+        const char*        title                 = "";
         int                width                 = 64;
         int                height                = 64;
         glm::vec4          clear_color           = { 0.05, 0.05, 0.1, 1.0 };
         bool               iconify               = false;
         bool               maximize              = false;
 
-        int                lens_scheme           = 0;
     } config;
 
     struct {

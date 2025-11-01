@@ -27,11 +27,14 @@
 
 
 enum WJPAct_ : int16_t {
-    WJPVerb_Heart       = 0x00,
+    WJPAct_Heart       = 0x00,
 
-    _WJPVerb_FORCE_BYTE = 0x7fff
+    _WJPAct_FORCE_BYTE = 0x7fff
 };
 
+
+typedef   int32_t   WJP_size_t;
+typedef   int       WJP_result_t;
 
 struct WJP_MDsc {
     char*     addr   = nullptr;
@@ -49,7 +52,7 @@ struct WJP_Head {
     struct{ int32_t AGN = WJP_SIG; }                                  _dw0;
     struct{ int8_t _ = 0x0; uint8_t CTL = 0x0; int16_t ACT = 0x0; }   _dw1;
     struct{ int32_t ARG = 0x0; }                                      _dw2;
-    struct{ int32_t N = 0x0; }                                        _dw3;
+    struct{ WJP_size_t N = 0x0; }                                     _dw3;
 
     _WJP_forceinline bool is_aligned( void ) { return _dw0.AGN == WJP_SIG; }
 
@@ -82,7 +85,10 @@ enum WJPErr_ : int {
     WJPErr_Act         = 0x6,
    
     /* The received packet has invalid head control bits. */
-    WJPErr_Ctl         = 0x7
+    WJPErr_Ctl         = 0x7,
+
+    /* An argument supplied to a routine is not valid. */
+    WJPErr_RoutineArg  = 0x8
 };
 const char* WJP_err_strs[] = {
     "WJPErr_None",
@@ -92,7 +98,8 @@ const char* WJP_err_strs[] = {
     "WJPErr_N",
     "WJPErr_Reset",
     "WJPErr_Act",
-    "WJPErr_Ctl"
+    "WJPErr_Ctl",
+    "WJPErr_RoutineArg"
 };
 
 
@@ -105,14 +112,14 @@ struct WJP_InterMech {
      * @warning This function MUST guarantee that all the requested bytes are sent, or return an error code elsewise. NO in-between.
      * @returns The count of requested bytes to send. Negative for errors, zero for connection reset.
      */
-    virtual int mech_send( WJP_MDsc mdsc_ ) = 0;
+    virtual WJP_result_t WJP_mech_send( WJP_MDsc mdsc_ ) = 0;
 
     /**
      * @brief Called to receive bytes over the wire.
      * @warning This function MUST guarantee that all the requested bytes are receive, or return an error code elsewise. NO in-between.
      * @returns The count of requested bytes to receive. Negative for errors, zero for connection reset.
      */
-    virtual int mech_recv( WJP_MDsc mdsc_ ) = 0;
+    virtual WJP_result_t WJP_mech_recv( WJP_MDsc mdsc_ ) = 0;
 };
 
 
@@ -124,7 +131,7 @@ struct WJP_LMHIReceiver {
         WJP_MDsc     payload_out   = {};
     };
 
-    virtual int lmhi_when_recv( Layout* layout_ ) = 0;
+    virtual WJP_result_t WJP_lmhi_when_recv( Layout* layout_ ) = 0;
 };
 
 

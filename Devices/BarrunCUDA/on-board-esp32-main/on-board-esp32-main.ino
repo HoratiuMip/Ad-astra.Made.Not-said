@@ -5,6 +5,8 @@
 > Yes, everything in one file, deal w/ it.
 |
 ======*/
+#define BARRUNCUDA_WJP_VER 3
+
 #include "../barracuda.hpp"
 
 #include <Wire.h> /* I2C bus. */
@@ -22,9 +24,16 @@
 #include <RCWL_1X05.h> /* Sonar. */
 
 #include "../../IXN/common_utils.hpp"
-#define WJP_ARCHITECTURE_LITTLE
-#include "../../IXN/Driver/wjp_on_bths.hpp"
+#if BARRUNCUDA_WJP_VER == 1
+    #define WJP_ARCHITECTURE_LITTLE
+    #define WJP_ENVIRONMENT_RTOS
+    #include "../../IXN/Driver/wjp_on_bths.hpp"
+#endif
 using namespace ixN::uC;
+
+#if BARRUNCUDA_WJP_VER == 3
+    #include "../../runik-patriot/abstraction_layer.hpp"
+#endif
 
 #include "graphics.hpp"
 
@@ -160,8 +169,12 @@ static struct _CONFIG_GAME_MODE {
 static struct _CONFIG_CTRL_MODE {
 	int init( void );
 
+#if BARRUNCUDA_WJP_VER == 1
 	WJP_on_BluetoothSerial   wjpblu      = {};
     bool                     _conn_rst   = true;
+#endif
+#if BARRUNCUDA_WJP_VER == 3
+#endif
 
 } CONFIG_CTRL_MODE;
 
@@ -881,7 +894,9 @@ else { js.edg.axis = is##axis = 0; }
 void _dead( void ) {
   portDISABLE_INTERRUPTS();
   vTaskSuspendAll();
+#if BARRUNCUDA_WJP_VER == 1
   CONFIG_CTRL_MODE.wjpblu.end();
+#endif
   Wire.end();
   while( 1 ) BITNA.blink( 1, Led_RED, Led_BLK, 1000, 1000 );
 }
@@ -1479,11 +1494,12 @@ void main_game( void* arg ) {
 || |     |   |_| |
 || |__   |   | \ |__
 */ 
+#if BARRUNCUDA_WJP_VER == 1
 static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 4 ] = {
 { 
 	str_id: "BITNA_CRT", 
 	sz: 1, 
-	WJP_QGSTBL_READ_ONLY, 
+	read_only: WJP_QGSTBL_READ_ONLY, 
 	qset_func: NULL,
 	qget_func: NULL, 
 	src: &BITNA._crt
@@ -1491,7 +1507,7 @@ static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 4 ] = {
 { 
 	str_id: "GRAN_ACC_RANGE", 
 	sz: 1, 
-	WJP_QGSTBL_READ_WRITE, 
+	read_only: WJP_QGSTBL_READ_WRITE, 
 	qset_func: [] WJP_QSET_LAMBDA{ return GRAN.set_acc_range( ( MPU9250_accRange )*( uint8_t* )args.addr ) ? NULL : "GRAN_ACC_INVALID_RANGE"; },
 	qget_func: NULL,
 	src: NULL
@@ -1499,7 +1515,7 @@ static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 4 ] = {
 { 
 	str_id: "GRAN_GYR_RANGE", 
 	sz: 1, 
-	WJP_QGSTBL_READ_WRITE, 
+	read_only: WJP_QGSTBL_READ_WRITE, 
 	qset_func: [] WJP_QSET_LAMBDA{ return GRAN.set_gyr_range( ( MPU9250_gyroRange )*( uint8_t* )args.addr ) ? NULL : "GRAN_GYR_INVALID_RANGE"; },
 	qget_func: NULL,
 	src: NULL
@@ -1507,7 +1523,7 @@ static WJP_QGSTBL_ENTRY wjp_QGSTBL[ 4 ] = {
 {
     str_id: "DYNAM",
     sz: sizeof( barra::dynamic_t ),
-    WJP_QGSTBL_READ_ONLY,
+    read_only: WJP_QGSTBL_READ_ONLY,
     qset_func: NULL,
     qget_func: [] WJP_QGET_LAMBDA{
         static barra::dynamic_t         dyn;
@@ -1540,9 +1556,9 @@ static WJP_IBRSTBL_ENTRY wjp_IBRSTBL[ 1 ] = {
         DYNAM.snapshot( &ss_tok );
         return &packet;
     },
-    WJP_IBRST_PACKED,
-    WJP_IBRST_DIR_OUT,
-    WJPIBrstStatus_Disengaged
+    dir: WJP_IBRST_DIR_OUT,
+    packed: WJP_IBRST_PACKED,
+    _status: WJPIBrstStatus_Disengaged
 }
 };
 
@@ -1575,7 +1591,7 @@ int wjp_loop( void ) {
     }
 
     switch( info.recv_head._dw0.op ) {
-        case WJPOp_Ping: {
+        case WJPOp_Heart: {
             _printf( LogLevel_Info, "Ping'd back on sequence (%d).\n", ( int )info.recv_head._dw1.seq );
         break; }
     }
@@ -1650,7 +1666,33 @@ MAIN_LOOP_ON( Mode_Ctrl ) {
 
     CONFIG_CTRL_MODE.wjpblu.end();
 }
+#endif
 
+#if BARRUNCUDA_WJP_VER == 3
+int _CONFIG_CTRL_MODE::init( void ) {
+    return 0x0;
+}
+void main_ctrl( void* arg ) {
+    _FELLOW_TASK::require( FellowTask_DynamScan | FellowTask_InputReact | FellowTask_LedController | FellowTask_WaveController );
+
+    rp::BLE_UART_Virtual_commander rp_vcmd;
+    rp_vcmd.begin();
+    rnk::status_t status = rp_vcmd.uplink( rp::TAG, 10000 ); 
+
+    barra::dynamic_t         dyn;
+    _DYNAM::snapshot_token_t ss_tok{ dst: &dyn, blk: true };
+
+MAIN_LOOP_ON( Mode_Ctrl ) {
+    DYNAM.snapshot( &ss_tok );
+    rp_vcmd.push( rp::virtual_commander_t{
+        y_left:        dyn.rachel.y,
+        y_right:       dyn.samantha.y,
+        lvl_track_pwr: dyn.tanya.lvl
+    } );
+}
+    rp_vcmd.downlink();
+}
+#endif
 
 
 /* ._  ._  .   .__

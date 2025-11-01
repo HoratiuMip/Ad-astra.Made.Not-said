@@ -1,6 +1,6 @@
 #include <A113/OSp/OSp.hpp>
 #include <A113/BRp/wjpv3_utils.hpp>
-#include <A113/Fwk/immersion.hpp>
+#include <A113/Fwk/Immersion>
 using namespace A113::BRp;
 using namespace A113::OSp;
 #include <nlohmann/json.hpp>

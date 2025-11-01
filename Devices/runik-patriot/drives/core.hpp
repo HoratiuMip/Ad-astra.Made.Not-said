@@ -6,30 +6,18 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include "core-defs.hpp"
+#include <string>
+#include <tuple>
+#include <atomic>
 
-RP_NAMESPACE {
+#include <EEPROM.h>
+#include <esp_task_wdt.h>
 
+#include <rnk/Core.hpp>
 
-inline struct ECHO {
-    void init( void ) {
-        esp_log_level_set( "*", ESP_LOG_INFO ); 
-        Serial.begin( 19200 );
-    }
-    
-    template< typename ...Args > RP_inline void err( const char* fmt, Args&&... args ) {
-        ESP_LOGE( TAG, fmt, std::forward< Args >( args )... );
-    }
+#include "../abstraction_layer.hpp"
 
-    template< typename ...Args > RP_inline void wrn( const char* fmt, Args&&... args ) {
-        ESP_LOGW( TAG, fmt, std::forward< Args >( args )... );
-    }
-
-    template< typename ...Args > RP_inline void inf( const char* fmt, Args&&... args ) {
-        ESP_LOGI( TAG, fmt, std::forward< Args >( args )... );
-    }
-
-} Echo;
+namespace rp {
 
 
 struct Drive {
@@ -41,13 +29,17 @@ struct Drive {
 };
 
 
-inline struct MIRU {
+struct miru_begin_args_t {
+    bool reset_flash;
+};
+
+inline struct _MIRU {
     struct _FLASH {
         inline static constexpr int   BYTE_COUNT   = 512;
 
         struct {
             char   BYTE[ 4 ]   = { 'M', 'I', 'R', 'U' };
-        } General;
+        } _Align;
 
         struct Track {
             [[hot]]int16_t   PWM_LIMIT   = 200;
@@ -61,50 +53,46 @@ inline struct MIRU {
             int16_t   BOOT_HOLD_MS           = 10000;
         } Ring;
 
-        STATUS init( bool reset ) {
-            RP_ASSERT_OR( EEPROM.begin( BYTE_COUNT ) == true ) return -1;
+        rnk::status_t begin( bool reset ) {
+            RNK_ASSERT_OR( EEPROM.begin( BYTE_COUNT ) == true ) return -1;
 
             if( reset ) return this->flash();
 
             return this->read();
         }
 
-        STATUS read( void ) {
+        rnk::status_t read( void ) {
             EEPROM.get( 0, *this ); 
 
-            RP_ASSERT_OR( General.BYTE[ 0 ] == 'M' && General.BYTE[ 1 ] == 'I' && General.BYTE[ 2 ] == 'R' && General.BYTE[ 3 ] == 'U' ) {
-                return -1;
+            RNK_ASSERT_OR( _Align.BYTE[ 0 ] == 'M' && _Align.BYTE[ 1 ] == 'I' && _Align.BYTE[ 2 ] == 'R' && _Align.BYTE[ 3 ] == 'U' ) {
+                return -0x1;
             }
-            return 0;
+            return 0x0;
         }
 
-        STATUS flash( void ) {
+        rnk::status_t flash( void ) {
             EEPROM.put( 0, *this );
-            return EEPROM.commit() ? 0 : -1;
+            return EEPROM.commit() ? 0x0 : -0x1;
         }
         
     } FLASH;
 
-    struct INIT_ARGS {
-        bool reset_flash;
-    };
-
-    STATUS init( const INIT_ARGS& args ) {
-        STATUS status = 0;
+    rnk::status_t begin( const miru_begin_args_t& args ) {
+        rnk::status_t status = 0;
 
     #if RP_CONFIG_FLAG_DEINIT_INO
         status = this->_ino_deinit();
     #endif
 
-        status = FLASH.init( args.reset_flash );
+        status = FLASH.begin( args.reset_flash );
 
         return status;
     }
 
 #if RP_CONFIG_FLAG_DEINIT_INO
-    STATUS _ino_deinit( void ) {
+    rnk::status_t _ino_deinit( void ) {
         esp_task_wdt_deinit();
-        return 0;
+        return 0x0;
     }
 #endif
 

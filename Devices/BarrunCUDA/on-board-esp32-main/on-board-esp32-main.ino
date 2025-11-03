@@ -1682,12 +1682,30 @@ void main_ctrl( void* arg ) {
     barra::dynamic_t         dyn;
     _DYNAM::snapshot_token_t ss_tok{ dst: &dyn, blk: true };
 
+    struct {
+        bool   flag   = false;
+        bool   hold   = false;
+    } headlights;
+
 MAIN_LOOP_ON( Mode_Ctrl ) {
     DYNAM.snapshot( &ss_tok );
+
+    if( dyn.giselle.prs ) {
+        headlights.flag ^= true;
+    } else if( dyn.karina.dwn ) {
+        headlights.flag = true;
+        headlights.hold = true;
+    } else if( headlights.hold ) {
+        headlights.flag = false;
+        headlights.hold = false;
+    }
+
     rp_vcmd.push( rp::virtual_commander_t{
-        y_left:        dyn.rachel.y,
-        y_right:       dyn.samantha.y,
-        lvl_track_pwr: dyn.tanya.lvl
+        y_left:              dyn.rachel.y,
+        y_right:             dyn.samantha.y,
+        lvl_track_pwr:       dyn.tanya.lvl,
+        lvl_headlight_left:  headlights.flag ? 1.0 : 0.0,
+        lvl_headlight_right: headlights.flag ? 1.0 : 0.0
     } );
 }
     rp_vcmd.downlink();

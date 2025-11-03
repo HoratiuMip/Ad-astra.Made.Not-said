@@ -7,6 +7,7 @@
  */
 
 #include "cli.hpp"
+#include "hyper.hpp"
 
 #include <rnk/IO/BLE_UART_Her.hpp>
 #include <wjpv3.hpp>
@@ -24,21 +25,21 @@ public:
         const PIN_MAP&                         pin_map_,
         const rnk::IO::BLE_UART::Her::PIN_MAP& her_pin_map_,
         Cli_drive*                             cli_drive_,
-        Track_drive*                           track_drive_
+        Hyper_drive*                           hyper_drive_
     )
-    : rnk::IO::BLE_UART::Her{ her_pin_map_ }, _pin_map{ pin_map_ }, _cli_drive{ cli_drive_ }, _track_drive{ track_drive_ }
+    : rnk::IO::BLE_UART::Her{ her_pin_map_ }, _pin_map{ pin_map_ }, _cli_drive{ cli_drive_ }, _hyper_drive{ hyper_drive_ }
     {
         this->WJPDevice_Euclid::bind_inter_mech( this );
         this->WJPDevice_Euclid::bind_lmhi_receiver( this );
     }
 
 RNK_PROTECTED:
-    Cli_drive*     _cli_drive    = NULL;
-    Track_drive*   _track_drive   = NULL;
+    Cli_drive*     _cli_drive     = NULL;
+    Hyper_drive*   _hyper_drive   = NULL;
 
 public:
     rnk::status_t begin( const char* blue_name_ ) {
-        this->rnk::IO::BLE_UART::Her::begin( blue_name_, true );
+        this->rnk::IO::BLE_UART::Her::begin( blue_name_ );
         return 0x0;
     }
 
@@ -70,7 +71,7 @@ RNK_PROTECTED:
     virtual WJP_result_t WJP_lmhi_when_recv( WJP_LMHIReceiver::Layout* lo_ ) override {
         switch( lo_->head_in._dw1.ACT ) {
             case WJPAct_VirtualCommander: {
-                _track_drive->push_virtual_commander( *( virtual_commander_t* )lo_->payload_in.addr );
+                _hyper_drive->push_virtual_commander( *( virtual_commander_t* )lo_->payload_in.addr );
             break; }
         }
 

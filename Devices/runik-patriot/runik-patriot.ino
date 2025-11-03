@@ -9,13 +9,10 @@
 #include "rnk/Core.hpp"
 
 #include "drives/track.hpp"
+#include "drives/lights.hpp"
 #include "drives/cli.hpp"
 #include "drives/comm.hpp"
-
-struct rp_virtual_joystick_t {
-    float y_l;
-    float y_r;
-};
+#include "drives/hyper.hpp"
 
 
 rp::Track_drive TrackDrive{ rp::Track_drive::PIN_MAP{
@@ -25,17 +22,30 @@ rp::Track_drive TrackDrive{ rp::Track_drive::PIN_MAP{
     Q_left_bck:  13
 } };
 
+rp::Light_drive LightDrive{ rp::Light_drive::PIN_MAP{
+    Q_left_headlight:  19,
+    Q_right_headlight: 23
+} };
+
 rp::Cli_drive CliDrive{
     rp::Cli_drive::PIN_MAP{},
-    &TrackDrive
+    &TrackDrive,
+    &LightDrive
+};
+
+rp::Hyper_drive HyperDrive{
+    rp::Hyper_drive::PIN_MAP{},
+    &TrackDrive,
+    &LightDrive
 };
 
 rp::Comm_drive CommDrive{ 
     rp::Comm_drive::PIN_MAP{}, 
     rnk::IO::BLE_UART::Her::PIN_MAP{ Q_light: 2 }, 
     &CliDrive, 
-    &TrackDrive 
+    &HyperDrive 
 };
+
 
 // rp::RING_DRIVE RingDrive{ rp::RING_DRIVE::PIN_MAP{
 //     i_uart_rx: 17,
@@ -70,11 +80,13 @@ void setup( void ) {
     };
 
     TrackDrive.begin();
+    LightDrive.begin();
+
     //RingDrive.init();
     //BlueDrive.init( "rp-3000" );
 
     CommDrive.begin( rp::TAG );
-
+    HyperDrive.begin();
 
     rnk::Log.info( "Boot complete." );
 }

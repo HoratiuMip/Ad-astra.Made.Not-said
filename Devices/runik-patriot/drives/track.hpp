@@ -168,7 +168,6 @@ public:
         vTaskDelay( ms );
         this->halt();
     }
-
 public:
     rnk::status_t push_virtual_commander( const virtual_commander_t& vcmd_ ) {
         xTimerReset( _h_vcmd_timer, 0 );
@@ -176,7 +175,6 @@ public:
         this->left( vcmd_.y_left * vcmd_.lvl_track_pwr );
         return 0x0;
     }
-
 };
 
 

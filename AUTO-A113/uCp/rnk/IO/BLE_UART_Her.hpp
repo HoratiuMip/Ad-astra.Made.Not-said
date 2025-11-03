@@ -13,7 +13,7 @@ namespace rnk { namespace IO { namespace BLE_UART {
 class Her : RNK_PROTECTED NimBLEServerCallbacks, RNK_PROTECTED NimBLECharacteristicCallbacks {
 public:
     const struct PIN_MAP {
-        pin_t Q_light;
+        pin_t Q_light = 0x0;
     } _pin_map;
 
 public:
@@ -59,7 +59,7 @@ RNK_PROTECTED:
     } }
 
 public:
-    status_t begin( const char* name_, bool handle_light_ ) {
+    status_t begin( const char* name_ ) {
         NimBLEDevice::init( name_ );
         
         RNK_ASSERT_OR( _server = NimBLEDevice::createServer() ) {
@@ -94,7 +94,7 @@ public:
         advertising->addServiceUUID( _service->getUUID() );
         advertising->start();
 
-        if( handle_light_ ) xTaskCreate( &Her::_light_handler, "rnk::IO::BLE_UART::Her::_light_handler", 1024, ( void* )this, TaskPriority_Mach, &_h_light ); 
+        if( 0x0 != _pin_map.Q_light ) xTaskCreate( &Her::_light_handler, "rnk::IO::BLE_UART::Her::_light_handler", 1024, ( void* )this, TaskPriority_Mach, &_h_light ); 
 
         return 0x0;
     }

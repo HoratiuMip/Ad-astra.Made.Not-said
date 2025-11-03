@@ -8,6 +8,7 @@
 
 #include "core.hpp"
 #include "track.hpp"
+#include "lights.hpp"
 
 namespace rp {
 
@@ -34,12 +35,13 @@ public:
 #define _RP_CLI_HASH_TOK_0 std::hash< std::string >{}( tokens[ 0 ] )
 
 public:
-    Cli_drive( const PIN_MAP& pin_map_, Track_drive* track_drive_ )
-    : _pin_map{ pin_map_ }, _track_drive{ track_drive_ }
+    Cli_drive( const PIN_MAP& pin_map_, Track_drive* track_drive_, Light_drive* light_drive_ )
+    : _pin_map{ pin_map_ }, _track_drive{ track_drive_ }, _light_drive{ light_drive_ }
     {}
 
 RNK_PROTECTED:
     Track_drive*   _track_drive   = nullptr;
+    Light_drive*   _light_drive   = nullptr;
 
 public:
     exec_status_t exec( std::string_view line ) {

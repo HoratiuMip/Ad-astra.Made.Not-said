@@ -1,41 +1,38 @@
-#include <A113/OSp/hyper_net.hpp>
-using namespace A113::OSp;
-
-#include <nlohmann/json.hpp>
-#include <A113/OSp/render3.hpp>
-using json = nlohmann::json;
+#include <A113/BRp/block_diffuser.hpp>
+using namespace A113::BRp;
 
 #include <thread>
 #include <string>
 #include <iostream>
 
+struct X {
+    X() = default;
+    X( int x ) : x{ x } { std::cout << "Created " << x << '\n'; }
+    ~X() { x = 0; std::cout << "Destroyed " << x << '\n'; }
+    int x;
+};
+
 int main( int argc, char* argv[] ) {
-    A113::OSp::init( argc, argv, { flags: InitFlags_None } );
+    Block_diffuser< X > bf;
 
-    int flag = 0x0;
+    Block_diffuser< X >::block_t ints[ 10 ];
+    for( auto& n : ints ) n.content.x = 0x0;
 
-    HyperNet_Executor hnex{ "Net0", true };
-    hnex.push_sink( new HyperNet_Sink{ { str_id: "p0" } } );
-    hnex.push_sink( new HyperNet_Sink{ { str_id: "p1" } } );
-    hnex.push_drain( new HyperNet_Drain_Lambda{ { str_id: "t0" }, [ & ] ( HyperNet_Token* tok_ ) -> A113::RESULT {
-        return flag & 1;
-    } } );
-    hnex.push_drain( new HyperNet_Drain_Lambda{ { str_id: "t1" }, [ & ] ( HyperNet_Token* tok_ ) -> A113::RESULT {
-        return ( flag & 1 ) == 0;
-    } } );
+    bf.bind_memory( &ints[ 0 ], 10 );
+    bf.inject( 5 );
+    bf.inject( 6 );
+    bf.inject( 7 );
+    bf.eject( ints + 1 );
+    bf.inject( 6 );
+    bf.inject( 8 );
+    bf.eject( ints );
+    bf.inject( 5 );
+    bf.inject( 9 );
 
-    hnex.bind_SDS( "p0", "t0", "p1" );
-    hnex.bind_SD( "p1", "t1" );
-    hnex.inject( "p0", new HyperNet_Token{} );
 
-    auto th = std::thread{ [ & ] ( void ) -> void {
-    for(;;) {
-        hnex.clock( 0.0 );
-    } } };
-
-    for(;;) {
-        std::this_thread::sleep_for( std::chrono::seconds{ 2 } ); ++flag;
-    }
+    for( auto& n : ints )
+        std::cout << n.content.x << ' ';
+    std::cout << '\n';
 
     return 0;
 }

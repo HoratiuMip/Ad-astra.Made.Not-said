@@ -55,8 +55,8 @@ public:
 
 public:
     rnk::status_t push_virtual_commander( const virtual_commander_t& vcmd_ ) {
-        this->left_headlight( vcmd_.lvl_headlight_left );
-        this->right_headlight( vcmd_.lvl_headlight_right );
+        this->left_headlight( vcmd_.headlight_left );
+        this->right_headlight( vcmd_.headlight_right );
         return 0x0;
     }
 

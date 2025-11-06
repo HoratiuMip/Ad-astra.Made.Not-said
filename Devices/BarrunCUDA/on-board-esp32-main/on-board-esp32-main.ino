@@ -1686,6 +1686,9 @@ void main_ctrl( void* arg ) {
         bool   flag   = false;
         bool   hold   = false;
     } headlights;
+    struct {
+        uint8_t   mode   = RP_TRACK_MODE_DECOUPLED;
+    } track;
 
 MAIN_LOOP_ON( Mode_Ctrl ) {
     DYNAM.snapshot( &ss_tok );
@@ -1700,12 +1703,15 @@ MAIN_LOOP_ON( Mode_Ctrl ) {
         headlights.hold = false;
     }
 
+    if( dyn.samantha.sw.prs ) track.mode ^= 0x1;
+
     rp_vcmd.push( rp::virtual_commander_t{
-        y_left:              dyn.rachel.y,
-        y_right:             dyn.samantha.y,
-        lvl_track_pwr:       dyn.tanya.lvl,
-        lvl_headlight_left:  headlights.flag ? 1.0 : 0.0,
-        lvl_headlight_right: headlights.flag ? 1.0 : 0.0
+        track_left:      dyn.rachel.y,
+        track_right:     track.mode == RP_TRACK_MODE_DECOUPLED ? dyn.samantha.y : dyn.samantha.x,
+        track_pwr:       dyn.tanya.lvl,
+        track_mode:      track.mode,
+        headlight_left:  headlights.flag ? 1.0 : 0.0,
+        headlight_right: headlights.flag ? 1.0 : 0.0
     } );
 }
     rp_vcmd.downlink();

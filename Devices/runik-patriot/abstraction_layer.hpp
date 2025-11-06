@@ -13,6 +13,7 @@ namespace rp {
 
 
 inline const char*   TAG            = "Runik-Patriot";
+inline const char*   TAG_EYE        = "Runik-Patriot-Eye";
 inline const char*   TAG_EYE_SSID   = "Runik-Patriot";
 inline const char*   TAG_EYE_PWD    = "runikpisik"; /* oh no! do not steal the password! */
 inline const char*   TAG_EYE_DN     = "runik";
@@ -22,13 +23,18 @@ enum WJPAct_ {
     WJPAct_VirtualCommander
 };
 
+#define RP_TRACK_MODE_DECOUPLED 0x0
+#define RP_TRACK_MODE_DIFFERENTIAL 0x1
+
 
 struct virtual_commander_t {
-    float y_left; 
-    float y_right;
-    float lvl_track_pwr;
-    float lvl_headlight_left;
-    float lvl_headlight_right;
+    float   track_left; 
+    float   track_right;
+    float   track_pwr;
+    uint8_t track_mode;
+
+    float headlight_left;
+    float headlight_right;
 };
 
 class BLE_UART_Virtual_commander : RNK_PROTECTED rnk::IO::BLE_UART::Literally_me, RNK_PROTECTED WJPDevice_Euclid, RNK_PROTECTED WJP_InterMech {

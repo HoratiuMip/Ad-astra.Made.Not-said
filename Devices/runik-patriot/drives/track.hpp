@@ -171,8 +171,23 @@ public:
 public:
     rnk::status_t push_virtual_commander( const virtual_commander_t& vcmd_ ) {
         xTimerReset( _h_vcmd_timer, 0 );
-        this->right( vcmd_.y_right * vcmd_.lvl_track_pwr );
-        this->left( vcmd_.y_left * vcmd_.lvl_track_pwr );
+        switch( vcmd_.track_mode ) {
+            case RP_TRACK_MODE_DECOUPLED: {
+                this->right( vcmd_.track_right * vcmd_.track_pwr );
+                this->left( vcmd_.track_left * vcmd_.track_pwr );
+            break; }
+
+            case RP_TRACK_MODE_DIFFERENTIAL: {
+                const uint32_t sgn_msk = ( *( uint32_t* )&vcmd_.track_right ) & 0x80000000;
+                float diff = vcmd_.track_right * vcmd_.track_right;
+                ( *( uint32_t* )&diff ) |= sgn_msk;
+                this->left( ( vcmd_.track_left + diff ) * vcmd_.track_pwr );
+                this->right( ( vcmd_.track_left - diff ) * vcmd_.track_pwr );
+            break; }
+
+            default: this->halt();
+        }
+       
         return 0x0;
     }
 };

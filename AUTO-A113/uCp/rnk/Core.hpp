@@ -6,7 +6,10 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
+#include <Arduino.h>
+
 #include <atomic>
+#include <memory>
 
 
 #define RNK_inline inline
@@ -82,6 +85,17 @@ public:
 
         return 0x0;
     }
+
+public:
+    void after_failsafe( pin_t pin ) {
+        vTaskSuspendAll();
+        pinMode( pin, OUTPUT );
+    for(;;) {
+        digitalWrite( pin, 0x1 );
+        vTaskDelay( 166 );
+        digitalWrite( pin, 0x0 );
+        vTaskDelay( 166 );
+    } }
 
 }; inline _MIRU Miru;
 

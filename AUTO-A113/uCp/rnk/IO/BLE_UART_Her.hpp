@@ -13,11 +13,11 @@ namespace rnk { namespace IO { namespace BLE_UART {
 class Her : RNK_PROTECTED NimBLEServerCallbacks, RNK_PROTECTED NimBLECharacteristicCallbacks {
 public:
     const struct PIN_MAP {
-        pin_t Q_light = 0x0;
+        pin_t Q_light;
     } _pin_map;
 
 public:
-    Her( const PIN_MAP& pin_map_ = {} )
+    Her( const PIN_MAP& pin_map_ = { Q_light: 0x0 } )
     : _pin_map{ pin_map_ }
     {}
 

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Runik-Patriot</title>
+	<style>
+		:root {
+			--flux-w: 640px;
+			--flux-h: 480px;
+			--side-bar-w: calc((100vw - var(--flux-w)) / 2);
+		}
+
+		body {
+			font-family: Montserrat, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+			background-image: linear-gradient(#000000, #1a0043f7);
+			margin: 0;
+			padding: 0;
+			overflow: hidden;
+			height: 100vh;
+			color: #727272f7;
+			font-size: 16px;
+		}
+
+		.grid {
+			display: grid;
+			grid-template-columns: var(--side-bar-w) var(--flux-w) var(--side-bar-w);
+			height: 100%;
+			gap: 10px;
+		}
+
+		.sidebar {
+			background: #000000BB;
+			color: white;
+			padding: 15px;
+			margin-left: -2px;
+			border-style: solid;
+			border-width: 2px;
+			border-image: linear-gradient(#24005ef7, #000000) 1;
+			border-radius: 10px;
+		}
+
+		.flux-view {
+			background: #00000000;
+			display: flex;
+			justify-content: center;
+			align-items: center; 
+			height: 100%;   
+			font-size: 20px;
+		}
+		.flux-halted {
+			width: 50px;
+			height: 50px;
+			border: 5px solid #24005ef7;
+			border-top: 5px solid #000000BB;
+			border-radius: 50%;
+			animation: anim-flux-halted 1.6s infinite;
+			animation-timing-function: cubic-bezier(.72,.28,.31,.67);
+		}
+		@keyframes anim-flux-halted {
+			0% { transform: rotate(0deg); }
+			50% { transform: rotate(360deg); }
+			100% { transform: rotate(0deg); }
+		}
+	</style>
+</head>
+
+<body>
+	<div class="grid">
+		<aside class="sidebar">Left Sidebar</aside>
+		
+		<figure>
+			<div id="flux-div" class="flux-view">
+				<img id="flux" src="" alt="[ Flux is paused ]" crossorigin>
+				<div class="flux-halted"></div>
+			</div>
+		</figure>
+
+		<aside class="sidebar">Right Sidebar</aside>
+	</div>
+</body>
+
+<script>
+</script>
+
+</html>

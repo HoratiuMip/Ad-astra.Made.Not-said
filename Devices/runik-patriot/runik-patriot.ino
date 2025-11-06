@@ -6,7 +6,7 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include "rnk/Core.hpp"
+#include "drives/core.hpp"
 
 #include "drives/track.hpp"
 #include "drives/lights.hpp"
@@ -47,18 +47,6 @@ rp::Comm_drive CommDrive{
 };
 
 
-// rp::RING_DRIVE RingDrive{ rp::RING_DRIVE::PIN_MAP{
-//     i_uart_rx: 17,
-//     q_uart_tx: 16,
-//     q_reset:   4
-// },
-//     &Serial2
-// };
-
-// rp::BLUE_DRIVE BlueDrive{};
-
-
-
 void setup( void ) {
     vTaskDelay( 2000 );
     rnk::status_t status = 0;
@@ -82,9 +70,6 @@ void setup( void ) {
     TrackDrive.begin();
     LightDrive.begin();
 
-    //RingDrive.init();
-    //BlueDrive.init( "rp-3000" );
-
     CommDrive.begin( rp::TAG );
     HyperDrive.begin();
 
@@ -93,19 +78,4 @@ void setup( void ) {
 
 void loop( void ) { 
     vTaskDelay( 100 );
-
-    // if( BlueDrive._port.connected() ) {
-    //     auto line = BlueDrive.recv_string( 2'000'000 );
-
-    //     if( !line.empty() ) {
-    //         CommandLineInterpreter.exec( line );
-    //     }
-    // } else {
-    //     Serial.println( BlueDrive._port.connect( "3c:8a:1f:a7:92:92" ) );  
-    // }
-
-    // if( !Serial.available() ) return;
-
-    // auto [ status, msg ] = CommandLineInterpreter.exec( Serial.readStringUntil( '\n' ).c_str() );
-    // Serial.println( msg.data() );
 }

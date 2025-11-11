@@ -47,7 +47,8 @@
     #content {
       display: flex;
       flex-wrap: wrap;
-      align-items: stretch
+      align-items: stretch;
+      justify-content: flex-end;
     }
 
     figure {
@@ -1061,7 +1062,7 @@
             })
         })
 
-      const view = document.getElementById('stream')
+      const flux = document.getElementById('stream')
       const viewContainer = document.getElementById('stream-container')
       const stillButton = document.getElementById('get-still')
       const streamButton = document.getElementById('toggle-stream')
@@ -1070,14 +1071,11 @@
       const ledGroup = document.getElementById('led-group')
 
       const stopStream = () => {
-        window.stop();
-        streamButton.innerHTML = '>>'
+        flux.src = null;
       }
 
       const startStream = () => {
-        view.src = `${streamUrl}/stream`
-        show(viewContainer)
-        streamButton.innerHTML = '||'
+        flux.src = `${streamUrl}/flux`;
       }
 
       // Attach actions to buttons

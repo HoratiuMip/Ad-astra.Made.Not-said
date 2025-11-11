@@ -41,47 +41,405 @@
 			border-radius: 10px;
 		}
 
+		.sidebar_right {
+			background: #000000BB;
+			color: white;
+			padding: 15px;
+			margin-right: -2px;
+			border-style: solid;
+			border-width: 2px;
+			border-image: linear-gradient(#24005ef7, #000000) 1;
+			border-radius: 10px;
+			display: flex;
+			justify-content: space-between;
+			overflow: hidden;
+		}
+
+		.sidebar_left {
+			background: #000000BB;
+			padding: 15px;
+			margin-left: -2px;
+			border-style: solid;
+			border-width: 2px;
+			border-image: linear-gradient(#24005ef7, #000000) 1;
+			border-radius: 10px;
+			display: flex;
+			justify-content: space-between;
+			overflow: hidden;
+		}
+
+		.control_container {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+
+		.control_buttons {
+			display: flex;
+			flex-wrap: nowrap;
+			min-height: 300px;
+			max-height: 300px;
+			color: #727272f7;
+			justify-content: space-between;
+			margin-right: 30px;
+			background-color: #000000;
+			border-style: solid;
+			border-width: 2px;
+			border-image: linear-gradient(#24005ef7, #000000) 1;
+			border-radius: 10px;
+		}
+
+		.control_flash_led {
+			transform: rotate(-90deg);
+			max-width: 50px;
+			align-self: center;
+		}
+
+		.slider_flash_led {
+			display: flex;
+			flex-wrap: nowrap;
+			transform: rotate(-90deg);
+		}
+
+		.vfx_container {
+			overflow-x: hidden;
+			overflow-y: scroll;
+		}
+
+		.slider_tracks {
+			min-width: 90vh;
+			max-width: 90vh;
+			background: #24005e66;
+			transform: rotate(-90deg);
+		}
+
+		.slider_tracks_container {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			width: 100px;
+			height: 100vh;
+		}
+
+		.vfx-cluster {
+			display: flex;
+			flex-wrap: nowrap;
+			justify-content: space-between;
+			color: #727272f7;
+			line-height: 60px;
+			margin-right: 20px;
+			padding-left: 20px;
+			list-style-type: disc;
+		}
+
 		.flux-view {
 			background: #00000000;
 			display: flex;
 			justify-content: center;
-			align-items: center; 
-			height: 100%;   
+			align-items: center;
+			height: 100%;
 			font-size: 20px;
 		}
+
 		.flux-halted {
+			display: flex;
 			width: 50px;
 			height: 50px;
 			border: 5px solid #24005ef7;
 			border-top: 5px solid #000000BB;
 			border-radius: 50%;
 			animation: anim-flux-halted 1.6s infinite;
-			animation-timing-function: cubic-bezier(.72,.28,.31,.67);
+			animation-timing-function: cubic-bezier(.72, .28, .31, .67);
 		}
+
 		@keyframes anim-flux-halted {
-			0% { transform: rotate(0deg); }
-			50% { transform: rotate(360deg); }
-			100% { transform: rotate(0deg); }
+			0% {
+				transform: rotate(0deg);
+			}
+
+			50% {
+				transform: rotate(360deg);
+			}
+
+			100% {
+				transform: rotate(0deg);
+			}
 		}
 	</style>
 </head>
 
 <body>
 	<div class="grid">
-		<aside class="sidebar">Left Sidebar</aside>
-		
+		<aside class="sidebar_left">
+			<div class="control_flash_led">
+				<input type="range" id="led_intensity" min="0" max="255" value="0" class="vfx-action">
+			</div>
+			<div class="control_container">
+				<button id="ID_btn_flux" class="control_buttons">FLUX</button>
+				<button id="ID_btn_shot" class="control_buttons">SHOT</button>
+			</div>
+			<div class="slider_tracks_container">
+				<input type="range" min="-1" max="1" value="0" step="0.01" class="slider_tracks" id="ID_slider_track_left">
+			</div>
+		</aside>
+
 		<figure>
-			<div id="flux-div" class="flux-view">
-				<img id="flux" src="" alt="[ Flux is paused ]" crossorigin>
-				<div class="flux-halted"></div>
+			<div id="ID_flux-div" class="flux-view">
+				<img id="ID_flux" src="NULL" alt="[ Flux is paused ]">
+				<div class="flux-halted" id="ID_flux-halted"></div>
 			</div>
 		</figure>
 
-		<aside class="sidebar">Right Sidebar</aside>
+		<aside class="sidebar_right">
+			<div class="slider_tracks_container">
+				<input type="range" min="-1" max="1" value="0" step="0.01" class="slider_tracks" id="ID_slider_track_right">
+			</div>
+			<div class="vfx_container">
+				<div class="vfx-cluster">
+					<li>QLTY</li>
+					<input type="range" id="quality" min="4" max="63" value="10" class="vfx-action">
+				</div>
+				<div class="vfx-cluster">
+					<li>BRGHT</li>
+					<input type="range" id="brightness" min="-2" max="2" value="0" class="vfx-action">
+				</div>
+				<div class="vfx-cluster">
+					<li>CONTR</li>
+					<input type="range" id="contrast" min="-2" max="2" value="0" class="vfx-action">
+				</div>
+				<div class="vfx-cluster">
+					<li>SAT</li>
+					<input type="range" id="saturation" min="-2" max="2" value="0" class="vfx-action">
+				</div>
+				<div class="vfx-cluster">
+					<li>FX</li>
+					<select id="special_effect" class="vfx-action" style="background: #000000; color: #727272f7">
+						<option value="0" selected="selected">none</option>
+						<option value="1">negative</option>
+						<option value="2">grayscale</option>
+						<option value="3">red tint</option>
+						<option value="4">green tint</option>
+						<option value="5">blue tint</option>
+						<option value="6">sepia</option>
+					</select>
+				</div>
+				<div class="vfx-cluster">
+					<li>AWB</li>
+					<input id="awb" type="checkbox" class="vfx-action" checked="checked">
+				</div>
+				<div class="vfx-cluster">
+					<li>AWB-K</li>
+					<input id="awb_gain" type="checkbox" class="vfx-action" checked="checked">
+				</div>
+				<div class="vfx-cluster">
+					<li>AWB-Mode</li>
+					<select id="wb_mode" class="vfx-action" style="background: #000000; color: #727272f7">
+						<option value="0" selected="selected">auto</option>
+						<option value="1">sunny</option>
+						<option value="2">cloudy</option>
+						<option value="3">office</option>
+						<option value="4">home</option>
+					</select>
+				</div>
+				<div class="vfx-cluster">
+					<li>AEC</li>
+					<input id="aec" type="checkbox" class="vfx-action" checked="checked">
+				</div>
+				<div class="vfx-cluster">
+					<li>AEC-DSP</li>
+					<input id="aec2" type="checkbox" class="vfx-action" checked="checked">
+				</div>
+				<div class="vfx-cluster">
+					<li>AE-Lvl</li>
+					<input type="range" id="ae_level" min="-2" max="2" value="0" class="vfx-action">
+				</div>
+				<div class="vfx-cluster">
+					<li>EXP</li>
+					<input type="range" id="aec_value" min="0" max="1200" value="204" class="vfx-action">
+				</div>
+				<div class="vfx-cluster">
+					<li>AGC</li>
+					<input id="agc" type="checkbox" class="vfx-action" checked="checked">
+				</div>
+				<div class="vfx-cluster">
+					<li>K</li>
+					<input type="range" id="agc_gain" min="0" max="30" value="5" class="vfx-action">
+				</div>
+				<div class="vfx-cluster">
+					<li>K-max</li>
+					<input type="range" id="gainceiling" min="0" max="6" value="0" class="vfx-action">
+				</div>
+				<div class="vfx-cluster">
+					<li>BPC</li>
+					<input id="bpc" type="checkbox" class="vfx-action">
+				</div>
+				<div class="vfx-cluster">
+					<li>WPC</li>
+					<input id="wpc" type="checkbox" class="vfx-action" checked="checked">
+				</div>
+				<div class="vfx-cluster">
+					<li>GMA-Raw</li>
+					<input id="raw_gma" type="checkbox" class="vfx-action" checked="checked">
+				</div>
+				<div class="vfx-cluster">
+					<li>Lens-C</li>
+					<input id="lenc" type="checkbox" class="vfx-action" checked="checked">
+				</div>
+				<div class="vfx-cluster">
+					<li>H-mirror</li>
+					<input id="hmirror" type="checkbox" class="vfx-action" checked="checked">
+				</div>
+				<div class="vfx-cluster">
+					<li>V-mirror</li>
+					<input id="vflip" type="checkbox" class="vfx-action" checked="checked">
+				</div>
+			</div>
+		</aside>
 	</div>
 </body>
 
 <script>
+	document.addEventListener('DOMContentLoaded', event => {
+		const host_url = document.location.origin;
+		const flux_url = host_url + ':81';
+
+		const slider_track_left = document.getElementById('ID_slider_track_left');
+		const slider_track_right = document.getElementById('ID_slider_track_right');
+
+		slider_track_left.addEventListener('input', () => {
+
+		});
+		slider_track_left.addEventListener('change', () => {
+			slider_track_left.value = 0.0;
+		});
+
+		slider_track_right.addEventListener('input', () => {
+
+		});
+		slider_track_right.addEventListener('change', () => {
+			slider_track_right.value = 0.0;
+		});
+
+		const track_left_interval = setInterval(() => {
+			console.log(slider_track_left.value);
+		}, 1000);
+
+		function fetch_url(url, cb) {
+			fetch(url).then(response => {
+				if (response.status !== 200) {
+					cb(response.status, response.statusText);
+				} else {
+					response.text().then(data => {
+						cb(200, data);
+					}).catch(err => {
+						cb(-1, err);
+					});
+				}
+			}).catch(err => {
+				cb(-1, err);
+			});
+		}
+
+		const update_value = (el, value, updateRemote) => {
+			updateRemote = updateRemote == null ? true : updateRemote;
+			let initialValue;
+			if (el.type === 'checkbox') {
+				initialValue = el.checked;
+				value = !!value;
+				el.checked = value;
+			} else {
+				initialValue = el.value;
+				el.value = value;
+			}
+
+			if (updateRemote && initialValue !== value) {
+				update_config(el);
+			}
+		}
+
+		function update_config(el) {
+			let value
+			switch (el.type) {
+				case 'checkbox':
+					value = el.checked ? 1 : 0
+					break
+				case 'range':
+				case 'select-one':
+					value = el.value
+					break
+				case 'button':
+				case 'submit':
+					value = '1'
+					break
+				default:
+					return
+			}
+
+			const query = `${host_url}/control?var=${el.id}&val=${value}`
+
+			fetch(query).then(response => {
+				console.log(`request to ${query} finished, status: ${response.status}`)
+			})
+		}
+
+		fetch(`${host_url}/status`)
+			.then(response => {
+				return response.json()
+			})
+			.then(state => {
+				document
+					.querySelectorAll('.vfx-action')
+					.forEach(el => {
+						update_value(el, state[el.id], false)
+					})
+			})
+
+		const flux = document.getElementById('ID_flux');
+		const flux_btn = document.getElementById('ID_btn_flux');
+		const flux_anim = document.getElementById('ID_flux-halted');
+		const flux_div = document.getElementById('ID_flux-div');
+		const shot_btn = document.getElementById('ID_btn_shot');
+
+		const stop_flux = () => {
+			flux.src = "NULL";
+			flux_anim.style.display = 'flex';
+		};
+
+		const start_flux = () => {
+			flux.src = "file://C:/Random/AstaPuscaAssociation/sp1.png";
+			flux_anim.style.display = 'none';
+		};
+
+		flux_btn.onclick = () => {
+			if (flux.src.toString().endsWith( "NULL")) {
+				start_flux();
+			} else {
+				stop_flux();
+			}
+		};
+
+		shot_btn.onclick = () => {
+			let canvas = document.createElement("canvas");
+			canvas.width = flux.naturalWidth;
+			canvas.height = flux.naturalHeight;
+			let ctx = canvas.getContext( '2d' );
+			ctx.drawImage(flux, 0, 0);
+			let a = document.createElement("a");
+			a.href = canvas.toDataURL("image/jpeg");
+			a.download = "runik-img.jpg";
+			a.click();
+		};
+
+		flux_div.addEventListener('dblclick', () => {
+			document.documentElement.requestFullscreen();
+		});
+
+		document
+			.querySelectorAll('.vfx-action')
+			.forEach(el => {
+				el.onchange = () => update_config(el)
+			})
+	})
 </script>
 
 </html>

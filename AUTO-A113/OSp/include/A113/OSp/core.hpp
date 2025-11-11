@@ -58,16 +58,17 @@ inline struct _LOG_BUNDLE {
 
 } Log;
 
-class PRZ_logz_stuff {
+namespace st_att {
+class has_logger_t {
 public:
-    PRZ_logz_stuff() = default;
-    PRZ_logz_stuff( const char* logger_name_ ) : _Log{ spdlog::stdout_color_mt( logger_name_ ) } {}
-    PRZ_logz_stuff( HVEC< spdlog::logger > other_ ) : _Log{ std::move( other_ ) } {}
+    has_logger_t() = default;
+    has_logger_t( const char* logger_name_ ) : _Log{ spdlog::stdout_color_mt( logger_name_ ) } {}
+    has_logger_t( HVEC< spdlog::logger > other_ ) : _Log{ std::move( other_ ) } {}
 
 public:
     HVEC< spdlog::logger >   _Log   = nullptr;
 };
-
+};
 
 
 enum InitFlags_ {

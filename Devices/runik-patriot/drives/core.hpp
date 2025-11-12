@@ -12,6 +12,7 @@
 
 #include <EEPROM.h>
 #include <esp_task_wdt.h>
+#include <esp_http_server.h>
 
 #include <rnk/Core.hpp>
 

@@ -86,7 +86,7 @@ public:
 
         stbi_set_flip_vertically_on_load( true );
 
-        _Log->info( "Docked on {}, using {}.", _rend_str, _gl_str );
+        _Log->info( "Docked on {}, using {}.", _rend_str ? _rend_str : "NULL", _gl_str ? _gl_str : NULL );
     }
 
     RenderCluster( const RenderCluster& ) = delete;

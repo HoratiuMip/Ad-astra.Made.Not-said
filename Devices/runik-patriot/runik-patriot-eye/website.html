@@ -7,6 +7,8 @@
 	<title>Runik-Patriot</title>
 	<style>
 		:root {
+			--scale-x: calc(100vw/1980);
+			--scale-y: calc(100vh/1080);
 			--flux-w: 640px;
 			--flux-h: 480px;
 			--side-bar-w: calc((100vw - var(--flux-w)) / 2);
@@ -26,19 +28,10 @@
 		.grid {
 			display: grid;
 			grid-template-columns: var(--side-bar-w) var(--flux-w) var(--side-bar-w);
-			height: 100%;
+			height: 100vh;
 			gap: 10px;
-		}
-
-		.sidebar {
-			background: #000000BB;
-			color: white;
-			padding: 15px;
-			margin-left: -2px;
-			border-style: solid;
-			border-width: 2px;
-			border-image: linear-gradient(#24005ef7, #000000) 1;
-			border-radius: 10px;
+			transform-origin: top left;
+			transform: scale(var(--scale-x), var(--scale-y));
 		}
 
 		.sidebar_right {
@@ -52,7 +45,9 @@
 			border-radius: 10px;
 			display: flex;
 			justify-content: space-between;
-			overflow: hidden;
+			overflow: auto;
+			-ms-overflow-style: none;
+			scrollbar-width: none;   
 		}
 
 		.sidebar_left {
@@ -64,8 +59,10 @@
 			border-image: linear-gradient(#24005ef7, #000000) 1;
 			border-radius: 10px;
 			display: flex;
-			justify-content: space-between;
-			overflow: hidden;
+			justify-content: space-between;  
+			overflow: auto;
+			-ms-overflow-style: none;
+			scrollbar-width: none;    
 		}
 
 		.control_container {
@@ -90,9 +87,10 @@
 		}
 
 		.control_flash_led {
-			transform: rotate(-90deg);
-			max-width: 50px;
+			display: block;
+			max-width: 200px;
 			align-self: center;
+			justify-content: center;
 		}
 
 		.slider_flash_led {
@@ -102,8 +100,6 @@
 		}
 
 		.vfx_container {
-			overflow-x: hidden;
-			overflow-y: scroll;
 		}
 
 		.slider_tracks {
@@ -137,7 +133,7 @@
 			display: flex;
 			justify-content: center;
 			align-items: center;
-			height: 100%;
+			height: 100vh;
 			font-size: 20px;
 		}
 
@@ -172,7 +168,15 @@
 	<div class="grid">
 		<aside class="sidebar_left">
 			<div class="control_flash_led">
+				<label for="ID_track-pwr">PWR</label>
+				<input type="range" id="ID_track-pwr" min="0" max="1" step="0.01" value="0">
+				<label for="led_intensity">HIGH</label>
 				<input type="range" id="led_intensity" min="0" max="255" value="0" class="vfx-action">
+				<label for="ID_low-beams">LOW</label>
+				<input type="range" id="ID_low-beams" min="0" max="1" step="0.01" value="0">
+				<br>
+				<label for="ID_track-mode">DIFF</label>
+				<input id="ID_track-mode" type="checkbox">
 			</div>
 			<div class="control_container">
 				<button id="ID_btn_flux" class="control_buttons">FLUX</button>
@@ -185,7 +189,7 @@
 
 		<figure>
 			<div id="ID_flux-div" class="flux-view">
-				<img id="ID_flux" src="NULL" alt="[ Flux is paused ]">
+				<img id="ID_flux" src="NULL" alt="[ Flux is paused ]" crossorigin>
 				<div class="flux-halted" id="ID_flux-halted"></div>
 			</div>
 		</figure>
@@ -305,24 +309,23 @@
 
 		const slider_track_left = document.getElementById('ID_slider_track_left');
 		const slider_track_right = document.getElementById('ID_slider_track_right');
+		const slider_track_pwr = document.getElementById('ID_track-pwr');
+		const slider_low_beams = document.getElementById('ID_low-beams');
+		const check_track_mode_diff = document.getElementById('ID_track-mode');
 
-		slider_track_left.addEventListener('input', () => {
-
-		});
 		slider_track_left.addEventListener('change', () => {
 			slider_track_left.value = 0.0;
 		});
 
-		slider_track_right.addEventListener('input', () => {
-
-		});
 		slider_track_right.addEventListener('change', () => {
 			slider_track_right.value = 0.0;
 		});
 
-		const track_left_interval = setInterval(() => {
-			console.log(slider_track_left.value);
-		}, 1000);
+		const vcmd_interval = setInterval(() => {
+			const query = `${host_url}/vcmd?tl=${slider_track_left.value}&tr=${slider_track_right.value}&tp=${slider_track_pwr.value}&tm=${check_track_mode_diff.checked ? 1 : 0 }&hl=${slider_low_beams.value}`
+
+			fetch(query).then(response => {})
+		}, 50);
 
 		function fetch_url(url, cb) {
 			fetch(url).then(response => {
@@ -406,7 +409,7 @@
 		};
 
 		const start_flux = () => {
-			flux.src = "file://C:/Random/AstaPuscaAssociation/sp1.png";
+			flux.src = `${flux_url}/flux`;
 			flux_anim.style.display = 'none';
 		};
 

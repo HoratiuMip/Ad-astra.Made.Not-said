@@ -16,6 +16,8 @@ namespace rp {
 class Hyper_drive {
 public:
     const struct PIN_MAP {
+        rnk::pin_t   Q_eye_tx;
+        rnk::pin_t   I_eye_rx;
     } _pin_map;
 
 public:
@@ -24,11 +26,51 @@ public:
     {}
 
 RNK_PROTECTED:
-    Track_drive*   _track_drive   = NULL;
-    Light_drive*   _light_drive   = NULL;
+    Track_drive*     _track_drive   = NULL;
+    Light_drive*     _light_drive   = NULL;
+
+    HardwareSerial   _eye_uart      = { 0x1 };
+    TaskHandle_t     _h_eye_main    = NULL;
+
+RNK_PROTECTED:
+    static void _eye_main( void* arg_ ) {
+        Hyper_drive* self = ( Hyper_drive* )arg_;
+
+    for(;;) {
+        if( self->_eye_uart.available() ) {
+            auto vcmd_http_str = self->_eye_uart.readStringUntil( '\n' );
+            char buffer[ 32 ];
+
+            rp::virtual_commander_t vcmd{
+                .track_left      = 0.0,
+                .track_right     = 0.0,
+                .track_pwr       = 1.0,
+                .track_mode      = RP_TRACK_MODE_DECOUPLED,
+                .headlight_left  = 0.0,
+                .headlight_right = 0.0
+            };
+
+            RNK_ASSERT_OR( ESP_OK == httpd_query_key_value( vcmd_http_str.c_str(), "tl", buffer, sizeof( buffer ) ) ) continue;
+            vcmd.track_left = atof( buffer );
+            RNK_ASSERT_OR( ESP_OK == httpd_query_key_value( vcmd_http_str.c_str(), "tr", buffer, sizeof( buffer ) ) ) continue;
+            vcmd.track_right = atof( buffer );
+            RNK_ASSERT_OR( ESP_OK == httpd_query_key_value( vcmd_http_str.c_str(), "tp", buffer, sizeof( buffer ) ) ) continue;
+            vcmd.track_pwr = atof( buffer );
+            RNK_ASSERT_OR( ESP_OK == httpd_query_key_value( vcmd_http_str.c_str(), "tm", buffer, sizeof( buffer ) ) ) continue;
+            vcmd.track_mode = atoi( buffer );
+            RNK_ASSERT_OR( ESP_OK == httpd_query_key_value( vcmd_http_str.c_str(), "hl", buffer, sizeof( buffer ) ) ) continue;
+            vcmd.headlight_left = vcmd.headlight_right = atof( buffer );
+
+            self->push_virtual_commander( vcmd );
+        } else {
+            vTaskDelay( 50 );
+        }
+    } }
 
 public:
     rnk::status_t begin( void ) {
+        _eye_uart.begin( 115200, SERIAL_8N1, _pin_map.I_eye_rx, _pin_map.Q_eye_tx );
+        xTaskCreate( &Hyper_drive::_eye_main, "Hyper_drive::_eye_main", 4096, ( void* )this, rnk::TaskPriority_Urgent, &_h_eye_main ); 
         return 0x0;
     }
     

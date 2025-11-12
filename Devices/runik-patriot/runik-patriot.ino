@@ -6,6 +6,7 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
+#define RNK_KILL_LOGS_LEVEL 0x3
 #include "drives/core.hpp"
 
 #include "drives/track.hpp"
@@ -16,15 +17,15 @@
 
 
 rp::Track_drive TrackDrive{ rp::Track_drive::PIN_MAP{
-    Q_right_fwd: 26,
-    Q_right_bck: 27,
-    Q_left_fwd:  12,
-    Q_left_bck:  13
+    .Q_right_fwd = 26,
+    .Q_right_bck = 27,
+    .Q_left_fwd  = 12,
+    .Q_left_bck  = 13
 } };
 
 rp::Light_drive LightDrive{ rp::Light_drive::PIN_MAP{
-    Q_left_headlight:  19,
-    Q_right_headlight: 23
+    .Q_left_headlight  = 19,
+    .Q_right_headlight = 23
 } };
 
 rp::Cli_drive CliDrive{
@@ -34,7 +35,10 @@ rp::Cli_drive CliDrive{
 };
 
 rp::Hyper_drive HyperDrive{
-    rp::Hyper_drive::PIN_MAP{},
+    rp::Hyper_drive::PIN_MAP{
+        .Q_eye_tx = 33,
+        .I_eye_rx = 32
+    },
     &TrackDrive,
     &LightDrive
 };
@@ -77,5 +81,5 @@ void setup( void ) {
 }
 
 void loop( void ) { 
-    vTaskDelay( 100 );
+    vTaskDelay( 10000 );
 }

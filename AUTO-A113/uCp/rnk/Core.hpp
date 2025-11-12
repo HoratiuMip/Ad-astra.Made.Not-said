@@ -44,26 +44,34 @@ enum TaskPriority_ {
     TaskPriority_Mach
 };
 
-
+#ifndef RNK_KILL_LOGS_LEVEL
+    #define RNK_KILL_LOGS_LEVEL 0x0
+#endif
 inline struct _LOG {
     HardwareSerial*   _port;
 
     template< typename ...Args > RNK_inline void error( const char* fmt, Args&&... args ) {
+    #if RNK_KILL_LOGS_LEVEL < 0x3
         _port->printf( "[%s] [error] -> ", TAG );
         _port->printf( fmt, std::forward< Args >( args )... );
         _port->println();
+    #endif
     }
 
     template< typename ...Args > RNK_inline void warn( const char* fmt, Args&&... args ) {
+    #if RNK_KILL_LOGS_LEVEL < 0x2
         _port->printf( "[%s] [warn] -> ", TAG );
         _port->printf( fmt, std::forward< Args >( args )... );
         _port->println();
+    #endif
     }
 
     template< typename ...Args > RNK_inline void info( const char* fmt, Args&&... args ) {
+    #if RNK_KILL_LOGS_LEVEL < 0x1
         _port->printf( "[%s] [info] -> ", TAG );
         _port->printf( fmt, std::forward< Args >( args )... );
         _port->println();
+    #endif
     }
 
 } Log;

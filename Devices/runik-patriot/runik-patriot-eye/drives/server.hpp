@@ -31,6 +31,7 @@ class Eye_server {
 RNK_PROTECTED:
 	sensor_t*             _cam             = NULL;
 	WiFiClass*            _wifi            = NULL;
+	HardwareSerial*       _central_uart    = NULL;
 
 	httpd_handle_t        _httpd_control   = NULL;
 	httpd_handle_t        _httpd_flux      = NULL;
@@ -152,6 +153,9 @@ RNK_PROTECTED:
 	}
 
 	static esp_err_t _handler_control( httpd_req_t* req ) {
+		auto* eye = ( ( Eye_server* )req->user_ctx );
+		auto* cam = eye->_cam;
+
 		char  buf_variable[ 32 ];
 		char  buf_value[ 32 ];
 
@@ -170,9 +174,6 @@ RNK_PROTECTED:
 
 		int value = atoi( buf_value );
 		rnk::Log.info( "Control: [%s]->[%d].", buf_variable, value );
-
-		auto* eye = ( ( Eye_server* )req->user_ctx );
-		auto* cam = eye->_cam;
 		
 		int res = 0;
 	#define _SET_VARIABLE_MAP( var_id ) else if( NULL == strcmp( buf_variable, #var_id ) ) res = cam->set_##var_id( cam, value )
@@ -207,6 +208,22 @@ RNK_PROTECTED:
 		}
 
 		RNK_ASSERT_OR( res >= 0x0 ) return httpd_resp_send_500( req );
+
+		httpd_resp_set_hdr( req, "Access-Control-Allow-Origin", "*" );
+		return httpd_resp_send( req, NULL, 0 );
+	}
+
+	static esp_err_t _handler_vcmd( httpd_req_t* req ) {
+		auto* eye = ( ( Eye_server* )req->user_ctx );
+		auto* cam = eye->_cam;
+
+		char  buf_track_left[ 32 ];
+		char  buf_track_right[ 32 ];
+
+		auto buf_get = _parse_get( req );
+		RNK_ASSERT_OR( buf_get ) return ESP_FAIL;
+		rnk::Log.info( "%s", buf_get.get() );
+		eye->_central_uart->println( buf_get.get() );
 
 		httpd_resp_set_hdr( req, "Access-Control-Allow-Origin", "*" );
 		return httpd_resp_send( req, NULL, 0 );
@@ -261,20 +278,23 @@ RNK_PROTECTED:
 	}
 
 	static esp_err_t _handler_website( httpd_req_t* req ) {
+		auto* eye = ( ( Eye_server* )req->user_ctx );
+		auto* cam = eye->_cam;
+
 		httpd_resp_set_type( req, "text/html" );
 		httpd_resp_set_hdr( req, "Content-Encoding", "gzip" );
 		
-		if( NULL != _cam )
+		if( NULL != cam )
 			return httpd_resp_send( req, (const char *)RP_website_gz, RP_website_gz_size );
 
 		return httpd_resp_send_500( req );
 	}
 
 public:
-	rnk::status_t begin( sensor_t* cam_, WiFiClass* wifi_ ) {
+	rnk::status_t begin( sensor_t* cam_, WiFiClass* wifi_, HardwareSerial* central_uart_ ) {
 		httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 		config.max_uri_handlers = 16;
-		config.stack_size = 16384;
+		config.stack_size = 8192;
 
 		httpd_uri_t uri_website = {
 			.uri = "/",
@@ -329,9 +349,22 @@ public:
 		};
 
 		httpd_uri_t uri_flux = {
-			.uri = "/stream",
+			.uri = "/flux",
 			.method = HTTP_GET,
 			.handler = &Eye_server::_handler_flux,
+			.user_ctx = ( void* )this
+	#ifdef CONFIG_HTTPD_WS_SUPPORT
+			,
+			.is_websocket = true,
+			.handle_ws_control_frames = false,
+			.supported_subprotocol = NULL
+	#endif
+		};
+
+		httpd_uri_t uri_vcmd = {
+			.uri = "/vcmd",
+			.method = HTTP_GET,
+			.handler = &Eye_server::_handler_vcmd,
 			.user_ctx = ( void* )this
 	#ifdef CONFIG_HTTPD_WS_SUPPORT
 			,
@@ -350,6 +383,7 @@ public:
 		httpd_register_uri_handler( _httpd_control, &uri_website );
 		httpd_register_uri_handler( _httpd_control, &uri_control );
 		httpd_register_uri_handler( _httpd_control, &uri_status );
+		httpd_register_uri_handler( _httpd_control, &uri_vcmd );
 		httpd_register_uri_handler( _httpd_control, &capture_uri );
 
 		config.server_port += 1;
@@ -362,8 +396,9 @@ public:
 
 		httpd_register_uri_handler( _httpd_flux, &uri_flux );
 
-		_cam = cam_;
-		_wifi = wifi_;
+		_cam          = cam_;
+		_wifi         = wifi_;
+		_central_uart = central_uart_;
 
 		return 0x0;
 	}

@@ -34,6 +34,10 @@ void setup( void ) {
 	
 	rnk::Log.info( "Booting..." );
 
+	if( psramFound() ) {
+		rnk::Log.info( "PSRAM." );
+	}
+
 	int free_dram = heap_caps_get_free_size( MALLOC_CAP_INTERNAL );
     int free_psram = heap_caps_get_free_size( MALLOC_CAP_SPIRAM );   
 	rnk::Log.info( "Available DRAM[ %d ] | PSRAM[ %d ].", free_dram, free_psram );

@@ -71,7 +71,7 @@ RNK_PROTECTED:
     virtual WJP_result_t WJP_lmhi_when_recv( WJP_LMHIReceiver::Layout* lo_ ) override {
         switch( lo_->head_in._dw1.ACT ) {
             case WJPAct_VirtualCommander: {
-                _hyper_drive->push_virtual_commander( *( virtual_commander_t* )lo_->payload_in.addr );
+                _hyper_drive->push_virtual_commander( *( virtual_commander_t* )lo_->payload_in.addr, VCMDSource_Blue );
             break; }
         }
 

@@ -28,6 +28,12 @@ rp::Light_drive LightDrive{ rp::Light_drive::PIN_MAP{
     .Q_right_headlight = 23
 } };
 
+rp::Wave_drive WaveDrive{ rp::Wave_drive::PIN_MAP{
+    .Q_play  = 15,
+    .Q_prev  = 5,
+    .Q_next  = 18
+} };
+
 rp::Cli_drive CliDrive{
     rp::Cli_drive::PIN_MAP{},
     &TrackDrive,
@@ -40,7 +46,8 @@ rp::Hyper_drive HyperDrive{
         .I_eye_rx = 32
     },
     &TrackDrive,
-    &LightDrive
+    &LightDrive,
+    &WaveDrive
 };
 
 rp::Comm_drive CommDrive{ 
@@ -73,6 +80,9 @@ void setup( void ) {
 
     TrackDrive.begin();
     LightDrive.begin();
+    WaveDrive.begin();
+
+    WaveDrive.play( 0x1 ); vTaskDelay( 100 ); WaveDrive.play( 0x0 );
 
     CommDrive.begin( rp::TAG );
     HyperDrive.begin();

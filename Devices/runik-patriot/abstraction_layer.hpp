@@ -35,6 +35,15 @@ struct virtual_commander_t {
 
     float headlight_left;
     float headlight_right;
+
+    uint8_t   wave_play : 1;
+    uint8_t   wave_prev : 1;
+    uint8_t   wave_next : 1;
+
+    uint8_t   _reserved : 5;
+
+    bool operator == ( const virtual_commander_t& rhs_ ) const = default;
+    RNK_inline bool operator != ( const virtual_commander_t& rhs_ ) const { return !((*this)==rhs_); }
 };
 
 class BLE_UART_Virtual_commander : RNK_PROTECTED rnk::IO::BLE_UART::Literally_me, RNK_PROTECTED WJPDevice_Euclid, RNK_PROTECTED WJP_InterMech {

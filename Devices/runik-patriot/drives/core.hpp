@@ -30,6 +30,13 @@ struct Drive {
 };
 
 
+enum VCMDSource_ {
+    VCMDSource_Blue,
+    VCMDSource_Eye,
+    VCMDSource_COUNT
+};
+
+
 struct miru_begin_args_t {
     bool reset_flash;
 };

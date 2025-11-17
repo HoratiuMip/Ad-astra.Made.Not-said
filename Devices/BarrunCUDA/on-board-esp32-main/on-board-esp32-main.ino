@@ -8,6 +8,7 @@
 #define BARRUNCUDA_WJP_VER 3
 
 #include "../barracuda.hpp"
+#include "esp_task_wdt.h"
 
 #include <Wire.h> /* I2C bus. */
 
@@ -906,6 +907,9 @@ void _dead( void ) {
 #define _SETUP_ASSERT_OR_DEAD( c ) if( !(c) ) { _printf( LogLevel_Critical, "SETUP ASSERT ( " #c " ) FAILED. ENTERING DEAD STATE.\n" ); _dead(); }
 #define _FANCY_SETUP_ASSERT_OR_DEAD( c, s ) { YUNA.print_w( s ); _SETUP_ASSERT_OR_DEAD( c ); YUNA.print_w( " ~ok\n" ); vTaskDelay( FANCY_DELAY_MS ); }
 void setup( void ) {
+    vTaskDelay( 2000 );
+    vTaskPrioritySet( NULL, Priority_Main );
+
     static constexpr int FANCY_DELAY_MS = 100;
 
     _SETUP_ASSERT_OR_DEAD( GPIO::init() == 0 );
@@ -920,7 +924,7 @@ void setup( void ) {
 	_printf( "ok.\n" );
 
     _SETUP_ASSERT_OR_DEAD( MIRU.init() == 0 );
-    MIRU.write( 440, 100, 1, 0 );
+    MIRU.write( 440, 100 );
 
     _SETUP_ASSERT_OR_DEAD( YUNA.init() == 0 );
     
@@ -943,7 +947,7 @@ void setup( void ) {
     if( count != 0 ) YUNA.print_w( '\n' );
     }
 
-    MIRU.write( 440, 100, 1, 0 );
+    MIRU.write( 440, 100 );
     YUNA.setCursor( 0, 0 ); YUNA.clearDisplay();
     YUNA.print_w( ">/ hardware >...\n" ); vTaskDelay( FANCY_DELAY_MS );
 
@@ -951,7 +955,7 @@ void setup( void ) {
     _FANCY_SETUP_ASSERT_OR_DEAD( SUSAN.init() == 0, ">/ [bme-280]" );
     _FANCY_SETUP_ASSERT_OR_DEAD( CHIM.init() == 0, ">/ [bmm-150]" );
 
-    MIRU.write( 440, 100, 1, 0 );
+    MIRU.write( 440, 100 );
     YUNA.setCursor( 0, 0 ); YUNA.clearDisplay();
     YUNA.print_w( ">/ hardware >...\n" ); vTaskDelay( FANCY_DELAY_MS );
 
@@ -959,7 +963,7 @@ void setup( void ) {
     _FANCY_SETUP_ASSERT_OR_DEAD( SUZYQ.init() == 0, ">/ [kyp-008]" );
     //_FANCY_SETUP_ASSERT_OR_DEAD( GOLANI.init() == 0, ">/ [hc-sr04]" );
 
-    MIRU.write( 440, 100, 1, 0 );
+    MIRU.write( 440, 100 );
     YUNA.setCursor( 0, 0 ); YUNA.clearDisplay();
     YUNA.print_w( ">/ software >...\n" ); vTaskDelay( FANCY_DELAY_MS );
 	
@@ -1689,18 +1693,30 @@ void main_ctrl( void* arg ) {
     struct {
         uint8_t   mode   = RP_TRACK_MODE_DECOUPLED;
     } track;
+    struct {
+        uint8_t   play : 1;
+        uint8_t   prev : 1;
+        uint8_t   next : 1;
+    } wave;
 
 MAIN_LOOP_ON( Mode_Ctrl ) {
     DYNAM.snapshot( &ss_tok );
 
-    if( dyn.giselle.prs ) {
-        headlights.flag ^= true;
-    } else if( dyn.karina.dwn ) {
-        headlights.flag = true;
-        headlights.hold = true;
-    } else if( headlights.hold ) {
-        headlights.flag = false;
-        headlights.hold = false;
+    if( !dyn.rachel.sw.dwn ) {
+        if( dyn.giselle.prs ) {
+            headlights.flag ^= true;
+        } else if( dyn.karina.dwn ) {
+            headlights.flag = true;
+            headlights.hold = true;
+        } else if( headlights.hold ) {
+            headlights.flag = false;
+            headlights.hold = false;
+        }
+        wave.play = wave.prev = wave.next = 0x0;
+    } else {
+        wave.play = dyn.winter.dwn;
+        wave.prev = dyn.giselle.dwn;
+        wave.next = dyn.ningning.dwn;
     }
 
     if( dyn.samantha.sw.prs ) track.mode ^= 0x1;
@@ -1711,7 +1727,10 @@ MAIN_LOOP_ON( Mode_Ctrl ) {
         track_pwr:       dyn.tanya.lvl,
         track_mode:      track.mode,
         headlight_left:  headlights.flag ? 1.0 : 0.0,
-        headlight_right: headlights.flag ? 1.0 : 0.0
+        headlight_right: headlights.flag ? 1.0 : 0.0,
+        wave_play:       wave.play,
+        wave_prev:       wave.prev,
+        wave_next:       wave.next
     } );
 }
     rp_vcmd.downlink();

@@ -14,8 +14,7 @@
 #define A113_VERSION_STRING "@A113_VERSION_STRING@"
 
 #define A113_inline inline
-#define A113_BR_FNC
-#define A113_OS_FNC
+#define A113_IMPL_FNC
 
 #define _A113_PROTECTED protected
 #define _A113_PRIVATE   private
@@ -29,14 +28,14 @@
 #include <stdlib.h>
 
 
-namespace A113 {
+namespace a113 {
 
 
-typedef   int   RESULT;
+typedef   int   status_t;
 
 
-struct BUFFER {
-    typedef   int   n_t;
+struct MDsc {
+    typedef   size_t   n_t;
 
     char*   ptr   = nullptr;
     n_t     n     = 0;    

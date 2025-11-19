@@ -7,17 +7,35 @@
 
 #include <A113/OSp/IO_sockets.hpp>
 
-namespace A113 { namespace OSp {
+namespace a113 { namespace io {
 
 
-A113_OS_FNC RESULT IPv4_TCP_socket::uplink( BRp::ipv4_addr_t addr_, BRp::ipv4_port_t port_ ) {
-    RESULT result = 0x0;
+A113_IMPL_FNC status_t IPv4_TCP_socket::bind_peer( ipv4_addr_t addr_, ipv4_port_t port_ ) {
+    A113_ASSERT_OR( false ==_conn.alive.load( std::memory_order_acquire ) ) {
+        _Log::error( "Binding another peer whilst alive." );
+        return -0x1;
+    }
 
-    auto addr_str = BRp::ipv4_addr_str_t::from( addr_ );
+    _conn.sock     = NULL_SOCKET;
+    _conn.addr_str = ipv4_addr_str_t::from( addr_ );
+    _conn.addr     = addr_;
+    _conn.port     = port_;
+
+    _Log::morph( std::format( "{}//io::IPv4_TCP_socket//{}:{}", A113_VERSION_STRING, ( char* )_conn.addr_str, _conn.port ) );
+    _Log::info( "Peer bound." );
+    return 0x0;
+}
+
+A113_IMPL_FNC status_t IPv4_TCP_socket::bind_peer( const char* addr_str_, ipv4_port_t port_ ) {
+    return this->bind_peer( ipv4_addr_str_t::from( addr_str_ ), port_ );
+}
+
+A113_IMPL_FNC status_t IPv4_TCP_socket::uplink( void ) {
+    status_t status = 0x0;
     
     socket_t sock = socket( AF_INET, SOCK_STREAM, IPPROTO_TCP );
     A113_ASSERT_OR( sock >= 0 ) {
-        Log.IO->error( "Descriptor {}:{}.", ( char* )addr_str, port_ );
+        _Log::error( "Bad socket descriptor." );
         return sock;
     }
 
@@ -29,40 +47,33 @@ A113_OS_FNC RESULT IPv4_TCP_socket::uplink( BRp::ipv4_addr_t addr_, BRp::ipv4_po
     memset( &desc, 0, sizeof( sockaddr_in ) );
 
     desc.sin_family      = AF_INET;
-    desc.sin_addr.s_addr = addr_;
-    desc.sin_port        = port_; 
+    desc.sin_addr.s_addr = _conn.addr;
+    desc.sin_port        = _conn.port; 
     
-    Log.IO->debug( "Uplinking {}:{}...", ( char* )addr_str, port_ );
-    result = ::connect( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) );
-    A113_ASSERT_OR( result == 0x0 ) {
-        Log.IO->error( "Uplink {}:{} // [{}].", ( char* )addr_str, port_, WSAGetLastError() );
-        return result;
+    _Log::debug( "Uplinking..." );
+    status = ::connect( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) );
+    A113_ASSERT_OR( 0x0 == status ) {
+        _Log::error( "Bad uplink // [{}].", WSAGetLastError() );
+        return status;
     }
 
     _conn.sock     = sock;
-    _conn.addr_str = ( BRp::ipv4_addr_str_t&& )addr_str;
-    _conn.addr     = addr_;
-    _conn.port     = port_;
     _conn.alive.store( true, std::memory_order_release );
 
-    Log.IO->info( "Uplinked {}:{}.", ( char* )addr_str, port_ );
+    _Log::info( "Uplinked." );
 
     on_exit.drop();
-    return result;
+    return status;
 }
 
-A113_OS_FNC RESULT IPv4_TCP_socket::uplink( const char* addr_str_, BRp::ipv4_port_t port_ ) {
-    return this->uplink( BRp::ipv4_addr_str_t::from( addr_str_ ), port_ );
-}
-
-A113_OS_FNC RESULT IPv4_TCP_socket::downlink( void ) {
-    RESULT result = 0x0;
+A113_IMPL_FNC status_t IPv4_TCP_socket::downlink( void ) {
+    status_t status = 0x0;
 
     _conn.alive.store( false, std::memory_order_seq_cst );
     
-    result = ::closesocket( std::exchange( _conn.sock, NULL_SOCKET ) );
-    A113_ASSERT_OR( result == 0 ) {
-        Log.IO->warn( "Close // [{}].", WSAGetLastError() );
+    status = ::closesocket( std::exchange( _conn.sock, NULL_SOCKET ) );
+    A113_ASSERT_OR( 0x0 == status ) {
+        _Log::warn( "Bad socket close // [{}].", WSAGetLastError() );
     }
 
     _conn.addr = 0x0;
@@ -72,12 +83,17 @@ A113_OS_FNC RESULT IPv4_TCP_socket::downlink( void ) {
     return 0x0;
 }
 
-A113_OS_FNC RESULT IPv4_TCP_socket::listen( BRp::ipv4_port_t port_ ) {
-    RESULT result = 0x0;
+A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
+    A113_ASSERT_OR( 0x0 == _conn.addr ) {
+        _Log::error( "Listening with peer address different from 0:0:0:0." );
+        return -0x1;
+    }
+
+    status_t status = 0x0;
     
     socket_t sock = socket( AF_INET, SOCK_STREAM, IPPROTO_TCP );
     A113_ASSERT_OR( sock >= 0 ) {
-        Log.IO->error( "Descriptor {}.", port_ );
+        _Log::error( "Bad socket descriptor." );
         return sock;
     }
 
@@ -90,18 +106,18 @@ A113_OS_FNC RESULT IPv4_TCP_socket::listen( BRp::ipv4_port_t port_ ) {
 
     desc.sin_family      = AF_INET;
     desc.sin_addr.s_addr = 0x0;
-    desc.sin_port        = port_; 
+    desc.sin_port        = _conn.port; 
     
-    result = ::bind( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) );
-    A113_ASSERT_OR( result == 0x0 ) {
-        Log.IO->error( "Bind {} // [{}].", port_, WSAGetLastError() );
-        return result;
+    status = ::bind( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) );
+    A113_ASSERT_OR( status == 0x0 ) {
+        _Log::error( "Bad socket bind // [{}].", WSAGetLastError() );
+        return status;
     }
 
-    Log.IO->info( "Listening {}...", port_ ); 
-    result = ::listen( sock, 1 );
-    A113_ASSERT_OR( result == 0x0 ) {
-        Log.IO->error( "Listen {} // [{}].", port_, WSAGetLastError() );
+    _Log::info( "Listening..."); 
+    status = ::listen( sock, 1 );
+    A113_ASSERT_OR( status == 0x0 ) {
+        _Log::error( "Bad socket listen // [{}].", WSAGetLastError() );
     }
     
     sockaddr_in in_desc = {}; 
@@ -110,27 +126,24 @@ A113_OS_FNC RESULT IPv4_TCP_socket::listen( BRp::ipv4_port_t port_ ) {
 
     socket_t in_sock  = ::accept( sock, ( sockaddr* )&in_desc, &in_desc_sz );
     A113_ASSERT_OR( in_sock >= 0 ) {
-        Log.IO->error( "Accept {} // [{}].", port_, WSAGetLastError() );
+        _Log::error( "Bad accept // [{}].", WSAGetLastError() );
         return -0x1;
     }
 
-    _conn.sock     = in_sock;
-    _conn.addr     = in_desc.sin_addr.s_addr;
-    _conn.addr_str = BRp::ipv4_addr_str_t::from( _conn.addr );
-    _conn.port     = port_;
+    _conn.sock = in_sock;
     _conn.alive.store( true, std::memory_order_release );
 
-    Log.IO->info( "Accepted {}:{}.", ( char* )_conn.addr_str, port_ );
+    _Log::info( "Accepted {}:{}.", ( char* )_conn.addr_str, _conn.port );
 
-    return result;
+    return status;
 }
 
-A113_OS_FNC RESULT IPv4_TCP_socket::read( const BUFFER& buf ) {
-    return ::recv( _conn.sock, buf.ptr, buf.n, MSG_WAITALL );
+A113_IMPL_FNC status_t IPv4_TCP_socket::read( const MDsc& mdsc_ ) {
+    return ::recv( _conn.sock, mdsc_.ptr, mdsc_.n, MSG_WAITALL );
 }
 
-A113_OS_FNC RESULT IPv4_TCP_socket::write( const BUFFER& buf ) {
-    return ::send( _conn.sock, buf.ptr, buf.n, 0 );
+A113_IMPL_FNC status_t IPv4_TCP_socket::write( const MDsc& mdsc_ ) {
+    return ::send( _conn.sock, mdsc_.ptr, mdsc_.n, 0 );
 }
 
 

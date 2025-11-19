@@ -24,7 +24,7 @@ public:
 _WARC_PROTECTED:
     std::atomic< bool >   _engaged      = true;
 
-    //ixN::HVEC< void >   _hard_params   = nullptr;
+    //ixN::HVec< void >   _hard_params   = nullptr;
     void*                _soft_params   = nullptr;
 
 public:
@@ -49,12 +49,12 @@ public:
 
 };
 
-int push_device( device_name_t name, ixN::HVEC< DEVICE > device );
+int push_device( device_name_t name, ixN::HVec< DEVICE > device );
 
-std::optional< ixN::HVEC< DEVICE > > pull_device( device_name_t name );
-ixN::HVEC< DEVICE >* deep_pull_device( device_name_t name );
+std::optional< ixN::HVec< DEVICE > > pull_device( device_name_t name );
+ixN::HVec< DEVICE >* deep_pull_device( device_name_t name );
 
-ixN::HVEC< DEVICE > extract_device( device_name_t name );
+ixN::HVec< DEVICE > extract_device( device_name_t name );
 
 int purge_device( device_name_t name );
 

@@ -197,7 +197,7 @@ public:
 public:
     Wave() = default;
 
-    Wave( HVEC< Audio > audio )
+    Wave( HVec< Audio > audio )
     : _audio{ std::move( audio ) }
     {}
 
@@ -205,14 +205,14 @@ public:
     virtual ~Wave() = default;
 
 _ENGINE_PROTECTED:
-    HVEC< Audio >   _audio   = nullptr;
+    HVec< Audio >   _audio   = nullptr;
     
 public:
     bool is_playing() const;
 
     void play();
 
-    void play( HVEC< Wave > self );
+    void play( HVec< Wave > self );
 
 public:
     virtual void set() = 0;
@@ -226,7 +226,7 @@ public:
         return _audio != nullptr;
     }
 
-    Wave& dock_in( HVEC< Audio > audio ) {
+    Wave& dock_in( HVec< Audio > audio ) {
         _audio = std::move( audio );
         return *this;
     }
@@ -413,7 +413,7 @@ _ENGINE_PROTECTED:
     std::condition_variable     _cnd_var              = {};
     std::mutex                  _mtx                  = {};
 
-    std::list< HVEC< Wave > >   _waves                = {};
+    std::list< HVec< Wave > >   _waves                = {};
 
 #if defined( _ENGINE_AVX )
     struct {
@@ -618,7 +618,7 @@ public:
         } ) != _waves.end();
     }
 
-    Audio& play( HVEC< Wave > wave ) {
+    Audio& play( HVec< Wave > wave ) {
         wave->set();
 
         if( !this->is_playing( *wave ) )
@@ -646,7 +646,7 @@ public:
     Sound() = default;
 
     Sound( 
-        HVEC< Audio >      audio, 
+        HVec< Audio >      audio, 
         std::string_view   path, 
         _ENGINE_COMMS_ECHO_ARG 
     )
@@ -691,7 +691,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    HVEC< double[] >      _stream         = nullptr;
+    HVec< double[] >      _stream         = nullptr;
 
     std::list< double >   _needles        = {};
 
@@ -797,7 +797,7 @@ public:
     Synth() = default;
 
     Synth( 
-        HVEC< Audio >   audio,
+        HVec< Audio >   audio,
         Generator       generator,
         double          decay_in_secs,
         _ENGINE_COMMS_ECHO_ARG

@@ -5,18 +5,18 @@ namespace warc { namespace dev {
 
 static struct _INTERNAL {
     std::mutex                                     devices_mtx;
-    std::map< std::string, ixN::HVEC< DEVICE > >   devices;
+    std::map< std::string, ixN::HVec< DEVICE > >   devices;
 
 } _internal;
 
-int push_device( device_name_t name, ixN::HVEC< DEVICE > device ) {
+int push_device( device_name_t name, ixN::HVec< DEVICE > device ) {
     std::unique_lock lock{ _internal.devices_mtx };
 
     _internal.devices[ name ].vector( std::move( device ) );
     return 0;
 }
 
-std::optional< ixN::HVEC< DEVICE > > pull_device( device_name_t name ) {
+std::optional< ixN::HVec< DEVICE > > pull_device( device_name_t name ) {
     std::unique_lock lock{ _internal.devices_mtx };
     auto itr = _internal.devices.find( name );
     lock.unlock();
@@ -25,7 +25,7 @@ std::optional< ixN::HVEC< DEVICE > > pull_device( device_name_t name ) {
     return itr->second;
 }
 
-ixN::HVEC< DEVICE >* deep_pull_device( device_name_t name ) {
+ixN::HVec< DEVICE >* deep_pull_device( device_name_t name ) {
     std::unique_lock lock{ _internal.devices_mtx };
     auto itr = _internal.devices.find( name );
     lock.unlock();
@@ -33,8 +33,8 @@ ixN::HVEC< DEVICE >* deep_pull_device( device_name_t name ) {
     return itr == _internal.devices.end() ? nullptr : &itr->second;
 }
 
-ixN::HVEC< DEVICE > extract_device( device_name_t name ) {
-    ixN::HVEC< DEVICE > ret = NULL;
+ixN::HVec< DEVICE > extract_device( device_name_t name ) {
+    ixN::HVec< DEVICE > ret = NULL;
 
     std::unique_lock lock{ _internal.devices_mtx };
 

@@ -1,8 +1,6 @@
 #include <A113/OSp/OSp.hpp>
 #include <A113/BRp/wjpv3_utils.hpp>
-#include <A113/Fwk/Immersion>
-using namespace A113::BRp;
-using namespace A113::OSp;
+using namespace a113;
 #include <nlohmann/json.hpp>
 
 #include <thread>
@@ -12,7 +10,7 @@ using namespace A113::OSp;
 namespace ChRum {
 
 
-class Client : public WJPv3_LMHIPayload_InternalBufs_on< IPv4_TCP_socket, 1024, 1024 > {
+class Client : public wjpv3::LMHIPayload_InternalBufs_on< io::IPv4_TCP_socket, 1024, 1024 > {
 public:
     inline static constexpr int   MAX_CONN_ATTEMPTS   = 0x5;
     inline static constexpr int   CONN_RETRY_AFTER    = 0x2;
@@ -40,19 +38,20 @@ protected:
     void _main_listen( void ) {
     for(;;) {
         WJPInfo_RX info;
-        this->RX_lmhi( &info );
+        this->WJP_RX_lmhi( &info );
         spdlog::critical( "{}", WJP_err_strs[ info.err ] );
     } }
 
-    virtual int lmhi_when_recv( WJP_LMHIReceiver::Layout* lo ) {
+    virtual int WJP_lmhi_when_recv( WJP_LMHIReceiver::Layout* lo ) override {
         spdlog::info( "Recieved broadcast: \"{}\".", std::string{ lo->payload_in.addr, lo->payload_in.sz }.c_str() );
         return 0x0;
     }
 
 public:
     bool join( const char* addr, uint16_t port ) {
+        this->bind_peer( addr, port );
         for( int attempt = 0x1; attempt <= MAX_CONN_ATTEMPTS; ++attempt ) {
-            A113_ASSERT_OR( 0x0 == this->uplink( addr, port ) ) {
+            A113_ASSERT_OR( 0x0 == this->uplink() ) {
                 spdlog::warn( "Could not connect to {}:{}, retrying in {}s ({}/{})...", addr, port, CONN_RETRY_AFTER, attempt, MAX_CONN_ATTEMPTS );
                 continue;
             }

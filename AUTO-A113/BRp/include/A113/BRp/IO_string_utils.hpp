@@ -9,7 +9,7 @@
 #include <A113/BRp/descriptor.hpp>
 #include <A113/BRp/IO_port.hpp>
 
-namespace A113 { namespace BRp {
+namespace a113 { namespace io {
 
 
 struct ipv4_addr_str_t {

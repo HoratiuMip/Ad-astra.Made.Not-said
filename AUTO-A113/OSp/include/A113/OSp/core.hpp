@@ -32,41 +32,54 @@
     #include <BluetoothAPIs.h>
 #endif
 
-namespace A113 { namespace OSp {
+namespace a113 {
 
 
 template< typename _T >
-struct HVEC : public std::shared_ptr< _T > {
+struct HVec : public std::shared_ptr< _T > {
     using std::shared_ptr< _T >::shared_ptr;
     using std::shared_ptr< _T >::operator=;
 
-    HVEC( const std::shared_ptr< _T >&  ptr_ ) : std::shared_ptr< _T >{ ptr_ } {}
-    HVEC( std::shared_ptr< _T >&& ptr_ ) : std::shared_ptr< _T >{ std::move( ptr_ ) } {}
-    HVEC( _T* ptr_ ) { this->reset( ptr_ ); }
+    HVec( const std::shared_ptr< _T >&  ptr_ ) : std::shared_ptr< _T >{ ptr_ } {}
+    HVec( std::shared_ptr< _T >&& ptr_ ) : std::shared_ptr< _T >{ std::move( ptr_ ) } {}
+    HVec( _T* ptr_ ) { this->reset( ptr_ ); }
 };
 
 
-inline struct _LOG_BUNDLE {
-    std::shared_ptr< spdlog::logger >   Default   = nullptr;
-    std::shared_ptr< spdlog::logger >   IO        = nullptr;
-
-    A113_inline spdlog::logger* operator -> () { return Default.operator->(); }
-
-    void make_default( std::shared_ptr< spdlog::logger >& logger_ ) {
-        if( nullptr != logger_ ) { logger_->set_level( spdlog::level::debug ); }
-    }
-
-} Log;
-
 namespace st_att {
-class has_logger_t {
+#define _A113_ST_ATT_LOG_PATTERN "[%c] [%^%l%$] [%n] - %v"
+class _Log {
 public:
-    has_logger_t() = default;
-    has_logger_t( const char* logger_name_ ) : _Log{ spdlog::stdout_color_mt( logger_name_ ) } {}
-    has_logger_t( HVEC< spdlog::logger > other_ ) : _Log{ std::move( other_ ) } {}
+#define _A113_ST_ATT__SET_LOG_PATTERN _device->set_pattern( _A113_ST_ATT_LOG_PATTERN )
+    _Log() = default;
+    _Log( const char* name_ ) : _device{ spdlog::stdout_color_mt( name_ ) } {
+        _A113_ST_ATT__SET_LOG_PATTERN;
+    }
+    _Log( const std::string& name_ ) : _device{ spdlog::stdout_color_mt( name_ ) } {
+        _A113_ST_ATT__SET_LOG_PATTERN;
+    }
+    _Log( HVec< spdlog::logger > other_ ) : _device{ std::move( other_ ) } {}
 
-public:
-    HVEC< spdlog::logger >   _Log   = nullptr;
+_A113_PRIVATE:
+    HVec< spdlog::logger >   _device   = nullptr;
+
+_A113_PROTECTED:
+#define _A113_ST_ATT__LOG_FWD_FNC( fnc ) template< typename ...Args > A113_inline void fnc( const spdlog::format_string_t< Args... > fmt_, Args&&... args_ ) const { _device->fnc( fmt_, std::forward< Args >( args_ )... ); }
+    _A113_ST_ATT__LOG_FWD_FNC( debug )
+    _A113_ST_ATT__LOG_FWD_FNC( info )
+    _A113_ST_ATT__LOG_FWD_FNC( warn )
+    _A113_ST_ATT__LOG_FWD_FNC( error )
+    _A113_ST_ATT__LOG_FWD_FNC( critical )
+#undef _A113_ST_ATT__LOG_FWD_FNC
+
+_A113_PROTECTED:
+    A113_inline void morph( const char* name_ ) {
+        _device = spdlog::stdout_color_mt( name_ ); _A113_ST_ATT__SET_LOG_PATTERN;
+    }
+    A113_inline void morph( const std::string& name_ ) {
+        _device = spdlog::stdout_color_mt( name_ ); _A113_ST_ATT__SET_LOG_PATTERN;
+    }
+#undef _A113_ST_ATT__SET_LOG_PATTERN
 };
 };
 
@@ -78,7 +91,7 @@ enum InitFlags_ {
 struct init_args_t {
     int   flags   = InitFlags_None;
 };
-class INTERNAL {
+class INTERNAL : st_att::_Log {
 _A113_PROTECTED:
     struct {
     #ifdef A113_TARGET_OS_WINDOWS
@@ -88,11 +101,11 @@ _A113_PROTECTED:
     } _Data;
 
 public:
-    RESULT init( int argc_, char* argv_[], const init_args_t& args_ );
+    status_t init( int argc_, char* argv_[], const init_args_t& args_ );
 
 }; inline INTERNAL _Internal;
 
-A113_inline RESULT init( int argc_, char* argv_[], const init_args_t& args_ ) {
+A113_inline status_t init( int argc_, char* argv_[], const init_args_t& args_ ) {
     return _Internal.init( argc_, argv_, args_ );
 }
 
@@ -106,7 +119,7 @@ struct ON_FNC_EXIT {
 };
 
 
-} };
+};
 
 
 

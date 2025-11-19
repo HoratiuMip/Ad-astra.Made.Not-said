@@ -109,7 +109,7 @@ public:
         }
 
     
-        HVEC< T[] >   stream            = nullptr;
+        HVec< T[] >   stream            = nullptr;
 
         DWORD         sample_rate       = 0;
         uint16_t      bits_per_sample   = 0;
@@ -184,7 +184,7 @@ public:
         }
 
     public:
-        HVEC< ubyte_t[] >   buffer     = nullptr;
+        HVec< ubyte_t[] >   buffer     = nullptr;
         size_t              buf_size   = 0;
 
         udword_t            data_ofs   = 0;

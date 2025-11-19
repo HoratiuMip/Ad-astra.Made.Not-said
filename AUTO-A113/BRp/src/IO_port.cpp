@@ -7,26 +7,26 @@
 
 #include <A113/BRp/IO_port.hpp>
 
-namespace A113 { namespace BRp {
+namespace a113 { namespace io {
 
 
-A113_BR_FNC RESULT IO_port::basic_read_loop( const BUFFER& buf_ ) {
-    BUFFER::n_t n = 0;
+A113_IMPL_FNC status_t Port::basic_read_loop( const MDsc& mdsc_ ) {
+    MDsc::n_t n = 0;
     do {
-        RESULT res = this->read( { ( char* )buf_.ptr + n, buf_.n - n } );
-        A113_ASSERT_OR( res > 0 ) return res;
-        n += res;
-    } while( n < buf_.n );
+        status_t status = this->read( { ( char* )mdsc_.ptr + n, mdsc_.n - n } );
+        A113_ASSERT_OR( status > 0 ) return status;
+        n += status;
+    } while( n < mdsc_.n );
     return n;
 }
 
-A113_BR_FNC RESULT IO_port::basic_write_loop( const BUFFER& buf_ ) {
-    BUFFER::n_t n = 0;
+A113_IMPL_FNC status_t Port::basic_write_loop( const MDsc& mdsc_ ) {
+    MDsc::n_t n = 0;
     do {
-        RESULT res = this->write( { ( char* )buf_.ptr + n, buf_.n - n } );
-        A113_ASSERT_OR( res > 0 ) return res;
-        n += res;
-    } while( n < buf_.n );
+        status_t status = this->write( { ( char* )mdsc_.ptr + n, mdsc_.n - n } );
+        A113_ASSERT_OR( status > 0 ) return status;
+        n += status;
+    } while( n < mdsc_.n );
     return n;
 }
 

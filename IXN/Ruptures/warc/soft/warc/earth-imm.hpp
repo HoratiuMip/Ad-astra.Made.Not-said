@@ -79,20 +79,20 @@ struct EARTH_CTRL_PARAMS {
         _SINK*   sink   = nullptr;
     };
 
-    std::vector< ixN::HVEC< _SINK > >    sinks    = {};
-    std::vector< ixN::HVEC< _DRAIN > >   drains   = {}; 
+    std::vector< ixN::HVec< _SINK > >    sinks    = {};
+    std::vector< ixN::HVec< _DRAIN > >   drains   = {}; 
     std::list< _TOKEN >                  tokens   = {}; /* TO BE REPLACED with either PMR std::list or IXN's BLOCK_DIFFUSER. */
 
     
     template< typename S >
     size_t push_sink( S&& snk ) {
-        this->sinks.emplace_back( ixN::HVEC< S >::allocc( std::forward< S >( snk ) ) );
+        this->sinks.emplace_back( ixN::HVec< S >::allocc( std::forward< S >( snk ) ) );
         return this->sinks.size() - 1;
     }
 
     template< typename D >
     size_t push_drain( D&& dr ) {
-        this->drains.emplace_back( ixN::HVEC< D >::allocc( std::forward< D >( dr ) ) );
+        this->drains.emplace_back( ixN::HVec< D >::allocc( std::forward< D >( dr ) ) );
         return this->drains.size() - 1;
     }
 

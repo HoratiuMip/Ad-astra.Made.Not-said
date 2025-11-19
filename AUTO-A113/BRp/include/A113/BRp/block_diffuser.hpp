@@ -8,11 +8,11 @@
 
 #include <A113/BRp/descriptor.hpp>
 
-namespace A113 { namespace BRp {
+namespace a113 { namespace clst {
 
 
 #ifdef _BLOCK_PTR
-    #error "[A113] - _BLOCK_PTR already defined and cannot be used by Block_diffuser."
+    #error "[A113] - _BLOCK_PTR already defined and cannot be used by clst::Block_diffuser."
 #else
     #define _BLOCK_PTR( ptr ) (*((block_t**)(ptr)))
 #endif

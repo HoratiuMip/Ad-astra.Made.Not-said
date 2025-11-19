@@ -326,7 +326,7 @@ WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_astro_ref_first_january_ts ) {
 WARC_MAIN_PARSE_PROC_FUNC( MAIN::_parse_proc_dev_barruncuda_controller ) {
     _WARC_IXN_COMPONENT_DESCRIPTOR( WARC_MAIN_STR"::_parse_proc_dev_barruncuda_controller()" );
    
-    int status = dev::push_device( barra::DEVICE_NAME, ixN::HVEC< dev::BARRACUDA_CONTROLLER >::allocc() );
+    int status = dev::push_device( barra::DEVICE_NAME, ixN::HVec< dev::BARRACUDA_CONTROLLER >::allocc() );
     WARC_ASSERT_RT( status == 0, "Could not push the device in the device reservation station.", status, status );
 
     _ixt_init_flags |= ixN::BEGIN_RUNTIME_FLAG_INIT_NETWORK | ixN::BEGIN_RUNTIME_FLAG_INIT_NETWORK_CONTINUE_IF_FAULT;

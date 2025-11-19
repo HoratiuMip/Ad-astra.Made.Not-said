@@ -11,12 +11,12 @@
 
 #include <wjpv3_devices.hpp>
 
-namespace A113 { namespace BRp {
+namespace a113 { namespace wjpv3 {
 
 
-class WJPv3_LMHIPayload : public WJP_InterMech, public WJP_LMHIReceiver, public WJPDevice_Euclid {
+class LMHIPayload : public WJP_InterMech, public WJP_LMHIReceiver, public WJPDevice_Euclid {
 public:
-    WJPv3_LMHIPayload( IO_port* io_port_, BUFFER tx_buf_, BUFFER rx_buf_ )
+    LMHIPayload( io::Port* io_port_, MDsc tx_buf_, MDsc rx_buf_ )
     : _io_port{ io_port_ }, _tx_buf{ tx_buf_ }
     {
         this->bind_inter_mech( this );
@@ -27,18 +27,18 @@ public:
     }
 
 _A113_PROTECTED:
-    IO_port*   _io_port   = nullptr;
-    BUFFER     _tx_buf    = {};
+    io::Port*   _io_port   = nullptr;
+    MDsc        _tx_buf    = {};
 
 public:
-    A113_inline void bind_TX_buffer( BUFFER buf_ ) { _tx_buf = buf_; }
+    A113_inline void bind_TX_buffer( MDsc mdsc_ ) { _tx_buf = mdsc_; }
 
 _A113_PRIVATE:
-    virtual int mech_send( WJP_MDsc mdsc_ ) final override {
+    virtual int WJP_mech_send( WJP_MDsc mdsc_ ) final override {
         return _io_port->basic_write_loop( { mdsc_.addr, mdsc_.sz } );
     }
 
-    virtual int mech_recv( WJP_MDsc mdsc_ ) final override {
+    virtual int WJP_mech_recv( WJP_MDsc mdsc_ ) final override {
         return _io_port->basic_read_loop( { mdsc_.addr, mdsc_.sz } );
     }
 
@@ -48,7 +48,7 @@ public:
     }
 
 public:
-    BUFFER payload( void ) { 
+    MDsc payload( void ) { 
         return { _tx_buf.ptr + sizeof( WJP_Head ), _tx_buf.n - sizeof( WJP_Head ) };
     };
 
@@ -56,19 +56,19 @@ public:
 
 
 template< typename IO_PORT_T >
-class WJPv3_LMHIPayload_on : public WJPv3_LMHIPayload, public IO_PORT_T {
+class LMHIPayload_on : public LMHIPayload, public IO_PORT_T {
 public:
-    WJPv3_LMHIPayload_on( BUFFER tx_buf, BUFFER rx_buf )
-    : BRp::WJPv3_LMHIPayload{ this, tx_buf, rx_buf }
+    LMHIPayload_on( MDsc tx_buf, MDsc rx_buf )
+    : LMHIPayload{ this, tx_buf, rx_buf }
     {}
 
 };
 
 template< typename IO_PORT_T, int TX_BUF_SZ, int RX_BUF_SZ >
-class WJPv3_LMHIPayload_InternalBufs_on : public WJPv3_LMHIPayload_on< IO_PORT_T > {
+class LMHIPayload_InternalBufs_on : public LMHIPayload_on< IO_PORT_T > {
 public:
-    WJPv3_LMHIPayload_InternalBufs_on()
-    : WJPv3_LMHIPayload_on< IO_PORT_T >{ { _tx_buf, TX_BUF_SZ }, { _rx_buf, RX_BUF_SZ } }
+    LMHIPayload_InternalBufs_on()
+    : LMHIPayload_on< IO_PORT_T >{ { _tx_buf, TX_BUF_SZ }, { _rx_buf, RX_BUF_SZ } }
     {}
 
 _A113_PROTECTED:

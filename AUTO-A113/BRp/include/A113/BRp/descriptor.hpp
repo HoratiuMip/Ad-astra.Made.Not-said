@@ -18,8 +18,7 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #define A113_VERSION_STRING "AUTO-A113v1.0.0"
 
 #define A113_inline inline
-#define A113_BR_FNC
-#define A113_OS_FNC
+#define A113_IMPL_FNC
 
 #define _A113_PROTECTED protected
 #define _A113_PRIVATE   private
@@ -33,14 +32,14 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #include <stdlib.h>
 
 
-namespace A113 {
+namespace a113 {
 
 
-typedef   int   RESULT;
+typedef   int   status_t;
 
 
-struct BUFFER {
-    typedef   int   n_t;
+struct MDsc {
+    typedef   size_t   n_t;
 
     char*   ptr   = nullptr;
     n_t     n     = 0;    

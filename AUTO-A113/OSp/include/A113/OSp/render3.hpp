@@ -17,7 +17,7 @@
 #include <tiny_obj_loader.h>
 
 
-namespace A113 { namespace OSp {
+namespace a113 { namespace render {
 
 
 enum ShaderPhase_ {
@@ -45,7 +45,7 @@ inline constexpr const char* const ShaderPhase_FILE_EXTENSION[ ShaderPhase_COUNT
 };
 
 
-class RenderCluster : public st_att::has_logger_t {
+class Cluster : public st_att::_Log {
 public:
     /* MIP here after almost one year. Yeah.*/
     //std::cout << "GOD I SUMMON U. GIVE MIP TEO FOR A FEW DATES (AT LEAST 100)"; 
@@ -57,8 +57,8 @@ public:
     };
 
 public:
-    RenderCluster( GLFWwindow* glfwnd )
-    : st_att::has_logger_t{ std::format( "{}//RenderCluster", A113_VERSION_STRING ).c_str() }, 
+    Cluster( GLFWwindow* glfwnd )
+    : _Log{ std::format( "{}//render::Cluster", A113_VERSION_STRING ) }, 
       _glfwnd{ glfwnd } 
     {
         glfwMakeContextCurrent( _glfwnd );
@@ -86,11 +86,11 @@ public:
 
         stbi_set_flip_vertically_on_load( true );
 
-        _Log->info( "Docked on {}, using {}.", _rend_str ? _rend_str : "NULL", _gl_str ? _gl_str : NULL );
+        _Log::info( "Docked on {}, using {}.", _rend_str ? _rend_str : "NULL", _gl_str ? _gl_str : NULL );
     }
 
-    RenderCluster( const RenderCluster& ) = delete;
-    RenderCluster( RenderCluster&& ) = delete;
+    Cluster( const Cluster& ) = delete;
+    Cluster( Cluster&& ) = delete;
 
 _A113_PROTECTED:
     GLFWwindow*              _glfwnd     = nullptr;
@@ -99,7 +99,7 @@ _A113_PROTECTED:
     const char*              _gl_str     = nullptr;  
 
 _A113_PROTECTED:
-    struct _internal_struct_t{ _internal_struct_t( RenderCluster* Hyper_ ) : _Hyper{ Hyper_ } {} RenderCluster* _Hyper = nullptr; };
+    struct _internal_struct_t{ _internal_struct_t( Cluster* Hyper_ ) : _Hyper{ Hyper_ } {} Cluster* _Hyper = nullptr; };
 
 _A113_PROTECTED:
     struct shader_t {
@@ -110,18 +110,18 @@ _A113_PROTECTED:
         GLuint        glidx   = 0x0;
     };
     struct _shader_cache_t : public _internal_struct_t {
-        std::map< std::string_view, HVEC< shader_t > >   _buckets[ ShaderPhase_COUNT ]   = {};
+        std::map< std::string_view, HVec< shader_t > >   _buckets[ ShaderPhase_COUNT ]   = {};
 
         template< CacheQueryMode_ MODE_ >
-        HVEC< shader_t > query_bucket( ShaderPhase_ phase_, const std::string& strid_ ) {
+        HVec< shader_t > query_bucket( ShaderPhase_ phase_, const std::string& strid_ ) {
             A113_ASSERT_OR( phase_ >= ShaderPhase_Vertex && phase_ < ShaderPhase_COUNT ) {
-                _Hyper->_Log->error( "Shader phase for bucket querying is out of bounds." );
+                _Hyper->_Log::error( "Shader phase for bucket querying is out of bounds." );
                 return nullptr;
             }
             
             if constexpr( CacheQueryMode_Hot == MODE_ ) {
                 auto [ itr, hot ] = _buckets[ phase_ ].emplace( std::make_pair( 
-                    std::string_view{ strid_ }, HVEC< shader_t >{}
+                    std::string_view{ strid_ }, HVec< shader_t >{}
                 ) );
                 if( true == hot ) {
                     itr->second = new shader_t{ strid_, 0x0 };
@@ -136,7 +136,7 @@ _A113_PROTECTED:
 
         shader_t* query_bucket_weak( ShaderPhase_ phase_, const std::string& strid_ ) {
             A113_ASSERT_OR( phase_ >= ShaderPhase_Vertex && phase_ < ShaderPhase_COUNT ) {
-                _Hyper->_Log->error( "Shader phase for bucket querying is out of bounds." );
+                _Hyper->_Log::error( "Shader phase for bucket querying is out of bounds." );
                 return nullptr;
             }
 
@@ -144,8 +144,8 @@ _A113_PROTECTED:
             return itr != _buckets[ phase_ ].end() ? itr->second.get() : nullptr;
         }
 
-        HVEC< shader_t > make_shader_from_file( const std::filesystem::path& path_, ShaderPhase_ phase_ = ShaderPhase_None ) {
-            RESULT      result   = 0x0;
+        HVec< shader_t > make_shader_from_file( const std::filesystem::path& path_, ShaderPhase_ phase_ = ShaderPhase_None ) {
+            status_t    status   = 0x0;
             std::string source   = {};
             std::string line     = {};
 
@@ -160,7 +160,7 @@ _A113_PROTECTED:
             }
 
             A113_ASSERT_OR( phase_ >= ShaderPhase_Vertex && phase_ < ShaderPhase_COUNT ) {
-                _Hyper->_Log->error( "Shader phase for bucket querying is out of bounds." );
+                _Hyper->_Log::error( "Shader phase for bucket querying is out of bounds." );
                 return nullptr;
             }
             
@@ -168,8 +168,8 @@ _A113_PROTECTED:
                 std::ifstream file{ path_, std::ios_base::binary };
 
                 A113_ASSERT_OR( file.operator bool() ) {
-                    _Hyper->_Log->error( "Could NOT open file \"{}\".", path_.string() );
-                    result = -0x1; return;
+                    _Hyper->_Log::error( "Could NOT open file \"{}\".", path_.string() );
+                    status = -0x1; return;
                 }
 
                 while( std::getline( file, line ) ) {
@@ -190,8 +190,8 @@ _A113_PROTECTED:
                         auto q2 = line.find_last_of( '>' );
 
                         A113_ASSERT_OR( q1 != std::string::npos && q2 != std::string::npos ) {
-                            _Hyper->_Log->error( "DIRECTIVE[{}] argument of SHADER[{}] is ill-formed. It shall be quoted between \"<>\". ", d.str, strid );
-                            result = -0x1; return;
+                            _Hyper->_Log::error( "DIRECTIVE[{}] argument of SHADER[{}] is ill-formed. It shall be quoted between \"<>\". ", d.str, strid );
+                            status = -0x1; return;
                         }
                         
                         arg = std::string{ line.c_str() + q1 + 1, q2 - q1 - 1 };
@@ -205,8 +205,8 @@ _A113_PROTECTED:
                 
                 l_directive_strid:
                     A113_ASSERT_OR( strid.empty() ) {
-                        _Hyper->_Log->error( "Multiple string identifiers given for SHADER[{}]<->[{}].", strid, arg );
-                        result = -0x1; return;
+                        _Hyper->_Log::error( "Multiple string identifiers given for SHADER[{}]<->[{}].", strid, arg );
+                        status = -0x1; return;
                     }
                     strid = std::move( arg );
                     continue;
@@ -218,8 +218,8 @@ _A113_PROTECTED:
 
             accumulate_glsl( path_ );
             
-            A113_ASSERT_OR( 0x0 == result ) {
-                _Hyper->_Log->error( "General failure during accumulation of source code for SHADER[{}].", strid );
+            A113_ASSERT_OR( 0x0 == status ) {
+                _Hyper->_Log::error( "General failure during accumulation of source code for SHADER[{}].", strid );
                 return nullptr;
             }
 
@@ -229,7 +229,7 @@ _A113_PROTECTED:
 
             if( 0x0 == shader->glidx ) {
                 A113_ASSERT_OR( 0x0 != ( shader->glidx = glCreateShader( ShaderPhase_MAP[ phase_ ] ) ) ) {
-                    _Hyper->_Log->error( "Failed to create SHADER[{}].", shader->strid );
+                    _Hyper->_Log::error( "Failed to create SHADER[{}].", shader->strid );
                     return nullptr;
                 }
 
@@ -241,12 +241,12 @@ _A113_PROTECTED:
                 A113_ASSERT_OR( status ) {
                     GLchar log_buf[ 512 ];
                     glGetShaderInfoLog( shader->glidx, sizeof( log_buf ), NULL, log_buf );
-                    _Hyper->_Log->error( "Failed to compile SHADER[{}], GLIDX[{}]: \"{}\".", shader->strid, shader->glidx, log_buf );
+                    _Hyper->_Log::error( "Failed to compile SHADER[{}], GLIDX[{}]: \"{}\".", shader->strid, shader->glidx, log_buf );
                     return nullptr;
                 }
             }
 
-            _Hyper->_Log->info( "Created SHADER[{}], GLIDX[{}] from file: \"{}\".", shader->strid, shader->glidx, path_.string() );
+            _Hyper->_Log::info( "Created SHADER[{}], GLIDX[{}] from file: \"{}\".", shader->strid, shader->glidx, path_.string() );
             return shader;
         }
 
@@ -262,13 +262,13 @@ _A113_PROTECTED:
     struct _pipe_cache_t : public _internal_struct_t {
         inline static constexpr char   STAGE_NAME_SEP   = '\\';
 
-        std::map< std::string, HVEC< pipe_t > >   _bucket   = {};
+        std::map< std::string, HVec< pipe_t > >   _bucket   = {};
 
         template< CacheQueryMode_ MODE_ >
-        HVEC< pipe_t > query( const std::string& strid_ ) {
+        HVec< pipe_t > query( const std::string& strid_ ) {
             if constexpr( CacheQueryMode_Hot == MODE_ ) {
                 auto [ itr, hot ] = _bucket.emplace( std::make_pair( 
-                    std::string_view{ strid_ }, HVEC< pipe_t >{}
+                    std::string_view{ strid_ }, HVec< pipe_t >{}
                 ) );
                 if( true == hot ) {
                     itr->second = new pipe_t{ strid_, 0x0 };
@@ -286,7 +286,7 @@ _A113_PROTECTED:
             return itr != _bucket.end() ? itr->second.get() : nullptr;
         }
 
-        HVEC< pipe_t > make_pipe_from_array( shader_t* arr_[ ShaderPhase_COUNT ] ) {
+        HVec< pipe_t > make_pipe_from_array( shader_t* arr_[ ShaderPhase_COUNT ] ) {
             static const char* stage_pretties[ ShaderPhase_COUNT ] = {
                 "VRTX-", ">TESC-", ">TESE-", ">GEOM-", ">FRAG"
             };
@@ -306,7 +306,7 @@ _A113_PROTECTED:
                 && 
                 nullptr != arr_[ ShaderPhase_Vertex ] && nullptr != arr_[ ShaderPhase_Fragment ]
             ) {
-                _Hyper->_Log->error( "Shader stages ill-arranged: [{}]", pretty );
+                _Hyper->_Log::error( "Shader stages ill-arranged: [{}]", pretty );
                 return nullptr;
             }
 
@@ -316,7 +316,7 @@ _A113_PROTECTED:
                 pipe->glidx = glCreateProgram();
 
                 A113_ASSERT_OR( 0x0 != pipe->glidx ) {
-                    _Hyper->_Log->error( "Failed to create PIPE[{}].", pipe->strid );
+                    _Hyper->_Log::error( "Failed to create PIPE[{}].", pipe->strid );
                     return nullptr;
                 }
     
@@ -332,16 +332,16 @@ _A113_PROTECTED:
                 A113_ASSERT_OR( status ) {
                     GLchar log_buf[ 512 ];
                     glGetProgramInfoLog( pipe->glidx, sizeof( log_buf ), NULL, log_buf );
-                    _Hyper->_Log->error( "Failed to create PIPE[{}], GLIDX[{}]: \"{}\".", pipe->strid, pipe->glidx, log_buf );
+                    _Hyper->_Log::error( "Failed to create PIPE[{}], GLIDX[{}]: \"{}\".", pipe->strid, pipe->glidx, log_buf );
                     return nullptr;
                 }
             }
 
-            _Hyper->_Log->info( "Created PIPE[{}], GLIDX[{}] from shader array.", pipe->strid, pipe->glidx );
+            _Hyper->_Log::info( "Created PIPE[{}], GLIDX[{}] from shader array.", pipe->strid, pipe->glidx );
             return pipe;
         }
 
-        HVEC< pipe_t > make_pipe_from_prefixed_path( const std::filesystem::path& path_ ) {
+        HVec< pipe_t > make_pipe_from_prefixed_path( const std::filesystem::path& path_ ) {
             shader_t* shaders[ ShaderPhase_COUNT ]; memset( shaders, 0x0, sizeof( shaders ) );
 
             for( int phase = ShaderPhase_Vertex; phase <= ShaderPhase_Fragment; ++phase ) {

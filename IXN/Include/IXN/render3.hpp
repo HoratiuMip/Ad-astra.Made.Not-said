@@ -34,31 +34,31 @@ public:
 _ENGINE_PROTECTED:
     struct _SHADERS {
         std::mutex                                 map_mtx;
-        std::map< std::string, HVEC< Shader3 > >   map;
+        std::map< std::string, HVec< Shader3 > >   map;
     } _shaders;
     
     struct _PIPES {
         std::mutex                                    map_mtx;
-        std::map< std::string, HVEC< ShaderPipe3 > >   map;
+        std::map< std::string, HVec< ShaderPipe3 > >   map;
     } _pipes;
 
 public:
-    DWORD push_shader( HVEC< Shader3 > shader, bool owr, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    DWORD push_shader( HVec< Shader3 > shader, bool owr, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
     DWORD pop_shader( std::variant< const char*, XtDx > id, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
-    HVEC< Shader3 > query_for_shader( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
-    HVEC< Shader3 >* deep_query_for_shader( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVec< Shader3 > query_for_shader( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVec< Shader3 >* deep_query_for_shader( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
 
 public:
-    DWORD push_pipe( HVEC< ShaderPipe3 > pipe, bool owr, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    DWORD push_pipe( HVec< ShaderPipe3 > pipe, bool owr, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
     DWORD pop_pipe( std::variant< const char*, XtDx > id, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
-    HVEC< ShaderPipe3 > query_for_pipe( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
-    HVEC< ShaderPipe3 >* deep_query_for_pipe( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVec< ShaderPipe3 > query_for_pipe( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVec< ShaderPipe3 >* deep_query_for_pipe( const char* name, bool hot, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
 
 public:
-    HVEC< Shader3 > make_or_pull_shader_from_path( const std::filesystem::path& path, SHADER3_PHASE phase, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
-    HVEC< ShaderPipe3 > make_or_pull_pipe_from_ptr_arr( Shader3* shaders[ 5 ], _ENGINE_COMMS_ECHO_NO_DFT_ARG );
-    HVEC< ShaderPipe3 > make_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
-    HVEC< ShaderPipe3 > make_or_pull_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVec< Shader3 > make_or_pull_shader_from_path( const std::filesystem::path& path, SHADER3_PHASE phase, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVec< ShaderPipe3 > make_or_pull_pipe_from_ptr_arr( Shader3* shaders[ 5 ], _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVec< ShaderPipe3 > make_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
+    HVec< ShaderPipe3 > make_or_pull_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_NO_DFT_ARG );
 
 };
 inline RenderCluster3 GME_render_cluster3{};
@@ -854,7 +854,7 @@ public:
     Uniform3< glm::mat4 >     model;
     Uniform3< glm::vec3 >     Kd;
 
-    HVEC< ShaderPipe3 >       pipe;
+    HVec< ShaderPipe3 >       pipe;
 
 _ENGINE_PROTECTED:
     DWORD _push_tex( 
@@ -907,7 +907,7 @@ _ENGINE_PROTECTED:
     }
 
 public:
-    Mesh3& dock_in( HVEC< ShaderPipe3 > other_pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    Mesh3& dock_in( HVec< ShaderPipe3 > other_pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
         if( other_pipe.get() == this->pipe.get() ) {
             echo( this, EchoLevel_Warning ) << "Multiple docks on same pipe( " << this->pipe->glidx() << " ) detected.";
         }
@@ -1002,7 +1002,7 @@ public:
         echo( this, EchoLevel_Ok ) << "Created.";
     }
 
-    // explicit Render3( HVEC< Surface > surf, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    // explicit Render3( HVec< Surface > surf, _ENGINE_COMMS_ECHO_RT_ARG ) {
         // comms( this, EchoLevel_Error ) << "This constructor is no longer supported.";
     // }
 

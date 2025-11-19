@@ -1,7 +1,6 @@
 #include <A113/OSp/OSp.hpp>
 #include <A113/BRp/wjpv3_utils.hpp>
-using namespace A113::BRp;
-using namespace A113::OSp;
+using namespace a113;
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
@@ -15,7 +14,7 @@ namespace ChRum {
 class Server {
 protected:
     friend class Client;
-    class Client : public WJPv3_LMHIPayload_InternalBufs_on< IPv4_TCP_socket, 0, 1024 > {
+    class Client : public wjpv3::LMHIPayload_InternalBufs_on< io::IPv4_TCP_socket, 0, 1024 > {
     public:
         Client() = default;
 
@@ -27,10 +26,10 @@ protected:
         void _main( void ) {
         for(;;) {
             WJPInfo_RX info;
-            this->RX_lmhi( &info );
+            this->WJP_RX_lmhi( &info );
         } }
 
-        virtual int lmhi_when_recv( WJP_LMHIReceiver::Layout* lo ) override {
+        virtual int WJP_lmhi_when_recv( WJP_LMHIReceiver::Layout* lo ) override {
             std::string json_str{ lo->payload_in.addr, lo->payload_in.sz };
             spdlog::info( "Received payload from {}:{}, on action [{}], \"{}\".", this->addr_c_str(), this->port(), lo->head_in._dw1.ACT, json_str.c_str() );
 
@@ -65,7 +64,7 @@ protected:
     std::atomic_int               _bcasts_size    = { 0x0 };
     std::mutex                    _bcasts_mtx     = {};
     char                          _bcasts_buf_1[ 1024 ];
-    A113::BUFFER                  _bcasts_tx_buf  ={ _bcasts_buf_1, sizeof( _bcasts_buf_1 ) };
+    MDsc                          _bcasts_tx_buf  ={ _bcasts_buf_1, sizeof( _bcasts_buf_1 ) };
 
 protected:
     void _main_conn( void ) {
@@ -75,7 +74,8 @@ protected:
             auto client = _clients.begin();
             lock.unlock();
 
-            A113_ASSERT_OR( 0x0 == client->listen( _port ) ) {
+            client->bind_peer( a113::io::ipv4_addr_t{ 0x0 }, _port );
+            A113_ASSERT_OR( 0x0 == client->listen() ) {
                 lock.lock();
                 _clients.erase( client );
                 continue;

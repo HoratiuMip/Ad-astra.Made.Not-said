@@ -1,6 +1,5 @@
 #include <A113/BRp/block_diffuser.hpp>
-#include <A113/OSp/render3.hpp>
-using namespace A113::BRp;
+//#include <A113/OSp/render3.hpp>
 
 #include <thread>
 #include <string>
@@ -14,30 +13,30 @@ struct X {
 };
 
 int main( int argc, char* argv[] ) {
-    A113::OSp::RenderCluster cluster{ nullptr };
-    cluster.pipe_cache().make_pipe_from_prefixed_path( "C:/Hackerman/Git/For_Academical_Purposes/IXN/Ruptures/warc/imm/earth/earth" );
+    // A113::OSp::RenderCluster cluster{ nullptr };
+    // cluster.pipe_cache().make_pipe_from_prefixed_path( "C:/Hackerman/Git/For_Academical_Purposes/IXN/Ruptures/warc/imm/earth/earth" );
 
 
-    Block_diffuser< X > bf;
+    // Block_diffuser< X > bf;
 
-    Block_diffuser< X >::block_t ints[ 10 ];
-    for( auto& n : ints ) n.content.x = 0x0;
+    // Block_diffuser< X >::block_t ints[ 10 ];
+    // for( auto& n : ints ) n.content.x = 0x0;
 
-    bf.bind_memory( &ints[ 0 ], 10 );
-    bf.inject( 5 );
-    bf.inject( 6 );
-    bf.inject( 7 );
-    bf.eject( ints + 1 );
-    bf.inject( 6 );
-    bf.inject( 8 );
-    bf.eject( ints );
-    bf.inject( 5 );
-    bf.inject( 9 );
+    // bf.bind_memory( &ints[ 0 ], 10 );
+    // bf.inject( 5 );
+    // bf.inject( 6 );
+    // bf.inject( 7 );
+    // bf.eject( ints + 1 );
+    // bf.inject( 6 );
+    // bf.inject( 8 );
+    // bf.eject( ints );
+    // bf.inject( 5 );
+    // bf.inject( 9 );
 
 
-    for( auto& n : ints )
-        std::cout << n.content.x << ' ';
-    std::cout << '\n';
+    // for( auto& n : ints )
+    //     std::cout << n.content.x << ' ';
+    // std::cout << '\n';
 
     return 0;
 }

@@ -8,7 +8,7 @@ using namespace ixN;
 
 
 int main() {
-    auto hvec = HVEC< int >::allocc( 0x9 );
+    auto HVec = HVec< int >::allocc( 0x9 );
 
-    comms() << *hvec; 
+    comms() << *HVec; 
 }

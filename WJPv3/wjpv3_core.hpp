@@ -37,8 +37,8 @@ typedef   int32_t   WJP_size_t;
 typedef   int       WJP_result_t;
 
 struct WJP_MDsc {
-    char*     addr   = nullptr;
-    int32_t   sz     = 0x0;
+    char*    addr   = nullptr;
+    size_t   sz     = 0x0;
 };
 
 

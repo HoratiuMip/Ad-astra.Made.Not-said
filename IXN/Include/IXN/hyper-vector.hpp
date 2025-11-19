@@ -26,7 +26,7 @@ enum HYPER_VECTOR_ALLOC_FLAG : WORD {
     _HYPER_VECTOR_ALLOC_FLAG_FORCE_WORD = 0x7f'ff
 };
 
-struct hvec_soft_t{};
+struct HVec_soft_t{};
 
 template< typename _T, bool _is_array = std::is_array_v< _T > >
 class HYPER_VECTOR {
@@ -70,7 +70,7 @@ public:
     {}
 
     template< typename Tp > requires( !std::is_class_v< Tp > || std::is_base_of_v< T, Tp > )
-    HYPER_VECTOR( Tp* under, [[maybe_unused]]hvec_soft_t )
+    HYPER_VECTOR( Tp* under, [[maybe_unused]]HVec_soft_t )
     : _ptr{ ( T* )under }, _tags{ 0 } 
     {}
 
@@ -269,7 +269,7 @@ public:
 static_assert( sizeof( HYPER_VECTOR< BYTE > ) == HYPER_VECTOR_SIZE );
 
 template< typename T >
-using HVEC = HYPER_VECTOR< T >;
+using HVec = HYPER_VECTOR< T >;
 
 
 

@@ -13,14 +13,14 @@ using namespace ixN::Dev;
 
 
 struct _VISUAL {
-    HVEC< Surface >     surf;
-    HVEC< Renderer2 >   render;
+    HVec< Surface >     surf;
+    HVec< Renderer2 >   render;
 
     void init( void ) {
         ggfloat_t surf_size = std::min( Env::width(), Env::height() ) * 0.8;
-        surf.vector( HVEC< Surface >::allocc( "BarraCUDA-CTRL Tester", Crd2{ 10 }, Vec2{ surf_size * 1.25f, surf_size }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_LIQUID ) );
+        surf.vector( HVec< Surface >::allocc( "BarraCUDA-CTRL Tester", Crd2{ 10 }, Vec2{ surf_size * 1.25f, surf_size }, SURFACE_THREAD_ACROSS, SURFACE_STYLE_LIQUID ) );
 
-        render.vector( HVEC< Renderer2 >::allocc( *surf ) );
+        render.vector( HVec< Renderer2 >::allocc( *surf ) );
     }  
 } VISUAL;
 

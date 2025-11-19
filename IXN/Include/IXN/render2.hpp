@@ -78,7 +78,7 @@ public:
 public:
     RenderSpec2() = default;
 
-    RenderSpec2( HVEC< RenderSpec2 > other ) 
+    RenderSpec2( HVec< RenderSpec2 > other ) 
     : _super_spec{ std::move( other ) },
       _renderer{ _super_spec->_renderer }
     {}
@@ -92,8 +92,8 @@ public:
     virtual ~RenderSpec2() = default;
 
 _ENGINE_PROTECTED:
-    HVEC< RenderSpec2 >   _super_spec    = nullptr;
-    HVEC< Renderer2 >     _renderer      = nullptr;
+    HVec< RenderSpec2 >   _super_spec    = nullptr;
+    HVec< Renderer2 >     _renderer      = nullptr;
 
 public:
     virtual RenderSpec2& rs2_uplink() = 0;
@@ -181,7 +181,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    std::vector< HVEC< Sweep2 > >   _default_sweeps   = {};
+    std::vector< HVec< Sweep2 > >   _default_sweeps   = {};
 
 public:
     Sweep2& pull( RENDERER2_DFT_SWEEP idx ) {
@@ -203,7 +203,7 @@ public:
 public:
     Renderer2() = default;
 
-    Renderer2( HVEC< Surface > surface, _ENGINE_COMMS_ECHO_ARG )
+    Renderer2( HVec< Surface > surface, _ENGINE_COMMS_ECHO_ARG )
     : RenderSpec2{ *this }, _surface{ std::move( surface ) }
     {
         if( CoInitialize( nullptr ) != S_OK ) { 
@@ -278,7 +278,7 @@ public:
     inline static constexpr DWORD   TMX_MAX_COUNT   = 6;
 
 _ENGINE_PROTECTED:
-    HVEC< Surface >       _surface                 = nullptr;
+    HVec< Surface >       _surface                 = nullptr;
 
     ID2D1Factory*         _factory                 = nullptr;
     IWICImagingFactory*   _wic_factory             = nullptr;
@@ -388,7 +388,7 @@ public:
     Viewport2() = default;
 
     Viewport2(
-        HVEC< RenderSpec2 >   render_spec,
+        HVec< RenderSpec2 >   render_spec,
         Crd2                  crd,
         Vec2                  sz,
         _ENGINE_COMMS_ECHO_ARG
@@ -403,7 +403,7 @@ public:
 
 
     Viewport2(
-        HVEC< RenderSpec2 >   render_spec,
+        HVec< RenderSpec2 >   render_spec,
         Vec2                  org,
         Vec2                  sz,
         _ENGINE_COMMS_ECHO_ARG
@@ -725,7 +725,7 @@ public:
     LnrSweep2() = default;
 
     LnrSweep2(
-        HVEC< RenderSpec2 >   render_spec,
+        HVec< RenderSpec2 >   render_spec,
         Vec2                  launch,
         Vec2                  land,
         const sweep2_gc_t&    chain,
@@ -773,7 +773,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    HVEC< RenderSpec2 >            _render_spec   = nullptr;
+    HVec< RenderSpec2 >            _render_spec   = nullptr;
 
     ID2D1LinearGradientBrush*      _sweep         = nullptr;
     ID2D1GradientStopCollection*   _grads         = nullptr;
@@ -815,7 +815,7 @@ public:
     RdlSweep2() = default;
 
     RdlSweep2(
-        HVEC< RenderSpec2 >   render_spec,
+        HVec< RenderSpec2 >   render_spec,
         Vec2                  org,
         Vec2                  off,
         Vec2                  rad,
@@ -866,7 +866,7 @@ public:
     }
 
 private:
-    HVEC< RenderSpec2 >            _render_spec   = nullptr;
+    HVec< RenderSpec2 >            _render_spec   = nullptr;
 
     ID2D1RadialGradientBrush*      _sweep         = nullptr;
     ID2D1GradientStopCollection*   _grads         = nullptr;
@@ -937,7 +937,7 @@ public:
     Sprite2() = default;
 
     Sprite2(
-        HVEC< RenderSpec2 >   render_spec,
+        HVec< RenderSpec2 >   render_spec,
         std :: string_view    path,
         _ENGINE_COMMS_ECHO_ARG
     ) 
@@ -1008,7 +1008,7 @@ public:
             return;
         }
 
-        _bitmap.vector( tmp_bmp, hvec_soft_t{} );
+        _bitmap.vector( tmp_bmp, HVec_soft_t{} );
 
 
         UDWORD w = 0;
@@ -1028,7 +1028,7 @@ public:
     }
 
 _ENGINE_PROTECTED:
-    HVEC< ID2D1Bitmap >   _bitmap   = nullptr;
+    HVec< ID2D1Bitmap >   _bitmap   = nullptr;
     std::string           _path     = {};
 
 };

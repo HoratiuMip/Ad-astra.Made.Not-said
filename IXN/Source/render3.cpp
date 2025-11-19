@@ -11,7 +11,7 @@ namespace _ENGINE_NAMESPACE {
 
 
 #define _ENGINE_RENDER_CLUSTER3_PUSH_REZERVATION_FUNC( func_name, station, type, name_field ) \
-DWORD RenderCluster3::func_name( HVEC< type > rezervation, bool owr, _ENGINE_COMMS_ECHO_RT_ARG ) { \
+DWORD RenderCluster3::func_name( HVec< type > rezervation, bool owr, _ENGINE_COMMS_ECHO_RT_ARG ) { \
     std::unique_lock lock{ station.map_mtx }; \
     auto& record = station.map[ rezervation->name_field ]; \
     lock.unlock(); \
@@ -44,14 +44,14 @@ DWORD RenderCluster3::func_name( std::variant< const char*, XtDx > id, _ENGINE_C
 }
 
 #define _ENGINE_RENDER_CLUSTER3_QUERY_REZERVATION_FUNC( func_name, station, type ) \
-HVEC< type > RenderCluster3::func_name( const char* name, bool hot, _ENGINE_COMMS_ECHO_RT_ARG ) { \
+HVec< type > RenderCluster3::func_name( const char* name, bool hot, _ENGINE_COMMS_ECHO_RT_ARG ) { \
     if( !hot ) goto l_cold; \
 l_hot: \
     { \
     std::unique_lock lock{ station.map_mtx }; \
-    HVEC< type >& ret = station.map[ name ]; \
+    HVec< type >& ret = station.map[ name ]; \
     lock.unlock(); \
-    if( ret == nullptr ) ret.vector( HVEC< type >::allocc() ); \
+    if( ret == nullptr ) ret.vector( HVec< type >::allocc() ); \
     return ret;  \
     } \
 l_cold: \
@@ -65,12 +65,12 @@ l_cold: \
 }
 
 #define _ENGINE_RENDER_CLUSTER3_DEEP_QUERY_REZERVATION_FUNC( func_name, station, type ) \
-HVEC< type >* RenderCluster3::func_name( const char* name, bool hot, _ENGINE_COMMS_ECHO_RT_ARG ) { \
+HVec< type >* RenderCluster3::func_name( const char* name, bool hot, _ENGINE_COMMS_ECHO_RT_ARG ) { \
     if( !hot ) goto l_cold; \
 l_hot: \
     { \
     std::unique_lock lock{ station.map_mtx }; \
-    HVEC< type >* ret = &station.map[ name ]; \
+    HVec< type >* ret = &station.map[ name ]; \
     lock.unlock(); \
     return ret; \
     } \
@@ -95,8 +95,8 @@ _ENGINE_RENDER_CLUSTER3_QUERY_REZERVATION_FUNC( query_for_pipe, _pipes, ShaderPi
 _ENGINE_RENDER_CLUSTER3_DEEP_QUERY_REZERVATION_FUNC( deep_query_for_pipe, _pipes, ShaderPipe3 ) 
 
 
-HVEC< Shader3 > RenderCluster3::make_or_pull_shader_from_path( const std::filesystem::path& path, SHADER3_PHASE phase, _ENGINE_COMMS_ECHO_RT_ARG ) {
-    HVEC< Shader3 > ret{};
+HVec< Shader3 > RenderCluster3::make_or_pull_shader_from_path( const std::filesystem::path& path, SHADER3_PHASE phase, _ENGINE_COMMS_ECHO_RT_ARG ) {
+    HVec< Shader3 > ret{};
 
     Shader3 shader{ path, phase, 
         [ &ret, &echo, this ] ( SHADER3_DIRECTIVE directive, const std::string& arg, void* ptr ) -> DWORD {
@@ -120,8 +120,8 @@ HVEC< Shader3 > RenderCluster3::make_or_pull_shader_from_path( const std::filesy
     return ret;
 }
 
-HVEC< ShaderPipe3 > RenderCluster3::make_or_pull_pipe_from_ptr_arr( Shader3* shaders[ 5 ], _ENGINE_COMMS_ECHO_RT_ARG ) {
-    HVEC< ShaderPipe3 > ret{};
+HVec< ShaderPipe3 > RenderCluster3::make_or_pull_pipe_from_ptr_arr( Shader3* shaders[ 5 ], _ENGINE_COMMS_ECHO_RT_ARG ) {
+    HVec< ShaderPipe3 > ret{};
 
     ShaderPipe3 pipe{ shaders,
         [ &ret, &echo, this ] ( SHADER_PIPE3_ATTR attr, const std::string& arg, void* ptr ) -> DWORD {
@@ -145,7 +145,7 @@ HVEC< ShaderPipe3 > RenderCluster3::make_or_pull_pipe_from_ptr_arr( Shader3* sha
 
 
 template< bool query_station >
-static HVEC< ShaderPipe3 > _pipe_from_prefixed_path( RenderCluster3* that, const std::filesystem::path& path, _ENGINE_COMMS_ECHO_RT_ARG ) {
+static HVec< ShaderPipe3 > _pipe_from_prefixed_path( RenderCluster3* that, const std::filesystem::path& path, _ENGINE_COMMS_ECHO_RT_ARG ) {
     struct PHASE_INFO {
         int             idx;
         SHADER3_PHASE   phase;
@@ -172,18 +172,18 @@ static HVEC< ShaderPipe3 > _pipe_from_prefixed_path( RenderCluster3* that, const
     if constexpr( query_station ) {
         return that->make_or_pull_pipe_from_ptr_arr( shaders_ptrs, echo );
     } else {    
-        auto pipe = HVEC< ShaderPipe3 >::allocc( shaders_ptrs, nullptr, echo );
+        auto pipe = HVec< ShaderPipe3 >::allocc( shaders_ptrs, nullptr, echo );
         DWORD status = that->push_pipe( pipe, true, echo );
 
         return pipe;
     }
 }
 
-HVEC< ShaderPipe3 > RenderCluster3::make_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_RT_ARG ) {
+HVec< ShaderPipe3 > RenderCluster3::make_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_RT_ARG ) {
     return _pipe_from_prefixed_path< false >( this, path, echo );
 }
 
-HVEC< ShaderPipe3 > RenderCluster3::make_or_pull_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_RT_ARG ) {
+HVec< ShaderPipe3 > RenderCluster3::make_or_pull_pipe_from_prefixed_path( const std::filesystem::path& path, _ENGINE_COMMS_ECHO_RT_ARG ) {
     return _pipe_from_prefixed_path< true >( this, path, echo );
 }
 

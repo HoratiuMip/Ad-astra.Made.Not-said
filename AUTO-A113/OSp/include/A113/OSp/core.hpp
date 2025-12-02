@@ -49,16 +49,28 @@ struct HVec : public std::shared_ptr< _T > {
 namespace st_att {
 #define _A113_ST_ATT_LOG_PATTERN "[%c] [%^%l%$] [%n] - %v"
 class _Log {
+_A113_PROTECTED:
+    template< typename _T >
+    HVec< spdlog::logger > _make_device( _T&& name_ ) {
+        return spdlog::stdout_color_mt( std::forward< _T >( name_ ) );
+    }
+
+    void _drop_device( void ) {
+        if( _device ) spdlog::drop( _device->name() );
+    }
+
 public:
 #define _A113_ST_ATT__SET_LOG_PATTERN _device->set_pattern( _A113_ST_ATT_LOG_PATTERN )
     _Log() = default;
-    _Log( const char* name_ ) : _device{ spdlog::stdout_color_mt( name_ ) } {
+    _Log( const char* name_ ) : _device{ this->_make_device( name_ ) } {
         _A113_ST_ATT__SET_LOG_PATTERN;
     }
-    _Log( const std::string& name_ ) : _device{ spdlog::stdout_color_mt( name_ ) } {
+    _Log( const std::string& name_ ) : _device{ this->_make_device( name_ ) } {
         _A113_ST_ATT__SET_LOG_PATTERN;
     }
     _Log( HVec< spdlog::logger > other_ ) : _device{ std::move( other_ ) } {}
+
+    ~_Log() { this->_drop_device(); }
 
 _A113_PRIVATE:
     HVec< spdlog::logger >   _device   = nullptr;
@@ -73,11 +85,10 @@ _A113_PROTECTED:
 #undef _A113_ST_ATT__LOG_FWD_FNC
 
 _A113_PROTECTED:
-    A113_inline void morph( const char* name_ ) {
-        _device = spdlog::stdout_color_mt( name_ ); _A113_ST_ATT__SET_LOG_PATTERN;
-    }
-    A113_inline void morph( const std::string& name_ ) {
-        _device = spdlog::stdout_color_mt( name_ ); _A113_ST_ATT__SET_LOG_PATTERN;
+    template< typename _T >
+    A113_inline void morph( _T&& name_ ) {
+        this->_drop_device();
+        _device = this->_make_device( std::forward< _T >( name_ ) ); _A113_ST_ATT__SET_LOG_PATTERN;
     }
 #undef _A113_ST_ATT__SET_LOG_PATTERN
 };

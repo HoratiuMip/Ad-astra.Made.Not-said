@@ -1963,6 +1963,125 @@ SPOT_LOOP_OVR{
 };
 } BRIDGE_COMPASS;
 
+struct _BRIDGE_DRAG : _BRIDGE { 
+    float angleX, biasX;
+    float angleY, biasY;
+
+    float Pxx = 1, Pxb = 0, Pbb = 1;  // covariance matrix for X axis
+    float Pyx = 1, Pyb = 0, Pby = 1;  // covariance matrix for Y axis
+
+    float Q_angle = 0.001;  // process noise
+    float Q_bias  = 0.003;
+    float R_angle = 0.03;   // measurement noise
+
+    unsigned long lastTime;
+
+    float velX=0, velY=0, velZ=0;
+float posX=0, posY=0, posZ=0;
+
+    float accX_prev=0, accY_prev=0, accZ_prev=0;
+float accXF=0, accYF=0, accZF=0;
+float alpha = 0.98;
+    void kalmanUpdate(float accAngle, float gyroRate, float &angle, float &bias,
+                  float &Pxx, float &Pxb, float &Pbb, float dt) {
+
+        // ---- Predict ----
+        angle += (gyroRate - bias) * dt;
+
+        Pxx += dt * (dt*Pbb - Pxb - Pxb + Q_angle);
+        Pxb += dt * (-Pbb);
+        Pbb += Q_bias * dt;
+
+        // ---- Update ----
+        float S = Pxx + R_angle;
+        float Kx = Pxx / S;
+        float Kb = Pxb / S;
+
+        float y = accAngle - angle;
+
+        angle += Kx * y;
+        bias += Kb * y;
+
+        float Pxx_new = Pxx - Kx * Pxx;
+        float Pxb_new = Pxb - Kx * Pxb;
+
+        Pxx = Pxx_new;
+        Pxb = Pxb_new;
+    }
+
+SPOT_LOOP_OVR{ 
+    auto dyn = DYNAM.snapshot_once();
+
+    unsigned long now = micros();
+    float dt = (now - lastTime) / 1000000.0;
+    lastTime = now;
+
+    // Convert raw data
+    float accX = dyn.gran.acc.x;
+    float accY = dyn.gran.acc.y;
+    float accZ = dyn.gran.acc.z;
+
+    float gyroX = dyn.gran.gyr.x;
+    float gyroY = dyn.gran.gyr.y;
+
+    // Calculate accelerometer angles
+    float accAngleX = atan2(accY, accZ) * 180 / PI;
+    float accAngleY = atan2(accX, accZ) * 180 / PI;
+
+    // Kalman update
+    kalmanUpdate(accAngleX, gyroX, angleX, biasX, Pxx, Pxb, Pbb, dt);
+    kalmanUpdate(accAngleY, -gyroY, angleY, biasY, Pyx, Pyb, Pby, dt);
+
+    // ---- Remove gravity to get linear acceleration ----
+    float gX = sin(angleX * PI / 180.0) * 9.81;
+    float gY = -sin(angleY * PI / 180.0) * 9.81;
+    float gZ = cos(angleX * PI / 180.0) * cos(angleY * PI / 180.0) * 9.81;
+
+    float linAccX = accX * 9.81 - gX;
+    float linAccY = accY * 9.81 - gY;
+    float linAccZ = accZ * 9.81 - gZ;
+
+    bool isStill = 
+    fabs(linAccX) < 0.08 &&
+    fabs(linAccY) < 0.08 &&
+    fabs(linAccZ) < 0.10;
+
+    accXF = alpha * (accXF + linAccX - accX_prev);
+    accYF = alpha * (accYF + linAccY - accY_prev);
+    accZF = alpha * (accZF + linAccZ - accZ_prev);
+
+    accX_prev = linAccX;
+    accY_prev = linAccY;
+    accZ_prev = linAccZ;
+
+    // ---- Integrate to velocity ----
+    velX += accXF * dt;
+    velY += accYF * dt;
+    velZ += accZF * dt;
+
+    posX += velX * dt;
+    posY += velY * dt;
+    posZ += velZ * dt;
+
+    if (isStill) {
+        velX = 0;
+        velY = 0;
+        velZ = 0;
+    }
+
+    if (isStill) {
+    posX = posX;
+    posY = posY;
+    posZ = posZ;
+}
+
+
+    YUNA.setTextSize( 1 );
+    YUNA.printf_av( YunaAV_C, _CAGE_MX, _CAGE_MY, "%.2f", posX );
+    YUNA.setTextSize( 1 );
+};
+} BRIDGE_DRAG;
+
 struct _BRIDGE_WAVE : _BRIDGE {
     inline static constexpr int   FREQ_LOW[ 2 ]    = { 1, 20 };
     inline static constexpr int   FREQ_HIGH[ 2 ]   = { 20, 4'200 };
@@ -2225,8 +2344,9 @@ int _CONFIG_BRDG_MODE::init( void ) {
     BRIDGE_TOOLS.subs[ 0 ] = &BRIDGE_LASER;
     BRIDGE_TOOLS.subs[ 1 ] = &BRIDGE_SONAR;
     BRIDGE_TOOLS.subs[ 2 ] = &BRIDGE_COMPASS;
-    BRIDGE_TOOLS.subs[ 3 ] = &BRIDGE_WAVE;
-    BRIDGE_TOOLS.subs[ 4 ] = &BRIDGE_HEART;
+    BRIDGE_TOOLS.subs[ 3 ] = &BRIDGE_DRAG;
+    BRIDGE_TOOLS.subs[ 4 ] = &BRIDGE_WAVE;
+    BRIDGE_TOOLS.subs[ 5 ] = &BRIDGE_HEART;
 
     BRIDGE_GAMES.name = "games";
     BRIDGE_GAMES.sup = &BRIDGE_HOME;
@@ -2253,6 +2373,9 @@ int _CONFIG_BRDG_MODE::init( void ) {
 
     BRIDGE_COMPASS.name = "compass";
     BRIDGE_COMPASS.sup = &BRIDGE_TOOLS;
+
+    BRIDGE_DRAG.name = "drag";
+    BRIDGE_DRAG.sup = &BRIDGE_TOOLS;
 
     BRIDGE_WAVE.name = "wave";
     BRIDGE_WAVE.sup = &BRIDGE_TOOLS;

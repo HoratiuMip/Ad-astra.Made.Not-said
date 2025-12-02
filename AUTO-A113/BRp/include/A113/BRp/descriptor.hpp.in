@@ -45,4 +45,9 @@ struct MDsc {
 };
 
 
+#ifndef _BV
+    #define _BV(b) (0x1<<b)
+#endif
+
+
 

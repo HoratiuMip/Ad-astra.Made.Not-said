@@ -130,9 +130,13 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
         return -0x1;
     }
 
-    _conn.sock = in_sock;
+    _conn.sock     = in_sock;
+    _conn.addr     = in_desc.sin_addr.s_addr;
+    _conn.addr_str = ipv4_addr_str_t::from( _conn.addr );
+    _conn.port     = in_desc.sin_port;
     _conn.alive.store( true, std::memory_order_release );
 
+    _Log::morph( std::format( "{}//io::IPv4_TCP_socket//{}:{}", A113_VERSION_STRING, ( char* )_conn.addr_str, _conn.port ) );
     _Log::info( "Accepted {}:{}.", ( char* )_conn.addr_str, _conn.port );
 
     return status;

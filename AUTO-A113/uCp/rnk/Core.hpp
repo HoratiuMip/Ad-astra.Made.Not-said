@@ -8,11 +8,13 @@
 
 #include <Arduino.h>
 
+#include <driver/gpio.h>
+#include <esp_task_wdt.h>
+
 #include <atomic>
-#include <memory>
 
 
-#define RNK_inline inline
+#define RNK_inline    inline
 #define RNK_PROTECTED protected
 
 #define RNK_ASSERT_OR( cond ) if( !(cond) )
@@ -21,18 +23,18 @@
 namespace rnk {
 
 
-template< typename _T > class Atomic : public std::atomic< _T > {};
+template< typename _T > class Atomic : public std::atomic< _T > {
+public: using std::atomic< _T >::atomic;
+};
 
 
 struct MDsc { uint8_t* ptr; size_t sz; };
 
 
-inline const char*   TAG   = "RNK";
-
-typedef   uint8_t   pin_t;
-typedef   int       status_t;
-typedef   int16_t   pwm_t;
-typedef   int64_t   time_hr_t;
+typedef   gpio_num_t   pin_t;
+typedef   int          status_t;
+typedef   int16_t      pwm_t;
+typedef   int64_t      time_hr_t;
 
 enum TaskPriority_ {
     TaskPriority_Idle = tskIDLE_PRIORITY,
@@ -44,68 +46,46 @@ enum TaskPriority_ {
     TaskPriority_Mach
 };
 
-#ifndef RNK_KILL_LOGS_LEVEL
-    #define RNK_KILL_LOGS_LEVEL 0x0
-#endif
-inline struct _LOG {
-    HardwareSerial*   _port;
 
-    template< typename ...Args > RNK_inline void error( const char* fmt, Args&&... args ) {
-    #if RNK_KILL_LOGS_LEVEL < 0x3
-        _port->printf( "[%s] [error] -> ", TAG );
-        _port->printf( fmt, std::forward< Args >( args )... );
-        _port->println();
-    #endif
-    }
+constexpr gpio_num_t operator"" _pin( unsigned long long int pin_ ) {
+    return ( gpio_num_t )pin_;
+}
 
-    template< typename ...Args > RNK_inline void warn( const char* fmt, Args&&... args ) {
-    #if RNK_KILL_LOGS_LEVEL < 0x2
-        _port->printf( "[%s] [warn] -> ", TAG );
-        _port->printf( fmt, std::forward< Args >( args )... );
-        _port->println();
-    #endif
-    }
-
-    template< typename ...Args > RNK_inline void info( const char* fmt, Args&&... args ) {
-    #if RNK_KILL_LOGS_LEVEL < 0x1
-        _port->printf( "[%s] [info] -> ", TAG );
-        _port->printf( fmt, std::forward< Args >( args )... );
-        _port->println();
-    #endif
-    }
-
-} Log;
+constexpr TickType_t operator"" _ms2t( unsigned long long int ms_ ) {
+    return ms_ / portTICK_PERIOD_MS;
+}
 
 
-struct miru_begin_args_t {
-    const char*       tag;
-    HardwareSerial*   log_port;
-    int               log_baud;
-};
+namespace core {
+    struct pin_map_t {
+       pin_t   Q_seppuku; 
+    } pin_map;
 
-class _MIRU {
-public:
-    status_t begin( const miru_begin_args_t& args ) {
-        if( args.tag ) TAG = args.tag;
+    struct begin_args_t {
+        pin_map_t   pin_map;
+    };
 
-        Log._port = args.log_port;
-        Log._port->begin( args.log_baud );
+    status_t begin( const begin_args_t& args_ ) {
+        pin_map = args_.pin_map;
+
+        disableCore0WDT();
 
         return 0x0;
     }
 
-public:
-    void after_failsafe( pin_t pin ) {
+    void seppuku( void ) {
         vTaskSuspendAll();
-        pinMode( pin, OUTPUT );
-    for(;;) {
-        digitalWrite( pin, 0x1 );
-        vTaskDelay( 166 );
-        digitalWrite( pin, 0x0 );
-        vTaskDelay( 166 );
+    
+        if( pin_map.Q_seppuku ) gpio_set_direction( pin_map.Q_seppuku, GPIO_MODE_OUTPUT );
+
+    for( int n = 0; true ; ++n ) {
+        if( not pin_map.Q_seppuku ) { vTaskDelay( 1000_ms2t ); continue; }
+        gpio_set_level( pin_map.Q_seppuku, HIGH ); vTaskDelay( 100_ms2t );
+        gpio_set_level( pin_map.Q_seppuku, LOW ); vTaskDelay( 100_ms2t );
+        if( 0 == n % 6 ) vTaskDelay( 1000_ms2t );
     } }
 
-}; inline _MIRU Miru;
+};
 
 
 };

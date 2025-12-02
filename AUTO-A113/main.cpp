@@ -1,5 +1,5 @@
-#include <A113/BRp/block_diffuser.hpp>
-//#include <A113/OSp/render3.hpp>
+//#include <A113/BRp/block_diffuser.hpp>
+#include <A113/OSp/render3.hpp>
 
 #include <thread>
 #include <string>
@@ -13,8 +13,8 @@ struct X {
 };
 
 int main( int argc, char* argv[] ) {
-    // A113::OSp::RenderCluster cluster{ nullptr };
-    // cluster.pipe_cache().make_pipe_from_prefixed_path( "C:/Hackerman/Git/For_Academical_Purposes/IXN/Ruptures/warc/imm/earth/earth" );
+    a113::render::Cluster cluster{ nullptr };
+    cluster.pipe_cache().make_pipe_from_prefixed_path( "C:/Hackerman/Git/For_Academical_Purposes/IXN/Ruptures/warc/imm/earth/earth" );
 
 
     // Block_diffuser< X > bf;

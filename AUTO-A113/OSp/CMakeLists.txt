@@ -26,11 +26,13 @@ add_library( ImGui STATIC
     ${_imgui_source_files} 
     "${_chain_dir}/imgui/misc/cpp/imgui_stdlib.cpp" 
     "${_chain_dir}/imgui/backends/imgui_impl_opengl3.cpp" 
+    "${_chain_dir}/imgui/backends/imgui_impl_glfw.cpp" 
 )
 target_include_directories( ImGui 
     PUBLIC "${_chain_dir}/imgui/" 
     PUBLIC "${_chain_dir}/imgui/misc/cpp/"
     PUBLIC "${_chain_dir}/imgui/backends/"
+    PUBLIC "${_chain_dir}/glfw/include"
 )
 file( GLOB _implot_source_files "${_chain_dir}/implot/*.cpp" )
 add_library( ImPlot STATIC ${_implot_source_files} )
@@ -91,10 +93,10 @@ target_include_directories( A113_OSp
 
 ## Utilities
 set( _all_includes_str "" )
-file( GLOB _include_files RELATIVE "${CMAKE_CURRENT_LIST_DIR}/include/" "${CMAKE_CURRENT_LIST_DIR}/include/A113/OSp/*.hpp" )
+file( GLOB _include_files RELATIVE "${CMAKE_CURRENT_LIST_DIR}/include/" "${CMAKE_CURRENT_LIST_DIR}/include/a113/osp/*.hpp" )
 
 foreach( include_file ${_include_files} )
     string( APPEND _all_includes_str "#include <${include_file}>\n" )
 endforeach()
 
-configure_file( "${CMAKE_CURRENT_LIST_DIR}/include/A113/OSp/OSp.hpp.in" "${CMAKE_CURRENT_LIST_DIR}/include/A113/OSp/OSp.hpp" )
+configure_file( "${CMAKE_CURRENT_LIST_DIR}/include/a113/osp/osp.hpp.in" "${CMAKE_CURRENT_LIST_DIR}/include/a113/osp/osp.hpp" )

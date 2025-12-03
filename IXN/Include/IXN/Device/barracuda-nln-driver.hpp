@@ -91,7 +91,7 @@ public:
 
         WJP_WAIT_BACK_INFO info;
         int ret = this->wait_back( 
-            &info, WJPOp_Ping, 
+            &info, WJPOp_Heart, 
             WJP_CBUFFER{ addr: nullptr, sz: 0 }, 
             WJP_BUFFER{ addr: nullptr, sz: 0 }, 
             WJPSendMethod_Direct 

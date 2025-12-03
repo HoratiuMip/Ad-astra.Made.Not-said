@@ -19,7 +19,7 @@
 #define _A113_PROTECTED protected
 #define _A113_PRIVATE   private
 
-#define A113_ASSERT_OR( cond ) if( false == (cond) )
+#define A113_ASSERT_OR( cond ) if( !(cond) )
 
 
 #include <cstdint>

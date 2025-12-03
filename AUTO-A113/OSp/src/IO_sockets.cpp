@@ -5,7 +5,7 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <A113/OSp/IO_sockets.hpp>
+#include <a113/osp/IO_sockets.hpp>
 
 namespace a113 { namespace io {
 

@@ -6,10 +6,10 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <A113/OSp/core.hpp>
+#include <a113/osp/core.hpp>
 
-#include <A113/BRp/IO_port.hpp>
-#include <A113/BRp/IO_string_utils.hpp>
+#include <a113/brp/IO_port.hpp>
+#include <a113/brp/IO_string_utils.hpp>
 
 
 namespace a113 { namespace io { 

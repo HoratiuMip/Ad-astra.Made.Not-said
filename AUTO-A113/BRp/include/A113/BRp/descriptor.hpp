@@ -15,7 +15,7 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #define A113_VERSION_MAJOR 1
 #define A113_VERSION_MINOR 0
 #define A113_VERSION_PATCH 0
-#define A113_VERSION_STRING "AUTO-A113v1.0.0"
+#define A113_VERSION_STRING "auto-a113v1.0.0"
 
 #define A113_inline inline
 #define A113_IMPL_FNC
@@ -23,7 +23,7 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #define _A113_PROTECTED protected
 #define _A113_PRIVATE   private
 
-#define A113_ASSERT_OR( cond ) if( false == (cond) )
+#define A113_ASSERT_OR( cond ) if( !(cond) )
 
 
 #include <cstdint>
@@ -47,6 +47,11 @@ struct MDsc {
 
 
 };
+
+
+#ifndef _BV
+    #define _BV(b) (0x1<<b)
+#endif
 
 
 

@@ -6,8 +6,8 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <A113/BRp/descriptor.hpp>
-#include <A113/BRp/IO_port.hpp>
+#include <a113/brp/descriptor.hpp>
+#include <a113/brp/IO_port.hpp>
 
 #include <wjpv3_devices.hpp>
 

@@ -5,7 +5,7 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <A113/OSp/core.hpp>
+#include <a113/osp/core.hpp>
 
 namespace a113 {
 

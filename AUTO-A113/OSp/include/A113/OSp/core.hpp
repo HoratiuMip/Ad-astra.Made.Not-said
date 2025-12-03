@@ -6,7 +6,7 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <A113/BRp/descriptor.hpp>
+#include <a113/brp/descriptor.hpp>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -47,7 +47,7 @@ struct HVec : public std::shared_ptr< _T > {
 
 
 namespace st_att {
-#define _A113_ST_ATT_LOG_PATTERN "[%c] [%^%l%$] [%n] - %v"
+#define _A113_ST_ATT_LOG_PATTERN "[%^%l%$] \t [%c] [%n] - %v"
 class _Log {
 _A113_PROTECTED:
     template< typename _T >
@@ -102,7 +102,7 @@ enum InitFlags_ {
 struct init_args_t {
     int   flags   = InitFlags_None;
 };
-class INTERNAL : st_att::_Log {
+class INTERNAL : public st_att::_Log {
 _A113_PROTECTED:
     struct {
     #ifdef A113_TARGET_OS_WINDOWS
@@ -113,6 +113,13 @@ _A113_PROTECTED:
 
 public:
     status_t init( int argc_, char* argv_[], const init_args_t& args_ );
+
+public:
+    using st_att::_Log::debug;
+    using st_att::_Log::info;
+    using st_att::_Log::warn;
+    using st_att::_Log::error;
+    using st_att::_Log::critical;
 
 }; inline INTERNAL _Internal;
 

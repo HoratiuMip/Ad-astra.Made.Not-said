@@ -8,7 +8,7 @@ project(
 set( A113_VERSION_MAJOR 1 )
 set( A113_VERSION_MINOR 0 )
 set( A113_VERSION_PATCH 0 )
-set( A113_VERSION_STRING "AUTO-A113v1.0.0" )
+set( A113_VERSION_STRING "auto-a113v1.0.0" )
 
 set( CMAKE_CXX_STANDARD 23 )
 set( CMAKE_CXX_EXTENSIONS ON )
@@ -63,21 +63,21 @@ endfunction( A113_Fnc_CloneRepo )
 
 
 message( STATUS "[A113] Adding the bedrock plate subdirectory." )
-add_subdirectory( "BRp" )
+add_subdirectory( "brp" )
 
 if( A113_Opt_TargetPlate_uC )
     message( STATUS "[A113] Adding the micro-controller plate subdirectory." )
-    add_subdirectory( "uCp" )
+    add_subdirectory( "ucp" )
 endif()
 
 if( A113_Opt_TargetPlate_OS )
     message( STATUS "[A113] Adding the operating-system plate subdirectory." )
-    add_subdirectory( "OSp" )
+    add_subdirectory( "osp" )
 endif()
 
 
 foreach( framework ${A113_MAKE_FRAMEWORKS} )
-    add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/Fwk/${framework}" )
+    add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/fwork/${framework}" )
 endforeach()
 
 foreach( rupture ${A113_MAKE_RUPTURES} )
@@ -88,5 +88,6 @@ endforeach()
 add_executable( "main" "${CMAKE_CURRENT_LIST_DIR}/main.cpp" )
 target_link_libraries( main 
     PUBLIC A113_BRp
-    PUBLIC A113_OSp 
+    PUBLIC A113_OSp
+    PUBLIC A113_Fwork_immersive
 )

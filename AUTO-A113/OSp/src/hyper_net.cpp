@@ -5,7 +5,7 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-#include <A113/OSp/hyper_net.hpp>
+#include <a113/osp/hyper_net.hpp>
 
 
 namespace a113 { namespace hyn {

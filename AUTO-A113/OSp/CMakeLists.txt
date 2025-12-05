@@ -100,3 +100,6 @@ foreach( include_file ${_include_files} )
 endforeach()
 
 configure_file( "${CMAKE_CURRENT_LIST_DIR}/include/a113/osp/osp.hpp.in" "${CMAKE_CURRENT_LIST_DIR}/include/a113/osp/osp.hpp" )
+
+
+add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/fondles" )

@@ -8,7 +8,7 @@
 #include <imgui_impl_opengl3.h>
 #include <implot.h>
 
-namespace a113 { namespace fwork {
+namespace a113 { namespace clkwrk {
 
 
 class Immersive : public st_att::_Log {

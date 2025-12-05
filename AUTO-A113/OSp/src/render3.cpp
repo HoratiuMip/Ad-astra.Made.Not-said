@@ -5,7 +5,7 @@
  * @authors: Vatca "Mipsan" Tudor-Horatiu
  */
 
-//#include <a113/osp/render3.hpp>
+#include <a113/osp/render3.hpp>
 
 namespace A113 { namespace OSp {
  

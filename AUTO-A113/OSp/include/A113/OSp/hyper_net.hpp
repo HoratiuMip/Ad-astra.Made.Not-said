@@ -16,93 +16,114 @@ typedef   float   dt_t;
 
 template< typename _T > using qlist_t = std::list< _T >;
 
-struct exec_proc_args_t {
+struct tok_exec_args_t {
     dt_t   dt;
     int    sexecc;
 };
 
-class Sink;
-class Drain;
+class Port;
+class Route;
 class Token;
 
 
-class Sink { friend class Executor;
+class Port { friend class Executor;
 public:
     struct config_t {
         std::string   str_id   = {};
     } config;
 
+_A113_PROTECTED:
+    struct _runtime_t {
+        qlist_t< qlist_t< HVec< Token > >::iterator >   toks   = {};
+    } _runtime;
+
 public:
-    Sink( const config_t& config_ )
+    Port( const config_t& config_ )
     : config{ config_ }
     {}
 
 _A113_PROTECTED:
-    qlist_t< Drain* >   _drains   = {};
+    qlist_t< Route* >   _routes   = {};
 
 public:
-    virtual status_t HyN_exec_proc( Token* tok_, exec_proc_args_t args_ ) {
+    virtual status_t HyN_tok_exec( Token* tok_, const tok_exec_args_t& args_ ) {
         return 0x0;
     }
 
 };
 
-class Drain { friend class Executor;
+class Route { friend class Executor;
 public:
     struct config_t {
-        std::string   str_id     = {};
-
-        int           _engaged   = 0x1;   
-        int           _forced    = 0x0;
+        std::string   str_id   = {};
     } config;
 
-public:
-    Drain() = default;
+_A113_PROTECTED:
+    struct _runtime_t {
+        int   last_rte_clk      = 0x0;
+        int   crt_clk_rte_cnt   = 0;
+    } _runtime;
 
-    Drain( const config_t& config_ )
+public:
+    struct in_plan_t {
+        Port*   prt           = nullptr;
+
+        int     flight_mode   = 0x0;
+        int     min_tok_cnt   = 1;
+        int     rte_tok_cnt   = 1;
+    };
+
+    struct out_plan_t {
+        Port*   prt   = nullptr;
+    };
+
+public:
+    Route() = default;
+
+    Route( const config_t& config_ )
     : config{ config_ }
-    {
-        std::atomic_ref< int >{ config._engaged }.store( 0x1, std::memory_order_release );
-    }
+    {}
 
 _A113_PROTECTED:
-    qlist_t< Sink* >   _sinks   = {};
+    qlist_t< in_plan_t >    _inputs    = {};
+    qlist_t< out_plan_t >   _outputs   = {};
 
 public:
-    A113_inline void HyN_force( void ) { 
-        std::atomic_ref< int >{ config._forced }.store( 0x1, std::memory_order_release ); 
+    virtual status_t HyN_assert_input( Token* tok_ ) {
+        return 0x1;
     }
-
-public:
-    virtual status_t HyN_assert_proc( Token* tok_ ) = 0;
 
 };
 
 class Token { friend class Executor;
 public:
     struct config_t {
-        std::string   str_id    = {};
-
-        int           _sexecc   = 0x0;
+        std::string   str_id      = {};
     } config; 
+
+_A113_PROTECTED:
+    struct _runtime_t {
+        Port*   prt            = nullptr;
+        int     last_rte_clk   = 0x0;
+        int     sexecc         = 0;
+    } _runtime;
 
 public:
     Token() = default;
 
+    Token( const config_t& config_ )
+    : config{ config_ }
+    {}
+
 _A113_PROTECTED:
-    Sink*   _sink     = nullptr;
 
 public:
-    virtual status_t HyN_when_drained( Drain* drn_, status_t drn_res_ ) {
+    virtual status_t HyN_when_routed( Route* rte_, status_t rte_status_ ) {
         return 0x0;
     }
 
-    virtual HVec< Token > HyN_split( Sink* snk_ ) {
-        return nullptr;
-    }
-
-    virtual status_t HyN_exec_proc( Sink* snk_, exec_proc_args_t args_ ) {
-        return 0x0;
+    virtual HVec< Token > HyN_split( int offset_, Route& rte_ ) {
+        return new Token{};
     }
 
 };
@@ -117,52 +138,37 @@ public:
     {}
 
 _A113_PROTECTED:
+    int                                   _clock           = 0x0;
+
     qlist_t< HVec< Token > >              _tokens          = {};
-    qlist_t< HVec< Sink > >               _sinks           = {};
-    qlist_t< HVec< Drain > >              _drains          = {};
+    qlist_t< HVec< Port > >               _ports           = {};
+    qlist_t< HVec< Route > >              _routes          = {};
 
     std::shared_mutex                     _clock_mtx       = {};
  
-    std::map< str_id_t, HVec< Sink > >    _str_id2sinks    = {};
-    std::map< str_id_t, HVec< Drain > >   _str_id2drains   = {};
+    std::map< str_id_t, HVec< Port > >    _str_id2ports    = {};
+    std::map< str_id_t, HVec< Route > >   _str_id2routes   = {};
 
 public:
-    HVec< Sink > push_sink( HVec< Sink > snk_ );
-    Sink* pull_sink_weak( str_id_t snk_ );
-    A113_inline Sink* operator () ( str_id_t snk_ ) { return this->pull_sink_weak( snk_ ); }
+    HVec< Port > push_port( HVec< Port > prt_ );
+    Port* pull_port_weak( str_id_t prt_ );
+    A113_inline Port* operator () ( str_id_t prt_ ) { return this->pull_port_weak( prt_ ); }
 
-    HVec< Drain > push_drain( HVec< Drain > drn_ );
-    Drain* pull_drain_weak( str_id_t drn_ );
-    A113_inline Drain* operator [] ( str_id_t drn_ ) { return this->pull_drain_weak( drn_ ); }
+    HVec< Route > push_route( HVec< Route > rte_ );
+    Route* pull_route_weak( str_id_t rte_ );
+    A113_inline Route* operator [] ( str_id_t rte_ ) { return this->pull_route_weak( rte_ ); }
 
 public:
-    status_t bind_SDS( str_id_t snk1_, str_id_t drn_, str_id_t snk2_ );
-    status_t bind_SD( str_id_t snk_, str_id_t drn_ );
+    status_t bind_PRP( str_id_t in_prt_, str_id_t rte_, str_id_t out_prt_, const Route::in_plan_t& in_pln_, const Route::out_plan_t& out_pln_ );
+    status_t bind_RP( str_id_t rte_, str_id_t out_prt_, const Route::out_plan_t& out_pln_ );
 
-    status_t inject( str_id_t snk_, HVec< Token > tok_ );
+    status_t inject( str_id_t prt_, HVec< Token > tok_ );
+
+public:
+    status_t integrity_assert( void );
 
 public:
     int clock( dt_t dt_ );
-
-};
-
-
-class Drain_Lambda : public Drain {
-public:
-    typedef   std::function< status_t( Token* ) >   assert_proc_t;
-
-public:
-    Drain_Lambda( const Drain::config_t& config_, assert_proc_t assert_proc_ )
-    : Drain{ config_ }, _assert_proc( assert_proc_ )
-    {}
-
-_A113_PROTECTED:
-    assert_proc_t   _assert_proc   = {};
-
-public:
-    virtual status_t HyN_assert_proc( Token* tok_ ) override {
-        return _assert_proc( tok_ );
-    }
 
 };
 

@@ -76,18 +76,10 @@ if( A113_Opt_TargetPlate_OS )
 endif()
 
 
-foreach( framework ${A113_MAKE_FRAMEWORKS} )
-    add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/fwork/${framework}" )
+foreach( clockwork ${A113_MAKE_CLOCKWORKS} )
+    add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/clkwrk/${clockwork}" )
 endforeach()
 
 foreach( rupture ${A113_MAKE_RUPTURES} )
     add_subdirectory( "${CMAKE_CURRENT_LIST_DIR}/Ruptures/${rupture}" )
 endforeach()
-
-
-add_executable( "main" "${CMAKE_CURRENT_LIST_DIR}/main.cpp" )
-target_link_libraries( main 
-    PUBLIC A113_BRp
-    PUBLIC A113_OSp
-    PUBLIC A113_Fwork_immersive
-)

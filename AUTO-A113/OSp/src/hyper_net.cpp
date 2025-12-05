@@ -12,107 +12,134 @@ namespace a113 { namespace hyn {
 
 
 A113_IMPL_FNC int Executor::clock( dt_t dt_ ) {
-    status_t     result      = 0x0;
-    auto       tok         = _tokens.begin();
+    status_t   status      = 0x0;
+    auto       tok_itr     = _tokens.begin();
     const int  tok_cnt_lim = _tokens.size();
     int        tok_cnt     = 0x0;
 
     std::unique_lock clock_lock{ _clock_mtx };
-    for(; tok != _tokens.end() && tok_cnt < tok_cnt_lim; ++tok_cnt ) {
-        for( auto& drn : (*tok)->_sink->_drains ) {
-            if( 0x0 == std::atomic_ref< int >{ drn->config._engaged }.load( std::memory_order_relaxed ) ) continue;
+    for(; tok_itr != _tokens.end() && tok_cnt < tok_cnt_lim; ++tok_cnt ) {
+        bool tok_itr_modified = false;
+
+        if( (*tok_itr)->_runtime.last_rte_clk == _clock ) goto l_end;
+
+        for( Route* rte : (*tok_itr)->_runtime.prt->_routes ) {
+            if( rte->_runtime.last_rte_clk == _clock ) continue;
+
+            for( Route::in_plan_t& in : rte->_inputs ) if( in.min_tok_cnt > in.prt->_runtime.toks.size() ) continue;
+
+            /* Individual assert here... */
+
+            qlist_t< Route::in_plan_t >::iterator  in_itr  = rte->_inputs.begin();
+            qlist_t< Route::out_plan_t >::iterator out_itr = rte->_outputs.begin(), eff_out_itr = out_itr;
             
-            result = drn->HyN_assert_proc( &**tok );
-            if( 0x0 == result ) goto l_exec_token;
-            _Log::debug( "DRAIN[\"{}\"] asserted TOKEN[\"{}\"] from SINK[\"{}\"].", drn->config.str_id, (*tok)->config.str_id,(*tok)->_sink->config.str_id );
+            for(; in_itr != rte->_inputs.end(); ++in_itr ) {
+                qlist_t< qlist_t< HVec< Token > >::iterator >::iterator in_prt_tok_itr = in_itr->prt->_runtime.toks.begin();
 
-            result = (*tok)->HyN_when_drained( drn, result );
-            if( 0x0 != result || drn->_sinks.empty() ) goto l_pop_token;
+                for( int n = 1; n <= in_itr->rte_tok_cnt && in_prt_tok_itr != in_itr->prt->_runtime.toks.end(); ++n ) {
+                    qlist_t< HVec< Token > >::iterator flight_tok_itr = *in_prt_tok_itr;
 
-            auto drn_snk = drn->_sinks.begin();
-            (*tok)->_sink = *drn_snk;
-            (*tok)->config._sexecc = 0x0;
+                    eff_out_itr = out_itr;
 
-            ++drn_snk;
-            for(; drn_snk != drn->_sinks.end(); ++drn_snk ) {
-                auto spl_tok = (*tok)->HyN_split( *drn_snk );
-                if( nullptr != spl_tok ) _tokens.emplace_back( std::move( spl_tok ) );
+                    in_prt_tok_itr = in_itr->prt->_runtime.toks.erase( in_prt_tok_itr );
+                    if( eff_out_itr == rte->_outputs.end() || -0x1 == in_itr->flight_mode ) {
+                        _Log::debug( "ROUTE[\"{}\"] ejected TOKEN[\"{}\"].", rte->config.str_id, (*flight_tok_itr)->config.str_id );
+
+                        if( tok_itr == flight_tok_itr ) { tok_itr_modified = true; tok_itr = _tokens.erase( tok_itr ); }
+                        else _tokens.erase( flight_tok_itr );
+                        continue;
+                    }
+                    
+                    eff_out_itr->prt->_runtime.toks.push_back( flight_tok_itr );
+                    (*flight_tok_itr)->_runtime.prt          = eff_out_itr->prt;
+                    (*flight_tok_itr)->_runtime.last_rte_clk = _clock;
+                    rte->_runtime.last_rte_clk               = _clock;
+
+                    _Log::debug( "ROUTE[\"{}\"] flew TOKEN[\"{}\"] from PORT[\"{}\"] to PORT[\"{}\"].", rte->config.str_id, (*flight_tok_itr)->config.str_id, in_itr->prt->config.str_id, eff_out_itr->prt->config.str_id );
+
+                    ++eff_out_itr;
+                    for( int m = 1; m <= in_itr->flight_mode && eff_out_itr != rte->_outputs.end(); ++m, ++eff_out_itr ) {
+                        Token* spl_tok = &**eff_out_itr->prt->_runtime.toks.emplace_back( _tokens.insert( _tokens.end(), (*flight_tok_itr)->HyN_split( m, *rte ) ) );
+                        spl_tok->_runtime.prt = eff_out_itr->prt;
+                        _Log::debug( "TOKEN[\"{}\"] splitted in PORT[\"{}\"].", spl_tok->config.str_id, eff_out_itr->prt->config.str_id );
+                    }
+                }
+
+                out_itr = eff_out_itr;
             }
+            
+            if( out_itr != rte->_outputs.end() ) _Log::warn( "ROUTE[\"{}\"] did not fill all output ports.", rte->config.str_id );
         }
-        goto l_end;
-
-    l_exec_token: {
-        exec_proc_args_t proc_args = {
-            dt:     dt_,
-            sexecc: (*tok)->config._sexecc 
-        };
-
-        result = (*tok)->_sink->HyN_exec_proc( &**tok, proc_args );
-        if( 0x0 != result ) goto l_pop_token;
-
-        result = (*tok)->HyN_exec_proc( (*tok)->_sink, proc_args );
-        if( 0x0 != result ) goto l_pop_token;
-
-        ++(*tok)->config._sexecc;
-        goto l_end;
-    }
-    l_pop_token:
-        _Log::debug( "Removed TOKEN[\"{}\"] due to status_t[{}].", (*tok)->config.str_id, result );
-        tok = _tokens.erase( tok );
-        continue;
 
     l_end:
-        ++tok;
+        if( not tok_itr_modified ) ++tok_itr;
     }
 
+    ++_clock;
     return tok_cnt;
 }
 
 
-A113_IMPL_FNC HVec< Sink > Executor::push_sink( HVec< Sink > snk_ ) {
-    HVec< Sink >& snk = _sinks.emplace_back( std::move( snk_ ) );
-    _str_id2sinks[ snk->config.str_id ] = snk;
-    return snk;
+A113_IMPL_FNC HVec< Port > Executor::push_port( HVec< Port > prt_ ) {
+    HVec< Port >& prt = _ports.emplace_back( std::move( prt_ ) );
+    _str_id2ports[ prt->config.str_id ] = prt;
+
+    _Log::debug( "Pushed PORT[\"{}\"].", prt->config.str_id );
+    return prt;
 }
 
-A113_IMPL_FNC Sink* Executor::pull_sink_weak( str_id_t snk_ ) {
-    auto itr = _str_id2sinks.find( snk_ );
-    return itr != _str_id2sinks.end() ? &*(itr->second) : nullptr;
-}
-
-
-A113_IMPL_FNC HVec< Drain > Executor::push_drain( HVec< Drain > drn_ ) {
-    auto& drn = _drains.emplace_back( std::move( drn_ ) );
-    _str_id2drains[ drn->config.str_id ] = drn;
-    return drn;
-}
-
-A113_IMPL_FNC Drain* Executor::pull_drain_weak( str_id_t drn_str_id_ ) {
-    auto itr = _str_id2drains.find( drn_str_id_ );
-    return itr != _str_id2drains.end() ? &*(itr->second) : nullptr;
+A113_IMPL_FNC Port* Executor::pull_port_weak( str_id_t prt_ ) {
+    auto itr = _str_id2ports.find( prt_ );
+    return itr != _str_id2ports.end() ? &*(itr->second) : nullptr;
 }
 
 
-A113_IMPL_FNC status_t Executor::bind_SDS( str_id_t snk1_, str_id_t drn_, str_id_t snk2_ ) {
-    auto* drn = this->pull_drain_weak( drn_ );
-    this->pull_sink_weak( snk1_ )->_drains.push_back( drn );
-    drn->_sinks.push_back( this->pull_sink_weak( snk2_ ) );
+A113_IMPL_FNC HVec< Route > Executor::push_route( HVec< Route > rte_ ) {
+    auto& rte = _routes.emplace_back( std::move( rte_ ) );
+    _str_id2routes[ rte->config.str_id ] = rte;
+
+    _Log::debug( "Pushed ROUTE[\"{}\"].", rte->config.str_id );
+    return rte;
+}
+
+A113_IMPL_FNC Route* Executor::pull_route_weak( str_id_t rte_str_id_ ) {
+    auto itr = _str_id2routes.find( rte_str_id_ );
+    return itr != _str_id2routes.end() ? &*(itr->second) : nullptr;
+}
+
+
+A113_IMPL_FNC status_t Executor::bind_PRP( str_id_t in_prt_, str_id_t rte_, str_id_t out_prt_, const Route::in_plan_t& in_pln_, const Route::out_plan_t& out_pln_ ) {
+    Route* rte     = this->pull_route_weak( rte_ );    A113_ASSERT_OR( rte ) { _Log::error( "ROUTE[\"{}\"] does not exist.", rte_ ); return -0x1; }
+    Port*  in_prt  = this->pull_port_weak( in_prt_ );  A113_ASSERT_OR( in_prt ) { _Log::error( "Input PORT[\"{}\"] does not exist.", in_prt_ ); return -0x1; }
+    Port*  out_prt = this->pull_port_weak( out_prt_ ); A113_ASSERT_OR( out_prt ) { _Log::error( "Output PORT[\"{}\"] does not exist.", out_prt_ ); return -0x1; }
+
+    in_prt->_routes.push_back( rte );
+    rte->_inputs.emplace_back( in_pln_ ).prt   = in_prt;
+    rte->_outputs.emplace_back( out_pln_ ).prt = out_prt;
+
+    _Log::debug( "Bound PORT[\"{}\"] -> ROUTE[\"{}\"] -> PORT[\"{}\"].", in_prt->config.str_id, rte->config.str_id, out_prt->config.str_id );
     return 0x0;
 }
 
-A113_IMPL_FNC status_t Executor::bind_SD( str_id_t snk_, str_id_t drn_ ) {
-    this->pull_sink_weak( snk_ )->_drains.push_back( this->pull_drain_weak( drn_ ) );
+A113_IMPL_FNC status_t Executor::bind_RP( str_id_t rte_, str_id_t out_prt_, const Route::out_plan_t& out_pln_ ) {
+    Route* rte     = this->pull_route_weak( rte_ );    A113_ASSERT_OR( rte ) { _Log::error( "ROUTE[\"{}\"] does not exist.", rte_ ); return -0x1; }
+    Port*  out_prt = this->pull_port_weak( out_prt_ ); A113_ASSERT_OR( out_prt ) { _Log::error( "Output PORT[\"{}\"] does not exist.", out_prt_ ); return -0x1; }
+
+    rte->_outputs.emplace_back( out_pln_ ).prt = out_prt;
+
+    _Log::debug( "Bound ROUTE[\"{}\"] -> PORT[\"{}\"].", rte->config.str_id, out_prt->config.str_id );
     return 0x0;
 }
 
-A113_IMPL_FNC status_t Executor::inject( str_id_t snk_, HVec< Token > tok_ ) {
+A113_IMPL_FNC status_t Executor::inject( str_id_t prt_, HVec< Token > tok_ ) {
     std::unique_lock clock_lock{ _clock_mtx };
 
-    auto* snk = this->pull_sink_weak( snk_ );
-    auto& tok = _tokens.emplace_back( std::move( tok_ ) );
-    tok->_sink = snk;
+    Port* prt     = this->pull_port_weak( prt_ );
+    auto  tok_itr = _tokens.insert( _tokens.end(), std::move( tok_ ) );
 
-    _Log::debug( "TOKEN[\"{}\"] injected in SINK[\"{}\"].", tok->config.str_id, snk->config.str_id );
+    ( *prt->_runtime.toks.emplace_back( tok_itr ) )->_runtime.prt = prt;
+
+    _Log::debug( "TOKEN[\"{}\"] injected in PORT[\"{}\"].", (*tok_itr)->config.str_id, prt->config.str_id );
 
     return 0x0;
 }

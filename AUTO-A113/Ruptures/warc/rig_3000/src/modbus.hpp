@@ -54,7 +54,8 @@ public:
             return -0x1;
         }
 
-        _device.configureHoldingRegisters( 0x0, MODBUS_HOLDING_COUNT );
+        _device.configureInputRegisters( 0x00, MODBUS_INPUT_COUNT );
+        _device.writeInputRegisters( 0x00, ( uint16_t* )"RWK3", 2 );
 
         RNK_ASSERT_OR( pdPASS == xTaskCreate( 
             &Modbus::_main, MODBUS_MAIN_TASK_NAME, MODBUS_MAIN_TASK_STACK_DEPTH, this, TaskPriority_Current, &_main_tsk

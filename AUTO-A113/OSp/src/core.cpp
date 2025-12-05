@@ -10,9 +10,11 @@
 namespace a113 {
 
 
-A113_IMPL_FNC status_t INTERNAL::init( int argc_, char* argv_[], const init_args_t& args_ ) {
+A113_IMPL_FNC status_t _INTERNAL::init( int argc_, char* argv_[], const init_args_t& args_ ) {
     _Log::morph( std::format( "{}", A113_VERSION_STRING ) );
     _Log::info( "Hello there from AUTO-A113, version {}.{}.{}. Initializing the operating system plate...", A113_VERSION_MAJOR, A113_VERSION_MINOR, A113_VERSION_PATCH );
+
+    Log = ( st_att::_Log& )*this;
 
     int warn_count = 0x0;
 

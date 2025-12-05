@@ -45,477 +45,9 @@ inline constexpr const char* const ShaderPhase_FILE_EXTENSION[ ShaderPhase_COUNT
 };
 
 
-class Uniform3Impl : public Descriptor {
-public:
-    Uniform3Impl() = default;
-
-    Uniform3Impl( 
-        const char* anchor, 
-        _ENGINE_COMMS_ECHO_ARG 
-    ) 
-    : _anchor{ anchor }
-    {
-        echo( this, EchoLevel_Ok ) << "Created. Ready to dock \"" << anchor << "\".";
-    }
-
-    Uniform3Impl( 
-        ShaderPipe3& pipe,
-        const char*   anchor, 
-        _ENGINE_COMMS_ECHO_ARG 
-    ) 
-    : Uniform3Impl{ anchor, echo }
-    {
-        this->push( pipe, echo );
-    }
-
-_ENGINE_PROTECTED:
-    std::string                  _anchor;
-    std::map< GLuint, GLuint >   _locs;
-
-public:
-    Uniform3Impl& operator = ( const Uniform3Impl& other ) {
-        _anchor = other._anchor;
-        _locs.clear();
-        _locs.insert( other._locs.begin(), other._locs.end() );
-        return *this;
-    }
-
-public:
-    DWORD push( ShaderPipe3& pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        pipe.uplink();
-        GLuint loc = glGetUniformLocation( pipe, _anchor.c_str() );
-
-        if( loc == -1 ) {
-            echo( this, EchoLevel_Warning ) << "Shading pipe( " << pipe.glidx() << " ) has no uniform \"" << _anchor << "\".";
-            return -1;
-        }
-
-        _locs.insert( { pipe.glidx(), loc } );
-        return 0;
-    }
-
-};
-
-template< typename T >
-class Uniform3 : public Uniform3Impl {
-public:
-    Uniform3() = default;
-
-    Uniform3( 
-        const char* name, 
-        const T&    under, 
-        _ENGINE_COMMS_ECHO_ARG 
-    ) : Uniform3Impl{ name, echo }, _under{ under }
-    {}
-
-    Uniform3( 
-        const char* name, 
-        _ENGINE_COMMS_ECHO_ARG 
-    ) : Uniform3Impl{ name, echo }
-    {}
-
-    Uniform3( 
-        ShaderPipe3& pipe,
-        const char*   name, 
-        const T&      under, 
-        _ENGINE_COMMS_ECHO_ARG 
-    ) : Uniform3Impl{ pipe, name, echo }, _under{ under }
-    {}
-
-    Uniform3( const Uniform3< T >& other )
-    : Uniform3Impl{ other },
-      _under{ other._under }
-    {} 
-
-_ENGINE_PROTECTED:
-    T   _under   = {};
-
-public:
-    T& get() { return _under; }
-    const T& get() const { return _under; }
-
-    operator T& () { return this->get(); }
-    operator const T& () const { return this->get(); }
-
-    T* operator -> () {
-        return &_under;
-    }
-
-public:
-    Uniform3& operator = ( const T& under ) {
-        _under = under;
-        return *this;
-    }
-
-public:
-    DWORD uplink_pv( GLuint pipe_glidx, const T& under ) {
-        _under = under;
-        return this->uplink_p( pipe_glidx );
-    }
-
-    DWORD uplink_p( GLuint pipe_glidx ) {
-        glUseProgram( pipe_glidx );
-        return this->_uplink( _locs[ pipe_glidx ] );
-    }
-
-    DWORD uplink_v( const T& under ) {
-        _under = under;
-        return this->uplink();
-    }
-
-    DWORD uplink() {
-        glUseProgram( _locs.begin()->first );
-        return this->_uplink( _locs.begin()->second );
-    }
-
-    DWORD uplink_b() {
-        for( auto& [ pipe_glidx, ufrm_loc ] : _locs ) {
-            glUseProgram( pipe_glidx );
-            this->_uplink( ufrm_loc );
-        }
-        return 0;
-    }
-
-    DWORD uplink_bv( const T& under ) {
-        _under = under;
-        return this->uplink_b();
-    }
-
-_ENGINE_PROTECTED:
-    DWORD _uplink( GLuint pipe_glidx );
-
-};
-
-
-template<> inline DWORD Uniform3< bool >::_uplink( GLuint loc ) {
-    glUniform1i( loc, ( glm::u32 )_under ); 
-    return 0;
-}
-template<> inline DWORD Uniform3< glm::u32 >::_uplink( GLuint loc ) {
-    glUniform1i( loc, _under ); 
-    return 0;
-}
-template<> inline DWORD Uniform3< glm::i32 >::_uplink( GLuint loc ) {
-    glUniform1i( loc, _under ); 
-    return 0;
-}
-template<> inline DWORD Uniform3< glm::f32 >::_uplink( GLuint loc ) {
-    glUniform1f( loc, _under ); 
-    return 0;
-}
-template<> inline DWORD Uniform3< glm::vec3 >::_uplink( GLuint loc ) {
-    glUniform3f( loc, _under.x, _under.y, _under.z ); 
-    return 0;
-}
-template<> inline DWORD Uniform3< glm::vec4 >::_uplink( GLuint loc ) {
-    glUniform4f( loc, _under.x, _under.y, _under.z, _under.w  ); 
-    return 0;
-}
-template<> inline DWORD Uniform3< glm::mat4 >::_uplink( GLuint loc ) {
-    glUniformMatrix4fv( loc, 1, GL_FALSE, glm::value_ptr( _under ) ); 
-    return 0;
-}
-template<> inline DWORD Uniform3< glm::vec3[ 3 ] >::_uplink( GLuint loc ) {
-    glUniform3fv( loc, sizeof( _under ) / sizeof( glm::vec3 ), ( GLfloat* )_under  ); 
-    return 0;
-}
-
-
-
 enum MeshFlag_ {
     MeshFlag_MakePipe = _BV( 0x0 )
 };
-
-class mesh_t {
-public:
-    mesh_t() = default;
-
-    mesh_t( 
-        const std::filesystem::path& root_dir_, 
-        std::string_view             prefix_, 
-        MeshFlag_                    flags_ 
-    ) {
-        status_t                           status;
-
-		tinyobj::attrib_t                  attrib;
-		std::vector< tinyobj::shape_t >    shapes;
-        std::vector< tinyobj::material_t > mtls;
-		std::string                        error_str;
-
-        size_t                             total_vrtx_count = 0;
-
-        std::filesystem::path root_dir_p = root_dir_ / prefix_.data();
-        std::filesystem::path obj_path   = root_dir_p; obj_path += ".obj";
-
-        _Hyper->_Log::info( "Compiling the obj: \"{}\".", obj_path.string() );
-
-		status = tinyobj::LoadObj( 
-            &attrib, &shapes, &mtls, &error_str, 
-            obj_path.string().c_str(), root_dir.string().c_str(), 
-            true
-        );
-
-		if( not error_str.empty() ) _Hyper->_Log::warn( "TinyObj says: \"{}\".", error_str );
-
-        ASSERT_OR( status ) {
-            _Hyper->_Log::error( "Failed to compile the obj." );
-            return;
-        }
-
-		_Hyper->_Log::info( "Compiled [{}] materials over [{}] sub-meshes.", materials.size(), shapes.size() );
-
-        _mtls.reserve( mtls.size() );
-        for( tinyobj::material_t& mtl_data : mtls ) { 
-            _mtl_t& mtl = _mtls.emplace_back(); 
-            mtl.data = std::move( mtl_data ); 
-
-            GLuint tex_slot = 0x0;
-
-            struct _std_tex_t {
-                const char*    key;
-                std::string*   name;
-            } std_texs[] = {
-                { "map_Ka", &mtl.data.ambient_texname },
-                { "map_Kd", &mtl.data.diffuse_texname },
-                { "map_Ks", &mtl.data.specular_texname },
-                { "map_Ns", &mtl.data.specular_highlight_texname },
-                { "map_bump", &mtl.data.bump_texname }
-            };
-
-            for( auto& [ key, name ] : std_texs ) {
-                if( name->empty() ) continue;
-
-                A113_ASSERT_OR( 0x0 == this->_push_tex( root_dir / *name, key, tex_slot, echo ) ) continue;
-
-                mtl.tex_idxs.push_back( _texs.size() - 1 );
-                ++tex_slot;
-            }
-        
-            for( auto& [ key, value ] : mtl.data.unknown_parameter ) {
-                if( not key.starts_with( "A113" ) ) {
-                    _Hyper->_Log::warn( "Unknown parameter: \"{}\".", key );
-                    continue;
-                }
-
-                if( std::string::npos != key.find( "map" ) && 0x0 == this->_push_tex( root_dir / value, key, tex_slot ) ) {
-                    mtl.tex_idxs.push_back( _texs.size() - 1 );
-                    ++tex_slot;
-                    continue;
-                }
- 
-                _Hyper->_Log::warn( "Unrecognized A113 parameter \"{}\".", key );
-            }
-        }
-
-        for( tinyobj::shape_t& shape : shapes ) {
-            tinyobj::mesh_t& mesh = shape.mesh;
-            sub_mesh_t&      sub  = _sub_meshes.emplace_back();
-
-            sub.count = mesh.indices.size();
-
-            struct _vrtx_data_t {
-                glm::vec3   pos;
-                glm::vec3   nrm;
-                glm::vec2   txt;
-            };
-            std::vector< _vrtx_data_t > vrtx_data; vrtx_data.reserve( sub.count );
-            size_t base_idx = 0x0;
-            size_t v_acc    = 0;
-            size_t l_mtl    = mesh.material_ids[ 0 ];
-            for( size_t f_idx = 0x0; f_idx < mesh.num_face_vertices.size(); ++f_idx ) {
-                uint8_t f_c = mesh.num_face_vertices[ f_idx ];
-
-                for( uint8_t v_idx = 0x0; v_idx < f_c; ++v_idx ) {
-                    tinyobj::index_t& idx = mesh.indices[ base_idx + v_idx ];
-
-                    vrtx_data.emplace_back( VrtxData{
-                        pos: { *( glm::vec3* )&attrib.vertices[ 3 *idx.vertex_index ] },
-                        nrm: { *( glm::vec3* )&attrib.normals[ 3 *idx.normal_index ] },
-                        txt: { ( -0x1 != idx.texcoord_index ) ? *( glm::vec2* )&attrib.texcoords[ 2*idx.texcoord_index ] : glm::vec2{ 1.0 } }
-                    } );
-                }
-
-                if( mesh.material_ids[ f_idx ] != l_mtl ) {
-                    sub.strokes.emplace_back( sub_mesh_t::stroke_t{ count: v_acc, mtl_idx: l_mtl } );
-                    v_acc = 0;
-                    l_mtl = mesh.material_ids[ f_idx ];
-                }
-
-                v_acc    += f_c;
-                base_idx += f_c;
-            }
-            sub.strokes.emplace_back( sub_mesh_t::stroke_t{ count: v_acc, mtl_idx: l_mtl } );
-
-            glGenVertexArrays( 1, &sub.VAO );
-            glGenBuffers( 1, &sub.VBO );
-
-            glBindVertexArray( sub.VAO );
-        
-            glBindBuffer( GL_ARRAY_BUFFER, sub.VBO );
-            glBufferData( GL_ARRAY_BUFFER, vrtx_data.size() * sizeof( _vrtx_data_t ), vrtx_data.data(), GL_STATIC_DRAW );
-
-            glEnableVertexAttribArray( 0x0 );
-            glVertexAttribPointer( 0x0, 0x3, GL_FLOAT, GL_FALSE, sizeof( _vrtx_data_t ), ( GLvoid* )0x0 );
-            
-            glEnableVertexAttribArray( 0x1 );
-            glVertexAttribPointer( 0x1, 0x3, GL_FLOAT, GL_FALSE, sizeof( _vrtx_data_t ), ( GLvoid* )offsetof( _vrtx_data_t, nrm ) );
-        
-            glEnableVertexAttribArray( 0x2 );
-            glVertexAttribPointer( 0x2, 0x2, GL_FLOAT, GL_FALSE, sizeof( _vrtx_data_t ), ( GLvoid* )offsetof( _vrtx_data_t, txt ) );
-
-            std::vector< GLuint > indices; indices.assign( sub.count, 0x0 );
-            for( size_t idx = 0x1; idx < indices.size(); ++idx ) indices[ idx ] = idx;
-
-            glGenBuffers( 1, &sub.EBO );
-            glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, sub.EBO );
-		    glBufferData( GL_ELEMENT_ARRAY_BUFFER, sub.count * sizeof( GLuint ), indices.data(), GL_STATIC_DRAW );
-        }
-
-        glBindVertexArray( 0x0 );
-
-        for( auto& tex : _texs )
-            tex.ufrm = Uniform3< glm::u32 >{ tex.name.c_str(), tex.unit, echo };
-
-        if( flags & MESH3_FLAG_MAKE_PIPES ) {  
-            this->pipe.vector( GME_render_cluster3.make_pipe_from_prefixed_path( root_dir_p, echo ) );
-            this->dock_in( nullptr, echo );
-        }
-	}
-
-_A113_PROTECTED:
-    struct sub_mesh_t {
-        GLuint                    VAO;
-        GLuint                    VBO;
-        GLuint                    EBO;
-        size_t                    count;
-        struct stroke_t {
-            size_t   count;
-            size_t   mtl_idx;
-        };
-        std::vector< stroke_t >   strokes;
-    };
-    std::vector< sub_mesh_t >   _sub_meshes;
-    struct _mtl_t {
-        tinyobj::material_t     data;
-        std::vector< size_t >   tex_idxs;
-    };
-    std::vector< _mtl_t >       _mtls;
-    struct _tex_t {
-        GLuint                 glidx;
-        std::string            name;
-        GLuint                 slot;
-        Uniform3< glm::u32 >   ufrm;
-    };
-    std::vector< _tex_t >       _texs;
-
-public:
-    Uniform3< glm::mat4 >     model;
-    Uniform3< glm::vec3 >     Kd;
-
-    HVec< ShaderPipe3 >       pipe;
-
-_A113_PROTECTED:
-    status_t _push_tex( 
-        const std::filesystem::path& path_, 
-        std::string_view             name_, 
-        GLuint                       slot_
-    ) {
-        GLuint tex_glidx;
-
-        int x, y, n;
-        unsigned char* img_buf = stbi_load( path_.string().c_str(), &x, &y, &n, 4 );
-
-        A113_ASSERT_OR( img_buf ) {
-            _Hyper->_Log::error( "Failed to load texture from: \"{}\".", path_.string() );
-            return -0x1;
-        }
-
-        glGenTextures( 1, &tex_glidx );
-        glBindTexture( GL_TEXTURE_2D, tex_glidx );
-        glTexImage2D(
-            GL_TEXTURE_2D,
-            0,
-            GL_SRGB,
-            x, y,
-            0,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
-            img_buf
-        );
-        glGenerateMipmap( GL_TEXTURE_2D );
-
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
-        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-
-        glBindTexture( GL_TEXTURE_2D, 0x0 );
-        stbi_image_free( img_buf );
-
-        _texs.emplace_back( _tex_t{
-            .glidx =  tex_glidx,
-            .name  = name.data(),
-            .slot  = slot_,
-            .ufrm  = {}
-        } );
-
-        _Hyper->_Log::info( "Pushed texture on slot [{}], from: \"{}\". ", slot_, path.string() );
-        return 0x0;
-    }
-
-public:
-    Mesh3& dock_in( HVec< ShaderPipe3 > other_pipe, _ENGINE_COMMS_ECHO_RT_ARG ) {
-        if( other_pipe.get() == this->pipe.get() ) {
-            echo( this, EchoLevel_Warning ) << "Multiple docks on same pipe( " << this->pipe->glidx() << " ) detected.";
-        }
-
-        if( other_pipe != nullptr ) this->pipe.vector( std::move( other_pipe ) );
-
-        this->model.push( *this->pipe );
-
-        Kd.push( *this->pipe );
-
-        for( auto& tex : _texs )
-            tex.ufrm.push( *this->pipe );
-
-        return *this;
-    }
-
-public:
-    Mesh3& splash() {
-        return this->splash( *this->pipe );
-    }
-
-    Mesh3& splash( ShaderPipe3& pipe ) {
-        pipe.uplink();
-        this->model.uplink();
-
-        for( _SubMesh& sub : _sub_meshes ) {
-            glBindVertexArray( sub.VAO );
-
-            for( auto& burst : sub.bursts ) {
-                float* diffuse = _mtls[ burst.mtl_idx ].data.diffuse;
-                Kd.uplink_bv( glm::vec3{ diffuse[ 0 ], diffuse[ 1 ], diffuse[ 2 ] } );
-
-                for( size_t tex_idx : _mtls[ burst.mtl_idx ].tex_idxs ) {
-                    if( tex_idx == -1 ) continue;
-
-                    _Tex& tex = _texs[ tex_idx ];
-
-                    glActiveTexture( GL_TEXTURE0 + tex.unit );
-                    glBindTexture( GL_TEXTURE_2D, tex.glidx );
-                    tex.ufrm.uplink();
-                }
-                
-                glDrawElements( pipe.draw_mode, ( GLsizei )burst.count, GL_UNSIGNED_INT, 0 );
-            }
-        }
-
-        return *this;
-    }
-
-};
-
 
 class Cluster : public st_att::_Log {
 public:
@@ -829,6 +361,277 @@ _A113_PROTECTED:
         }
 
     } _pipe_cache{ this };
+
+_A113_PROTECTED:
+    class mesh_t : public _internal_struct_t {
+    public:
+        mesh_t() : _internal_struct_t{ nullptr } {}
+
+        mesh_t( 
+            const std::filesystem::path& root_dir_, 
+            std::string_view             prefix_, 
+            MeshFlag_                    flags_ 
+        ) : _internal_struct_t{ nullptr } {
+            status_t                           status;
+
+            tinyobj::attrib_t                  attrib;
+            std::vector< tinyobj::shape_t >    shapes;
+            std::vector< tinyobj::material_t > mtls;
+            std::string                        error_str;
+
+            size_t                             total_vrtx_count = 0;
+
+            std::filesystem::path root_dir_p = root_dir_ / prefix_.data();
+            std::filesystem::path obj_path   = root_dir_p; obj_path += ".obj";
+
+            _Hyper->_Log::info( "Compiling the obj: \"{}\".", obj_path.string() );
+
+            status = tinyobj::LoadObj( 
+                &attrib, &shapes, &mtls, &error_str, 
+                obj_path.string().c_str(), root_dir_.string().c_str(), 
+                true
+            );
+
+            if( not error_str.empty() ) _Hyper->_Log::warn( "TinyObj says: \"{}\".", error_str );
+
+            A113_ASSERT_OR( status ) {
+                _Hyper->_Log::error( "Failed to compile the obj." );
+                return;
+            }
+
+            _Hyper->_Log::info( "Compiled [{}] materials over [{}] sub-meshes.", mtls.size(), shapes.size() );
+
+            _mtls.reserve( mtls.size() );
+            for( tinyobj::material_t& mtl_data : mtls ) { 
+                _mtl_t& mtl = _mtls.emplace_back(); 
+                mtl.data = std::move( mtl_data ); 
+
+                GLuint tex_slot = 0x0;
+
+                struct _std_tex_t {
+                    const char*    key;
+                    std::string*   name;
+                } std_texs[] = {
+                    { "map_Ka", &mtl.data.ambient_texname },
+                    { "map_Kd", &mtl.data.diffuse_texname },
+                    { "map_Ks", &mtl.data.specular_texname },
+                    { "map_Ns", &mtl.data.specular_highlight_texname },
+                    { "map_bump", &mtl.data.bump_texname }
+                };
+
+                for( auto& [ key, name ] : std_texs ) {
+                    if( name->empty() ) continue;
+
+                    A113_ASSERT_OR( 0x0 == this->_push_tex( root_dir_ / *name, key, tex_slot ) ) continue;
+
+                    mtl.tex_idxs.push_back( _texs.size() - 1 );
+                    ++tex_slot;
+                }
+            
+                for( auto& [ key, value ] : mtl.data.unknown_parameter ) {
+                    if( not key.starts_with( "A113" ) ) {
+                        _Hyper->_Log::warn( "Unknown parameter: \"{}\".", key );
+                        continue;
+                    }
+
+                    if( std::string::npos != key.find( "map" ) && 0x0 == this->_push_tex( root_dir_ / value, key, tex_slot ) ) {
+                        mtl.tex_idxs.push_back( _texs.size() - 1 );
+                        ++tex_slot;
+                        continue;
+                    }
+    
+                    _Hyper->_Log::warn( "Unrecognized A113 parameter \"{}\".", key );
+                }
+            }
+
+            for( tinyobj::shape_t& shape : shapes ) {
+                tinyobj::mesh_t& mesh = shape.mesh;
+                sub_mesh_t&      sub  = _sub_meshes.emplace_back();
+
+                sub.count = mesh.indices.size();
+
+                struct _vrtx_data_t {
+                    glm::vec3   pos;
+                    glm::vec3   nrm;
+                    glm::vec2   txt;
+                };
+                std::vector< _vrtx_data_t > vrtx_data; vrtx_data.reserve( sub.count );
+                size_t base_idx = 0x0;
+                size_t v_acc    = 0;
+                size_t l_mtl    = mesh.material_ids[ 0 ];
+                for( size_t f_idx = 0x0; f_idx < mesh.num_face_vertices.size(); ++f_idx ) {
+                    uint8_t f_c = mesh.num_face_vertices[ f_idx ];
+
+                    for( uint8_t v_idx = 0x0; v_idx < f_c; ++v_idx ) {
+                        tinyobj::index_t& idx = mesh.indices[ base_idx + v_idx ];
+
+                        vrtx_data.emplace_back( _vrtx_data_t{
+                            pos: { *( glm::vec3* )&attrib.vertices[ 3 *idx.vertex_index ] },
+                            nrm: { *( glm::vec3* )&attrib.normals[ 3 *idx.normal_index ] },
+                            txt: { ( -0x1 != idx.texcoord_index ) ? *( glm::vec2* )&attrib.texcoords[ 2*idx.texcoord_index ] : glm::vec2{ 1.0 } }
+                        } );
+                    }
+
+                    if( mesh.material_ids[ f_idx ] != l_mtl ) {
+                        sub.strokes.emplace_back( sub_mesh_t::stroke_t{ count: v_acc, mtl_idx: l_mtl } );
+                        v_acc = 0;
+                        l_mtl = mesh.material_ids[ f_idx ];
+                    }
+
+                    v_acc    += f_c;
+                    base_idx += f_c;
+                }
+                sub.strokes.emplace_back( sub_mesh_t::stroke_t{ count: v_acc, mtl_idx: l_mtl } );
+
+                glGenVertexArrays( 1, &sub.VAO );
+                glGenBuffers( 1, &sub.VBO );
+
+                glBindVertexArray( sub.VAO );
+            
+                glBindBuffer( GL_ARRAY_BUFFER, sub.VBO );
+                glBufferData( GL_ARRAY_BUFFER, vrtx_data.size() * sizeof( _vrtx_data_t ), vrtx_data.data(), GL_STATIC_DRAW );
+
+                glEnableVertexAttribArray( 0x0 );
+                glVertexAttribPointer( 0x0, 0x3, GL_FLOAT, GL_FALSE, sizeof( _vrtx_data_t ), ( GLvoid* )0x0 );
+                
+                glEnableVertexAttribArray( 0x1 );
+                glVertexAttribPointer( 0x1, 0x3, GL_FLOAT, GL_FALSE, sizeof( _vrtx_data_t ), ( GLvoid* )offsetof( _vrtx_data_t, nrm ) );
+            
+                glEnableVertexAttribArray( 0x2 );
+                glVertexAttribPointer( 0x2, 0x2, GL_FLOAT, GL_FALSE, sizeof( _vrtx_data_t ), ( GLvoid* )offsetof( _vrtx_data_t, txt ) );
+
+                std::vector< GLuint > indices; indices.assign( sub.count, 0x0 );
+                for( size_t idx = 0x1; idx < indices.size(); ++idx ) indices[ idx ] = idx;
+
+                glGenBuffers( 1, &sub.EBO );
+                glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, sub.EBO );
+                glBufferData( GL_ELEMENT_ARRAY_BUFFER, sub.count * sizeof( GLuint ), indices.data(), GL_STATIC_DRAW );
+            }
+
+            glBindVertexArray( 0x0 );
+
+            // for( auto& tex : _texs )
+            //     tex.ufrm = Uniform3< glm::u32 >{ tex.name.c_str(), tex.unit, echo };
+
+            // if( flags & MESH3_FLAG_MAKE_PIPES ) {  
+            //     this->pipe.vector( GME_render_cluster3.make_pipe_from_prefixed_path( root_dir_p, echo ) );
+            //     this->dock_in( nullptr, echo );
+            // }
+        }
+
+    _A113_PROTECTED:
+        struct sub_mesh_t {
+            GLuint                    VAO;
+            GLuint                    VBO;
+            GLuint                    EBO;
+            size_t                    count;
+            struct stroke_t {
+                size_t   count;
+                size_t   mtl_idx;
+            };
+            std::vector< stroke_t >   strokes;
+        };
+        std::vector< sub_mesh_t >   _sub_meshes;
+        struct _mtl_t {
+            tinyobj::material_t     data;
+            std::vector< size_t >   tex_idxs;
+        };
+        std::vector< _mtl_t >       _mtls;
+        struct _tex_t {
+            GLuint                 glidx;
+            std::string            name;
+            GLuint                 slot;
+            //Uniform3< glm::u32 >   ufrm;
+        };
+        std::vector< _tex_t >       _texs;
+
+    public:
+        // Uniform3< glm::mat4 >     model;
+        // Uniform3< glm::vec3 >     Kd;
+
+        // HVec< ShaderPipe3 >       pipe;
+
+    _A113_PROTECTED:
+        status_t _push_tex( 
+            const std::filesystem::path& path_, 
+            std::string_view             name_, 
+            GLuint                       slot_
+        ) {
+            GLuint tex_glidx;
+
+            int x, y, n;
+            unsigned char* img_buf = stbi_load( path_.string().c_str(), &x, &y, &n, 4 );
+
+            A113_ASSERT_OR( img_buf ) {
+                _Hyper->_Log::error( "Failed to load texture from: \"{}\".", path_.string() );
+                return -0x1;
+            }
+
+            glGenTextures( 1, &tex_glidx );
+            glBindTexture( GL_TEXTURE_2D, tex_glidx );
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_SRGB,
+                x, y,
+                0,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                img_buf
+            );
+            glGenerateMipmap( GL_TEXTURE_2D );
+
+            glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
+            glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
+            glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
+            glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+
+            glBindTexture( GL_TEXTURE_2D, 0x0 );
+            stbi_image_free( img_buf );
+
+            _texs.emplace_back( _tex_t{
+                .glidx =  tex_glidx,
+                .name  = name_.data(),
+                .slot  = slot_//,
+                //.ufrm  = {}
+            } );
+
+            _Hyper->_Log::info( "Pushed texture on slot [{}], from: \"{}\". ", slot_, path_.string() );
+            return 0x0;
+        }
+
+    public:
+
+    public:
+        // Mesh3& splash( ShaderPipe3& pipe ) {
+        //     pipe.uplink();
+        //     this->model.uplink();
+
+        //     for( _SubMesh& sub : _sub_meshes ) {
+        //         glBindVertexArray( sub.VAO );
+
+        //         for( auto& burst : sub.bursts ) {
+        //             float* diffuse = _mtls[ burst.mtl_idx ].data.diffuse;
+        //             Kd.uplink_bv( glm::vec3{ diffuse[ 0 ], diffuse[ 1 ], diffuse[ 2 ] } );
+
+        //             for( size_t tex_idx : _mtls[ burst.mtl_idx ].tex_idxs ) {
+        //                 if( tex_idx == -1 ) continue;
+
+        //                 _Tex& tex = _texs[ tex_idx ];
+
+        //                 glActiveTexture( GL_TEXTURE0 + tex.unit );
+        //                 glBindTexture( GL_TEXTURE_2D, tex.glidx );
+        //                 tex.ufrm.uplink();
+        //             }
+                    
+        //             glDrawElements( pipe.draw_mode, ( GLsizei )burst.count, GL_UNSIGNED_INT, 0 );
+        //         }
+        //     }
+
+        //     return *this;
+        // }
+
+    };
 
 public:
     auto& shader_cache( void ) { return _shader_cache; }

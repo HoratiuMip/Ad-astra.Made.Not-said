@@ -1,7 +1,7 @@
 cmake_minimum_required( VERSION 3.30.0 )
 
 project(
-    A113_Fwork_immersive
+    A113_ClkWrk_immersive
     VERSION 1.0.0
     LANGUAGES C CXX
 )

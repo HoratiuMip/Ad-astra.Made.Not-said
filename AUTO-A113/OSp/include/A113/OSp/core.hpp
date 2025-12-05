@@ -47,7 +47,7 @@ struct HVec : public std::shared_ptr< _T > {
 
 
 namespace st_att {
-#define _A113_ST_ATT_LOG_PATTERN "[%^%l%$] \t [%c] [%n] - %v"
+#define _A113_ST_ATT_LOG_PATTERN "[%^%l%$]\t[%c] [%n] - %v"
 class _Log {
 _A113_PROTECTED:
     template< typename _T >
@@ -70,6 +70,11 @@ public:
     }
     _Log( HVec< spdlog::logger > other_ ) : _device{ std::move( other_ ) } {}
 
+    _Log( const _Log& other_ ) = default;
+    _Log( _Log&& other_ ) = default;
+    _Log& operator = ( const _Log& other_ ) { _device = other_._device; return *this; }
+    _Log& operator = ( _Log&& other_ ) { _device = std::move( other_._device ); return *this; }
+
     ~_Log() { this->_drop_device(); }
 
 _A113_PRIVATE:
@@ -83,6 +88,9 @@ _A113_PROTECTED:
     _A113_ST_ATT__LOG_FWD_FNC( error )
     _A113_ST_ATT__LOG_FWD_FNC( critical )
 #undef _A113_ST_ATT__LOG_FWD_FNC
+
+public:
+    A113_inline void set_log_level( spdlog::level::level_enum level_ ) { _device->set_level( level_ ); }
 
 _A113_PROTECTED:
     template< typename _T >
@@ -102,7 +110,7 @@ enum InitFlags_ {
 struct init_args_t {
     int   flags   = InitFlags_None;
 };
-class INTERNAL : public st_att::_Log {
+class _INTERNAL : public st_att::_Log {
 _A113_PROTECTED:
     struct {
     #ifdef A113_TARGET_OS_WINDOWS
@@ -121,11 +129,24 @@ public:
     using st_att::_Log::error;
     using st_att::_Log::critical;
 
-}; inline INTERNAL _Internal;
+}; inline _INTERNAL _Internal;
 
 A113_inline status_t init( int argc_, char* argv_[], const init_args_t& args_ ) {
     return _Internal.init( argc_, argv_, args_ );
 }
+
+
+struct _LOG : public st_att::_Log {
+public:
+    using st_att::_Log::operator=;
+
+public:
+    using st_att::_Log::debug;
+    using st_att::_Log::info;
+    using st_att::_Log::warn;
+    using st_att::_Log::error;
+    using st_att::_Log::critical;
+}; inline _LOG Log{};
 
 
 struct ON_FNC_EXIT {

@@ -47,7 +47,7 @@ RNK_PROTECTED:
             auto hdop = self->hdop.hdop();
             self->_holding.reg_0.hi = hdop > 255.0 ? 255 : ( uint8_t )hdop;
 
-            self->_modbus->holdingRegisterWrite( GPS_MODBUS_HOLDING_ADDR + 0x00, self->_holding.reg_0 );
+            self->_modbus->holdingRegisterWrite( GPS_MODBUS_INPUT_ADDR + 0x00, self->_holding.reg_0 );
         }
 
         taskYIELD();

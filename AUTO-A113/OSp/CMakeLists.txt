@@ -1,43 +1,43 @@
 cmake_minimum_required( VERSION 3.30.0 )
 
 
-## Chain dependencies.
-set( _chain_dir "${CMAKE_CURRENT_LIST_DIR}/chain" )
+## EXCOM dependencies.
+set( _excom_dir "${CMAKE_CURRENT_LIST_DIR}/excom" )
 
 # Logging
-A113_Fnc_CloneRepo( "https://github.com/gabime/spdlog.git" "v1.15.3" spdlog "${_chain_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/gabime/spdlog.git" "v1.15.3" spdlog "${_excom_dir}" )
 # OpenGL
-A113_Fnc_CloneRepo( "https://github.com/g-truc/glm.git" "1.0.1" glm "${_chain_dir}" )
-A113_Fnc_CloneRepo( "https://github.com/glfw/glfw.git" "3.4" glfw "${_chain_dir}" )
-A113_Fnc_CloneRepo( "https://github.com/Perlmint/glew-cmake.git" "glew-cmake-2.2.0" glew "${_chain_dir}" )
-A113_Fnc_CloneRepo( "https://github.com/nothings/stb.git" "" stb "${_chain_dir}" )
-A113_Fnc_CloneRepo( "https://github.com/tinyobjloader/tinyobjloader.git" "v1.0.6" tinyobj "${_chain_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/g-truc/glm.git" "1.0.1" glm "${_excom_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/glfw/glfw.git" "3.4" glfw "${_excom_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/Perlmint/glew-cmake.git" "glew-cmake-2.2.0" glew "${_excom_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/nothings/stb.git" "" stb "${_excom_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/tinyobjloader/tinyobjloader.git" "v1.0.6" tinyobj "${_excom_dir}" )
 
 # JSON
-A113_Fnc_CloneRepo( "https://github.com/nlohmann/json.git" "v3.12.0" nlohmann_json "${_chain_dir}")
+A113_Fnc_CloneRepo( "https://github.com/nlohmann/json.git" "v3.12.0" nlohmann_json "${_excom_dir}")
 
 # Dear ImGUI
-A113_Fnc_CloneRepo( "https://github.com/ocornut/imgui.git" "v1.91.9-docking" imgui "${_chain_dir}" )
-A113_Fnc_CloneRepo( "https://github.com/epezent/implot.git" "v0.16" implot "${_chain_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/ocornut/imgui.git" "v1.91.9-docking" imgui "${_excom_dir}" )
+A113_Fnc_CloneRepo( "https://github.com/epezent/implot.git" "v0.16" implot "${_excom_dir}" )
 
 
-file( GLOB _imgui_source_files "${_chain_dir}/imgui/*.cpp" )
+file( GLOB _imgui_source_files "${_excom_dir}/imgui/*.cpp" )
 add_library( ImGui STATIC 
     ${_imgui_source_files} 
-    "${_chain_dir}/imgui/misc/cpp/imgui_stdlib.cpp" 
-    "${_chain_dir}/imgui/backends/imgui_impl_opengl3.cpp" 
-    "${_chain_dir}/imgui/backends/imgui_impl_glfw.cpp" 
+    "${_excom_dir}/imgui/misc/cpp/imgui_stdlib.cpp" 
+    "${_excom_dir}/imgui/backends/imgui_impl_opengl3.cpp" 
+    "${_excom_dir}/imgui/backends/imgui_impl_glfw.cpp" 
 )
 target_include_directories( ImGui 
-    PUBLIC "${_chain_dir}/imgui/" 
-    PUBLIC "${_chain_dir}/imgui/misc/cpp/"
-    PUBLIC "${_chain_dir}/imgui/backends/"
-    PUBLIC "${_chain_dir}/glfw/include"
+    PUBLIC "${_excom_dir}/imgui/" 
+    PUBLIC "${_excom_dir}/imgui/misc/cpp/"
+    PUBLIC "${_excom_dir}/imgui/backends/"
+    PUBLIC "${_excom_dir}/glfw/include"
 )
-file( GLOB _implot_source_files "${_chain_dir}/implot/*.cpp" )
+file( GLOB _implot_source_files "${_excom_dir}/implot/*.cpp" )
 add_library( ImPlot STATIC ${_implot_source_files} )
-target_include_directories( ImPlot PUBLIC "${_chain_dir}/imgui/" )
-target_include_directories( ImPlot PUBLIC "${_chain_dir}/implot/" )
+target_include_directories( ImPlot PUBLIC "${_excom_dir}/imgui/" )
+target_include_directories( ImPlot PUBLIC "${_excom_dir}/implot/" )
 
 
 ## Build A113.
@@ -68,7 +68,7 @@ if( A113_Opt_TargetOS_Windows )
     )
 endif()
 
-## Link A113 with the chain dependencies. 
+## Link A113 with the EXCOM dependencies. 
 target_link_libraries( A113_OSp
     PUBLIC spdlog
     PUBLIC glm
@@ -79,15 +79,15 @@ target_link_libraries( A113_OSp
     PUBLIC ImPlot
 )
 target_include_directories( A113_OSp
-    PUBLIC "${_chain_dir}/spdlog/include"
-    PUBLIC "${_chain_dir}/glm"
-    PUBLIC "${_chain_dir}/glfw/include"
-    PUBLIC "${_chain_dir}/glew/include"
-    PUBLIC "${_chain_dir}/stb"
-    PUBLIC "${_chain_dir}/tinyobj"
-    PUBLIC "${_chain_dir}/nlohmann_json/include"
-    PUBLIC "${_chain_dir}/imgui"
-    PUBLIC "${_chain_dir}/implot"
+    PUBLIC "${_excom_dir}/spdlog/include"
+    PUBLIC "${_excom_dir}/glm"
+    PUBLIC "${_excom_dir}/glfw/include"
+    PUBLIC "${_excom_dir}/glew/include"
+    PUBLIC "${_excom_dir}/stb"
+    PUBLIC "${_excom_dir}/tinyobj"
+    PUBLIC "${_excom_dir}/nlohmann_json/include"
+    PUBLIC "${_excom_dir}/imgui"
+    PUBLIC "${_excom_dir}/implot"
 )
 
 

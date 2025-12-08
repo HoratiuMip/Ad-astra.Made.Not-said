@@ -6,23 +6,14 @@
 
 class Modbus {
 public:
-    struct reg_t {
-        union {
-            struct { uint8_t lo; uint8_t hi; };
-            uint16_t w;
-        };
-
-        RNK_inline operator uint16_t ( void ) { return w; }
-    };
-
-public:
-    Modbus() : _device{ ModbusRTUServer } {}
+    Modbus() : _device{ ModbusRTUServer }, _main_mtx{ xSemaphoreCreateMutex() } {}
 
 RNK_PROTECTED:
     decltype( ModbusRTUServer )&   _device;
-
+    
     TaskHandle_t                   _main_tsk   = NULL;
     Atomic< bool >                 _main_act   = { false };
+    SemaphoreHandle_t              _main_mtx   = NULL;
 
 RNK_PROTECTED:
     static void _main( void* arg_ ) {
@@ -30,7 +21,9 @@ RNK_PROTECTED:
         self->_main_act.store( true, std::memory_order_release );
 
     for(; self->_main_act.load( std::memory_order_relaxed );) {
+        xSemaphoreTake( self->_main_mtx, portMAX_DELAY );
         self->_device.poll();
+        xSemaphoreGive( self->_main_mtx );
         taskYIELD();
     }
         vTaskDelete( NULL );
@@ -66,6 +59,11 @@ public:
     }
 
 public:
-    decltype( ModbusRTUServer )* operator -> ( void ) { return &_device; }
+    RNK_inline status_t write_input_registers( int addr_, uint16_t* src_, int nb_ ) {
+        xSemaphoreTake( _main_mtx, portMAX_DELAY );
+        status_t status = _device.writeInputRegisters( addr_, src_, nb_ );
+        xSemaphoreGive( _main_mtx );
+        return status;
+    }
 
 };

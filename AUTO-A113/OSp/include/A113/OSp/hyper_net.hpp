@@ -106,6 +106,7 @@ _A113_PROTECTED:
         Port*   prt            = nullptr;
         int     last_rte_clk   = 0x0;
         int     sexecc         = 0;
+        bool    req_assert     = false;
     } _runtime;
 
 public:
@@ -120,6 +121,10 @@ _A113_PROTECTED:
 public:
     virtual status_t HyN_when_routed( Route* rte_, status_t rte_status_ ) {
         return 0x0;
+    }
+
+    virtual status_t HyN_assert( Route* rte_ ) {
+        return 0x1;
     }
 
     virtual HVec< Token > HyN_split( int offset_, Route& rte_ ) {
@@ -161,6 +166,7 @@ public:
 public:
     status_t bind_PRP( str_id_t in_prt_, str_id_t rte_, str_id_t out_prt_, const Route::in_plan_t& in_pln_, const Route::out_plan_t& out_pln_ );
     status_t bind_RP( str_id_t rte_, str_id_t out_prt_, const Route::out_plan_t& out_pln_ );
+    status_t bind_PR( str_id_t in_prt_, str_id_t rte_, const Route::in_plan_t& in_pln_ );
 
     status_t inject( str_id_t prt_, HVec< Token > tok_ );
 
@@ -169,6 +175,35 @@ public:
 
 public:
     int clock( dt_t dt_ );
+
+public:
+    std::string Utils_make_graphviz( void ) {
+        std::string acc = ""; 
+
+        for( auto& rte : _routes ) {
+            for( auto& in : rte->_inputs ) acc += in.prt->config.str_id + "->" + rte->config.str_id + '\n';
+            for( auto& out : rte->_outputs ) acc += rte->config.str_id + "->" + out.prt->config.str_id + '\n';
+            acc += std::format( "{0:}[shape=box, width=.1, height=1, xlabel=\"{0:}\", label=\"\"]\n", rte->config.str_id ); 
+        }
+
+        for( auto& prt : _ports ) {
+            acc += std::format( 
+                "{0:}[label=\"{0:}\\n({1:})\",style=filled,color={2:}]\n", 
+                prt->config.str_id, 
+                prt->_runtime.toks.size(),
+                prt->_runtime.toks.empty() ? "lightgray" : "darkgray"
+            );
+        }
+
+        return std::format(
+            "digraph G {{ rankdir=\"LR\" label=\"{}\"\n" \
+            "graph [fontname = \"Comic Sans MS\"]\n"     \
+            "node [fontname = \"Comic Sans MS\"]\n"      \
+            "edge [fontname = \"Comic Sans MS\"]\n"      \
+            "{}"                                         \
+            "}}"
+        , _Log::get_name(), acc );
+    }
 
 };
 

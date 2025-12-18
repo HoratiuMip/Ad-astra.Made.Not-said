@@ -25,6 +25,13 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 
 #define A113_ASSERT_OR( cond ) if( !(cond) )
 
+#define A113_STRUCT_HAS_OVR( obj, fnc ) ((void*)((obj).*(&fnc))!=(void*)(&fnc))
+
+
+#ifndef _BV
+    #define _BV(b) (0x1<<b)
+#endif
+
 
 #include <cstdint>
 #include <cstring>
@@ -47,11 +54,4 @@ struct MDsc {
 
 
 };
-
-
-#ifndef _BV
-    #define _BV(b) (0x1<<b)
-#endif
-
-
 

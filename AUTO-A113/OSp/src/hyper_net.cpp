@@ -26,9 +26,13 @@ A113_IMPL_FNC int Executor::clock( dt_t dt_ ) {
         for( Route* rte : (*tok_itr)->_runtime.prt->_routes ) {
             if( rte->_runtime.last_rte_clk == _clock ) continue;
 
-            for( Route::in_plan_t& in : rte->_inputs ) if( in.min_tok_cnt > in.prt->_runtime.toks.size() ) continue;
+            A113_ON_SCOPE_EXIT_L( ([ rte, this ] ( void ) -> void { rte->_runtime.last_rte_clk = _clock; }) );
 
-            /* Individual assert here... */
+            {
+            bool toks_on_all_inputs = true;
+            for( Route::in_plan_t& in : rte->_inputs ) if( in.min_tok_cnt > in.prt->_runtime.toks.size() ) { toks_on_all_inputs = false; break; }
+            if( not toks_on_all_inputs ) continue;
+            }
 
             qlist_t< Route::in_plan_t >::iterator  in_itr  = rte->_inputs.begin();
             qlist_t< Route::out_plan_t >::iterator out_itr = rte->_outputs.begin(), eff_out_itr = out_itr;
@@ -131,11 +135,24 @@ A113_IMPL_FNC status_t Executor::bind_RP( str_id_t rte_, str_id_t out_prt_, cons
     return 0x0;
 }
 
+A113_IMPL_FNC status_t Executor::bind_PR( str_id_t in_prt_, str_id_t rte_, const Route::in_plan_t& in_pln_ ) {
+    Port*  in_prt = this->pull_port_weak( in_prt_ ); A113_ASSERT_OR( in_prt ) { _Log::error( "Input PORT[\"{}\"] does not exist.", in_prt_ ); return -0x1; }
+    Route* rte    = this->pull_route_weak( rte_ );   A113_ASSERT_OR( rte ) { _Log::error( "ROUTE[\"{}\"] does not exist.", rte_ ); return -0x1; }
+
+    in_prt->_routes.push_back( rte );
+    rte->_inputs.emplace_back( in_pln_ ).prt = in_prt;
+
+    _Log::debug( "Bound PORT[\"{}\"] -> ROUTE[\"{}\"].", in_prt->config.str_id, rte->config.str_id );
+    return 0x0;
+}
+
 A113_IMPL_FNC status_t Executor::inject( str_id_t prt_, HVec< Token > tok_ ) {
     std::unique_lock clock_lock{ _clock_mtx };
 
     Port* prt     = this->pull_port_weak( prt_ );
     auto  tok_itr = _tokens.insert( _tokens.end(), std::move( tok_ ) );
+
+    (**tok_itr)._runtime.req_assert = A113_STRUCT_HAS_OVR( (**tok_itr), Token::HyN_assert );    
 
     ( *prt->_runtime.toks.emplace_back( tok_itr ) )->_runtime.prt = prt;
 

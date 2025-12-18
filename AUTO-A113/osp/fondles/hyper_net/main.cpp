@@ -1,25 +1,48 @@
 #include <a113/osp/hyper_net.hpp>
+#include <fstream>
+#include <conio.h>
 
 std::unique_ptr< a113::hyn::Executor > exec;
 std::atomic_bool                       run;
+
+#define GRAPHVIZ_PATH "hyn_graphviz.txt"
+struct _flags_t {
+    bool   make_graphviz   = false;
+} flags;
+
+void make_graphviz( void ) {
+    if( not flags.make_graphviz ) return;
+    
+    std::ofstream{ GRAPHVIZ_PATH } << exec->Utils_make_graphviz();
+}
 
 int example_1( void ) {
     exec->push_port( new a113::hyn::Port{ { .str_id = "p0" } } );
     exec->push_port( new a113::hyn::Port{ { .str_id = "p1" } } );
     exec->push_port( new a113::hyn::Port{ { .str_id = "p2" } } );
+    exec->push_port( new a113::hyn::Port{ { .str_id = "p3" } } );
     exec->push_route( new a113::hyn::Route{ { .str_id = "r0" } } );
     exec->push_route( new a113::hyn::Route{ { .str_id = "r1" } } );
+    exec->push_route( new a113::hyn::Route{ { .str_id = "r2" } } );
+    exec->push_route( new a113::hyn::Route{ { .str_id = "r3" } } );
 
-    exec->bind_PRP( "p0", "r0", "p1", { .flight_mode = 1 }, {} );
+    exec->bind_PRP( "p0", "r0", "p1", { .flight_mode = 2 }, {} );
     exec->bind_RP( "r0", "p2", {} );
+    exec->bind_RP( "r0", "p3", {} );
+
+    exec->bind_PR( "p2", "r2", { .min_tok_cnt = 5 } );
+    exec->bind_PR( "p3", "r3", { .min_tok_cnt = 5, .rte_tok_cnt = 3 } );
 
     exec->bind_PRP( "p1", "r1", "p0", {}, {} );
 
     exec->inject( "p0", new a113::hyn::Token{ { .str_id = "t0" } } );
 
+    make_graphviz();
+
 for(;run;) {
+    if( 'X' == _getch() ) break;
     exec->clock( 0.0 );
-    std::this_thread::sleep_for( std::chrono::seconds{ 1 } );
+    make_graphviz();
 }
     return 0x0;
 }
@@ -35,8 +58,13 @@ int main( int argc, char* argv[] ) {
     } );
 
     A113_ASSERT_OR( argc > 1 ) {
-        a113::Log.critical( "Please call this program with the following arguments: <example_no>. Currently {} example(s) are available.", example_count );
+        a113::Log.critical( "Please call this program with the following arguments: <example_no> [--make-graphviz]. Currently {} example(s) are available.", example_count );
         return -0x1;
+    }
+
+    for( auto idx{ 0x1uz }; idx < argc; ++idx ) {
+        if( NULL == strcmp( "--make-graphviz", argv[ idx ] ) ) flags.make_graphviz = true;
+
     }
 
     try {

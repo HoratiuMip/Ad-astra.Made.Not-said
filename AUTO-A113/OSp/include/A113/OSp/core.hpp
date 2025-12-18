@@ -91,6 +91,7 @@ _A113_PROTECTED:
 
 public:
     A113_inline void set_log_level( spdlog::level::level_enum level_ ) { _device->set_level( level_ ); }
+    A113_inline const std::string& get_name( void ) { return _device->name(); }
 
 _A113_PROTECTED:
     template< typename _T >
@@ -149,13 +150,26 @@ public:
 }; inline _LOG Log{};
 
 
-struct ON_FNC_EXIT {
-    typedef   std::function< void() >   proc_t;
-    ON_FNC_EXIT( proc_t proc_ ) : _proc{ ( proc_t&& )proc_ } {}
-    std::function< void() >   _proc;
-    ~ON_FNC_EXIT() { if( nullptr != _proc ) _proc(); } 
+struct on_scope_exit_c_t {
+    typedef   void(*proc_t)(void*);
+    on_scope_exit_c_t( proc_t proc_, void* arg_ = NULL ) : _proc{ ( proc_t&& )proc_ }, _arg{ arg_ } {}
+    proc_t   _proc;
+    void*    _arg;
+    ~on_scope_exit_c_t() { if( nullptr != _proc ) _proc( _arg ); } 
     A113_inline void drop( void ) { _proc = nullptr; }
 };
+#define A113_ON_SCOPE_EXIT_C( proc, arg ) on_scope_exit_c_t _on_scope_exit_{ proc, arg };
+
+struct on_scope_exit_l_t {
+    typedef   std::function< void() >   proc_t;
+    on_scope_exit_l_t( proc_t proc_ ) : _proc{ ( proc_t&& )proc_ } {}
+    proc_t   _proc;
+    ~on_scope_exit_l_t() { if( nullptr != _proc ) _proc(); } 
+    A113_inline void drop( void ) { _proc = nullptr; }
+};
+#define A113_ON_SCOPE_EXIT_L( proc ) on_scope_exit_l_t _on_scope_exit_{ proc };
+
+#define A113_ON_SCOPE_EXIT_DROP _on_scope_exit_.drop()
 
 
 };

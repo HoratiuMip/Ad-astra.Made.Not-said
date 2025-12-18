@@ -4,9 +4,9 @@
 THIS FILE WAS GENERATED DURING BUILD AND IT WILL BE OVERRIDEN IN THE NEXT ONE.
 DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 */
-#include <A113/OSp/IO_sockets.hpp>
-#include <A113/OSp/OSp.hpp>
-#include <A113/OSp/core.hpp>
-#include <A113/OSp/hyper_net.hpp>
-#include <A113/OSp/render3.hpp>
+#include <a113/OSp/IO_sockets.hpp>
+#include <a113/OSp/OSp.hpp>
+#include <a113/OSp/core.hpp>
+#include <a113/OSp/hyper_net.hpp>
+#include <a113/OSp/render3.hpp>
 

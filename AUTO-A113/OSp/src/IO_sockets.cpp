@@ -39,9 +39,9 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::uplink( void ) {
         return sock;
     }
 
-    ON_FNC_EXIT on_exit{ [ &sock ] -> void {
+    A113_ON_SCOPE_EXIT_L( [ &sock ] -> void {
         closesocket( sock );
-    } };
+    } );
 
     sockaddr_in desc = {};
     memset( &desc, 0, sizeof( sockaddr_in ) );
@@ -62,7 +62,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::uplink( void ) {
 
     _Log::info( "Uplinked." );
 
-    on_exit.drop();
+    A113_ON_SCOPE_EXIT_DROP;
     return status;
 }
 
@@ -97,9 +97,9 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
         return sock;
     }
 
-    ON_FNC_EXIT on_exit{ [ &sock ] -> void {
+    A113_ON_SCOPE_EXIT_L( [ &sock ] -> void {
         ::closesocket( sock );
-    } };
+    } );
 
     sockaddr_in desc = {};
     memset( &desc, 0, sizeof( sockaddr_in ) );

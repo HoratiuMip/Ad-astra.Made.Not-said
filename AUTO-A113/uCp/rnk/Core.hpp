@@ -52,7 +52,7 @@ constexpr gpio_num_t operator"" _pin( unsigned long long int pin_ ) {
 }
 
 constexpr TickType_t operator"" _ms2t( unsigned long long int ms_ ) {
-    return ms_ / portTICK_PERIOD_MS;
+    return pdMS_TO_TICKS( ms_ );
 }
 
 

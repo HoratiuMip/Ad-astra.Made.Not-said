@@ -63,6 +63,7 @@ if( A113_Opt_TargetOS_Windows )
         PUBLIC "-lwsock32"
         PUBLIC "-lbthprops"
         PUBLIC "-lcrypt32"
+        PUBLIC "-lcfgmgr32"
         PUBLIC "libcomctl32.a"
         PUBLIC "libcomdlg32.a"
     )

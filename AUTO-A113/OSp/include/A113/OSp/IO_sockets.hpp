@@ -12,7 +12,7 @@
 #include <a113/brp/IO_string_utils.hpp>
 
 
-namespace a113 { namespace io { 
+namespace a113::io { 
 
 
 #ifdef A113_TARGET_OS_WINDOWS
@@ -53,7 +53,7 @@ public:
 };
 
 
-} };
+}
 
 
 

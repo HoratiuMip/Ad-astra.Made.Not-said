@@ -24,12 +24,17 @@
 #include <string_view>
 
 #ifdef A113_TARGET_OS_WINDOWS
+    #define WINVER 0x0A00
     #include <winsock2.h>
     #include <ws2spi.h>
     #include <windows.h>
     #include <wincodec.h>
     #include <Ws2bth.h>
     #include <BluetoothAPIs.h>
+    #include <setupapi.h>
+    #include <cfgmgr32.h>
+    #include <devguid.h>
+    #include <initguid.h>
 #endif
 
 namespace a113 {
@@ -43,6 +48,9 @@ struct HVec : public std::shared_ptr< _T > {
     HVec( const std::shared_ptr< _T >&  ptr_ ) : std::shared_ptr< _T >{ ptr_ } {}
     HVec( std::shared_ptr< _T >&& ptr_ ) : std::shared_ptr< _T >{ std::move( ptr_ ) } {}
     HVec( _T* ptr_ ) { this->reset( ptr_ ); }
+
+    template< typename ...Args >
+    A113_inline static HVec< _T > make( Args&&... args_ ) { return std::make_shared< _T >( std::forward< Args >( args_ )... ); }
 };
 
 

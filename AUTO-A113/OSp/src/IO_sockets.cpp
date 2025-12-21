@@ -7,7 +7,7 @@
 
 #include <a113/osp/IO_sockets.hpp>
 
-namespace a113 { namespace io {
+namespace a113::io {
 
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::bind_peer( ipv4_addr_t addr_, ipv4_port_t port_ ) {
@@ -151,4 +151,4 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::write( const MDsc& mdsc_ ) {
 }
 
 
-} };
+}

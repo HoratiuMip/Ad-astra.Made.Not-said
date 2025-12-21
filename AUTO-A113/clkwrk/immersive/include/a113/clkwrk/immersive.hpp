@@ -1,6 +1,7 @@
 #pragma once
 
 #include <a113/osp/render3.hpp>
+#include <a113/osp/tempo.hpp>
 
 #include <imgui.h>
 #include <imgui_stdlib.h>
@@ -8,10 +9,13 @@
 #include <imgui_impl_opengl3.h>
 #include <implot.h>
 
-namespace a113 { namespace clkwrk {
+namespace a113::clkwrk {
 
 
 class Immersive : public st_att::_Log {
+public:
+    typedef   std::function< status_t( double, void* ) >   frame_callback_t;
+
 public:
     enum SrfBeginAs_ {
         SrfBeginAs_Default, SrfBeginAs_Iconify, SrfBeginAs_Maximize
@@ -21,20 +25,20 @@ public:
     struct config_t {
         void*              arg                   = nullptr;
 
-        const char*        title                 = A113_VERSION_STRING"::fwork::immersive";
+        const char*        title                 = A113_VERSION_STRING"::clkwrk::immersive";
         int                width                 = 64;
         int                height                = 64;
        // glm::vec4          clear_color           = { 0.05, 0.05, 0.1, 1.0 };
         SrfBeginAs_        srf_bgn_as            = SrfBeginAs_Default;
 
+        frame_callback_t   loop                  = nullptr;
+
     } config;
 
 public:
-    typedef   std::function< status_t( double, void* ) >   frame_callback_t;
     typedef   std::function< status_t( void* ) >           init_callback_t;
 
 public:
-    frame_callback_t   loop            = nullptr;
     init_callback_t    init            = nullptr;
 
     std::atomic_bool   init_complete   = false;
@@ -44,7 +48,8 @@ public:
     // Lens3              lens            = { glm::vec3( 0.0, 0.0, 3.0 ), glm::vec3( 0.0, 0.0, 0.0 ), glm::vec3( 0.0, 1.0, 0.0 ) };
 
 _A113_PROTECTED:
-    std::atomic_bool   _is_running   = false;
+    std::atomic_bool   _is_running     = false;
+    Ticker             _frame_ticker   = {};
 
 public:
     // void Wait_init_complete( void ) {
@@ -62,14 +67,14 @@ public:
     int main( int argc_, char* argv_[], const config_t& config_ ) {
         config = config_;
 
-        _Log::morph( config.title );
-        _Log::info( "Preparing framework..." );
+        _Log::morph(  std::format( A113_VERSION_STRING"//Immersive//{}", config.title ) );
+        _Log::info( "Beginning clockwork initialization..." );
 
         glfwInit();
         glewInit();
 
         glfwSetErrorCallback( [] ( int err_, const char* desc_ ) -> void {
-            _Internal.error( "GLFW error [{}] occured: \"{}\".", err_, desc_ );
+            Log.error( "GLFW error [{}] occured: \"{}\".", err_, desc_ );
         } );
     
         glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 4 );
@@ -83,7 +88,7 @@ public:
         GLFWwindow* window = glfwCreateWindow( config.width, config.height, config.title, nullptr, nullptr );
 
         A113_ASSERT_OR( window ) { _Log::error( "Bad window handle." ); return -0x1; }
-        _Log::info( "Window handle ok..." );
+        _Log::info( "Graphics Library Window handle ok..." );
 
         glfwMakeContextCurrent( window );
 
@@ -102,13 +107,13 @@ public:
         imgui.io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
 
         imgui.style.WindowRounding = 0.0f; 
-        imgui.style.Colors[ ImGuiCol_WindowBg ].w = 1.0f;  
+        imgui.style.Colors[ ImGuiCol_WindowBg ].w = 1.0f;
         imgui.style.WindowPadding = { 10, 10 };
 
         ImGui_ImplGlfw_InitForOpenGL( window, true );
         ImGui_ImplOpenGL3_Init();
 
-        _Log::info( "ImGui ok..." );
+        _Log::info( "Immediate Mode Graphical User Interface ( ImGui ) ok..." );
         
         if( SrfBeginAs_Iconify == config.srf_bgn_as ) glfwIconifyWindow( window );
 
@@ -121,7 +126,7 @@ public:
         // init_hold.wait( true, std::memory_order_acquire );
         // glfwMakeContextCurrent( render.handle() );
         
-        _Log::info( "All ok." );
+        _Log::info( "Clockwork initialization complete." );
 
         _is_running.store( true, std::memory_order_release );
         while( _is_running.load( std::memory_order_relaxed ) && !glfwWindowShouldClose( window ) ) {
@@ -138,9 +143,8 @@ public:
 
             //render.clear( params.clear_color );
 
-            // static ixN::Ticker frame_tick;
-            // if( this->loop( frame_tick.lap(), params.arg ) != 0 ) params.is_running.store( false, std::memory_order_seq_cst );
-            ImGui::ShowDemoWindow();
+            A113_ASSERT_OR( this->config.loop( _frame_ticker.lap(), config.arg ) == 0x0 ) _is_running.store( false, std::memory_order_seq_cst );
+
             ImGui::Render();
 
             ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
@@ -155,17 +159,20 @@ public:
     l_end:
         _is_running.store( false, std::memory_order_seq_cst );
 
+        _Log::info( "Shutting down framework..." );
+
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
         ImPlot::DestroyContext();
         ImGui::DestroyContext();
 
         glfwDestroyWindow( window );
-        
+
+        _Log::info( "Shutdown ok." );
         return 0x0;
     }
 
 };
 
 
-}; };
+}

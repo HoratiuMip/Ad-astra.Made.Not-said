@@ -63,7 +63,7 @@ A113_IMPL_FNC COM_Ports& COM_Ports::refresh( void ) {
 
     switch( this->disp_mode() ) {
         case DispenserMode_Lock: {
-            std::unique_lock lock{ *this };
+            std::lock_guard lock{ *this };
             status = _populate_ports( **this );
         break; }
 

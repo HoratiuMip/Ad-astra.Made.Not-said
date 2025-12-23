@@ -12,6 +12,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 #include <atomic>
+#include <condition_variable>
 #include <filesystem>
 #include <fstream>
 #include <functional>

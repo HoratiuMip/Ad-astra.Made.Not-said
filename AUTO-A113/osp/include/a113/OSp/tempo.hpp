@@ -26,14 +26,14 @@ inline constexpr double TICK_MULS[] = {
 
 struct ticker_lap_epoch_init_t{};
 
-class Ticker {
+struct ticker_t {
 public:
-    Ticker()
+    ticker_t()
     : _create{ std::chrono::high_resolution_clock::now() },
       _last_lap{ std::chrono::high_resolution_clock::now() }
     {}
 
-    Ticker( [[maybe_unused]]ticker_lap_epoch_init_t )
+    ticker_t( [[maybe_unused]]ticker_lap_epoch_init_t )
     : _create{ std::chrono::high_resolution_clock::now() },
       _last_lap{}
     {}
@@ -87,6 +87,27 @@ public:
 
 };
 
+
+struct int_sleep_t {
+public:
+
+_A113_PROTECTED:
+    std::condition_variable   _cv;
+    std::atomic_int           _val;
+
+public:
+    A113_inline status_t operator () ( const auto& duration_ ) {
+        std::unique_lock< std::mutex > lock; 
+        return _cv.wait_for( lock, duration_ ) == std::cv_status::no_timeout ? 0x0 : _val.load( std::memory_order_acquire );
+    }
+
+public:
+    A113_inline void intr( int val_ = 0x0 ) {
+        if( val_ != 0x0 ) _val.store( val_, std::memory_order_release );
+        _cv.notify_all();
+    }
+
+};
 
 
 };

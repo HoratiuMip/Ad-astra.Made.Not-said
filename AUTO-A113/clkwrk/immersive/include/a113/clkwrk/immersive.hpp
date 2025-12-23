@@ -49,7 +49,7 @@ public:
 
 _A113_PROTECTED:
     std::atomic_bool   _is_running     = false;
-    Ticker             _frame_ticker   = {};
+    ticker_t           _frame_ticker   = {};
 
 public:
     // void Wait_init_complete( void ) {

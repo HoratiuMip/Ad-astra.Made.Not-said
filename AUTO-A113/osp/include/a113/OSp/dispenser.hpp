@@ -33,7 +33,7 @@ public:
 template< typename _T_ > struct dispenser_acquire {
 public:
     dispenser_acquire( Dispenser< _T_ >& disp_ ) : _disp{ disp_ } {
-        if( _disp._mode == DispenserMode_Lock ) { _disp.lock_shared(); } 
+        if( _disp._mode == DispenserMode_Lock ) { _disp.lock_shared();} 
         else { _ref = _disp; }
     }
 

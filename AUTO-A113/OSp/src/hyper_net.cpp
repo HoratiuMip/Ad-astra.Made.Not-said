@@ -17,7 +17,7 @@ A113_IMPL_FNC int Executor::clock( dt_t dt_ ) {
     const int  tok_cnt_lim = _tokens.size();
     int        tok_cnt     = 0x0;
 
-    std::unique_lock clock_lock{ _clock_mtx };
+    std::lock_guard clock_lock{ _clock_mtx };
     for(; tok_itr != _tokens.end() && tok_cnt < tok_cnt_lim; ++tok_cnt ) {
         bool tok_itr_modified = false;
 

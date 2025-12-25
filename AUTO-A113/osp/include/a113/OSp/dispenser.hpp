@@ -20,6 +20,9 @@ public:
     template< typename > friend struct dispenser_acquire;
 
 public:
+    using HVec< _T_ >::operator=;
+
+public:
     Dispenser( const DispenserMode_ mode_ ) : _mode{ mode_ } {}
 
 _A113_PROTECTED:
@@ -32,26 +35,41 @@ public:
 
 template< typename _T_ > struct dispenser_acquire {
 public:
-    dispenser_acquire( Dispenser< _T_ >& disp_ ) : _disp{ disp_ } {
-        if( _disp._mode == DispenserMode_Lock ) { _disp.lock_shared();} 
-        else { _ref = _disp; }
+    dispenser_acquire( Dispenser< _T_ >& disp_ ) : _disp{ &disp_ } {
+        if( _disp->_mode == DispenserMode_Lock ) { _disp->lock_shared(); } 
+        else { _ref = *_disp; }
     }
 
+    dispenser_acquire( const dispenser_acquire& ) = delete;
+
+    dispenser_acquire( dispenser_acquire&& other_ )
+    : _disp{ std::exchange( other_._disp, nullptr ) },
+      _ref{ std::move( other_._ref ) }
+    {}
+
     ~dispenser_acquire( void ) {
-        if( _disp._mode == DispenserMode_Lock ) { _disp.unlock_shared(); } 
+        this->release();
+    }
+
+public:
+    void release( void ) {
+        if( not _disp ) return;
+        if( _disp->_mode == DispenserMode_Lock ) { _disp->unlock_shared(); } 
+        _disp = nullptr;
+        _ref.reset();
     }
 
 _A113_PROTECTED:
-    Dispenser< _T_ >&   _disp;
+    Dispenser< _T_ >*   _disp;
     HVec< _T_ >         _ref    = {};
 
 public:
     A113_inline _T_* operator -> ( void ) {
-        if( _disp._mode == DispenserMode_Lock ) { return _disp.get(); } else { return _ref.get(); }
+        if( _disp->_mode == DispenserMode_Lock ) { return _disp->get(); } else { return _ref.get(); }
     }
 
     A113_inline _T_& operator * ( void ) {
-        if( _disp._mode == DispenserMode_Lock ) { return *_disp.get(); } else { return *_ref.get(); }
+        if( _disp->_mode == DispenserMode_Lock ) { return *_disp->get(); } else { return *_ref.get(); }
     }
 
 };

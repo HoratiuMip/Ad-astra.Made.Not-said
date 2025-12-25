@@ -1,6 +1,8 @@
 #include <a113/clkwrk/immersive.hpp>
 #include <a113/osp/osp.hpp>
 
+#include <a113/clkwrk/imm_widgets.hpp>
+
 class Component {
 public:
     using id_t = std::string;
@@ -40,25 +42,63 @@ inline Launcher G_Launcher;
 #include <ModbusClientPort.h>
 class ModbusRTU : public Component {
 protected:
+    #define _SCRAMBLE( a, b ) (((a)<<2)|(b))
+
+protected:
+    enum _Mode_ { _Mode_Once, _Mode_Repeat };
+    enum _Op_ { _Op_Read, _Op_Write };
+    enum _Type_ { _Type_DiscreteInput, _Type_Coil, _Type_InputRegister, _Type_HoldingRegister };
+
+protected:
+    inline static const char* const _STATUS_STRS[] = {
+        "OK", "?",
+
+        "BAD ILLEGAL FUNCTION",
+        "BAD ILLEGAL DATA ADDRESS",
+        "BAD ILLEGAL DATA VALUE",
+        "BAD SERVER DEVICE FAILURE",
+        "BAD ACKNOWLEDGE",
+        "BAD SERVER DEVICE BUSY",
+        "BAD NEGATIVE ACKNOWLEDGE",
+        "BAD MEMORY PARITY ERROR",
+        "BAD GATEWAY PATH UNAVAILABLE",
+        "BAD GATEWAY TARGET DEVICE FAILED TO RESPOND",
+
+        "BAD EMPTY RESPONSE",
+        "BAD NOT CORRECT REQUEST",
+        "BAD NOT CORRECT RESPONSE",
+        "BAD WRITE BUFFER OVERFLOW",
+        "BAD READ BUFFER OVERFLOW",
+        "BAD PORT CLOSED",
+
+        "BAD SERIAL OPEN",
+        "BAD SERIAL WRITE",
+        "BAD SERIAL READ",
+        "BAD SERIAL READ TIMEOUT",
+        "BAD SERIAL WRITE TIMEOUT",
+
+        "BAD CRC"
+    };
+
+protected:
     struct _ui_data_t {
-        int   selected_com_port   = -0x1;
-        struct _parity_t {
-            const char* const   types[ 5 ]    = { "No parity", "Even parity", "Odd parity", "Space parity", "Mark parity" };
-            int                 selected      = 0x0;
+        a113::clkwrk::imm_widgets::COM_Ports   ports{ G_Launcher.common.com_ports };
+
+        struct _parity_t : public a113::clkwrk::imm_widgets::DropDownList {
+            _parity_t() : DropDownList{ ( const char* const[] ){ "No parity", "Even parity", "Odd parity", "Space parity", "Mark parity" }, 5, 0x0 } {}
         }    parity;
-        struct _stopbit_t {
-            const char* const   types[ 3 ]    = { "One", "One & 1/2", "Two" };
-            int                 selected      = 0x0;
+        struct _stopbit_t : public a113::clkwrk::imm_widgets::DropDownList {
+            _stopbit_t() : DropDownList{ ( const char* const[] ){ "One", "One & 1/2", "Two" }, 3, 0x0 } {}
         }    stopbit;
-        struct _flow_t {
-            const char* const   types[ 3 ]    = { "None", "Hardware", "Software" };
-            int                 selected      = 0x0;
+        struct _flow_t : public a113::clkwrk::imm_widgets::DropDownList {
+            _flow_t() : DropDownList{ ( const char* const[] ){ "None", "Hardware", "Software" }, 3, 0x0 } {}
         }    flow;
 
     }   _ui;
 
     struct _mb_data_t {
         std::shared_ptr< ModbusClientPort >   port       = nullptr;
+        std::shared_ptr< std::mutex >         port_mtx   = std::make_shared< std::mutex >();
         Modbus::SerialSettings                settings   = {
             .baudRate         = 115200,
             .dataBits         = 8,
@@ -71,32 +111,126 @@ protected:
     }   _mb;
 
     struct _task_t {
-        _task_t( std::shared_ptr< ModbusClientPort > port_ ) 
-        : _ctl{ new std::atomic_int{ 1'000 } }
+        _task_t( std::shared_ptr< ModbusClientPort > port_, std::shared_ptr< std::mutex > port_mtx_ ) 
+        : _bridge{ new _bridge_t{
+            .ctl      = { 1'000 },
+            .scramble = { 0x0 },
+            .status   = { 0x0 },
+            .data     = { a113::DispenserMode_Lock }
+        } }
         {
-            std::thread( &_task_t::main, this, std::move( port_ ), _ctl ).detach();
+            _bridge->data = a113::HVec< std::array< uint16_t, 2048 > >::make();
+            std::thread( &_task_t::main, this, std::move( port_ ), std::move( port_mtx_ ), _bridge ).detach();
         }
 
         ~_task_t() {
-            _ctl->store( -0x1, std::memory_order_release );
+            _bridge->ctl.store( -0x1, std::memory_order_release );
         }
 
-        std::atomic_int*   _ctl   = nullptr;
+        struct _bridge_t {
+            std::atomic_int                                   ctl;
+            std::atomic_int                                   scramble;
+            struct _meta_t {
+                std::atomic_uint8_t    unit;
+                std::atomic_uint16_t   address;
+                std::atomic_uint16_t   count;
+            }                                                 meta;
+            std::atomic_int                                   status;
+            a113::Dispenser< std::array< uint16_t, 2048 > >   data;
+        }   *_bridge;
 
-        void main( std::shared_ptr< ModbusClientPort > port_, std::atomic_int* ctl_ ) { 
-            for(; ctl_->load( std::memory_order_relaxed ) != -0x1;) {
-                spdlog::warn( "gello" );
+        struct _config_t {
+            struct _mode_t : public a113::clkwrk::imm_widgets::DropDownList {
+                _mode_t() : DropDownList{ ( const char* const[] ){ "once", "repeat" }, 2, 0x0 } {}
+            }   mode;
+            struct _op_t : public a113::clkwrk::imm_widgets::DropDownList {
+                _op_t() : DropDownList{ ( const char* const[] ){ "read", "write" }, 2, 0x0 } {}
+            }   op;
+            struct _type_t : public std::array< a113::clkwrk::imm_widgets::DropDownList, 2 > {
+                _type_t() : std::array< a113::clkwrk::imm_widgets::DropDownList, 2 >{ {
+                    { ( const char* const[] ){ "discrete inputs", "coils", "input registers", "holding registers" }, 4 },
+                    { ( const char* const[] ){ "coils", "holding registers" }, 2 }
+                } } {}
+            }   type;
+            struct _meta_t {
+                uint8_t   unit       = 0x0;
+                int       address    = 0x0;
+                int       count      = 0;
+                int       interval   = 1'000;
+            }   meta;
+        }   _config;
+
+        void main( std::shared_ptr< ModbusClientPort > port_, std::shared_ptr< std::mutex > port_mtx_, _bridge_t* bridge_ ) { 
+            for(; bridge_->ctl != -0x1;) {
+                int                 status = 0x1;
+                _bridge_t::_meta_t& meta   = bridge_->meta;
+
+                a113::dispenser_acquire data{ bridge_->data };
+                switch( bridge_->scramble ) {
+                    case _SCRAMBLE( _Op_Read, _Type_InputRegister ): {
+                        std::lock_guard lock{ *port_mtx_ };
+                        status = port_->readInputRegisters( meta.unit.load(), meta.address.load(), meta.count.load(), data->data() );
+                    break; }
+                }
+                data.release();
+
+                switch( status ) {
+                    case Modbus::Status_Uncertain: bridge_->status = 0x1; break;
+                    case Modbus::Status_Good: bridge_->status = 0x0; break;
+                    default: {
+                        if( not ( status & Modbus::Status_Bad ) ) { status = 0x1; break; }
+                        status &= ~Modbus::Status_Bad;
+
+                        if( status & 0x100 ) {
+                            status = 0x0B + status & ~0x100;
+                        } else if( status & 0x200 ) {
+                            status = 0x11 + status & ~0x200;
+                        } else if( status & 0x400 ) {
+                            status = 0x16 + status & ~0x400;
+                        } else {
+                            status = 0x01 + status;
+                        }
+                    break; }
+                }
+                if( status >= std::size( _STATUS_STRS ) && status < 0x0 ) status = 0x1;
+                bridge_->status = status;
             } 
-            delete ctl_;
+            delete bridge_;
         }
 
         a113::status_t ui_frame( double dt_, void* arg_ ) {
-            ImGui::Text( "gello" );
+            ImGui::Text( "On unit" );
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); ImGui::InputScalar( "##Unit", ImGuiDataType_U8, &_config.meta.unit, 0, 0, nullptr, ImGuiInputTextFlags_CharsDecimal );
+            ImGui::SameLine(); ImGui::Text( "," ); 
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 100 ); _config.mode.imm_frame( "##Mode" );
+            switch( _config.mode.selected ) {
+                case _Mode_Once: {
+
+                break; }
+                case _Mode_Repeat: {
+                    ImGui::SameLine(); ImGui::Text( ", every" );
+                    ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); ImGui::InputInt( "##Interval", &_config.meta.interval, 0, 0, ImGuiInputTextFlags_CharsDecimal ); if( _config.meta.interval <= 0 ) _config.meta.interval = 0;
+                    ImGui::SameLine(); ImGui::Text( "ms" );
+                break; }
+            }
+            ImGui::SameLine(); ImGui::Text( "," );
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 100 ); _config.op.imm_frame( "##Op" );
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); ImGui::InputInt( "##Count", &_config.meta.count, 0, 0, ImGuiInputTextFlags_CharsDecimal ); if( _config.meta.count <= 0 ) _config.meta.count = 0;
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 200 ); _config.type[ _config.op.selected ].imm_frame( "##Type" );
+            ImGui::SameLine(); ImGui::Text( "from address" );
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); ImGui::InputInt( "##Address", &_config.meta.address, 0, 0, ImGuiInputTextFlags_CharsDecimal ); if( _config.meta.address <= 0x0 ) _config.meta.address = 0x0;
+            ImGui::SameLine(); ImGui::Text( "." );
+
+            _bridge->scramble     =_SCRAMBLE( _config.op.selected, _config.type[ _config.op.selected ].selected );
+            _bridge->meta.unit    =_config.meta.unit;
+            _bridge->meta.address =_config.meta.address;
+            _bridge->meta.count   =_config.meta.count;
+
             return 0x0;
         }
 
-        std::string status_str( void ) {
-            return "STATUS";
+        std::pair< bool, const char* > status_str( void ) {
+            return { _bridge->status == 0x0, _STATUS_STRS[ _bridge->status ] };
         }
     };
     struct _task_data_t {
@@ -105,47 +239,18 @@ protected:
 
 public:
     a113::status_t ui_frame( double dt_, void* arg_ ) override {
-        a113::io::COM_port_t* port = nullptr;
-
         ImGui::SeparatorText( "Found COM ports" );
-    {
-        a113::dispenser_acquire ports{ G_Launcher.common.com_ports };
-      
-        for( int idx = 0x0; idx < ports->size(); ++idx ) {
-            const bool selected = idx == _ui.selected_com_port;
-
-            ImGui::Separator();
-            if( ImGui::Selectable( (*ports)[ idx ].friendly.c_str(), selected, selected ? ImGuiSelectableFlags_Highlight : ImGuiSelectableFlags_None ) ) {
-                _ui.selected_com_port = idx;
-            }
-            ImGui::Separator();
-        }
-
-        if( _ui.selected_com_port >= 0x0 && _ui.selected_com_port < ports->size() ) port = &( *ports )[ _ui.selected_com_port ];
-    }
+        auto ports_guard = _ui.ports.imm_frame();
+        auto port        = _ui.ports.port;
+    
         ImGui::SeparatorText( "Connection settings" );
-        ImGui::BeginDisabled( not port );
+        ImGui::BeginDisabled( not port || _mb.port );
         ImGui::LabelText( "COM port", port ? port->id.c_str() : "N/A" ); ImGui::SetItemTooltip( "Use the above panel to select a COM port." );
         ImGui::InputInt( "Baud rate", &_mb.settings.baudRate, 0, 0 );
         ImGui::InputScalar( "Data bits", ImGuiDataType_S8, &_mb.settings.dataBits, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
-        if( ImGui::BeginCombo( "Parity", _ui.parity.types[ _ui.parity.selected ] ) ) {
-            for( int idx = 0x0; idx < IM_ARRAYSIZE( _ui.parity.types ); ++idx ) {
-                if (ImGui::Selectable( _ui.parity.types[ idx ], idx == _ui.parity.selected ) ) _ui.parity.selected = idx;
-            }
-            ImGui::EndCombo();
-        }
-        if( ImGui::BeginCombo( "Stop bit", _ui.stopbit.types[ _ui.stopbit.selected ] ) ) {
-            for( int idx = 0x0; idx < IM_ARRAYSIZE( _ui.stopbit.types ); ++idx ) {
-                if (ImGui::Selectable( _ui.stopbit.types[ idx ], idx == _ui.stopbit.selected ) ) _ui.stopbit.selected = idx;
-            }
-            ImGui::EndCombo();
-        }
-        if( ImGui::BeginCombo( "Flow control", _ui.flow.types[ _ui.flow.selected ] ) ) {
-            for( int idx = 0x0; idx < IM_ARRAYSIZE( _ui.flow.types ); ++idx ) {
-                if (ImGui::Selectable( _ui.flow.types[ idx ], idx == _ui.flow.selected ) ) _ui.flow.selected = idx;
-            }
-            ImGui::EndCombo();
-        }
+        _ui.parity.imm_frame( "Parity" );
+        _ui.stopbit.imm_frame( "Stop bit" );
+        _ui.flow.imm_frame( "Flow control" );
         ImGui::InputScalar( "First TO", ImGuiDataType_U32, &_mb.settings.timeoutFirstByte, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
         ImGui::SetItemTooltip( "Maximum time to receive the first response byte, in milliseconds." );
         ImGui::InputScalar( "Inter TO", ImGuiDataType_U32, &_mb.settings.timeoutInterByte, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
@@ -159,7 +264,7 @@ public:
             ImGui::TextColored( ImVec4{ 1,0,0,1 }, "Disconnected" );
         }
         ImGui::SameLine(); ImGui::Bullet();
-        ImGui::BeginDisabled( not port );
+        ImGui::BeginDisabled( not port || _mb.port );
         if( ImGui::Button( "Connect" ) ) {
             _mb.settings.portName    = port->id.c_str();
             _mb.settings.parity      = ( Modbus::Parity )_ui.parity.selected;
@@ -169,11 +274,15 @@ public:
             _mb.port.reset( Modbus::createClientPort( Modbus::RTU, &_mb.settings, true ) );
             A113_ASSERT_OR( _mb.port ) spdlog::error( "Failed to create modbus client port." );
         }
+    
+        ports_guard.release();
+
         ImGui::SetItemTooltip( "Attempt a connection using the above configured settings." );
         ImGui::EndDisabled();
         ImGui::SameLine(); ImGui::Bullet();
         ImGui::BeginDisabled( not _mb.port );
         if( ImGui::Button( "Disconnect" ) ) {
+            _tsk.list.clear();
             _mb.settings.portName = "";
             _mb.port.reset();
         }
@@ -181,10 +290,12 @@ public:
         ImGui::EndDisabled();
         ImGui::Separator();
 
+        ImGui::BeginDisabled( not _mb.port );
         if( ImGui::Button( "+" ) ) {
-            _tsk.list.emplace_back( _mb.port );
+            _tsk.list.emplace_back( _mb.port, _mb.port_mtx );
         }
-        ImGui::SetItemTooltip( "Add new rule." );
+        ImGui::SetItemTooltip( _mb.port ? "Add new rule." : "Connect before adding rules." );
+        ImGui::EndDisabled();
         ImGui::SameLine();
         ImGui::SeparatorText( "Rules" );
         ImGui::Separator();
@@ -201,11 +312,14 @@ public:
             ImGui::PushStyleColor( ImGuiCol_Text,          ImVec4{ 1,0,0,1 } );
             if( ImGui::SmallButton( "X" ) ) remove = true;
             ImGui::PopStyleColor( 4 );
-            ImGui::PopID();
 
-            ImGui::SameLine(); ImGui::SeparatorText( itr->status_str().c_str() );
+            auto [ status_ok, status_str ] = itr->status_str();
+            ImGui::PushStyleColor( ImGuiCol_Text, status_ok ? ImVec4{ 0,1,0,1 } : ImVec4{ 1,0,0,1 } );
+            ImGui::SameLine(); ImGui::SeparatorText( status_str );
+            ImGui::PopStyleColor( 1 );
             A113_ASSERT_OR( itr->ui_frame( dt_, arg_ ) == 0x0 ) remove = true;
             ImGui::Separator();
+            ImGui::PopID();
 
             if( not remove ) goto l_keep;
         l_remove:
@@ -218,6 +332,9 @@ public:
 
         return 0x0;
     }
+
+protected:
+    #undef _SCRAMBLE
 
 };
 

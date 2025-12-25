@@ -12,6 +12,12 @@
 namespace a113::clkwrk {
 
 
+class Imm_Frame {
+public:
+    virtual status_t imm_frame( double dt_, void* arg_ ) = 0;
+
+};
+
 class Immersive : public st_att::_Log {
 public:
     typedef   std::function< status_t( double, void* ) >   frame_callback_t;

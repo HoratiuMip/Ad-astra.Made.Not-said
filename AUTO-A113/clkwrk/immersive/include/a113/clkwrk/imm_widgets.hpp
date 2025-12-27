@@ -49,8 +49,8 @@ public:
     io::COM_port_t*   port   = nullptr;
 
 public:
-    dispenser_acquire< io::COM_Ports::container_t > imm_frame( void ) {
-        dispenser_acquire ports{ *_ports };
+    dispenser_watch< io::COM_Ports::container_t > imm_frame( void ) {
+        dispenser_watch ports{ *_ports };
 
         for( int idx = 0x0; idx < ports->size(); ++idx ) {
             const bool selected = idx == _sel;

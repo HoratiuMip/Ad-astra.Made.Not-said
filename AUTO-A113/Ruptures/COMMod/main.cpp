@@ -14,11 +14,11 @@ public:
 class Launcher {
 public:
     struct _common_data_t {
-        a113::io::COM_Ports   com_ports{ a113::DispenserMode_Swap, true, true };
+        a113::io::COM_Ports   com_ports{ a113::DispenserMode_Lock, true, true };
     } common;
 
 protected:
-    std::map< Component::id_t, a113::HVec< Component > >   _components_map;
+    std::map< Component::id_t, a113::HVec< Component > >   _components_map; 
     std::recursive_mutex                                   _components_mtx;
 
 public:
@@ -86,15 +86,15 @@ protected:
 
         struct _parity_t : public a113::clkwrk::imm_widgets::DropDownList {
             _parity_t() : DropDownList{ ( const char* const[] ){ "No parity", "Even parity", "Odd parity", "Space parity", "Mark parity" }, 5, 0x0 } {}
-        }    parity;
+        } parity;
         struct _stopbit_t : public a113::clkwrk::imm_widgets::DropDownList {
             _stopbit_t() : DropDownList{ ( const char* const[] ){ "One", "One & 1/2", "Two" }, 3, 0x0 } {}
-        }    stopbit;
+        } stopbit;
         struct _flow_t : public a113::clkwrk::imm_widgets::DropDownList {
             _flow_t() : DropDownList{ ( const char* const[] ){ "None", "Hardware", "Software" }, 3, 0x0 } {}
-        }    flow;
+        } flow;
 
-    }   _ui;
+    } _ui;
 
     struct _mb_data_t {
         std::shared_ptr< ModbusClientPort >   port       = nullptr;
@@ -105,26 +105,26 @@ protected:
             .parity           = Modbus::NoParity,
             .stopBits         = Modbus::OneStop,
             .flowControl      = Modbus::NoFlowControl,
-            .timeoutFirstByte = 3000,
-            .timeoutInterByte = 1000
+            .timeoutFirstByte = 100,
+            .timeoutInterByte = 10
         };
-    }   _mb;
+    } _mb;
 
     struct _task_t {
         _task_t( std::shared_ptr< ModbusClientPort > port_, std::shared_ptr< std::mutex > port_mtx_ ) 
         : _bridge{ new _bridge_t{
-            .ctl      = { 1'000 },
+            .ctl      = { 0x0 },
             .scramble = { 0x0 },
             .status   = { 0x0 },
-            .data     = { a113::DispenserMode_Lock }
+            .data     = { a113::DispenserMode_Swap }
         } }
         {
-            _bridge->data = a113::HVec< std::array< uint16_t, 2048 > >::make();
             std::thread( &_task_t::main, this, std::move( port_ ), std::move( port_mtx_ ), _bridge ).detach();
         }
 
         ~_task_t() {
             _bridge->ctl.store( -0x1, std::memory_order_release );
+            _bridge->ctl.notify_one();
         }
 
         struct _bridge_t {
@@ -136,8 +136,9 @@ protected:
                 std::atomic_uint16_t   count;
             }                                                 meta;
             std::atomic_int                                   status;
+            std::atomic_int                                   count;
             a113::Dispenser< std::array< uint16_t, 2048 > >   data;
-        }   *_bridge;
+        } *_bridge;
 
         struct _config_t {
             struct _mode_t : public a113::clkwrk::imm_widgets::DropDownList {
@@ -158,21 +159,31 @@ protected:
                 int       count      = 0;
                 int       interval   = 1'000;
             }   meta;
-        }   _config;
+        } _config;
+
+        struct _ui_t {
+            double   elasped   = 0.0;
+        } _ui;
 
         void main( std::shared_ptr< ModbusClientPort > port_, std::shared_ptr< std::mutex > port_mtx_, _bridge_t* bridge_ ) { 
-            for(; bridge_->ctl != -0x1;) {
+            for( int ctl = bridge_->ctl; ctl != -0x1; ctl = bridge_->ctl ) {
+                if( ctl == 0x0 ) {
+                    bridge_->ctl.wait( 0x0 );
+                    ctl = bridge_->ctl;
+                    if( ctl == -0x1 ) break;
+                    if( ctl == -0x2 ) { bridge_->ctl = 0x0; ctl = 0x0; }
+                }
+
                 int                 status = 0x1;
                 _bridge_t::_meta_t& meta   = bridge_->meta;
-
-                a113::dispenser_acquire data{ bridge_->data };
+            
                 switch( bridge_->scramble ) {
                     case _SCRAMBLE( _Op_Read, _Type_InputRegister ): {
                         std::lock_guard lock{ *port_mtx_ };
+                        a113::dispenser_control data{ bridge_->data };
                         status = port_->readInputRegisters( meta.unit.load(), meta.address.load(), meta.count.load(), data->data() );
                     break; }
                 }
-                data.release();
 
                 switch( status ) {
                     case Modbus::Status_Uncertain: bridge_->status = 0x1; break;
@@ -194,6 +205,9 @@ protected:
                 }
                 if( status >= std::size( _STATUS_STRS ) && status < 0x0 ) status = 0x1;
                 bridge_->status = status;
+                ++bridge_->count;
+
+                std::this_thread::sleep_for( std::chrono::milliseconds{ ctl } );
             } 
             delete bridge_;
         }
@@ -209,7 +223,7 @@ protected:
                 break; }
                 case _Mode_Repeat: {
                     ImGui::SameLine(); ImGui::Text( ", every" );
-                    ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); ImGui::InputInt( "##Interval", &_config.meta.interval, 0, 0, ImGuiInputTextFlags_CharsDecimal ); if( _config.meta.interval <= 0 ) _config.meta.interval = 0;
+                    ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); ImGui::InputInt( "##Interval", &_config.meta.interval, 0, 0, ImGuiInputTextFlags_CharsDecimal ); if( _config.meta.interval <= 100 ) _config.meta.interval = 100;
                     ImGui::SameLine(); ImGui::Text( "ms" );
                 break; }
             }
@@ -226,11 +240,53 @@ protected:
             _bridge->meta.address =_config.meta.address;
             _bridge->meta.count   =_config.meta.count;
 
+            switch( _bridge->scramble ) {
+                case _SCRAMBLE( _Op_Read, _Type_InputRegister ): {
+                    if( ImGui::BeginTable( "##Data", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Borders ) ) {
+                        ImGui::TableSetupColumn( "Address", ImGuiTableColumnFlags_None, 0.0, 0 );
+                        ImGui::TableSetupColumn( "Value", ImGuiTableColumnFlags_None, 0.0, 1 );  
+
+                        ImGui::TableHeadersRow();
+
+                        _ui.elasped += dt_;
+
+                        a113::dispenser_watch data{ _bridge->data };
+                        for( int idx = 0x0; idx < _config.meta.count; ++idx ) {
+                            ImGui::TableNextRow( ImGuiTableRowFlags_None );
+
+                            int gs = ( sin( 2.0*_ui.elasped + 3.1415 / 4.0 * idx ) + 1.0 ) / 2.0 * 56.0;
+                            ImGui::TableSetBgColor( ImGuiTableBgTarget_RowBg0, IM_COL32( gs, gs, gs, 255 ) );  
+
+                            ImGui::TableSetColumnIndex( 0 );
+                            ImGui::Text( std::format( "0x{:X}", idx ).c_str() );
+
+                            ImGui::TableSetColumnIndex( 1 );
+                            ImGui::Text( std::format( "{:016b}", data->data()[ idx ] ).c_str() );
+                        }
+
+                        ImGui::EndTable();
+                    }
+                break; }
+            }
+
             return 0x0;
         }
 
         std::pair< bool, const char* > status_str( void ) {
             return { _bridge->status == 0x0, _STATUS_STRS[ _bridge->status ] };
+        }
+
+        int completed( void ) {
+            return _bridge->count;
+        }
+
+        bool is_active( void ) {
+            return _bridge->ctl > 0x0;
+        }
+
+        void set_ctl( int ctl_ ) {
+            _bridge->ctl = ctl_;
+            _bridge->ctl.notify_one();
         }
     };
     struct _task_data_t {
@@ -271,7 +327,10 @@ public:
             _mb.settings.stopBits    = ( Modbus::StopBits )_ui.stopbit.selected;
             _mb.settings.flowControl = ( Modbus::FlowControl )_ui.flow.selected;
 
-            _mb.port.reset( Modbus::createClientPort( Modbus::RTU, &_mb.settings, true ) );
+            _mb.port.reset( Modbus::createClientPort( Modbus::RTU, &_mb.settings, true ), [] ( ModbusClientPort* port_ ) static -> void {
+                port_->close();
+                delete port_;
+            } );
             A113_ASSERT_OR( _mb.port ) spdlog::error( "Failed to create modbus client port." );
         }
     
@@ -312,6 +371,19 @@ public:
             ImGui::PushStyleColor( ImGuiCol_Text,          ImVec4{ 1,0,0,1 } );
             if( ImGui::SmallButton( "X" ) ) remove = true;
             ImGui::PopStyleColor( 4 );
+
+            ImGui::SameLine(); ImGui::Text( "%d", itr->completed() );
+            ImGui::SameLine();
+            if( itr->_config.mode.selected == 0x1 ) {
+                const bool active = itr->is_active();
+                if( ImGui::RadioButton( "##Toggle", active ) ) {
+                    if( active ) itr->set_ctl( 0x0 ); else { itr->set_ctl( itr->_config.meta.interval ); }
+                }
+            } else {
+                if( ImGui::ArrowButton( "##Exec", ImGuiDir_Right ) ) {
+                    itr->set_ctl( -0x2 );
+                }
+            }
 
             auto [ status_ok, status_str ] = itr->status_str();
             ImGui::PushStyleColor( ImGuiCol_Text, status_ok ? ImVec4{ 0,1,0,1 } : ImVec4{ 1,0,0,1 } );

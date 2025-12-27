@@ -61,23 +61,9 @@ static DWORD CALLBACK _listen_callback (
 A113_IMPL_FNC COM_Ports& COM_Ports::refresh( void ) {
     status_t status = -0x1;
 
-    switch( this->disp_mode() ) {
-        case DispenserMode_Lock: {
-            std::lock_guard lock{ *this };
-            status = _populate_ports( **this );
-        break; }
-
-        case DispenserMode_Swap: {
-            auto ports = HVec< container_t >::make();
-            status = _populate_ports( *ports );
-            this->HVec< container_t >::operator=( std::move( ports ) );
-        break; }
-
-        default: {
-            _Log::error( "Bad dispenser mode." );
-            return *this;
-        }
-    }
+    dispenser_control ports{ *this };
+    status = _populate_ports( *ports );
+    ports.commit();
 
     if( status > 0x0 ) _Log::info( "Refreshed, found [{}] port(s).", status );
     else if( status == 0x0 ) _Log::info( "Refreshed, no ports found." );

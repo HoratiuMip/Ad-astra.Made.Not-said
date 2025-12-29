@@ -130,8 +130,8 @@ protected:
         }
 
         ~_rule_t() {
-            _bridge->rule_def.store( -0x1, std::memory_order_release );
-            _bridge->rule_def.notify_one();
+            _bridge->control.store( -0x1, std::memory_order_release );
+            _bridge->control.notify_one();
         }
 
         struct _bridge_t {
@@ -166,10 +166,11 @@ protected:
             } func2;
             struct _data_type_t : public a113::clkwrk::imm_widgets::DropDownList {
                 _data_type_t() : DropDownList{ ( const char* const[] ){
-                    "ASCII", "int16", "uint16", "int32", "uint32", "float32", "float64" 
-                }, 7 } {}
+                    "None", "Binary", "ASCII", "Int16", "Uint16", "Int32", "Uint32", "Float32", "Float64" 
+                }, 9, 0x0 } {}
 
-                bool   reverse   = false;
+                bool          reverse   = false;
+                std::string   input     = "";
             };
 
             struct _config_t {
@@ -180,7 +181,6 @@ protected:
             } config;
 
             std::vector< _data_type_t >   data_types   = {};
-            double                        elasped      = 0.0;
             float                         gs_red       = 1.0;
         } _ui;
 
@@ -188,7 +188,7 @@ protected:
             for( int control = bridge_->control; control != -0x1; control = bridge_->control ) {
                 auto rule_def = bridge_->rule_def.load();
 
-                if( 0x0 == control ) { 
+                if( 0x0 == control || 0x0 == ( rule_def & _RULE_MODE_MSK ) ) { 
                     bridge_->control.wait( 0x0 ); 
 
                     control  = bridge_->control; if( control == -0x1 ) break;
@@ -198,15 +198,37 @@ protected:
                 }
 
                 int                   status = 0x1;
-                _bridge_t::_config_t& config = bridge_->config;
-                
+                _bridge_t::_config_t& config = bridge_->config;   
+            {
+                std::lock_guard lock{ *port_mtx_ };
                 switch( rule_def & _RULE_FUNC_MSK ) {
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Read, _RuleFunc2_DiscreteInputs ): {
+                        auto data = bridge_->data.control();
+                        status = port_->readDiscreteInputsAsBoolArray( config.unit.load(), config.address.load(), config.count.load(), ( bool* )data->data() );
+                    break; }
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Read, _RuleFunc2_Coils ): {
+                        auto data = bridge_->data.control();
+                        status = port_->readCoilsAsBoolArray( config.unit.load(), config.address.load(), config.count.load(), ( bool* )data->data() );
+                    break; }
                     case _MAKE_RULE_FUNC( _RuleFunc1_Read, _RuleFunc2_InputRegisters ): {
-                        std::lock_guard lock{ *port_mtx_ };
                         auto data = bridge_->data.control();
                         status = port_->readInputRegisters( config.unit.load(), config.address.load(), config.count.load(), ( uint16_t* )data->data() );
                     break; }
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Read, _RuleFunc2_HoldingRegisters ): {
+                        auto data = bridge_->data.control();
+                        status = port_->readHoldingRegisters( config.unit.load(), config.address.load(), config.count.load(), ( uint16_t* )data->data() );
+                    break; }
+                    
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Write, _RuleFunc2_Coils ): {
+                        auto data = bridge_->data.watch();
+                        status = port_->writeMultipleCoilsAsBoolArray( config.unit.load(), config.address.load(), config.count.load(), ( bool* )data->data() );
+                    break; }
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Write, _RuleFunc2_HoldingRegisters ): {
+                        auto data = bridge_->data.watch();
+                        status = port_->writeMultipleRegisters( config.unit.load(), config.address.load(), config.count.load(), ( uint16_t* )data->data() );
+                    break; }
                 }
+            }
 
                 switch( status ) {
                     case Modbus::Status_Uncertain: bridge_->status = 0x1; break;
@@ -269,8 +291,9 @@ protected:
             _ui.config.count = std::clamp( _ui.config.count, 0x0, 0xFF );
 
             ImGui::SameLine(); ImGui::SetNextItemWidth( 200 ); 
-            const auto selected_func2 = _ui.func2[ selected_func1 ].imm_frame( "##func2", &rule_changed );
-
+            const bool func1_is_write = selected_func1 == _RuleFunc1_Write;
+            const auto selected_func2 = ( _ui.func2[ selected_func1 ].imm_frame( "##func2", &rule_changed ) << func1_is_write ) + func1_is_write;
+            
             ImGui::SameLine(); ImGui::Text( "from address" );
             ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); 
             const bool address_changed = ImGui::InputInt( "##Address", &_ui.config.address, 0, 0, ImGuiInputTextFlags_CharsDecimal ); 
@@ -301,11 +324,47 @@ protected:
             }
 
             const auto status = _bridge->status.load();
+            _ui.gs_red += ( ( 0x0 == status ? 1.0 : 0.0 ) - _ui.gs_red ) * 2.4*dt_;
 
-            ImGui::BeginDisabled( 0x0 != status );
+            ImGui::BeginDisabled( 0x0 != status && not func1_is_write );
                 switch( rule_def & _RULE_FUNC_MSK ) {
-                    case _MAKE_RULE_FUNC( _RuleFunc1_Read, _RuleFunc2_InputRegisters ): {
-                        if( ImGui::BeginTable( "##Data", 5, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Borders ) ) {
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Read, _RuleFunc2_DiscreteInputs ): [[fallthrough]];
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Read, _RuleFunc2_Coils ): {
+                        if( ImGui::BeginTable( "##data", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Borders ) ) {
+                            ImGui::TableSetupColumn( "Address", ImGuiTableColumnFlags_None, 0.0, 0 );
+                            ImGui::TableSetupColumn( "Value", ImGuiTableColumnFlags_None, 0.0, 1 );  
+        
+                            ImGui::TableHeadersRow();
+
+                            auto data = _bridge->data.watch();
+                    
+                            for( int idx = 0x0; idx < _ui.config.count; ++idx ) {
+                                const bool* crt_dat = ( bool* )&data->at( idx );
+
+                                ImGui::PushID( idx );
+                                    ImGui::TableNextRow( ImGuiTableRowFlags_None, 26.0 );
+
+                                    int gs = ( sin( 2.0*ImGui::GetTime() + 3.1415 / 4.0 * idx ) + 1.0 ) / 2.0 * 56.0;
+                                    ImGui::TableSetBgColor( ImGuiTableBgTarget_RowBg0, IM_COL32( gs, gs*_ui.gs_red, gs*_ui.gs_red, 255 ) );  
+
+                                    ImGui::TableSetColumnIndex( 0 );
+                                        ImGui::Text( std::format( "0x{:X}", _ui.config.address + idx ).c_str() );
+
+                                    ImGui::TableSetColumnIndex( 1 );
+                                        const bool value = *crt_dat;
+                                        ImGui::PushStyleColor( ImGuiCol_Text, value ? ImVec4{ 0,.36,1,1 } : ImVec4{ 1,.36,0,1 } );
+                                            ImGui::Text( "%s", value ? "On" : "Off" );
+                                        ImGui::PopStyleColor();
+                                ImGui::PopID();
+                            }
+
+                            ImGui::EndTable();
+                        }
+                    break; }
+
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Read, _RuleFunc2_InputRegisters ): [[fallthrough]];
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Read, _RuleFunc2_HoldingRegisters ): {
+                        if( ImGui::BeginTable( "##data", 5, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Borders ) ) {
                             ImGui::TableSetupColumn( "Address", ImGuiTableColumnFlags_None, 0.0, 0 );
                             ImGui::TableSetupColumn( "Raw value", ImGuiTableColumnFlags_None, 0.0, 1 );  
                             ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_None, 0.0, 2 );  
@@ -314,20 +373,16 @@ protected:
 
                             ImGui::TableHeadersRow();
 
-                            _ui.elasped += dt_;
-
                             auto data      = _bridge->data.watch();
                             int  type_skip = 0;
-                            
-                            _ui.gs_red += ( ( 0x0 == status ? 1.0 : 0.0 ) - _ui.gs_red ) * 3.6*dt_;
 
                             for( int idx = 0x0; idx < _ui.config.count; ++idx ) {
                                 const uint16_t* crt_dat = ( uint16_t* )&data->at( idx << 1 );
 
                                 ImGui::PushID( idx );
-                                    ImGui::TableNextRow( ImGuiTableRowFlags_None, 32.0 );
+                                    ImGui::TableNextRow( ImGuiTableRowFlags_None, 26.0 );
 
-                                    int gs = ( sin( 2.0*_ui.elasped + 3.1415 / 4.0 * idx ) + 1.0 ) / 2.0 * 56.0;
+                                    int gs = ( sin( 2.0*ImGui::GetTime() + 3.1415 / 4.0 * idx ) + 1.0 ) / 2.0 * 56.0;
                                     ImGui::TableSetBgColor( ImGuiTableBgTarget_RowBg0, IM_COL32( gs, gs*_ui.gs_red, gs*_ui.gs_red, 255 ) );  
 
                                     ImGui::TableSetColumnIndex( 0 );
@@ -350,32 +405,168 @@ protected:
 
                                         #define _EXTRACT( t ) (reverse ? std::byteswap(*(t*)(crt_dat)) : *(t*)(crt_dat))
                                             switch( selected ) {
-                                                case 0x0: {
+                                                case 0x0: break;
+                                                case 0x1: {
+                                                    ImGui::Text( std::format( "{:016b}", _EXTRACT( uint16_t ) ).c_str() );
+                                                break; }
+                                                case 0x2: {
                                                     char c1 = ( *crt_dat ) >> 8;
                                                     char c2 = ( *crt_dat ) & 0xFF;
                                                     if( reverse ) std::swap( c1, c2 );
                                                     ImGui::Text( "%c%c", c1, c2 );
                                                 break; }
-                                                case 0x1: {
+                                                case 0x3: {
                                                     ImGui::Text( "%d", ( int )_EXTRACT( int16_t ) );
                                                 break; }
-                                                case 0x2: {
+                                                case 0x4: {
                                                     ImGui::Text( "%u", ( unsigned int )_EXTRACT( uint16_t ) );
                                                 break; }
-                                                case 0x3: {
+                                                case 0x5: {
                                                     ImGui::Text( "%d", _EXTRACT( int32_t ) ); type_skip = 1;
                                                 break; }
-                                                case 0x4: {
+                                                case 0x6: {
                                                     ImGui::Text( "%u", _EXTRACT( uint32_t ) ); type_skip = 1;
                                                 break; }
-                                                case 0x5: {
+                                                case 0x7: {
                                                     ImGui::Text( "%f", *( float* )crt_dat ); type_skip = 1;
                                                 break; }
-                                                case 0x6: {
+                                                case 0x8: {
                                                     ImGui::Text( "%lf", *( double* )crt_dat ); type_skip = 3;
                                                 break; }
                                             }
                                         #undef _EXTRACT
+                                    } else {
+                                        --type_skip;
+                                    }
+
+                                ImGui::PopID();
+                            }
+
+                            ImGui::EndTable();
+                        }
+                    break; }
+
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Write, _RuleFunc2_Coils ): {
+                        if( ImGui::BeginTable( "##data", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Borders ) ) {
+                            ImGui::TableSetupColumn( "Address", ImGuiTableColumnFlags_None, 0.0, 0 );
+                            ImGui::TableSetupColumn( "Value", ImGuiTableColumnFlags_None, 0.0, 1 );  
+        
+                            ImGui::TableHeadersRow();
+
+                            auto data = _bridge->data.watch();
+                    
+                            for( int idx = 0x0; idx < _ui.config.count; ++idx ) {
+                                bool* crt_dat = ( bool* )&data->at( idx );
+
+                                ImGui::PushID( idx );
+                                    ImGui::TableNextRow( ImGuiTableRowFlags_None, 26.0 );
+
+                                    int gs = ( sin( 2.0*ImGui::GetTime() + 3.1415 / 4.0 * idx ) + 1.0 ) / 2.0 * 56.0;
+                                    ImGui::TableSetBgColor( ImGuiTableBgTarget_RowBg0, IM_COL32( gs, gs*_ui.gs_red, gs*_ui.gs_red, 255 ) );  
+
+                                    ImGui::TableSetColumnIndex( 0 );
+                                        ImGui::Text( std::format( "0x{:X}", _ui.config.address + idx ).c_str() );
+
+                                    ImGui::TableSetColumnIndex( 1 );
+                                        if( ImGui::RadioButton( "##value", *crt_dat ) ) *crt_dat ^= 0x1;
+                                ImGui::PopID();
+                            }
+
+                            ImGui::EndTable();
+                        }
+                    break; }
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Write, _RuleFunc2_HoldingRegisters ): {
+                        if( ImGui::BeginTable( "##data", 5, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Borders ) ) {
+                            ImGui::TableSetupColumn( "Address", ImGuiTableColumnFlags_None, 0.0, 0 );
+                            ImGui::TableSetupColumn( "Raw value", ImGuiTableColumnFlags_None, 0.0, 1 );  
+                            ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_None, 0.0, 2 );  
+                            ImGui::TableSetupColumn( "Reverse", ImGuiTableColumnFlags_None, 0.0, 3 );  
+                            ImGui::TableSetupColumn( "Value", ImGuiTableColumnFlags_None, 0.0, 4 );  
+
+                            ImGui::TableHeadersRow();
+
+                            auto data      = _bridge->data.watch();
+                            int  type_skip = 0;
+
+                            for( int idx = 0x0; idx < _ui.config.count; ++idx ) {
+                                const uint16_t* crt_dat = ( uint16_t* )&data->at( idx << 1 );
+
+                                ImGui::PushID( idx );
+                                    ImGui::TableNextRow( ImGuiTableRowFlags_None, 26.0 );
+
+                                    int gs = ( sin( 2.0*ImGui::GetTime() + 3.1415 / 4.0 * idx ) + 1.0 ) / 2.0 * 56.0;
+                                    ImGui::TableSetBgColor( ImGuiTableBgTarget_RowBg0, IM_COL32( gs, gs*_ui.gs_red, gs*_ui.gs_red, 255 ) );  
+
+                                    ImGui::TableSetColumnIndex( 0 );
+                                        ImGui::Text( std::format( "0x{:X}", _ui.config.address + idx ).c_str() );
+
+                                    ImGui::TableSetColumnIndex( 1 );
+                                        ImGui::Text( std::format( "{:016b}", *crt_dat ).c_str() );
+                                    
+                                    if( 0 == type_skip ) {
+                                        ImGui::TableSetColumnIndex( 2 );
+                                            ImGui::SetNextItemWidth( 120 );
+                                            const auto selected = _ui.data_types[ idx ].imm_frame( "" );
+
+                                        ImGui::TableSetColumnIndex( 3 );
+                                            if( ImGui::RadioButton( "##reverse", _ui.data_types[ idx ].reverse ) ) _ui.data_types[ idx ].reverse ^= true;
+
+                                            const bool reverse = _ui.data_types[ idx ].reverse;
+
+                                        ImGui::TableSetColumnIndex( 4 );
+                                            bool value_changed = false;
+                                            if( 0x0 != selected ) {
+                                                ImGui::SetNextItemWidth( 200.0 );
+                                                ImGui::InputText( "##data_field", &_ui.data_types[ idx ].input, ImGuiInputTextFlags_CharsNoBlank );
+                                            }
+
+                                        #define _INJECT( t, x ) (*(t*)crt_dat = (t)(reverse ? std::byteswap((t)(x)) : (t)(x)))
+                                        #define _WHAT {ImGui::PushStyleColor( ImGuiCol_Text, ImVec4{ 1,0,0,1 } ); ImGui::SameLine(); ImGui::Text( "???" ); ImGui::PopStyleColor( 1 );}
+                                            switch( selected ) {
+                                                case 0x0: break;
+                                                case 0x1: {
+                                                    try{ _INJECT( uint16_t, std::stoi( _ui.data_types[ idx ].input, nullptr, 2 ) ); } 
+                                                    catch(...) { _WHAT }
+                                                break; }
+                                                case 0x2: {
+                                                    const auto sz = _ui.data_types[ idx ].input.size();
+                                                    if( sz == 0 ) _WHAT
+                                                    else {
+                                                        memcpy( ( void* )crt_dat, ( void* )_ui.data_types[ idx ].input.data(), ( sz&1 ) ? sz+1 : sz );
+                                                        type_skip = ( sz-1 ) / 2;
+                                                    }
+                                                break; }
+                                                case 0x3: {
+                                                    try{ _INJECT( int16_t, std::stoi( _ui.data_types[ idx ].input, nullptr, 10 ) ); } 
+                                                    catch(...) { _WHAT }
+                                                break; }
+                                                case 0x4: {
+                                                    try{ _INJECT( uint16_t, std::stoi( _ui.data_types[ idx ].input, nullptr, 10 ) ); } 
+                                                    catch(...) { _WHAT }
+                                                break; }
+                                                case 0x5: {
+                                                    try{ _INJECT( int32_t, std::stoi( _ui.data_types[ idx ].input, nullptr, 10 ) ); } 
+                                                    catch(...) { _WHAT }
+                                                    type_skip = 1;
+                                                break; }
+                                                case 0x6: {
+                                                    try{ _INJECT( uint32_t, std::stoi( _ui.data_types[ idx ].input, nullptr, 10 ) ); } 
+                                                    catch(...) { _WHAT }
+                                                    type_skip = 1;
+                                                break; }
+                                                case 0x7: {
+                                                    try{ *( float* )crt_dat = std::stof( _ui.data_types[ idx ].input ); } 
+                                                    catch(...) { _WHAT }
+                                                    type_skip = 1;
+                                                break; }
+                                                case 0x8: {
+                                                    try{ *( double* )crt_dat = std::stod( _ui.data_types[ idx ].input ); } 
+                                                    catch(...) { _WHAT }
+                                                    type_skip = 3;
+                                                break; }
+                                            }
+                                        #undef _WHAT
+                                        #undef _INJECT
                                     } else {
                                         --type_skip;
                                     }
@@ -406,11 +597,14 @@ public:
     a113::status_t ui_frame( double dt_, void* arg_ ) override {
         ImGui::SeparatorText( "Found COM ports" );
 
-        auto ports_watch = G_Launcher.common.com_ports.watch();
-        auto port        = _ui.ports.imm_frame( ports_watch );
+        const bool port_conn   = ( bool )_mb.port;
+        auto       ports_watch = G_Launcher.common.com_ports.watch();
+
+        ImGui::BeginDisabled( port_conn );
+            auto port = _ui.ports.imm_frame( ports_watch );
+        ImGui::EndDisabled();
 
         const bool port_not_sel_or_conn = not port || _mb.port;
-        const bool port_conn            = ( bool )_mb.port;
     
         ImGui::SeparatorText( "Connection settings" );
         ImGui::BeginDisabled( port_not_sel_or_conn );
@@ -458,13 +652,14 @@ public:
                 else _Log::error( "Failed to create new client port." );
             }
         
+            const bool port_available = ( bool )port;
             ports_watch.release();
 
             ImGui::SetItemTooltip( "Attempt a connection using the above configured settings." );
         ImGui::EndDisabled();
         ImGui::SameLine(); ImGui::Bullet();
         ImGui::BeginDisabled( not port_conn );
-            if( ImGui::Button( "Disconnect" ) ) {
+            if( ImGui::Button( "Disconnect" ) || not port_available ) {
                 _rules.list.clear();
                 _mb.settings.portName = "";
                 _mb.port.reset();
@@ -532,6 +727,7 @@ public:
     }
 
 protected:
+    #undef _MAKE_RULE_FUNC
     #undef _MAKE_RULE_DEF
 
 };

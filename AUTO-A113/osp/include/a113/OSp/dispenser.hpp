@@ -12,7 +12,7 @@ namespace a113 {
 
 
 enum DispenserMode_ {
-    DispenserMode_Lock, DispenserMode_Drop, DispenserMode_Swap
+    DispenserMode_Lock, DispenserMode_Drop, DispenserMode_Swap, DispenserMode_ReverseSwap
 };
 
 template< typename _T_, bool _IS_CONTROL_ > struct _dispenser_acquire;
@@ -36,7 +36,8 @@ public:
             case DispenserMode_Drop: {
                 _M_.drop.block = HVec< _T_ >::make();
             break; }
-            case DispenserMode_Swap: {
+            case DispenserMode_Swap: [[fallthrough]];
+            case DispenserMode_ReverseSwap: {
                 _M_.swap.blocks[ 0x0 ] = HVec< _T_ >::make();
                 _M_.swap.blocks[ 0x1 ] = HVec< _T_ >::make();
                 new ( &_M_.swap.mtxs[ 0x0 ] ) std::shared_mutex{};
@@ -115,6 +116,9 @@ public:
                 }
 
                 _M_.swap.block = _disp->_M_.swap.blocks[ _M_.swap.ctl_idx ].get();
+            break; }
+            case DispenserMode_ReverseSwap: {
+                //TODO
             break; }
         }
     }

@@ -54,8 +54,7 @@ public:
     // Lens3              lens            = { glm::vec3( 0.0, 0.0, 3.0 ), glm::vec3( 0.0, 0.0, 0.0 ), glm::vec3( 0.0, 1.0, 0.0 ) };
 
 _A113_PROTECTED:
-    std::atomic_bool   _is_running     = false;
-    ticker_t           _frame_ticker   = {};
+    std::atomic_bool   _is_running   = false;
 
 public:
     // void Wait_init_complete( void ) {
@@ -149,7 +148,7 @@ public:
 
             //render.clear( params.clear_color );
 
-            A113_ASSERT_OR( this->config.loop( _frame_ticker.lap(), config.arg ) == 0x0 ) _is_running.store( false, std::memory_order_seq_cst );
+            A113_ASSERT_OR( this->config.loop( imgui.io.DeltaTime, config.arg ) == 0x0 ) _is_running.store( false, std::memory_order_seq_cst );
 
             ImGui::Render();
 

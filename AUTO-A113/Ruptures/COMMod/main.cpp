@@ -3,7 +3,12 @@
 
 #include <a113/clkwrk/imm_widgets.hpp>
 
-class Component {
+#define COMMOD_VERSION_STR "v1.0"
+
+class Component : public a113::st_att::_Log {
+public:
+    friend class Launcher;
+
 public:
     using id_t = std::string;
 
@@ -24,6 +29,7 @@ protected:
 public:
     void register_component( const Component::id_t& id_, a113::HVec< Component > comp_ ) {
         std::unique_lock lock{ _components_mtx };
+        comp_->morph( id_ );
         _components_map[ id_ ] = std::move( comp_ );
     }
 
@@ -42,16 +48,22 @@ inline Launcher G_Launcher;
 #include <ModbusClientPort.h>
 class ModbusRTU : public Component {
 protected:
-    #define _SCRAMBLE( a, b ) (((a)<<2)|(b))
+    #define _MAKE_RULE_DEF( m, f1, f2 ) (((m)<<3)|((f1)<<2)|(f2))
+    #define _MAKE_RULE_FUNC( f1, f2 )   (((f1)<<2)|(f2))
 
 protected:
-    enum _Mode_ { _Mode_Once, _Mode_Repeat };
-    enum _Op_ { _Op_Read, _Op_Write };
-    enum _Type_ { _Type_DiscreteInput, _Type_Coil, _Type_InputRegister, _Type_HoldingRegister };
+    enum _RuleMode_  { _RuleMode_Once, _RuleMode_Repeat };
+    enum _RuleFunc1_ { _RuleFunc1_Read, _RuleFunc1_Write };
+    enum _RuleFunc2_ { _RuleFunc2_DiscreteInputs, _RuleFunc2_Coils, _RuleFunc2_InputRegisters, _RuleFunc2_HoldingRegisters };
+
+    inline static constexpr int   _RULE_MODE_MSK    = 0b1000;
+    inline static constexpr int   _RULE_FUNC1_MSK   = 0b0100;
+    inline static constexpr int   _RULE_FUNC2_MSK   = 0b0011;
+    inline static constexpr int   _RULE_FUNC_MSK    = _RULE_FUNC1_MSK | _RULE_FUNC2_MSK;
 
 protected:
     inline static const char* const _STATUS_STRS[] = {
-        "OK", "?",
+        "OK", "???",
 
         "BAD ILLEGAL FUNCTION",
         "BAD ILLEGAL DATA ADDRESS",
@@ -105,89 +117,100 @@ protected:
             .parity           = Modbus::NoParity,
             .stopBits         = Modbus::OneStop,
             .flowControl      = Modbus::NoFlowControl,
-            .timeoutFirstByte = 100,
+            .timeoutFirstByte = 1000,
             .timeoutInterByte = 10
         };
     } _mb;
 
-    struct _task_t {
-        _task_t( std::shared_ptr< ModbusClientPort > port_, std::shared_ptr< std::mutex > port_mtx_ ) 
-        : _bridge{ new _bridge_t{
-            .ctl      = { 0x0 },
-            .scramble = { 0x0 },
-            .status   = { 0x0 },
-            .data     = { a113::DispenserMode_Swap }
-        } }
+    struct _rule_t {
+        _rule_t( std::shared_ptr< ModbusClientPort > port_, std::shared_ptr< std::mutex > port_mtx_ ) 
+        : _bridge{ new _bridge_t{} }
         {
-            std::thread( &_task_t::main, this, std::move( port_ ), std::move( port_mtx_ ), _bridge ).detach();
+            std::thread( &_rule_t::main, this, std::move( port_ ), std::move( port_mtx_ ), _bridge ).detach();
         }
 
-        ~_task_t() {
-            _bridge->ctl.store( -0x1, std::memory_order_release );
-            _bridge->ctl.notify_one();
+        ~_rule_t() {
+            _bridge->rule_def.store( -0x1, std::memory_order_release );
+            _bridge->rule_def.notify_one();
         }
 
         struct _bridge_t {
-            std::atomic_int                                   ctl;
-            std::atomic_int                                   scramble;
-            struct _meta_t {
+            std::atomic_int                                  control     = { 0x0 };
+
+            std::atomic_int                                  rule_def    = { 0x0 };
+            struct _config_t {
                 std::atomic_uint8_t    unit;
                 std::atomic_uint16_t   address;
                 std::atomic_uint16_t   count;
-            }                                                 meta;
-            std::atomic_int                                   status;
-            std::atomic_int                                   count;
-            a113::Dispenser< std::array< uint16_t, 2048 > >   data;
+                std::atomic_int        interval;
+            }                                                config;
+
+            std::atomic_int                                  status      = { 0x1 };
+            std::atomic_int                                  completed   = { 0x0 };
+
+            a113::Dispenser< std::array< uint8_t, 4096 > >   data        = { a113::DispenserMode_Swap };
         } *_bridge;
 
-        struct _config_t {
+        struct _ui_t {
             struct _mode_t : public a113::clkwrk::imm_widgets::DropDownList {
                 _mode_t() : DropDownList{ ( const char* const[] ){ "once", "repeat" }, 2, 0x0 } {}
-            }   mode;
-            struct _op_t : public a113::clkwrk::imm_widgets::DropDownList {
-                _op_t() : DropDownList{ ( const char* const[] ){ "read", "write" }, 2, 0x0 } {}
-            }   op;
-            struct _type_t : public std::array< a113::clkwrk::imm_widgets::DropDownList, 2 > {
-                _type_t() : std::array< a113::clkwrk::imm_widgets::DropDownList, 2 >{ {
-                    { ( const char* const[] ){ "discrete inputs", "coils", "input registers", "holding registers" }, 4 },
-                    { ( const char* const[] ){ "coils", "holding registers" }, 2 }
+            } mode;
+            struct _func1_t : public a113::clkwrk::imm_widgets::DropDownList {
+                _func1_t() : DropDownList{ ( const char* const[] ){ "read", "write" }, 2, 0x0 } {}
+            } func1;
+            struct _func2_t : public std::array< a113::clkwrk::imm_widgets::DropDownList, 2 > {
+                _func2_t() : std::array< a113::clkwrk::imm_widgets::DropDownList, 2 >{ {
+                    { ( const char* const[] ){ "discrete inputs", "coils", "input registers", "holding registers" }, 4, 0x0 },
+                    { ( const char* const[] ){ "coils", "holding registers" }, 2, 0x0 }
                 } } {}
-            }   type;
-            struct _meta_t {
+            } func2;
+            struct _data_type_t : public a113::clkwrk::imm_widgets::DropDownList {
+                _data_type_t() : DropDownList{ ( const char* const[] ){
+                    "ASCII", "int16", "uint16", "int32", "uint32", "float32", "float64" 
+                }, 7 } {}
+
+                bool   reverse   = false;
+            };
+
+            struct _config_t {
                 uint8_t   unit       = 0x0;
                 int       address    = 0x0;
                 int       count      = 0;
                 int       interval   = 1'000;
-            }   meta;
-        } _config;
+            } config;
 
-        struct _ui_t {
-            double   elasped   = 0.0;
+            std::vector< _data_type_t >   data_types   = {};
+            double                        elasped      = 0.0;
+            float                         gs_red       = 1.0;
         } _ui;
 
         void main( std::shared_ptr< ModbusClientPort > port_, std::shared_ptr< std::mutex > port_mtx_, _bridge_t* bridge_ ) { 
-            for( int ctl = bridge_->ctl; ctl != -0x1; ctl = bridge_->ctl ) {
-                if( ctl == 0x0 ) {
-                    bridge_->ctl.wait( 0x0 );
-                    ctl = bridge_->ctl;
-                    if( ctl == -0x1 ) break;
-                    if( ctl == -0x2 ) { bridge_->ctl = 0x0; ctl = 0x0; }
+            for( int control = bridge_->control; control != -0x1; control = bridge_->control ) {
+                auto rule_def = bridge_->rule_def.load();
+
+                if( 0x0 == control ) { 
+                    bridge_->control.wait( 0x0 ); 
+
+                    control  = bridge_->control; if( control == -0x1 ) break;
+                    rule_def = bridge_->rule_def;
+
+                    if( 0x0 == ( rule_def & _RULE_MODE_MSK ) ) control = ( bridge_->control = 0x0 );
                 }
 
-                int                 status = 0x1;
-                _bridge_t::_meta_t& meta   = bridge_->meta;
-            
-                switch( bridge_->scramble ) {
-                    case _SCRAMBLE( _Op_Read, _Type_InputRegister ): {
+                int                   status = 0x1;
+                _bridge_t::_config_t& config = bridge_->config;
+                
+                switch( rule_def & _RULE_FUNC_MSK ) {
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Read, _RuleFunc2_InputRegisters ): {
                         std::lock_guard lock{ *port_mtx_ };
-                        a113::dispenser_control data{ bridge_->data };
-                        status = port_->readInputRegisters( meta.unit.load(), meta.address.load(), meta.count.load(), data->data() );
+                        auto data = bridge_->data.control();
+                        status = port_->readInputRegisters( config.unit.load(), config.address.load(), config.count.load(), ( uint16_t* )data->data() );
                     break; }
                 }
 
                 switch( status ) {
                     case Modbus::Status_Uncertain: bridge_->status = 0x1; break;
-                    case Modbus::Status_Good: bridge_->status = 0x0; break;
+                    case Modbus::Status_Good:      bridge_->status = 0x0; break;
                     default: {
                         if( not ( status & Modbus::Status_Bad ) ) { status = 0x1; break; }
                         status &= ~Modbus::Status_Bad;
@@ -204,263 +227,375 @@ protected:
                     break; }
                 }
                 if( status >= std::size( _STATUS_STRS ) && status < 0x0 ) status = 0x1;
-                bridge_->status = status;
-                ++bridge_->count;
 
-                std::this_thread::sleep_for( std::chrono::milliseconds{ ctl } );
+                bridge_->status = status;
+                ++bridge_->completed;
+                
+                std::this_thread::sleep_for( std::chrono::milliseconds{ ( int )( ( rule_def & _RULE_MODE_MSK ) ? config.interval.load() : 0 ) } );
             } 
             delete bridge_;
         }
 
         a113::status_t ui_frame( double dt_, void* arg_ ) {
-            ImGui::Text( "On unit" );
-            ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); ImGui::InputScalar( "##Unit", ImGuiDataType_U8, &_config.meta.unit, 0, 0, nullptr, ImGuiInputTextFlags_CharsDecimal );
-            ImGui::SameLine(); ImGui::Text( "," ); 
-            ImGui::SameLine(); ImGui::SetNextItemWidth( 100 ); _config.mode.imm_frame( "##Mode" );
-            switch( _config.mode.selected ) {
-                case _Mode_Once: {
+            bool rule_changed = false;
+            bool config_changed  = false;
 
+            ImGui::Text( "On unit" );
+
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); 
+            config_changed |= ImGui::InputScalar( "##unit", ImGuiDataType_U8, &_ui.config.unit, 0, 0, nullptr, ImGuiInputTextFlags_CharsDecimal );
+
+            ImGui::SameLine(); ImGui::Text( "," ); 
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 100 ); 
+            const auto selected_mode = _ui.mode.imm_frame( "##mode", &rule_changed );
+
+            switch( selected_mode ) {
+                case _RuleMode_Once: {
                 break; }
-                case _Mode_Repeat: {
+                case _RuleMode_Repeat: {
                     ImGui::SameLine(); ImGui::Text( ", every" );
-                    ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); ImGui::InputInt( "##Interval", &_config.meta.interval, 0, 0, ImGuiInputTextFlags_CharsDecimal ); if( _config.meta.interval <= 100 ) _config.meta.interval = 100;
+                    ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); 
+                    config_changed |= ImGui::InputInt( "##interval", &_ui.config.interval, 0, 0, ImGuiInputTextFlags_CharsDecimal ); 
+                    _ui.config.interval = std::clamp( _ui.config.interval, 1, 100'000 );
                     ImGui::SameLine(); ImGui::Text( "ms" );
                 break; }
             }
             ImGui::SameLine(); ImGui::Text( "," );
-            ImGui::SameLine(); ImGui::SetNextItemWidth( 100 ); _config.op.imm_frame( "##Op" );
-            ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); ImGui::InputInt( "##Count", &_config.meta.count, 0, 0, ImGuiInputTextFlags_CharsDecimal ); if( _config.meta.count <= 0 ) _config.meta.count = 0;
-            ImGui::SameLine(); ImGui::SetNextItemWidth( 200 ); _config.type[ _config.op.selected ].imm_frame( "##Type" );
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 100 ); 
+            const auto selected_func1 = _ui.func1.imm_frame( "##func1", &rule_changed );
+
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); 
+            config_changed |= ImGui::InputInt( "##Count", &_ui.config.count, 0, 0, ImGuiInputTextFlags_CharsDecimal ); 
+            _ui.config.count = std::clamp( _ui.config.count, 0x0, 0xFF );
+
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 200 ); 
+            const auto selected_func2 = _ui.func2[ selected_func1 ].imm_frame( "##func2", &rule_changed );
+
             ImGui::SameLine(); ImGui::Text( "from address" );
-            ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); ImGui::InputInt( "##Address", &_config.meta.address, 0, 0, ImGuiInputTextFlags_CharsDecimal ); if( _config.meta.address <= 0x0 ) _config.meta.address = 0x0;
+            ImGui::SameLine(); ImGui::SetNextItemWidth( 50 ); 
+            const bool address_changed = ImGui::InputInt( "##Address", &_ui.config.address, 0, 0, ImGuiInputTextFlags_CharsDecimal ); 
+            _ui.config.address = std::clamp( _ui.config.address, 0x0, 0xFFFF );
+
+            if( address_changed ) _ui.data_types.clear();
+            config_changed |= address_changed;
+
             ImGui::SameLine(); ImGui::Text( "." );
 
-            _bridge->scramble     =_SCRAMBLE( _config.op.selected, _config.type[ _config.op.selected ].selected );
-            _bridge->meta.unit    =_config.meta.unit;
-            _bridge->meta.address =_config.meta.address;
-            _bridge->meta.count   =_config.meta.count;
-
-            switch( _bridge->scramble ) {
-                case _SCRAMBLE( _Op_Read, _Type_InputRegister ): {
-                    if( ImGui::BeginTable( "##Data", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Borders ) ) {
-                        ImGui::TableSetupColumn( "Address", ImGuiTableColumnFlags_None, 0.0, 0 );
-                        ImGui::TableSetupColumn( "Value", ImGuiTableColumnFlags_None, 0.0, 1 );  
-
-                        ImGui::TableHeadersRow();
-
-                        _ui.elasped += dt_;
-
-                        a113::dispenser_watch data{ _bridge->data };
-                        for( int idx = 0x0; idx < _config.meta.count; ++idx ) {
-                            ImGui::TableNextRow( ImGuiTableRowFlags_None );
-
-                            int gs = ( sin( 2.0*_ui.elasped + 3.1415 / 4.0 * idx ) + 1.0 ) / 2.0 * 56.0;
-                            ImGui::TableSetBgColor( ImGuiTableBgTarget_RowBg0, IM_COL32( gs, gs, gs, 255 ) );  
-
-                            ImGui::TableSetColumnIndex( 0 );
-                            ImGui::Text( std::format( "0x{:X}", idx ).c_str() );
-
-                            ImGui::TableSetColumnIndex( 1 );
-                            ImGui::Text( std::format( "{:016b}", data->data()[ idx ] ).c_str() );
-                        }
-
-                        ImGui::EndTable();
-                    }
-                break; }
+            const auto rule_def = _MAKE_RULE_DEF( selected_mode, selected_func1, selected_func2 );
+            if( rule_changed ) {
+                _bridge->control  = 0x0;
+                _bridge->rule_def = rule_def;
             }
+            
+            if( config_changed ) {
+                _bridge->config.unit     = _ui.config.unit;
+                _bridge->config.address  = _ui.config.address;
+                _bridge->config.count    = _ui.config.count;
+                _bridge->config.interval = _ui.config.interval;
+            }
+
+            if( _ui.config.count < _ui.data_types.size() ) {
+                _ui.data_types.resize( _ui.config.count );
+             } else {
+                while( _ui.config.count > _ui.data_types.size() ) _ui.data_types.push_back( {} );
+            }
+
+            const auto status = _bridge->status.load();
+
+            ImGui::BeginDisabled( 0x0 != status );
+                switch( rule_def & _RULE_FUNC_MSK ) {
+                    case _MAKE_RULE_FUNC( _RuleFunc1_Read, _RuleFunc2_InputRegisters ): {
+                        if( ImGui::BeginTable( "##Data", 5, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_Borders ) ) {
+                            ImGui::TableSetupColumn( "Address", ImGuiTableColumnFlags_None, 0.0, 0 );
+                            ImGui::TableSetupColumn( "Raw value", ImGuiTableColumnFlags_None, 0.0, 1 );  
+                            ImGui::TableSetupColumn( "Type", ImGuiTableColumnFlags_None, 0.0, 2 );  
+                            ImGui::TableSetupColumn( "Reverse", ImGuiTableColumnFlags_None, 0.0, 3 );  
+                            ImGui::TableSetupColumn( "Interpreted value", ImGuiTableColumnFlags_None, 0.0, 4 );  
+
+                            ImGui::TableHeadersRow();
+
+                            _ui.elasped += dt_;
+
+                            auto data      = _bridge->data.watch();
+                            int  type_skip = 0;
+                            
+                            _ui.gs_red += ( ( 0x0 == status ? 1.0 : 0.0 ) - _ui.gs_red ) * 3.6*dt_;
+
+                            for( int idx = 0x0; idx < _ui.config.count; ++idx ) {
+                                const uint16_t* crt_dat = ( uint16_t* )&data->at( idx << 1 );
+
+                                ImGui::PushID( idx );
+                                    ImGui::TableNextRow( ImGuiTableRowFlags_None, 32.0 );
+
+                                    int gs = ( sin( 2.0*_ui.elasped + 3.1415 / 4.0 * idx ) + 1.0 ) / 2.0 * 56.0;
+                                    ImGui::TableSetBgColor( ImGuiTableBgTarget_RowBg0, IM_COL32( gs, gs*_ui.gs_red, gs*_ui.gs_red, 255 ) );  
+
+                                    ImGui::TableSetColumnIndex( 0 );
+                                        ImGui::Text( std::format( "0x{:X}", _ui.config.address + idx ).c_str() );
+
+                                    ImGui::TableSetColumnIndex( 1 );
+                                        ImGui::Text( std::format( "{:016b}", *crt_dat ).c_str() );
+                                    
+                                    if( 0 == type_skip ) {
+                                        ImGui::TableSetColumnIndex( 2 );
+                                            ImGui::SetNextItemWidth( 120 );
+                                            const auto selected = _ui.data_types[ idx ].imm_frame( "" );
+
+                                        ImGui::TableSetColumnIndex( 3 );
+                                            if( ImGui::RadioButton( "##reverse", _ui.data_types[ idx ].reverse ) ) _ui.data_types[ idx ].reverse ^= true;
+
+                                            const bool reverse = _ui.data_types[ idx ].reverse;
+
+                                        ImGui::TableSetColumnIndex( 4 );
+
+                                        #define _EXTRACT( t ) (reverse ? std::byteswap(*(t*)(crt_dat)) : *(t*)(crt_dat))
+                                            switch( selected ) {
+                                                case 0x0: {
+                                                    char c1 = ( *crt_dat ) >> 8;
+                                                    char c2 = ( *crt_dat ) & 0xFF;
+                                                    if( reverse ) std::swap( c1, c2 );
+                                                    ImGui::Text( "%c%c", c1, c2 );
+                                                break; }
+                                                case 0x1: {
+                                                    ImGui::Text( "%d", ( int )_EXTRACT( int16_t ) );
+                                                break; }
+                                                case 0x2: {
+                                                    ImGui::Text( "%u", ( unsigned int )_EXTRACT( uint16_t ) );
+                                                break; }
+                                                case 0x3: {
+                                                    ImGui::Text( "%d", _EXTRACT( int32_t ) ); type_skip = 1;
+                                                break; }
+                                                case 0x4: {
+                                                    ImGui::Text( "%u", _EXTRACT( uint32_t ) ); type_skip = 1;
+                                                break; }
+                                                case 0x5: {
+                                                    ImGui::Text( "%f", *( float* )crt_dat ); type_skip = 1;
+                                                break; }
+                                                case 0x6: {
+                                                    ImGui::Text( "%lf", *( double* )crt_dat ); type_skip = 3;
+                                                break; }
+                                            }
+                                        #undef _EXTRACT
+                                    } else {
+                                        --type_skip;
+                                    }
+
+                                ImGui::PopID();
+                            }
+
+                            ImGui::EndTable();
+                        }
+                    break; }
+                }
+            ImGui::EndDisabled();
 
             return 0x0;
         }
 
         std::pair< bool, const char* > status_str( void ) {
-            return { _bridge->status == 0x0, _STATUS_STRS[ _bridge->status ] };
+            const auto status = _bridge->status.load();
+            return { status == 0x0, _STATUS_STRS[ status ] };
         }
 
-        int completed( void ) {
-            return _bridge->count;
-        }
-
-        bool is_active( void ) {
-            return _bridge->ctl > 0x0;
-        }
-
-        void set_ctl( int ctl_ ) {
-            _bridge->ctl = ctl_;
-            _bridge->ctl.notify_one();
-        }
     };
-    struct _task_data_t {
-        std::list< _task_t >   list;
-    }   _tsk;
+    struct _rules_data_t {
+        std::list< _rule_t >   list;
+    } _rules;
 
 public:
     a113::status_t ui_frame( double dt_, void* arg_ ) override {
         ImGui::SeparatorText( "Found COM ports" );
-        auto ports_guard = _ui.ports.imm_frame();
-        auto port        = _ui.ports.port;
+
+        auto ports_watch = G_Launcher.common.com_ports.watch();
+        auto port        = _ui.ports.imm_frame( ports_watch );
+
+        const bool port_not_sel_or_conn = not port || _mb.port;
+        const bool port_conn            = ( bool )_mb.port;
     
         ImGui::SeparatorText( "Connection settings" );
-        ImGui::BeginDisabled( not port || _mb.port );
-        ImGui::LabelText( "COM port", port ? port->id.c_str() : "N/A" ); ImGui::SetItemTooltip( "Use the above panel to select a COM port." );
-        ImGui::InputInt( "Baud rate", &_mb.settings.baudRate, 0, 0 );
-        ImGui::InputScalar( "Data bits", ImGuiDataType_S8, &_mb.settings.dataBits, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
-        _ui.parity.imm_frame( "Parity" );
-        _ui.stopbit.imm_frame( "Stop bit" );
-        _ui.flow.imm_frame( "Flow control" );
-        ImGui::InputScalar( "First TO", ImGuiDataType_U32, &_mb.settings.timeoutFirstByte, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
-        ImGui::SetItemTooltip( "Maximum time to receive the first response byte, in milliseconds." );
-        ImGui::InputScalar( "Inter TO", ImGuiDataType_U32, &_mb.settings.timeoutInterByte, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
-        ImGui::SetItemTooltip( "Maximum time to receive the next response byte, in milliseconds." );
+        ImGui::BeginDisabled( port_not_sel_or_conn );
+            ImGui::LabelText( "COM port", port ? port->id.c_str() : "N/A" ); ImGui::SetItemTooltip( "Use the above panel to select a COM port." );
+            ImGui::InputInt( "Baud rate", &_mb.settings.baudRate, 0, 0 );
+            ImGui::InputScalar( "Data bits", ImGuiDataType_S8, &_mb.settings.dataBits, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
+
+            const auto selected_parity   = ( Modbus::Parity )_ui.parity.imm_frame( "Parity" );
+            const auto selected_stopbit  = ( Modbus::StopBits )_ui.stopbit.imm_frame( "Stop bit" );
+            const auto selected_flow_ctl = ( Modbus::FlowControl )_ui.flow.imm_frame( "Flow control" );
+
+            ImGui::InputScalar( "First-byte timeout", ImGuiDataType_U32, &_mb.settings.timeoutFirstByte, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
+            ImGui::SetItemTooltip( "Maximum time to receive the first response byte, in milliseconds." );
+            ImGui::InputScalar( "Inter-byte timeout", ImGuiDataType_U32, &_mb.settings.timeoutInterByte, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
+            if( ImGui::BeginItemTooltip() ) {
+                ImGui::Text( "Maximum time to receive the next response byte, in milliseconds." );
+                ImGui::PushStyleColor( ImGuiCol_Text, ImVec4{ 1,.36,0,1 } );
+                    ImGui::TextWrapped( "WARNING: The underlying modbus library executes a single read of modbus' maximum packet length bytes."\
+                                        " Therefore, the read stops when this timeout expires, i.e. %ums after the packet has been recieved.", _mb.settings.timeoutInterByte );
+                ImGui::PopStyleColor( 1 );
+                ImGui::EndTooltip();
+            }
         ImGui::EndDisabled();
 
         ImGui::Separator();
-        if( _mb.port ) {
+        if( port_conn ) {
             ImGui::TextColored( ImVec4{ 0,1,0,1 }, "Connected on %s", _mb.settings.portName );
         } else {
             ImGui::TextColored( ImVec4{ 1,0,0,1 }, "Disconnected" );
         }
         ImGui::SameLine(); ImGui::Bullet();
-        ImGui::BeginDisabled( not port || _mb.port );
-        if( ImGui::Button( "Connect" ) ) {
-            _mb.settings.portName    = port->id.c_str();
-            _mb.settings.parity      = ( Modbus::Parity )_ui.parity.selected;
-            _mb.settings.stopBits    = ( Modbus::StopBits )_ui.stopbit.selected;
-            _mb.settings.flowControl = ( Modbus::FlowControl )_ui.flow.selected;
+        ImGui::BeginDisabled( port_not_sel_or_conn );
+            if( ImGui::Button( "Connect" ) ) {
+                _mb.settings.portName    = port->id.c_str();
+                _mb.settings.parity      = selected_parity;
+                _mb.settings.stopBits    = selected_stopbit;
+                _mb.settings.flowControl = selected_flow_ctl;
 
-            _mb.port.reset( Modbus::createClientPort( Modbus::RTU, &_mb.settings, true ), [] ( ModbusClientPort* port_ ) static -> void {
-                port_->close();
-                delete port_;
-            } );
-            A113_ASSERT_OR( _mb.port ) spdlog::error( "Failed to create modbus client port." );
-        }
-    
-        ports_guard.release();
+                _mb.port.reset( Modbus::createClientPort( Modbus::RTU, &_mb.settings, true ), [ this ] ( ModbusClientPort* port_ ) -> void {
+                    port_->close();
+                    _Log::info( "Closed client port." );
+                    delete port_;
+                } );
+                if( _mb.port ) _Log::info( "Created new client port." );
+                else _Log::error( "Failed to create new client port." );
+            }
+        
+            ports_watch.release();
 
-        ImGui::SetItemTooltip( "Attempt a connection using the above configured settings." );
+            ImGui::SetItemTooltip( "Attempt a connection using the above configured settings." );
         ImGui::EndDisabled();
         ImGui::SameLine(); ImGui::Bullet();
-        ImGui::BeginDisabled( not _mb.port );
-        if( ImGui::Button( "Disconnect" ) ) {
-            _tsk.list.clear();
-            _mb.settings.portName = "";
-            _mb.port.reset();
-        }
-        ImGui::SetItemTooltip( "End the current connection." );
+        ImGui::BeginDisabled( not port_conn );
+            if( ImGui::Button( "Disconnect" ) ) {
+                _rules.list.clear();
+                _mb.settings.portName = "";
+                _mb.port.reset();
+            }
+            ImGui::SetItemTooltip( "Terminate the current connection." );
         ImGui::EndDisabled();
         ImGui::Separator();
 
-        ImGui::BeginDisabled( not _mb.port );
-        if( ImGui::Button( "+" ) ) {
-            _tsk.list.emplace_back( _mb.port, _mb.port_mtx );
-        }
-        ImGui::SetItemTooltip( _mb.port ? "Add new rule." : "Connect before adding rules." );
+        ImGui::BeginDisabled( not port_conn );
+            if( ImGui::Button( "+" ) ) {
+                _rules.list.emplace_back( _mb.port, _mb.port_mtx );
+            }
+            ImGui::SetItemTooltip( port_conn ? "Add new rule." : "Connect before adding rules." );
         ImGui::EndDisabled();
         ImGui::SameLine();
         ImGui::SeparatorText( "Rules" );
         ImGui::Separator();
 
         ImGui::BeginChild( "Rules" );
-        int ids_1 = 0;
-        for( auto itr = _tsk.list.begin(); itr != _tsk.list.end(); ++ids_1 ) {
-            bool remove = false;
-            
-            ImGui::PushID( ids_1 ); 
-            ImGui::PushStyleColor( ImGuiCol_Button,        ImVec4{ 0,0,0,0 } );
-            ImGui::PushStyleColor( ImGuiCol_ButtonHovered, ImVec4{ 0,0,0,0 } );
-            ImGui::PushStyleColor( ImGuiCol_ButtonActive,  ImVec4{ 0,0,0,0 } );
-            ImGui::PushStyleColor( ImGuiCol_Text,          ImVec4{ 1,0,0,1 } );
-            if( ImGui::SmallButton( "X" ) ) remove = true;
-            ImGui::PopStyleColor( 4 );
+            int ui_ID = 0x0;
+            for( auto itr = _rules.list.begin(); itr != _rules.list.end(); ++ui_ID ) {
+                bool remove = false;
+                
+                ImGui::PushID( ui_ID ); 
+                    ImGui::PushStyleColor( ImGuiCol_Button,        ImVec4{ 0,0,0,0 } );
+                    ImGui::PushStyleColor( ImGuiCol_ButtonHovered, ImVec4{ 0,0,0,0 } );
+                    ImGui::PushStyleColor( ImGuiCol_ButtonActive,  ImVec4{ 0,0,0,0 } );
+                    ImGui::PushStyleColor( ImGuiCol_Text,          ImVec4{ 1,0,0,1 } );
+                        if( ImGui::SmallButton( "X" ) ) remove = true;
+                    ImGui::PopStyleColor( 4 );
 
-            ImGui::SameLine(); ImGui::Text( "%d", itr->completed() );
-            ImGui::SameLine();
-            if( itr->_config.mode.selected == 0x1 ) {
-                const bool active = itr->is_active();
-                if( ImGui::RadioButton( "##Toggle", active ) ) {
-                    if( active ) itr->set_ctl( 0x0 ); else { itr->set_ctl( itr->_config.meta.interval ); }
-                }
-            } else {
-                if( ImGui::ArrowButton( "##Exec", ImGuiDir_Right ) ) {
-                    itr->set_ctl( -0x2 );
-                }
+                    ImGui::SameLine(); ImGui::Text( "%d", itr->_bridge->completed.load() );
+                    ImGui::SameLine();
+
+                    const auto rule_def = itr->_bridge->rule_def.load();
+                    if( rule_def & _RULE_MODE_MSK ) {
+                        if( ImGui::RadioButton( "##active", itr->_bridge->control.load() ) ) {
+                            itr->_bridge->control ^= 0x1; itr->_bridge->control.notify_one();
+                        }
+                    } else {
+                        if( ImGui::ArrowButton( "##exec", ImGuiDir_Right ) ) {
+                            itr->_bridge->control = 0x1; itr->_bridge->control.notify_one();
+                        }
+                    }
+
+                    auto [ status_ok, status_str ] = itr->status_str();
+                    ImGui::PushStyleColor( ImGuiCol_Text, status_ok ? ImVec4{ 0,1,0,1 } : ImVec4{ 1,0,0,1 } );
+                        ImGui::SameLine(); ImGui::SeparatorText( status_str );
+                    ImGui::PopStyleColor( 1 );
+
+                    remove |= itr->ui_frame( dt_, arg_ ) != 0x0;
+                    ImGui::Separator();
+                ImGui::PopID();
+
+                if( not remove ) goto l_keep;
+            l_remove:
+                itr = _rules.list.erase( itr );
+                continue;
+            l_keep:
+                ++itr;
             }
-
-            auto [ status_ok, status_str ] = itr->status_str();
-            ImGui::PushStyleColor( ImGuiCol_Text, status_ok ? ImVec4{ 0,1,0,1 } : ImVec4{ 1,0,0,1 } );
-            ImGui::SameLine(); ImGui::SeparatorText( status_str );
-            ImGui::PopStyleColor( 1 );
-            A113_ASSERT_OR( itr->ui_frame( dt_, arg_ ) == 0x0 ) remove = true;
-            ImGui::Separator();
-            ImGui::PopID();
-
-            if( not remove ) goto l_keep;
-        l_remove:
-            itr = _tsk.list.erase( itr );
-            continue;
-        l_keep:
-            ++itr;
-        }
         ImGui::EndChild();
 
         return 0x0;
     }
 
 protected:
-    #undef _SCRAMBLE
+    #undef _MAKE_RULE_DEF
 
 };
 
 
 a113::status_t Launcher::ui_frame( double dt_, void* arg_ ) {
     ImGui::Begin( "COMMod", nullptr, ImGuiWindowFlags_None );
-    ImGui::BeginChild( "Launcher", ImVec2{ 200, 0 }, ImGuiChildFlags_Border );
+        ImGui::BeginChild( "Launcher", ImVec2{ 200, 0 }, ImGuiChildFlags_Border );
+            ImGui::SeparatorText( "COMMod "COMMOD_VERSION_STR );
+            ImGui::Bullet(); ImGui::TextLinkOpenURL( "GitHub", "https://github.com/HoratiuMip/Ad-astra.Made.Not-said/tree/main/AUTO-A113/Ruptures/COMMod" );
+            ImGui::Bullet(); ImGui::TextLinkOpenURL( "YouTube", "https://www.youtube.com/@horatiumip" );
+            ImGui::PushStyleColor( ImGuiCol_Text, ImVec4{ 1,.36,0,1 } );
+                ImGui::Bullet(); ImGui::Text( "Still alpha! :)" );
+            ImGui::PopStyleColor( 1 );
+            ImGui::Separator();
 
-    static struct _component_t {
-        const char* const                                  name;
-        std::function< a113::HVec< Component >( void ) >   builder; 
-        int                                                count      = 0x0;
-    } components[] = {
-        { .name = "ModbusRTU", .builder = [] ( void ) -> a113::HVec< Component > { return a113::HVec< ModbusRTU >::make(); } }
-    };
+            static struct _component_t {
+                const char* const                                  name;
+                std::function< a113::HVec< Component >( void ) >   builder; 
+                int                                                count      = 0x0;
+            } components[] = {
+                { .name = "ModbusRTU", .builder = [] ( void ) -> a113::HVec< Component > { return a113::HVec< ModbusRTU >::make(); } }
+            };
 
-    ImGui::SeparatorText( "New panel" );
-    for( auto& comp : components ) {
-        ImGui::Separator();
-        ImGui::BulletText( comp.name ); ImGui::SameLine();
-        if( ImGui::ArrowButton( comp.name, ImGuiDir_Right ) ) {
-            this->register_component( std::format( "{}-{}", comp.name, ++comp.count ), comp.builder() );
-        }
-        ImGui::SetItemTooltip( std::format( "Launch a new {} tab.", comp.name ).c_str() );
-        ImGui::Separator();
-    }
+            ImGui::NewLine();
+            ImGui::SeparatorText( "Available panels" );
+            for( auto& comp : components ) {
+                ImGui::Separator();
+                ImGui::BulletText( comp.name ); ImGui::SameLine();
+                if( ImGui::ArrowButton( comp.name, ImGuiDir_Right ) ) {
+                    this->register_component( std::format( "{}-{}", comp.name, ++comp.count ), comp.builder() );
+                }
+                ImGui::SetItemTooltip( std::format( "Launch a new {} tab.", comp.name ).c_str() );
+                ImGui::Separator();
+            }
 
-    ImGui::EndChild(); ImGui::SameLine(); 
-    ImGui::BeginChild( "Panels", ImVec2{ 0, 0 }, ImGuiChildFlags_Border );
-    
-    ImGui::BeginTabBar( "Panels" );
+        ImGui::EndChild(); 
+        ImGui::SameLine(); 
+        ImGui::BeginChild( "Panels", ImVec2{ 0, 0 }, ImGuiChildFlags_Border );
+        
+            ImGui::BeginTabBar( "Panels" );
 
-    std::unique_lock lock{ _components_mtx };
-    for( auto itr = _components_map.begin(); itr != _components_map.end(); ) {
-        auto& comp = *itr->second;
+                std::unique_lock lock{ _components_mtx };
+                for( auto itr = _components_map.begin(); itr != _components_map.end(); ) {
+                    auto& comp = *itr->second;
 
-        bool open = true;
-        if( ImGui::BeginTabItem( itr->first.c_str(), &open ) ) {
-            A113_ASSERT_OR( comp.ui_frame( dt_, arg_ ) == 0x0 ) open = false;
-            ImGui::EndTabItem();
-        }
+                    bool open = true;
+                    if( ImGui::BeginTabItem( itr->first.c_str(), &open ) ) {
+                        A113_ASSERT_OR( comp.ui_frame( dt_, arg_ ) == 0x0 ) open = false;
+                        ImGui::EndTabItem();
+                    }
 
-        if( open ) goto l_keep;
+                    if( open ) goto l_keep;
 
-    l_remove:
-        itr = _components_map.erase( itr );
-        continue;
+                l_remove:
+                    itr = _components_map.erase( itr );
+                    continue;
 
-    l_keep:
-        ++itr;
-    }
+                l_keep:
+                    ++itr;
+                }
 
-    ImGui::EndTabBar();
-    ImGui::EndChild();
+            ImGui::EndTabBar();
+        ImGui::EndChild();
     ImGui::End();
     return 0x0;
 }

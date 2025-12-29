@@ -13,25 +13,27 @@ namespace a113::clkwrk::imm_widgets {
 
 class DropDownList {
 public:
-    DropDownList( const char* const strs_[], int size_, int selected_ = -0x1 ) : _strs{ strs_ }, _size{ size_ }, selected{ selected_ } {}
-
-public:
-    int                  selected   = -0x1;
+    DropDownList( const char* const strs_[], int size_, int selected_ = -0x1 ) : _strs{ strs_ }, _size{ size_ }, _sel{ selected_ } {}
 
 _A113_PROTECTED:
+    int                  _sel     = -0x1;
     const char* const*   _strs    = nullptr;
     int                  _size    = 0x0;
 
 public:
-    int imm_frame( const char* const title_ ) {
-        if( ImGui::BeginCombo( title_, selected >= 0 && selected < _size ? _strs[ selected ] : "N/A" ) ) {
+    int imm_frame( const char* const title_, bool* changed_ = nullptr ) {
+        const int prev_sel = _sel;
+
+        if( ImGui::BeginCombo( title_, _sel >= 0 && _sel < _size ? _strs[ _sel ] : "N/A" ) ) {
             for( int idx = 0x0; idx < _size; ++idx ) {
-                if( ImGui::Selectable( _strs[ idx ], idx == selected ) ) selected = idx;
+                const bool selected = idx == _sel;
+                if( ImGui::Selectable( _strs[ idx ], selected ) ) _sel = idx;
             }
             ImGui::EndCombo();
         }
 
-        return selected;
+        if( changed_ ) *changed_ |= _sel != prev_sel;
+        return _sel;
     }
 
 };
@@ -46,11 +48,8 @@ _A113_PROTECTED:
     int                     _sel     = -0x1;
 
 public:
-    io::COM_port_t*   port   = nullptr;
-
-public:
-    dispenser_watch< io::COM_Ports::container_t > imm_frame( void ) {
-        dispenser_watch ports{ *_ports };
+    io::COM_port_t* imm_frame( io::COM_Ports::watch_t& watch_ ) {
+        io::COM_Ports::dispensed_t* ports = watch_.get();
 
         for( int idx = 0x0; idx < ports->size(); ++idx ) {
             const bool selected = idx == _sel;
@@ -62,8 +61,10 @@ public:
             ImGui::Separator();
         }
 
-        if( _sel >= 0x0 && _sel < ports->size() ) { port = &( *ports )[ _sel ]; } else { _sel = -0x1; port = nullptr; }
-        return ports;
+        if( _sel >= 0x0 && _sel < ports->size() ) return &( *ports )[ _sel ]; 
+            
+        _sel = -0x1;
+        return nullptr;
     }
 
 };

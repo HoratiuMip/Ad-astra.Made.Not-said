@@ -15,9 +15,16 @@ enum DispenserMode_ {
     DispenserMode_Lock, DispenserMode_Drop, DispenserMode_Swap
 };
 
+template< typename _T_, bool _IS_CONTROL_ > struct _dispenser_acquire;
+
 template< typename _T_ > class Dispenser {
 public:
     template< typename, bool > friend struct _dispenser_acquire;
+
+public:
+    using dispensed_t = _T_;
+    using watch_t     = _dispenser_acquire< _T_, false >;
+    using control_t   = _dispenser_acquire< _T_, true >;
 
 public:
     Dispenser( const DispenserMode_ mode_ ) : _mode{ mode_ } {
@@ -73,6 +80,9 @@ _A113_PROTECTED:
 
 public:
     A113_inline const DispenserMode_ disp_mode( void ) const { return _mode; }
+
+    A113_inline _dispenser_acquire< _T_, false > watch( void ); 
+    A113_inline _dispenser_acquire< _T_, true > control( void ); 
 
 };
 
@@ -194,6 +204,9 @@ public:
     A113_inline _T_& operator * ( void ) { return *this->get(); }
 
 };
+
+template< typename _T_ > _dispenser_acquire< _T_, false > Dispenser< _T_ >::watch( void ) { return _dispenser_acquire< _T_, false >{ *this }; }
+template< typename _T_ > _dispenser_acquire< _T_, true > Dispenser< _T_ >::control( void ) { return _dispenser_acquire< _T_, true >{ *this }; }
 
 template< typename _T_ > using dispenser_watch   = _dispenser_acquire< _T_, false >;
 template< typename _T_ > using dispenser_control = _dispenser_acquire< _T_, true >;

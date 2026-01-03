@@ -9,7 +9,8 @@
 
 #include "core.hpp"
 
-#include <HX1838Decoder.h>
+#define DECODE_SONY
+#include <IRremote.h>
 
 
 DWMQ_NAMESPACE {
@@ -25,32 +26,34 @@ public:
     : _pin_map{ pin_map }
     {
         gpio_reset_pin( _pin_map.I_signal ); 
-        _decoder = IRDecoder{ _pin_map.I_signal };
     }
-
-protected:
-    IRDecoder   _decoder   = { 0 };
 
 public:
     status_t init( void ) {
-        _decoder.begin();
+        IrReceiver.begin( _pin_map.I_signal );
         return 0x0;
     }
 
 public:
     std::tuple< ir_signal_t, bool > recv( void ) {
-        if( !_decoder.available() ) return { 0x0, false };
+        if( not IrReceiver.decode() ) return { -0x1, false };
 
-        static ir_signal_t last_sig = 0x0;
-        static int64_t     last_us  = 0x0;
+        ir_signal_t sig      = 0x0;
+        bool        repeated = false; 
 
-        ir_signal_t sig = _decoder.getDecodedData();
-        for(;_decoder.available();) sig = _decoder.getDecodedData();
+        if( IrReceiver.decodedIRData.protocol == SONY ) {
+            sig = IrReceiver.decodedIRData.command;
 
-        int64_t     us  = esp_timer_get_time();
+            static ir_signal_t last_sig = 0x0;
+            static int64_t     last_us  = 0x0;
 
-        bool repeated = ( sig == last_sig ) && ( us - last_us < Mirun.Config.IrRemote.BEFORE_ENTRY_US );
-        last_us = us; last_sig = sig;
+            int64_t us = esp_timer_get_time();
+
+            repeated = ( sig == last_sig ) && ( us - last_us < Mirun.Config.IrRemote.BEFORE_ENTRY_US );
+            last_us = us; last_sig = sig;
+        }
+
+        IrReceiver.resume();
         return { sig, repeated };
     }
 };

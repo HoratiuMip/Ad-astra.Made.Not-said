@@ -85,6 +85,16 @@ public:
     A113_inline _dispenser_acquire< _T_, false > watch( void ); 
     A113_inline _dispenser_acquire< _T_, true > control( void ); 
 
+public:
+    [[nodiscard]] A113_inline HVec< _T_ > hold_latest( void ) {
+        switch( _mode ) {
+            case DispenserMode_Lock: return _M_.lock.block;
+            case DispenserMode_Drop: return _M_.drop.block;
+            case DispenserMode_Swap: return _M_.swap.blocks[ _M_.swap.ctl_idx.load( std::memory_order_relaxed ) ];
+        }
+        return nullptr;
+    }
+
 };
 
 template< typename _T_, bool _IS_CONTROL_ > struct _dispenser_acquire {

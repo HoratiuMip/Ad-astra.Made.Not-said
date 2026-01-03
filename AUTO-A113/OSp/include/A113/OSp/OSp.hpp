@@ -11,4 +11,5 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #include <a113/OSp/hyper_net.hpp>
 #include <a113/OSp/osp.hpp>
 #include <a113/OSp/render3.hpp>
+#include <a113/OSp/tempo.hpp>
 

@@ -14,8 +14,8 @@ DWMQ_NAMESPACE {
 
 inline const char* const   TAG   = "[DWMQ]";
 
-typedef   int        status_t;
-typedef   uint32_t   ir_signal_t;
+typedef   int       status_t;
+typedef   int32_t   ir_signal_t;
 
 enum TaskPriority_ {
     TaskPriority_Idle = tskIDLE_PRIORITY,
@@ -87,15 +87,16 @@ public:
 public:
     struct CONFIG {
         struct IR_REMOTE {
-            static constexpr ir_signal_t   SIG_IMPULSE_POWER    = 0xffc23d;
-            static constexpr ir_signal_t   SIG_BLUE_ENGAGE      = 0xff18e7;
-            static constexpr ir_signal_t   SIG_BLUE_DISENGAGE   = 0xff30cf;
-            static constexpr ir_signal_t   SIG_BLUE_TOGGLE      = 0xff02fd;
-            static constexpr ir_signal_t   SIG_FANS_ENGAGE      = 0xff38c7;
-            static constexpr ir_signal_t   SIG_FANS_DISENGAGE   = 0xff10ef;
-            static constexpr ir_signal_t   SIG_FANS_TOGGLE      = 0xff22dd;
-            static constexpr ir_signal_t   SIG_VOL_UP           = 0xffa857;
-            static constexpr ir_signal_t   SIG_VOL_DOWN         = 0xffe01f;
+            static constexpr ir_signal_t   SIG_SELECT_DEVICE    = 0x0;
+            static constexpr ir_signal_t   SIG_IMPULSE_POWER    = 0x15;
+            static constexpr ir_signal_t   SIG_BLUE_ENGAGE      = 0x26;
+            static constexpr ir_signal_t   SIG_BLUE_DISENGAGE   = 0x27;
+            static constexpr ir_signal_t   SIG_BLUE_TOGGLE      = 0x24;
+            static constexpr ir_signal_t   SIG_FANS_ENGAGE      = -0x2;
+            static constexpr ir_signal_t   SIG_FANS_DISENGAGE   = -0x3;
+            static constexpr ir_signal_t   SIG_FANS_TOGGLE      = 0x25;
+            static constexpr ir_signal_t   SIG_VOL_UP           = 0x12;
+            static constexpr ir_signal_t   SIG_VOL_DOWN         = 0x13;
 
             static constexpr int           BEFORE_ENTRY_US      = 1000000;
 

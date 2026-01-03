@@ -8,6 +8,7 @@
 
 
 #include "core.hpp"
+#include "this_device.hpp"
 #include "ir_remote.hpp"
 #include "relay_grid.hpp"
 #include "heat_sink.hpp"
@@ -16,7 +17,7 @@
 DWMQ_NAMESPACE {
 
 
-class HYPERVISOR {
+class HYPERVISOR : rnk::SelectableDev {
 public:
     struct PIN_MAP {
         gpio_num_t   I_toggle_fans;
@@ -56,28 +57,31 @@ protected:
 
             auto [ signal, repeated ] = hv->_ir_remote.device->recv();
 
-            if( signal == 0 ) { DWMQ_YIELD_CORE; continue; }
+            if( signal == -0x1 ) { DWMQ_YIELD_CORE; continue; }
 
             Mirun.Echo.inf( "Recieved IR signal [0x%x], %s.", signal, repeated ? "repeated" : "entry" );
 
+        #define _CHECK_SEL if( not hv->is_selected() ) goto l_no_select
             switch( signal ) {
-                case Mirun.Config.IrRemote.SIG_IMPULSE_POWER: { if( !repeated ) hv->_relay_grid.device->impulse_power(); break; }
+                case Mirun.Config.IrRemote.SIG_SELECT_DEVICE:  { if( !repeated ) hv->short_select(); break; }
 
-                case Mirun.Config.IrRemote.SIG_BLUE_ENGAGE:    { if( !repeated ) hv->_relay_grid.device->engage_blue(); break; }
-                case Mirun.Config.IrRemote.SIG_BLUE_DISENGAGE: { if( !repeated ) hv->_relay_grid.device->disengage_blue(); break; }
-                case Mirun.Config.IrRemote.SIG_BLUE_TOGGLE:    { if( !repeated ) hv->_relay_grid.device->toggle_blue(); break; }
+                case Mirun.Config.IrRemote.SIG_IMPULSE_POWER:  { _CHECK_SEL; if( !repeated ) hv->_relay_grid.device->impulse_power(); break; }
 
-                case Mirun.Config.IrRemote.SIG_FANS_ENGAGE:    { if( !repeated ) hv->_relay_grid.device->engage_fans(); break; }
-                case Mirun.Config.IrRemote.SIG_FANS_DISENGAGE: { if( !repeated ) hv->_relay_grid.device->disengage_fans(); break; }
-                case Mirun.Config.IrRemote.SIG_FANS_TOGGLE:    { if( !repeated ) hv->_relay_grid.device->toggle_fans(); break; }
+                case Mirun.Config.IrRemote.SIG_BLUE_ENGAGE:    { _CHECK_SEL; if( !repeated ) hv->_relay_grid.device->engage_blue(); break; }
+                case Mirun.Config.IrRemote.SIG_BLUE_DISENGAGE: { _CHECK_SEL; if( !repeated ) hv->_relay_grid.device->disengage_blue(); break; }
+                case Mirun.Config.IrRemote.SIG_BLUE_TOGGLE:    { _CHECK_SEL; if( !repeated ) hv->_relay_grid.device->toggle_blue(); break; }
 
-                case Mirun.Config.IrRemote.SIG_VOL_UP: {
+                case Mirun.Config.IrRemote.SIG_FANS_ENGAGE:    { _CHECK_SEL; if( !repeated ) hv->_relay_grid.device->engage_fans(); break; }
+                case Mirun.Config.IrRemote.SIG_FANS_DISENGAGE: { _CHECK_SEL; if( !repeated ) hv->_relay_grid.device->disengage_fans(); break; }
+                case Mirun.Config.IrRemote.SIG_FANS_TOGGLE:    { _CHECK_SEL; if( !repeated ) hv->_relay_grid.device->toggle_fans(); break; }
+
+                case Mirun.Config.IrRemote.SIG_VOL_UP: { _CHECK_SEL;
                     vol_us = esp_timer_get_time();
                     hv->_relay_grid.device->disengage_vol_down();
                     hv->_relay_grid.device->engage_vol_up();
                     break;
                 }
-                case Mirun.Config.IrRemote.SIG_VOL_DOWN: {
+                case Mirun.Config.IrRemote.SIG_VOL_DOWN: { _CHECK_SEL;
                     vol_us = esp_timer_get_time();
                     hv->_relay_grid.device->disengage_vol_up();
                     hv->_relay_grid.device->engage_vol_down();
@@ -86,10 +90,14 @@ protected:
 
                 default: {
                     Mirun.Echo.wrn( "Nothing to do with IR signal [0x%x].", signal );
-                    break;
+                    goto l_no_select;
                 }
             }
+            hv->short_select();
+        l_no_select:
+            continue;
         } }
+    #undef _CHECK_SEL
 
     }   _ir_remote;
 
@@ -116,6 +124,10 @@ public:
     status_t init( void ) {
         pinMode( _pin_map.I_toggle_fans, INPUT_PULLDOWN );
         attachInterruptArg( _pin_map.I_toggle_fans, &HYPERVISOR::_ISR_I_toggle_fans, ( void* )this, RISING );
+
+        this->SelectableDev::init( SelectableDev::init_args_t{
+            .select_expire_ms = 6000
+        } );
 
         _ir_remote.device->init();
         _relay_grid.device->init();

@@ -41,18 +41,18 @@
 namespace a113 {
 
 
-template< typename T_ >
-struct HVec : public std::shared_ptr< T_ > {
-    using std::shared_ptr< T_ >::shared_ptr;
-    using std::shared_ptr< T_ >::operator=;
+template< typename _T_ >
+struct HVec : public std::shared_ptr< _T_ > {
+    using std::shared_ptr< _T_ >::shared_ptr;
+    using std::shared_ptr< _T_ >::operator=;
 
-    HVec( const std::shared_ptr< T_ >&  ptr_ ) : std::shared_ptr< T_ >{ ptr_ } {}
-    HVec( std::shared_ptr< T_ >&& ptr_ ) : std::shared_ptr< T_ >{ std::move( ptr_ ) } {}
-    HVec( T_* ptr_ ) { this->reset( ptr_ ); }
-    HVec( T_& ref_ ) : std::shared_ptr< T_ >{ &ref_, [] ( T_* ) static -> void {} } {}
+    HVec( const std::shared_ptr< _T_ >&  ptr_ ) : std::shared_ptr< _T_ >{ ptr_ } {}
+    HVec( std::shared_ptr< _T_ >&& ptr_ ) : std::shared_ptr< _T_ >{ std::move( ptr_ ) } {}
+    HVec( _T_* ptr_ ) { this->reset( ptr_ ); }
+    HVec( _T_& ref_ ) : std::shared_ptr< _T_ >{ &ref_, [] ( _T_* ) static -> void {} } {}
 
     template< typename ...Args_ >
-    A113_inline static HVec< T_ > make( Args_&&... args_ ) { return std::make_shared< T_ >( std::forward< Args_ >( args_ )... ); }
+    A113_inline static HVec< _T_ > make( Args_&&... args_ ) { return std::make_shared< _T_ >( std::forward< Args_ >( args_ )... ); }
 };
 
 
@@ -181,6 +181,7 @@ struct on_scope_exit_l_t {
 
 #define A113_ON_SCOPE_EXIT_DROP _on_scope_exit_.drop()
 
+#define A113_UNREACHABLE std::unreachable()
 
 };
 

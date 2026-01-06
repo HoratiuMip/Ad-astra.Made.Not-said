@@ -50,15 +50,25 @@ endif()
 
 include( FetchContent )
 
+function( A113_Fnc_JustCloneRepo url tag alias chain_dir )
+    message( STATUS "[A113] Cloning repository \"${url}\", tag \"${tag}\" to \"${chain_dir}/${alias}\"." )
+    FetchContent_Declare(
+        ${alias}
+        GIT_REPOSITORY "${url}"
+        SOURCE_DIR "${chain_dir}/${alias}"
+        GIT_TAG "${tag}"
+    )
+endfunction( A113_Fnc_JustCloneRepo )
+
 function( A113_Fnc_CloneRepo url tag alias chain_dir )
-  message( STATUS "[A113] Cloning repository \"${url}\", tag \"${tag}\" to \"${chain_dir}/${alias}\"." )
-  FetchContent_Declare(
-    ${alias}
-    GIT_REPOSITORY "${url}"
-    SOURCE_DIR "${chain_dir}/${alias}"
-    GIT_TAG "${tag}"
-  )
-  FetchContent_MakeAvailable( ${alias} )
+    message( STATUS "[A113] Cloning repository \"${url}\", tag \"${tag}\" to \"${chain_dir}/${alias}\"." )
+    FetchContent_Declare(
+        ${alias}
+        GIT_REPOSITORY "${url}"
+        SOURCE_DIR "${chain_dir}/${alias}"
+        GIT_TAG "${tag}"
+    )
+    FetchContent_MakeAvailable( ${alias} )
 endfunction( A113_Fnc_CloneRepo )
 
 

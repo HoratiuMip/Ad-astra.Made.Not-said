@@ -308,6 +308,7 @@ protected:
             if( rule_changed ) {
                 _bridge->control  = 0x0;
                 _bridge->rule_def = rule_def;
+                //_bridge->data.switch_swap_mode( func1_is_write ? a113::DispenserMode_ReverseSwap : a113::DispenserMode_Swap );
             }
             
             if( config_changed ) {
@@ -643,9 +644,8 @@ public:
                 _mb.settings.stopBits    = selected_stopbit;
                 _mb.settings.flowControl = selected_flow_ctl;
 
-                _mb.port.reset( Modbus::createClientPort( Modbus::RTU, &_mb.settings, true ), [ this ] ( ModbusClientPort* port_ ) -> void {
+                _mb.port.reset( Modbus::createClientPort( Modbus::RTU, &_mb.settings, true ), [] ( ModbusClientPort* port_ ) -> void {
                     port_->close();
-                    _Log::info( "Closed client port." );
                     delete port_;
                 } );
                 if( _mb.port ) _Log::info( "Created new client port." );

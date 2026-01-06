@@ -19,7 +19,7 @@ A113_Fnc_CloneRepo( "https://github.com/nlohmann/json.git" "v3.12.0" nlohmann_js
 # Dear ImGUI
 A113_Fnc_CloneRepo( "https://github.com/ocornut/imgui.git" "v1.91.9-docking" imgui "${_excom_dir}" )
 A113_Fnc_CloneRepo( "https://github.com/epezent/implot.git" "v0.16" implot "${_excom_dir}" )
-A113_Fnc_CloneRepo( "https://github.com/aiekick/ImGuiFileDialog.git" "v0.6.8" imgui_file_dialog "${_excom_dir}" )
+A113_Fnc_JustCloneRepo( "https://github.com/aiekick/ImGuiFileDialog.git" "v0.6.8" imgui_file_dialog "${_excom_dir}" )
 
 
 file( GLOB _imgui_source_files "${_excom_dir}/imgui/*.cpp" )
@@ -35,10 +35,23 @@ target_include_directories( ImGui
     PUBLIC "${_excom_dir}/imgui/backends/"
     PUBLIC "${_excom_dir}/glfw/include"
 )
+
 file( GLOB _implot_source_files "${_excom_dir}/implot/*.cpp" )
 add_library( ImPlot STATIC ${_implot_source_files} )
 target_include_directories( ImPlot PUBLIC "${_excom_dir}/imgui/" )
 target_include_directories( ImPlot PUBLIC "${_excom_dir}/implot/" )
+
+file( GLOB _imgui_file_dialog_source_files "${_excom_dir}/imgui_file_dialog/*.cpp" )
+add_library( ImFileDialog STATIC ${_imgui_file_dialog_source_files} )
+target_include_directories( ImFileDialog PUBLIC "${_excom_dir}/imgui/" )
+target_include_directories( ImFileDialog PUBLIC "${_excom_dir}/imgui_file_dialog/" )
+
+add_library( One_ImGui INTERFACE )
+target_link_libraries( One_ImGui INTERFACE
+    ImGui
+    ImPlot
+    ImFileDialog
+)
 
 
 ## Build A113.
@@ -77,8 +90,7 @@ target_link_libraries( A113_OSp
     PUBLIC glfw
     PUBLIC libglew_static
     PUBLIC nlohmann_json
-    PUBLIC ImGui
-    PUBLIC ImPlot
+    PUBLIC One_ImGui
 )
 target_include_directories( A113_OSp
     PUBLIC "${_excom_dir}/spdlog/include"

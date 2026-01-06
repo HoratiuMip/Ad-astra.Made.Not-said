@@ -55,14 +55,15 @@ public:
             case DispenserMode_Drop: {
                 _M_.drop.~_drop_mode_t();
             break; }
-            case DispenserMode_Swap: {
+            case DispenserMode_Swap: [[fallthrough]]; 
+            case DispenserMode_ReverseSwap: {
                 _M_.swap.~_swap_mode_t();
             break; }
         }
     }
 
 _A113_PROTECTED:
-    const DispenserMode_   _mode;
+    DispenserMode_   _mode;
 
     union _M_t { _M_t( void ) {} ~_M_t( void ) {}
         struct _lock_mode_t {
@@ -80,7 +81,17 @@ _A113_PROTECTED:
     } _M_;
 
 public:
-    A113_inline const DispenserMode_ disp_mode( void ) const { return _mode; }
+    A113_inline DispenserMode_ switch_swap_mode( std::optional< DispenserMode_ > swap_mode_ = {} ) {
+        std::lock_guard lock_1{ _M_.swap.mtxs[ 0x0 ] };
+        std::lock_guard lock_2{ _M_.swap.mtxs[ 0x1 ] };
+       
+        if( swap_mode_.has_value() ) return std::exchange( _mode, swap_mode_.value() );
+        
+        return std::exchange( _mode, ( DispenserMode_ )( DispenserMode_Swap + DispenserMode_ReverseSwap - _mode ) );
+    }
+
+public:
+    A113_inline DispenserMode_ mode( void ) const { return _mode; }
 
     A113_inline _dispenser_acquire< _T_, false > watch( void ); 
     A113_inline _dispenser_acquire< _T_, true > control( void ); 
@@ -90,16 +101,17 @@ public:
         switch( _mode ) {
             case DispenserMode_Lock: return _M_.lock.block;
             case DispenserMode_Drop: return _M_.drop.block;
-            case DispenserMode_Swap: return _M_.swap.blocks[ _M_.swap.ctl_idx.load( std::memory_order_relaxed ) ];
+            case DispenserMode_Swap: [[fallthrough]];
+            case DispenserMode_ReverseSwap: return _M_.swap.blocks[ _M_.swap.ctl_idx.load( std::memory_order_relaxed ) ];
         }
-        return nullptr;
+        A113_UNREACHABLE;
     }
 
 };
 
 template< typename _T_, bool _IS_CONTROL_ > struct _dispenser_acquire {
 public:
-    _dispenser_acquire( Dispenser< _T_ >& disp_ ) : _disp{ &disp_ } {
+    [[gnu::hot]] _dispenser_acquire( Dispenser< _T_ >& disp_ ) : _disp{ &disp_ } {
         switch( _disp->_mode ) {
             case DispenserMode_Lock: {
                 if constexpr( _IS_CONTROL_ ) {
@@ -128,7 +140,15 @@ public:
                 _M_.swap.block = _disp->_M_.swap.blocks[ _M_.swap.ctl_idx ].get();
             break; }
             case DispenserMode_ReverseSwap: {
-                //TODO
+                if constexpr( _IS_CONTROL_ ) {
+                    _M_.swap.ctl_idx = _disp->_M_.swap.ctl_idx.load( std::memory_order_acquire );
+                    _disp->_M_.swap.mtxs[ _M_.swap.ctl_idx ].lock();
+                } else {
+                    _M_.swap.ctl_idx = _disp->_M_.swap.ctl_idx.fetch_xor( 0x1, std::memory_order_acquire );
+                    _disp->_M_.swap.mtxs[ _M_.swap.ctl_idx ].lock_shared();
+                }
+
+                _M_.swap.block = _disp->_M_.swap.blocks[ _M_.swap.ctl_idx ].get();
             break; }
         }
     }
@@ -144,7 +164,8 @@ public:
             case DispenserMode_Drop: {
                 _M_.drop.block = std::move( other_._M_.drop.block );
             break; }
-            case DispenserMode_Swap: {
+            case DispenserMode_Swap: [[fallthrough]];
+            case DispenserMode_ReverseSwap: {
                 _M_.swap.block = std::exchange( other_._M_.swap.block, nullptr );
             break; }
         }
@@ -155,7 +176,7 @@ public:
     }
 
 public:
-    void release( void ) {
+    [[gnu::hot]] void release( void ) {
         if( not _disp ) return;
         switch( _disp->_mode ) {
             case DispenserMode_Lock: {
@@ -179,7 +200,14 @@ public:
                 } else {
                     _disp->_M_.swap.mtxs[ _M_.swap.ctl_idx ].unlock_shared();
                 }
-
+                _M_.swap.block = nullptr;
+            break; }
+            case DispenserMode_ReverseSwap: {
+                if constexpr( _IS_CONTROL_ ) {
+                    _disp->_M_.swap.mtxs[ _M_.swap.ctl_idx ].unlock();
+                } else {
+                    _disp->_M_.swap.mtxs[ _M_.swap.ctl_idx ].unlock_shared();
+                }
                 _M_.swap.block = nullptr;
             break; }
         }
@@ -208,7 +236,8 @@ public:
         switch( _disp->_mode ) {
             case DispenserMode_Lock: return _disp->_M_.lock.block.get();
             case DispenserMode_Drop: return _M_.drop.block.get();
-            case DispenserMode_Swap: return _M_.swap.block;
+            case DispenserMode_Swap: [[fallthrough]];
+            case DispenserMode_ReverseSwap: return _M_.swap.block;
         }
         return nullptr;
     }

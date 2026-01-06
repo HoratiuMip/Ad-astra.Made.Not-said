@@ -31,6 +31,15 @@ DO NOT MODIFY AS THE MODIFICATIONS WILL BE LOST.
 #ifndef _BV
     #define _BV(b) (0x1<<b)
 #endif
+#ifndef _SBV
+    #define _SBV(x,b) (x|=b)
+#endif
+#ifndef _RBV
+    #define _RBV(x,b) (x&=~b)
+#endif
+#ifndef _FBV
+    #define _FBV(x,f,b) (f?_SBV(x,b):_RBV(x,b))
+#endif
 
 
 #include <cstdint>

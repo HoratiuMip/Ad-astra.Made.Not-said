@@ -135,20 +135,20 @@ protected:
         }
 
         struct _bridge_t {
-            std::atomic_int                                  control     = { 0x0 };
+            std::atomic_int                                 control     = { 0x0 };
 
-            std::atomic_int                                  rule_def    = { 0x0 };
+            std::atomic_int                                 rule_def    = { 0x0 };
             struct _config_t {
                 std::atomic_uint8_t    unit;
                 std::atomic_uint16_t   address;
                 std::atomic_uint16_t   count;
                 std::atomic_int        interval;
-            }                                                config;
+            }                                               config;
 
-            std::atomic_int                                  status      = { 0x1 };
-            std::atomic_int                                  completed   = { 0x0 };
+            std::atomic_int                                 status      = { 0x1 };
+            std::atomic_int                                 completed   = { 0x0 };
 
-            a113::Dispenser< std::array< uint8_t, 4096 > >   data        = { a113::DispenserMode_Swap };
+            a113::Dispenser< std::array< uint8_t, 256 > >   data        = { a113::DispenserMode_Swap };
         } *_bridge;
 
         struct _ui_t {
@@ -308,7 +308,9 @@ protected:
             if( rule_changed ) {
                 _bridge->control  = 0x0;
                 _bridge->rule_def = rule_def;
-                //_bridge->data.switch_swap_mode( func1_is_write ? a113::DispenserMode_ReverseSwap : a113::DispenserMode_Swap );
+                _bridge->data.switch_swap_mode( func1_is_write ? a113::DispenserMode_ReverseSwap : a113::DispenserMode_Swap, [ func1_is_write ] ( a113::dispenser_config_t& config ) -> void {
+                    _FBV( config.flags, func1_is_write, a113::DispenserFlags_SwapMode_CopyWhenReverseWatchAcquire );
+                } );
             }
             
             if( config_changed ) {
@@ -454,7 +456,7 @@ protected:
         
                             ImGui::TableHeadersRow();
 
-                            auto data = _bridge->data.watch();
+                            auto data = _bridge->data.control();
                     
                             for( int idx = 0x0; idx < _ui.config.count; ++idx ) {
                                 bool* crt_dat = ( bool* )&data->at( idx );
@@ -486,7 +488,7 @@ protected:
 
                             ImGui::TableHeadersRow();
 
-                            auto data      = _bridge->data.watch();
+                            auto data      = _bridge->data.control();
                             int  type_skip = 0;
 
                             for( int idx = 0x0; idx < _ui.config.count; ++idx ) {
@@ -762,6 +764,15 @@ a113::status_t Launcher::ui_frame( double dt_, void* arg_ ) {
                 }
                 ImGui::SetItemTooltip( std::format( "Launch a new {} tab.", comp.name ).c_str() );
                 ImGui::Separator();
+            }
+
+            ImGui::NewLine();
+            ImGui::SeparatorText( "Options" );
+
+            static bool active_theme = 0x0;
+            if( ImGui::Button( active_theme ? "Make it night." : "Make it day." ) ) {
+                if( active_theme ^= 0x1 ) ImGui::StyleColorsLight();
+                else ImGui::StyleColorsDark();
             }
 
         ImGui::EndChild(); 

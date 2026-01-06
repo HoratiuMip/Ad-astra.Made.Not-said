@@ -17,6 +17,14 @@ enum DispenserMode_ {
 
 template< typename _T_, bool _IS_CONTROL_ > struct _dispenser_acquire;
 
+enum DispenserFlags_ {
+    DispenserFlags_SwapMode_CopyWhenReverseWatchAcquire = ( 1 << 0 )
+};
+
+struct dispenser_config_t {
+    uint32_t   flags   = 0x0;
+};
+
 template< typename _T_ > class Dispenser {
 public:
     template< typename, bool > friend struct _dispenser_acquire;
@@ -63,7 +71,8 @@ public:
     }
 
 _A113_PROTECTED:
-    DispenserMode_   _mode;
+    DispenserMode_       _mode;
+    dispenser_config_t   _config;
 
     union _M_t { _M_t( void ) {} ~_M_t( void ) {}
         struct _lock_mode_t {
@@ -81,13 +90,13 @@ _A113_PROTECTED:
     } _M_;
 
 public:
-    A113_inline DispenserMode_ switch_swap_mode( std::optional< DispenserMode_ > swap_mode_ = {} ) {
+    A113_inline DispenserMode_ switch_swap_mode( DispenserMode_ swap_mode_, std::function< void( dispenser_config_t& ) > modify_config_ ) {
         std::lock_guard lock_1{ _M_.swap.mtxs[ 0x0 ] };
         std::lock_guard lock_2{ _M_.swap.mtxs[ 0x1 ] };
        
-        if( swap_mode_.has_value() ) return std::exchange( _mode, swap_mode_.value() );
-        
-        return std::exchange( _mode, ( DispenserMode_ )( DispenserMode_Swap + DispenserMode_ReverseSwap - _mode ) );
+        if( modify_config_ ) modify_config_( _config );
+
+        return std::exchange( _mode, swap_mode_ );
     }
 
 public:
@@ -144,6 +153,14 @@ public:
                     _M_.swap.ctl_idx = _disp->_M_.swap.ctl_idx.load( std::memory_order_acquire );
                     _disp->_M_.swap.mtxs[ _M_.swap.ctl_idx ].lock();
                 } else {
+                    if( _disp->_config.flags & DispenserFlags_SwapMode_CopyWhenReverseWatchAcquire ) {
+                        auto crt_ctl_idx = _disp->_M_.swap.ctl_idx.load( std::memory_order_acquire );
+                        auto sis_ctl_idx = crt_ctl_idx ^ 0x1;
+                        std::lock_guard lock_sis{ _disp->_M_.swap.mtxs[ sis_ctl_idx ] };
+                        std::lock_guard lock_crt{ _disp->_M_.swap.mtxs[ crt_ctl_idx ] };
+                        _disp->_M_.swap.blocks[ sis_ctl_idx ]->operator=( *_disp->_M_.swap.blocks[ crt_ctl_idx ] );
+                    }
+
                     _M_.swap.ctl_idx = _disp->_M_.swap.ctl_idx.fetch_xor( 0x1, std::memory_order_acquire );
                     _disp->_M_.swap.mtxs[ _M_.swap.ctl_idx ].lock_shared();
                 }

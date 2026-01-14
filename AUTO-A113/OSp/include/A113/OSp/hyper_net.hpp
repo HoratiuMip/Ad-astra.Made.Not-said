@@ -133,14 +133,12 @@ public:
 
 };
 
-class Executor : public st_att::_Log {
+class Executor {
 public:
     typedef   std::string_view   str_id_t;
 
 public:
-    Executor( const char* name_ ) 
-    : _Log{ std::format( "{}//HyperNet_Executor//{}", A113_VERSION_STRING, name_ ) }
-    {}
+    Executor( const char* name_ ) {}
 
 _A113_PROTECTED:
     int                                   _clock           = 0x0;
@@ -202,7 +200,7 @@ public:
             "edge [fontname = \"Comic Sans MS\"]\n"      \
             "{}"                                         \
             "}}"
-        , _Log::get_name(), acc );
+        , "a113::HyN::Executor", acc );
     }
 
 };

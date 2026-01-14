@@ -1,5 +1,5 @@
 /**
- * @file: OSp/IO_sockets.cpp
+ * @file: osp/IO_sockets.cpp
  * @brief: Implementation file.
  * @details: -
  * @authors: Vatca "Mipsan" Tudor-Horatiu
@@ -12,7 +12,7 @@ namespace a113::io {
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::bind_peer( ipv4_addr_t addr_, ipv4_port_t port_ ) {
     A113_ASSERT_OR( false ==_conn.alive.load( std::memory_order_acquire ) ) {
-        _Log::error( "Binding another peer whilst alive." );
+        A113_LOGE_IO( "Binding another peer whilst alive." );
         return -0x1;
     }
 
@@ -21,8 +21,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::bind_peer( ipv4_addr_t addr_, ipv4_port_
     _conn.addr     = addr_;
     _conn.port     = port_;
 
-    _Log::morph( std::format( "{}//io::IPv4_TCP_socket//{}:{}", A113_VERSION_STRING, ( char* )_conn.addr_str, _conn.port ) );
-    _Log::info( "Peer bound." );
+    A113_LOGI_IO( "Peer bound." );
     return 0x0;
 }
 
@@ -35,7 +34,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::uplink( void ) {
     
     socket_t sock = socket( AF_INET, SOCK_STREAM, IPPROTO_TCP );
     A113_ASSERT_OR( sock >= 0 ) {
-        _Log::error( "Bad socket descriptor." );
+        A113_LOGE_IO( "Bad socket descriptor." );
         return sock;
     }
 
@@ -50,17 +49,17 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::uplink( void ) {
     desc.sin_addr.s_addr = _conn.addr;
     desc.sin_port        = _conn.port; 
     
-    _Log::debug( "Uplinking..." );
+    A113_LOGD_IO( "Uplinking..." );
     status = ::connect( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) );
     A113_ASSERT_OR( 0x0 == status ) {
-        _Log::error( "Bad uplink // [{}].", WSAGetLastError() );
+        A113_LOGE_IO( "Bad uplink // [{}].", WSAGetLastError() );
         return status;
     }
 
     _conn.sock     = sock;
     _conn.alive.store( true, std::memory_order_release );
 
-    _Log::info( "Uplinked." );
+    A113_LOGI_IO( "Uplinked." );
 
     A113_ON_SCOPE_EXIT_DROP;
     return status;
@@ -73,7 +72,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::downlink( void ) {
     
     status = ::closesocket( std::exchange( _conn.sock, NULL_SOCKET ) );
     A113_ASSERT_OR( 0x0 == status ) {
-        _Log::warn( "Bad socket close // [{}].", WSAGetLastError() );
+        A113_LOGW_IO( "Bad socket close // [{}].", WSAGetLastError() );
     }
 
     _conn.addr = 0x0;
@@ -85,7 +84,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::downlink( void ) {
 
 A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     A113_ASSERT_OR( 0x0 == _conn.addr ) {
-        _Log::error( "Listening with peer address different from 0:0:0:0." );
+        A113_LOGE_IO( "Listening with peer address different from 0:0:0:0." );
         return -0x1;
     }
 
@@ -93,7 +92,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     
     socket_t sock = socket( AF_INET, SOCK_STREAM, IPPROTO_TCP );
     A113_ASSERT_OR( sock >= 0 ) {
-        _Log::error( "Bad socket descriptor." );
+        A113_LOGE_IO( "Bad socket descriptor." );
         return sock;
     }
 
@@ -110,14 +109,14 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     
     status = ::bind( sock, ( sockaddr* )&desc, sizeof( sockaddr_in ) );
     A113_ASSERT_OR( status == 0x0 ) {
-        _Log::error( "Bad socket bind // [{}].", WSAGetLastError() );
+        A113_LOGE_IO( "Bad socket bind // [{}].", WSAGetLastError() );
         return status;
     }
 
-    _Log::info( "Listening..."); 
+    A113_LOGI_IO( "Listening..."); 
     status = ::listen( sock, 1 );
     A113_ASSERT_OR( status == 0x0 ) {
-        _Log::error( "Bad socket listen // [{}].", WSAGetLastError() );
+        A113_LOGE_IO( "Bad socket listen // [{}].", WSAGetLastError() );
     }
     
     sockaddr_in in_desc = {}; 
@@ -126,7 +125,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
 
     socket_t in_sock  = ::accept( sock, ( sockaddr* )&in_desc, &in_desc_sz );
     A113_ASSERT_OR( in_sock >= 0 ) {
-        _Log::error( "Bad accept // [{}].", WSAGetLastError() );
+        A113_LOGE_IO( "Bad accept // [{}].", WSAGetLastError() );
         return -0x1;
     }
 
@@ -136,8 +135,7 @@ A113_IMPL_FNC status_t IPv4_TCP_socket::listen( void ) {
     _conn.port     = in_desc.sin_port;
     _conn.alive.store( true, std::memory_order_release );
 
-    _Log::morph( std::format( "{}//io::IPv4_TCP_socket//{}:{}", A113_VERSION_STRING, ( char* )_conn.addr_str, _conn.port ) );
-    _Log::info( "Accepted {}:{}.", ( char* )_conn.addr_str, _conn.port );
+    A113_LOGI_IO( "Accepted {}:{}.", ( char* )_conn.addr_str, _conn.port );
 
     return status;
 }

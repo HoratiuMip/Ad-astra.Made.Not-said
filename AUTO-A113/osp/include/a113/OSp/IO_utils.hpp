@@ -16,14 +16,13 @@ struct COM_port_t {
     std::string   friendly;
 };
 
-class COM_Ports : public st_att::_Log, public Dispenser< std::vector< COM_port_t > > {
+class COM_Ports : public Dispenser< std::vector< COM_port_t > > {
 public:
     using container_t = std::vector< COM_port_t >;
 
 public:
     COM_Ports( const DispenserMode_ disp_mode_, bool refresh_, bool register_listen_ ) 
-    : _Log{ A113_VERSION_STRING"//io::COM_Ports" }, 
-      Dispenser{ disp_mode_ }
+    : Dispenser{ disp_mode_ }
     {
         if( refresh_ ) this->refresh();
         if( register_listen_ ) this->register_listen();

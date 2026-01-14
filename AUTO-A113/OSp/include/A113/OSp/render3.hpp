@@ -49,7 +49,7 @@ enum MeshFlag_ {
     MeshFlag_MakePipe = _BV( 0x0 )
 };
 
-class Cluster : public st_att::_Log {
+class Cluster {
 public:
     /* MIP here after almost one year. Yeah.*/
     //std::cout << "GOD I SUMMON U. GIVE MIP TEO FOR A FEW DATES (AT LEAST 100)"; 
@@ -62,8 +62,7 @@ public:
 
 public:
     Cluster( GLFWwindow* glfwnd )
-    : _Log{ std::format( "{}//render::Cluster//{}", A113_VERSION_STRING, glfwGetWindowTitle( glfwnd ) ) }, 
-      _glfwnd{ glfwnd } 
+    :  _glfwnd{ glfwnd } 
     {
         glfwMakeContextCurrent( _glfwnd );
 
@@ -90,7 +89,7 @@ public:
 
         stbi_set_flip_vertically_on_load( true );
 
-        _Log::info( "Docked on {}, using {}.", _rend_str ? _rend_str : "NULL", _gl_str ? _gl_str : "NULL" );
+        A113_LOGI_IMM( "Docked on {}, using {}.", _rend_str ? _rend_str : "NULL", _gl_str ? _gl_str : "NULL" );
     }
 
     Cluster( const Cluster& ) = delete;
@@ -119,7 +118,7 @@ _A113_PROTECTED:
         template< CacheQueryMode_ MODE_ >
         HVec< shader_t > query_bucket( ShaderPhase_ phase_, const std::string& strid_ ) {
             A113_ASSERT_OR( phase_ >= ShaderPhase_Vertex && phase_ < ShaderPhase_COUNT ) {
-                _Hyper->_Log::error( "Shader phase for bucket querying is out of bounds." );
+                A113_LOGE_IMM( "Shader phase for bucket querying is out of bounds." );
                 return nullptr;
             }
             
@@ -140,7 +139,7 @@ _A113_PROTECTED:
 
         shader_t* query_bucket_weak( ShaderPhase_ phase_, const std::string& strid_ ) {
             A113_ASSERT_OR( phase_ >= ShaderPhase_Vertex && phase_ < ShaderPhase_COUNT ) {
-                _Hyper->_Log::error( "Shader phase for bucket querying is out of bounds." );
+                A113_LOGE_IMM( "Shader phase for bucket querying is out of bounds." );
                 return nullptr;
             }
 
@@ -164,7 +163,7 @@ _A113_PROTECTED:
             }
 
             A113_ASSERT_OR( phase_ >= ShaderPhase_Vertex && phase_ < ShaderPhase_COUNT ) {
-                _Hyper->_Log::error( "Shader phase for bucket querying is out of bounds." );
+                A113_LOGE_IMM( "Shader phase for bucket querying is out of bounds." );
                 return nullptr;
             }
             
@@ -172,7 +171,7 @@ _A113_PROTECTED:
                 std::ifstream file{ path_, std::ios_base::binary };
 
                 A113_ASSERT_OR( file.operator bool() ) {
-                    _Hyper->_Log::error( "Could NOT open file \"{}\".", path_.string() );
+                    A113_LOGE_IMM( "Could NOT open file \"{}\".", path_.string() );
                     status = -0x1; return;
                 }
 
@@ -194,7 +193,7 @@ _A113_PROTECTED:
                         auto q2 = line.find_last_of( '>' );
 
                         A113_ASSERT_OR( q1 != std::string::npos && q2 != std::string::npos ) {
-                            _Hyper->_Log::error( "DIRECTIVE[{}] argument of SHADER[{}] is ill-formed. It shall be quoted between \"<>\". ", d.str, strid );
+                            A113_LOGE_IMM( "DIRECTIVE[{}] argument of SHADER[{}] is ill-formed. It shall be quoted between \"<>\". ", d.str, strid );
                             status = -0x1; return;
                         }
                         
@@ -209,7 +208,7 @@ _A113_PROTECTED:
                 
                 l_directive_strid:
                     A113_ASSERT_OR( strid.empty() ) {
-                        _Hyper->_Log::error( "Multiple string identifiers given for SHADER[{}]<->[{}].", strid, arg );
+                        A113_LOGE_IMM( "Multiple string identifiers given for SHADER[{}]<->[{}].", strid, arg );
                         status = -0x1; return;
                     }
                     strid = std::move( arg );
@@ -223,7 +222,7 @@ _A113_PROTECTED:
             accumulate_glsl( path_ );
             
             A113_ASSERT_OR( 0x0 == status ) {
-                _Hyper->_Log::error( "General failure during accumulation of source code for SHADER[{}].", strid );
+                A113_LOGE_IMM( "General failure during accumulation of source code for SHADER[{}].", strid );
                 return nullptr;
             }
 
@@ -233,7 +232,7 @@ _A113_PROTECTED:
 
             if( 0x0 == shader->glidx ) {
                 A113_ASSERT_OR( 0x0 != ( shader->glidx = glCreateShader( ShaderPhase_MAP[ phase_ ] ) ) ) {
-                    _Hyper->_Log::error( "Failed to create SHADER[{}].", shader->strid );
+                    A113_LOGE_IMM( "Failed to create SHADER[{}].", shader->strid );
                     return nullptr;
                 }
 
@@ -245,12 +244,12 @@ _A113_PROTECTED:
                 A113_ASSERT_OR( status ) {
                     GLchar log_buf[ 512 ];
                     glGetShaderInfoLog( shader->glidx, sizeof( log_buf ), NULL, log_buf );
-                    _Hyper->_Log::error( "Failed to compile SHADER[{}], GLIDX[{}]: \"{}\".", shader->strid, shader->glidx, log_buf );
+                    A113_LOGE_IMM( "Failed to compile SHADER[{}], GLIDX[{}]: \"{}\".", shader->strid, shader->glidx, log_buf );
                     return nullptr;
                 }
             }
 
-            _Hyper->_Log::info( "Created SHADER[{}], GLIDX[{}] from file: \"{}\".", shader->strid, shader->glidx, path_.string() );
+            A113_LOGI_IMM( "Created SHADER[{}], GLIDX[{}] from file: \"{}\".", shader->strid, shader->glidx, path_.string() );
             return shader;
         }
 
@@ -310,7 +309,7 @@ _A113_PROTECTED:
                 && 
                 nullptr != arr_[ ShaderPhase_Vertex ] && nullptr != arr_[ ShaderPhase_Fragment ]
             ) {
-                _Hyper->_Log::error( "Shader stages ill-arranged: [{}]", pretty );
+                A113_LOGE_IMM( "Shader stages ill-arranged: [{}]", pretty );
                 return nullptr;
             }
 
@@ -320,7 +319,7 @@ _A113_PROTECTED:
                 pipe->glidx = glCreateProgram();
 
                 A113_ASSERT_OR( 0x0 != pipe->glidx ) {
-                    _Hyper->_Log::error( "Failed to create PIPE[{}].", pipe->strid );
+                    A113_LOGE_IMM( "Failed to create PIPE[{}].", pipe->strid );
                     return nullptr;
                 }
     
@@ -336,12 +335,12 @@ _A113_PROTECTED:
                 A113_ASSERT_OR( status ) {
                     GLchar log_buf[ 512 ];
                     glGetProgramInfoLog( pipe->glidx, sizeof( log_buf ), NULL, log_buf );
-                    _Hyper->_Log::error( "Failed to create PIPE[{}], GLIDX[{}]: \"{}\".", pipe->strid, pipe->glidx, log_buf );
+                    A113_LOGE_IMM( "Failed to create PIPE[{}], GLIDX[{}]: \"{}\".", pipe->strid, pipe->glidx, log_buf );
                     return nullptr;
                 }
             }
 
-            _Hyper->_Log::info( "Created PIPE[{}], GLIDX[{}] from shader array.", pipe->strid, pipe->glidx );
+            A113_LOGI_IMM( "Created PIPE[{}], GLIDX[{}] from shader array.", pipe->strid, pipe->glidx );
             return pipe;
         }
 
@@ -384,7 +383,7 @@ _A113_PROTECTED:
             std::filesystem::path root_dir_p = root_dir_ / prefix_.data();
             std::filesystem::path obj_path   = root_dir_p; obj_path += ".obj";
 
-            _Hyper->_Log::info( "Compiling the obj: \"{}\".", obj_path.string() );
+            A113_LOGI_IMM( "Compiling the obj: \"{}\".", obj_path.string() );
 
             status = tinyobj::LoadObj( 
                 &attrib, &shapes, &mtls, &error_str, 
@@ -392,14 +391,14 @@ _A113_PROTECTED:
                 true
             );
 
-            if( not error_str.empty() ) _Hyper->_Log::warn( "TinyObj says: \"{}\".", error_str );
+            if( not error_str.empty() ) A113_LOGW_IMM( "TinyObj says: \"{}\".", error_str );
 
             A113_ASSERT_OR( status ) {
-                _Hyper->_Log::error( "Failed to compile the obj." );
+                A113_LOGE_IMM( "Failed to compile the obj." );
                 return;
             }
 
-            _Hyper->_Log::info( "Compiled [{}] materials over [{}] sub-meshes.", mtls.size(), shapes.size() );
+            A113_LOGI_IMM( "Compiled [{}] materials over [{}] sub-meshes.", mtls.size(), shapes.size() );
 
             _mtls.reserve( mtls.size() );
             for( tinyobj::material_t& mtl_data : mtls ) { 
@@ -430,7 +429,7 @@ _A113_PROTECTED:
             
                 for( auto& [ key, value ] : mtl.data.unknown_parameter ) {
                     if( not key.starts_with( "A113" ) ) {
-                        _Hyper->_Log::warn( "Unknown parameter: \"{}\".", key );
+                        A113_LOGW_IMM( "Unknown parameter: \"{}\".", key );
                         continue;
                     }
 
@@ -440,7 +439,7 @@ _A113_PROTECTED:
                         continue;
                     }
     
-                    _Hyper->_Log::warn( "Unrecognized A113 parameter \"{}\".", key );
+                    A113_LOGW_IMM( "Unrecognized A113 parameter \"{}\".", key );
                 }
             }
 
@@ -563,7 +562,7 @@ _A113_PROTECTED:
             unsigned char* img_buf = stbi_load( path_.string().c_str(), &x, &y, &n, 4 );
 
             A113_ASSERT_OR( img_buf ) {
-                _Hyper->_Log::error( "Failed to load texture from: \"{}\".", path_.string() );
+                A113_LOGE_IMM( "Failed to load texture from: \"{}\".", path_.string() );
                 return -0x1;
             }
 
@@ -596,7 +595,7 @@ _A113_PROTECTED:
                 //.ufrm  = {}
             } );
 
-            _Hyper->_Log::info( "Pushed texture on slot [{}], from: \"{}\". ", slot_, path_.string() );
+            A113_LOGI_IMM( "Pushed texture on slot [{}], from: \"{}\". ", slot_, path_.string() );
             return 0x0;
         }
 

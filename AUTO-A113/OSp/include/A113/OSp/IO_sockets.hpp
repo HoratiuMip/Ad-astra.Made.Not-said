@@ -22,7 +22,7 @@ namespace a113::io {
 #endif 
 
 
-class IPv4_TCP_socket : public Port, public st_att::_Log {
+class IPv4_TCP_socket {//: public Port {
 _A113_PROTECTED:
     struct {
         std::atomic_bool   alive      = { false };
@@ -47,9 +47,9 @@ public:
     status_t listen( void );
 
 public:
-    virtual status_t read( const MDsc& mdsc_ ) override;
+    virtual status_t read( const MDsc& mdsc_ ) ;//override;
 
-    virtual status_t write( const MDsc& mdsc_ ) override;
+    virtual status_t write( const MDsc& mdsc_ ) ;//override;
 };
 
 

@@ -5,7 +5,7 @@
 
 #define COMMOD_VERSION_STR "v1.0"
 
-class Component : public a113::st_att::_Log {
+class Component  {
 public:
     friend class Launcher;
 
@@ -29,7 +29,7 @@ protected:
 public:
     void register_component( const Component::id_t& id_, a113::HVec< Component > comp_ ) {
         std::unique_lock lock{ _components_mtx };
-        comp_->morph( id_ );
+
         _components_map[ id_ ] = std::move( comp_ );
     }
 
@@ -607,7 +607,7 @@ public:
             auto port = _ui.ports.imm_frame( ports_watch );
         ImGui::EndDisabled();
 
-        const bool port_not_sel_or_conn = not port || _mb.port;
+        const bool port_not_sel_or_conn = not port || port_conn;
     
         ImGui::SeparatorText( "Connection settings" );
         ImGui::BeginDisabled( port_not_sel_or_conn );
@@ -648,10 +648,11 @@ public:
 
                 _mb.port.reset( Modbus::createClientPort( Modbus::RTU, &_mb.settings, true ), [] ( ModbusClientPort* port_ ) -> void {
                     port_->close();
+                    spdlog::info( "Closed a ModbusRTU client port." );
                     delete port_;
                 } );
-                if( _mb.port ) _Log::info( "Created new client port." );
-                else _Log::error( "Failed to create new client port." );
+                if( _mb.port ) spdlog::info( "Created a new ModbusRTU client port." );
+                else spdlog::error( "Failed to create a new ModbusRTU client port." );
             }
         
             const bool port_available = ( bool )port;
@@ -735,8 +736,176 @@ protected:
 };
 
 
+class SerialPeer : public Component {
+public:
+    SerialPeer( void ) {
+        _write_th = std::thread{ &SerialPeer::_main_write_th, this, _ser }; _write_th.detach();
+        _read_th = std::thread{ &SerialPeer::_main_read_th, this, _ser }; _read_th.detach();
+    }
+
+protected:
+    struct _ui_data_t {
+        a113::clkwrk::imm_widgets::COM_Ports   ports{ G_Launcher.common.com_ports };
+
+        struct _parity_t : public a113::clkwrk::imm_widgets::DropDownList {
+            _parity_t() : DropDownList{ ( const char* const[] ){ "No parity", "Odd parity", "Even parity", "Mark parity", "Space parity" }, 5, 0x0 } {}
+        } parity;
+        struct _stopbit_t : public a113::clkwrk::imm_widgets::DropDownList {
+            _stopbit_t() : DropDownList{ ( const char* const[] ){ "One", "One & 1/2", "Two" }, 3, 0x0 } {}
+        } stopbit;
+    } _ui;
+
+    struct _ser_data_t {
+        a113::io::Serial                 port           = {};
+        std::mutex                       port_mtx       = {};
+        a113::io::serial_config_t        config         = { .baud_rate = 115200 };
+        std::atomic_int                  dmp_file_ver   = 0x0;
+        std::string                      dmp_file_str   = "";
+        a113::Dispenser< std::string >   acc            = { a113::DispenserMode_Lock };
+    };
+    a113::HVec< _ser_data_t >   _ser        = a113::HVec< _ser_data_t >::make();
+    std::thread                 _write_th   = {};
+    std::thread                 _read_th    = {};
+
+protected:
+    void _main_write_th( a113::HVec< _ser_data_t > ser_ ) { for(; ser_.use_count() > 2;) {
+        std::this_thread::sleep_for( std::chrono::milliseconds{ 100 } );
+    } }
+
+    void _main_read_th( a113::HVec< _ser_data_t > ser_ ) {
+        std::ofstream dmp_file;
+        auto          last_dmp_file_ver = 0x0;
+
+    for(; ser_.use_count() > 2;) {
+        if( not ser_->port.is_connected() ) { std::this_thread::sleep_for( std::chrono::milliseconds{ 100 } ); continue; }
+
+        char   buffer[ 512 ];
+        size_t read_bytes      = 0;
+
+        A113_ASSERT_OR( 0x0 == ser_->port.read( a113::io::port_RW_desc_t{
+            ptr_SoD:    buffer,
+            n_SoD:      sizeof( buffer ),
+            byte_count: &read_bytes
+        } ) ) continue;
+
+        auto acc = ser_->acc.control();
+        if( acc->append( buffer, read_bytes ).length() > 10*512 ) {
+            acc->erase( 0, 512 );
+        }
+        acc.commit();
+
+        if( int crt_dmp_file_ver = ser_->dmp_file_ver.load( std::memory_order_acquire ); last_dmp_file_ver != crt_dmp_file_ver ) {
+            if( not ser_->dmp_file_str.empty() )
+                dmp_file.open( ser_->dmp_file_str );
+            else
+                dmp_file.close();
+            last_dmp_file_ver = crt_dmp_file_ver;
+        }
+        if( dmp_file ) dmp_file.write( buffer, read_bytes );
+    } }
+
+public:
+    a113::status_t ui_frame( double dt_, void* arg_ ) override {
+        ImGui::SeparatorText( "Found COM ports" );
+
+        const bool port_conn   = _ser->port.is_connected();
+        auto       ports_watch = G_Launcher.common.com_ports.watch();
+
+        ImGui::BeginDisabled( port_conn );
+            auto port = _ui.ports.imm_frame( ports_watch );
+        ImGui::EndDisabled();
+
+        const bool port_not_sel_or_conn = not port || port_conn;
+    
+        ImGui::SeparatorText( "Connection settings" );
+        ImGui::BeginDisabled( port_not_sel_or_conn );
+            ImGui::LabelText( "COM port", port ? port->id.c_str() : "N/A" ); ImGui::SetItemTooltip( "Use the above panel to select a COM port." );
+            ImGui::InputScalar( "Baud rate", ImGuiDataType_U32, &_ser->config.baud_rate, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
+            ImGui::InputScalar( "Data bits", ImGuiDataType_S8, &_ser->config.byte_size, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
+
+            const auto selected_parity   = _ui.parity.imm_frame( "Parity" );
+            const auto selected_stopbit  = _ui.stopbit.imm_frame( "Stop bit" );
+
+            ImGui::InputScalar( "Update timeout", ImGuiDataType_U32, &_ser->config.rx_ib_timeout, nullptr, nullptr, nullptr, ImGuiInputTextFlags_CharsDecimal );
+            ImGui::SetItemTooltip( "The time in milliseconds needed to elapse since the last byte was received, in order to update the view buffer.\nNote that an update is triggered when the reception buffer is full." );
+        ImGui::EndDisabled();
+
+        ImGui::Separator();
+        if( port_conn ) {
+            ImGui::TextColored( ImVec4{ 0,1,0,1 }, "Connected on %s", _ser->port.device().data() );
+        } else {
+            ImGui::TextColored( ImVec4{ 1,0,0,1 }, "Disconnected" );
+        }
+        ImGui::SameLine(); ImGui::Bullet();
+        ImGui::BeginDisabled( port_not_sel_or_conn );
+            if( ImGui::Button( "Connect" ) ) {
+                _ser->config.parity  = selected_parity;
+                _ser->config.stopbit = selected_stopbit;
+                
+                _ser->port.open( std::format( "\\\\.\\{}", port->id.c_str() ).c_str(), _ser->config );
+            }
+        
+            const bool port_available = ( bool )port;
+            ports_watch.release();
+
+            ImGui::SetItemTooltip( "Attempt a connection using the above configured settings." );
+        ImGui::EndDisabled();
+        ImGui::SameLine(); ImGui::Bullet();
+        ImGui::BeginDisabled( not port_conn );
+            if( ImGui::Button( "Disconnect" ) || not port_available ) {
+                _ser->port.close();
+            }
+            ImGui::SetItemTooltip( "Terminate the current connection." );
+        ImGui::EndDisabled();
+        ImGui::Separator();
+
+        ImGui::SeparatorText( "Dump to file" );
+
+        if( ImGui::Button( "Choose file" ) ) {
+            ImGuiFileDialog::Instance()->OpenDialog( "File_explorer", "Choose serial port dump file", ".txt,.*", IGFD::FileDialogConfig{
+                .path  = ".",
+                .flags = ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_DisableCreateDirectoryButton
+            } );
+        }
+        if( ImGuiFileDialog::Instance()->Display( "File_explorer" ) ) {
+            if( ImGuiFileDialog::Instance()->IsOk() ) {
+                _ser->dmp_file_str = ImGuiFileDialog::Instance()->GetFilePathName();
+                _ser->dmp_file_ver.fetch_add( 0x1, std::memory_order_release );
+            }
+            
+            ImGuiFileDialog::Instance()->Close();
+        }
+
+        ImGui::SameLine(); ImGui::Bullet(); ImGui::Text( _ser->dmp_file_str.c_str() );
+        if( not _ser->dmp_file_str.empty() ) {
+            ImGui::PushStyleColor( ImGuiCol_Button,        ImVec4{ 0,0,0,0 } );
+            ImGui::PushStyleColor( ImGuiCol_ButtonHovered, ImVec4{ 0,0,0,0 } );
+            ImGui::PushStyleColor( ImGuiCol_ButtonActive,  ImVec4{ 0,0,0,0 } );
+            ImGui::PushStyleColor( ImGuiCol_Text,          ImVec4{ 1,0,0,1 } );
+                ImGui::SameLine();
+                if( ImGui::SmallButton( "X" ) ) {
+                    _ser->dmp_file_str.clear();
+                    _ser->dmp_file_ver.fetch_add( 0x1, std::memory_order_release );
+                }
+            ImGui::PopStyleColor( 4 );
+        }
+
+        ImGui::Separator();
+        ImGui::BeginChild( "Reception dump" );
+            auto acc = _ser->acc.watch();
+            ImGui::Text( acc->c_str() );
+            acc.release();
+            ImGui::SetScrollHereY( 1 );
+        ImGui::EndChild();
+
+        return 0x0;
+    }
+};
+
+
 a113::status_t Launcher::ui_frame( double dt_, void* arg_ ) {
-    ImGui::Begin( "COMMod", nullptr, ImGuiWindowFlags_None );
+    bool main_window_open = true;
+    ImGui::Begin( "COMMod", &main_window_open, ImGuiWindowFlags_None );
         ImGui::BeginChild( "Launcher", ImVec2{ 200, 0 }, ImGuiChildFlags_Border );
             ImGui::SeparatorText( "COMMod "COMMOD_VERSION_STR );
             ImGui::Bullet(); ImGui::TextLinkOpenURL( "GitHub", "https://github.com/HoratiuMip/Ad-astra.Made.Not-said/tree/main/AUTO-A113/Ruptures/COMMod" );
@@ -751,7 +920,8 @@ a113::status_t Launcher::ui_frame( double dt_, void* arg_ ) {
                 std::function< a113::HVec< Component >( void ) >   builder; 
                 int                                                count      = 0x0;
             } components[] = {
-                { .name = "ModbusRTU", .builder = [] ( void ) -> a113::HVec< Component > { return a113::HVec< ModbusRTU >::make(); } }
+                { .name = "ModbusRTU", .builder = [] ( void ) -> a113::HVec< Component > { return a113::HVec< ModbusRTU >::make(); } },
+                { .name = "SerialPeer", .builder = [] ( void ) -> a113::HVec< Component > { return a113::HVec< SerialPeer >::make(); } }
             };
 
             ImGui::NewLine();
@@ -804,7 +974,7 @@ a113::status_t Launcher::ui_frame( double dt_, void* arg_ ) {
             ImGui::EndTabBar();
         ImGui::EndChild();
     ImGui::End();
-    return 0x0;
+    return main_window_open ? 0x0 : -0x1;
 }
 
 

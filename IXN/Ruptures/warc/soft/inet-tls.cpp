@@ -1,3 +1,13 @@
+struct _BAD_EXIT {
+    std::function< void() >   proc;
+    ~_BAD_EXIT() { if( proc != nullptr ) proc(); } 
+} bad_exit{ proc: [ &, this ] () -> void {
+    if( socket_raw != _SOCKET{} )
+        closesocket( socket_raw );
+    this->_kill_conn();
+} };
+
+
 #include <warc/inet-tls.hpp>
 
 namespace warc { namespace inet_tls {

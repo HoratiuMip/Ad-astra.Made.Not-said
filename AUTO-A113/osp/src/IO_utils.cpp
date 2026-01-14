@@ -29,9 +29,12 @@ static status_t _populate_ports( COM_Ports::container_t& ports_ ) {
             .id       = "COM", 
             .friendly = buffer
         } );
-
-        char* ptr = strstr( buffer, "COM" ); ptr += 0x3;
-        while( *ptr >= '0' && *ptr <= '9' ) port.id += *( ptr++ );
+        
+        char* last_occ = nullptr;
+        char* ptr      = nullptr;
+        while( (ptr = strstr( last_occ ? last_occ : buffer, "COM" )) && last_occ < buffer + sizeof( buffer ) ) last_occ = ptr += 0x3;
+        
+        if( last_occ ) while( *last_occ >= '0' && *last_occ <= '9' && last_occ < buffer + sizeof( buffer ) ) port.id += *( last_occ++ );
     }
 
     SetupDiDestroyDeviceInfoList( dev_set );
@@ -65,9 +68,9 @@ A113_IMPL_FNC COM_Ports& COM_Ports::refresh( void ) {
     status = _populate_ports( *ports );
     ports.commit();
 
-    if( status > 0x0 ) _Log::info( "Refreshed, found [{}] port(s).", status );
-    else if( status == 0x0 ) _Log::info( "Refreshed, no ports found." );
-    else _Log::error( "Bad refresh // [{}].", status );
+    if( status > 0x0 ) A113_LOGI_IO( "Refreshed, found [{}] port(s).", status );
+    else if( status == 0x0 ) A113_LOGI_IO( "Refreshed, no ports found." );
+    else A113_LOGE_IO( "Bad refresh // [{}].", status );
 
     return *this;
 }

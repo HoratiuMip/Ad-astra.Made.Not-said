@@ -56,62 +56,30 @@ struct HVec : public std::shared_ptr< _T_ > {
 };
 
 
-namespace st_att {
-#define _A113_ST_ATT_LOG_PATTERN "[%^%l%$]\t[%c] [%n] - %v"
-class _Log {
-_A113_PROTECTED:
-    template< typename _T >
-    HVec< spdlog::logger > _make_device( _T&& name_ ) {
-        return spdlog::stdout_color_mt( std::forward< _T >( name_ ) );
-    }
+#define A113_LOGI(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_General ]->info( __VA_ARGS__ ))
+#define A113_LOGW(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_General ]->warn( __VA_ARGS__ ))
+#define A113_LOGE(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_General ]->error( __VA_ARGS__ ))
+#define A113_LOGC(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_General ]->critical( __VA_ARGS__ ))
+#define A113_LOGD(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_General ]->debug( __VA_ARGS__ ))
 
-    void _drop_device( void ) {
-        if( _device ) spdlog::drop( _device->name() );
-    }
+#define A113_LOGI_IO(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IO ]->info( __VA_ARGS__ ))
+#define A113_LOGW_IO(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IO ]->warn( __VA_ARGS__ ))
+#define A113_LOGE_IO(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IO ]->error( __VA_ARGS__ ))
+#define A113_LOGC_IO(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IO ]->critical( __VA_ARGS__ ))
+#define A113_LOGD_IO(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IO ]->debug( __VA_ARGS__ ))
 
-public:
-#define _A113_ST_ATT__SET_LOG_PATTERN _device->set_pattern( _A113_ST_ATT_LOG_PATTERN )
-    _Log() = default;
-    _Log( const char* name_ ) : _device{ this->_make_device( name_ ) } {
-        _A113_ST_ATT__SET_LOG_PATTERN;
-    }
-    _Log( const std::string& name_ ) : _device{ this->_make_device( name_ ) } {
-        _A113_ST_ATT__SET_LOG_PATTERN;
-    }
-    _Log( HVec< spdlog::logger > other_ ) : _device{ std::move( other_ ) } {}
+#define A113_LOGI_IMM(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IMM ]->info( __VA_ARGS__ ))
+#define A113_LOGW_IMM(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IMM ]->warn( __VA_ARGS__ ))
+#define A113_LOGE_IMM(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IMM ]->error( __VA_ARGS__ ))
+#define A113_LOGC_IMM(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IMM ]->critical( __VA_ARGS__ ))
+#define A113_LOGD_IMM(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IMM ]->debug( __VA_ARGS__ ))
 
-    _Log( const _Log& other_ ) = default;
-    _Log( _Log&& other_ ) = default;
-    _Log& operator = ( const _Log& other_ ) { _device = other_._device; return *this; }
-    _Log& operator = ( _Log&& other_ ) { _device = std::move( other_._device ); return *this; }
+#define A113_LOGI_SCT(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_SCT ]->info( __VA_ARGS__ ))
+#define A113_LOGW_SCT(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_SCT ]->warn( __VA_ARGS__ ))
+#define A113_LOGE_SCT(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_SCT ]->error( __VA_ARGS__ ))
+#define A113_LOGC_SCT(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_SCT ]->critical( __VA_ARGS__ ))
+#define A113_LOGD_SCT(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_SCT ]->debug( __VA_ARGS__ ))
 
-    ~_Log() { this->_drop_device(); }
-
-_A113_PRIVATE:
-    HVec< spdlog::logger >   _device   = nullptr;
-
-_A113_PROTECTED:
-#define _A113_ST_ATT__LOG_FWD_FNC( fnc ) template< typename ...Args > A113_inline void fnc( const spdlog::format_string_t< Args... > fmt_, Args&&... args_ ) const { _device->fnc( fmt_, std::forward< Args >( args_ )... ); }
-    _A113_ST_ATT__LOG_FWD_FNC( debug )
-    _A113_ST_ATT__LOG_FWD_FNC( info )
-    _A113_ST_ATT__LOG_FWD_FNC( warn )
-    _A113_ST_ATT__LOG_FWD_FNC( error )
-    _A113_ST_ATT__LOG_FWD_FNC( critical )
-#undef _A113_ST_ATT__LOG_FWD_FNC
-
-public:
-    A113_inline void set_log_level( spdlog::level::level_enum level_ ) { _device->set_level( level_ ); }
-    A113_inline const std::string& get_name( void ) { return _device->name(); }
-
-_A113_PROTECTED:
-    template< typename _T >
-    A113_inline void morph( _T&& name_ ) {
-        this->_drop_device();
-        _device = this->_make_device( std::forward< _T >( name_ ) ); _A113_ST_ATT__SET_LOG_PATTERN;
-    }
-#undef _A113_ST_ATT__SET_LOG_PATTERN
-};
-};
 
 
 enum InitFlags_ {
@@ -121,7 +89,17 @@ enum InitFlags_ {
 struct init_args_t {
     int   flags   = InitFlags_None;
 };
-class _INTERNAL : public st_att::_Log {
+class _INTERNAL {
+public:
+    _INTERNAL( void ) {
+    #define _MAKE_LOG_AND_PATERN( c, s ) _Component_loggers[ c ] = spdlog::stdout_color_mt( A113_VERSION_STRING s ); _Component_loggers[ c ]->set_pattern( "[%^%l%$] [%c] [%n] - %v" );
+        _MAKE_LOG_AND_PATERN( LogComponent_General, "--General" )     
+        _MAKE_LOG_AND_PATERN( LogComponent_IO, "--Input/Output" );
+        _MAKE_LOG_AND_PATERN( LogComponent_IMM, "--Immersion" );
+        _MAKE_LOG_AND_PATERN( LogComponent_SCT, "--Structure" );
+    #undef _MAKE_LOG_AND_PATERN
+    }
+
 _A113_PROTECTED:
     struct {
     #ifdef A113_TARGET_OS_WINDOWS
@@ -134,30 +112,16 @@ public:
     status_t init( int argc_, char* argv_[], const init_args_t& args_ );
 
 public:
-    using st_att::_Log::debug;
-    using st_att::_Log::info;
-    using st_att::_Log::warn;
-    using st_att::_Log::error;
-    using st_att::_Log::critical;
+    enum LogComponent_ {
+        LogComponent_General, LogComponent_IO, LogComponent_IMM, LogComponent_SCT, _LogComponent_COUNT
+    };
+    std::shared_ptr< spdlog::logger >   _Component_loggers[ _LogComponent_COUNT ] = { nullptr };
 
 }; inline _INTERNAL _Internal;
 
 A113_inline status_t init( int argc_, char* argv_[], const init_args_t& args_ ) {
     return _Internal.init( argc_, argv_, args_ );
 }
-
-
-struct _LOG : public st_att::_Log {
-public:
-    using st_att::_Log::operator=;
-
-public:
-    using st_att::_Log::debug;
-    using st_att::_Log::info;
-    using st_att::_Log::warn;
-    using st_att::_Log::error;
-    using st_att::_Log::critical;
-}; inline _LOG Log{};
 
 
 struct on_scope_exit_c_t {

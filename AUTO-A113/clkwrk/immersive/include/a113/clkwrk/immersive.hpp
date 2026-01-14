@@ -8,6 +8,7 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <implot.h>
+#include <ImGuiFileDialog.h>
 
 namespace a113::clkwrk {
 
@@ -18,7 +19,7 @@ public:
 
 };
 
-class Immersive : public st_att::_Log {
+class Immersive  {
 public:
     typedef   std::function< status_t( double, void* ) >   frame_callback_t;
 
@@ -72,14 +73,14 @@ public:
     int main( int argc_, char* argv_[], const config_t& config_ ) {
         config = config_;
 
-        _Log::morph(  std::format( A113_VERSION_STRING"//Immersive//{}", config.title ) );
-        _Log::info( "Beginning clockwork initialization..." );
+    
+        A113_LOGI_IMM( "Beginning clockwork initialization..." );
 
         glfwInit();
         glewInit();
 
         glfwSetErrorCallback( [] ( int err_, const char* desc_ ) -> void {
-            Log.error( "GLFW error [{}] occured: \"{}\".", err_, desc_ );
+            A113_LOGE_IMM( "GLFW error [{}] occured: \"{}\".", err_, desc_ );
         } );
     
         glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 4 );
@@ -92,8 +93,8 @@ public:
         
         GLFWwindow* window = glfwCreateWindow( config.width, config.height, config.title, nullptr, nullptr );
 
-        A113_ASSERT_OR( window ) { _Log::error( "Bad window handle." ); return -0x1; }
-        _Log::info( "Graphics Library Window handle ok..." );
+        A113_ASSERT_OR( window ) { A113_LOGE_IMM( "Bad window handle." ); return -0x1; }
+        A113_LOGI_IMM( "Graphics Library Window handle ok..." );
 
         glfwMakeContextCurrent( window );
 
@@ -118,7 +119,7 @@ public:
         ImGui_ImplGlfw_InitForOpenGL( window, true );
         ImGui_ImplOpenGL3_Init();
 
-        _Log::info( "Immediate Mode Graphical User Interface ( ImGui ) ok..." );
+        A113_LOGI_IMM( "Immediate Mode Graphical User Interface ( ImGui ) ok..." );
         
         if( SrfBeginAs_Iconify == config.srf_bgn_as ) glfwIconifyWindow( window );
 
@@ -131,7 +132,7 @@ public:
         // init_hold.wait( true, std::memory_order_acquire );
         // glfwMakeContextCurrent( render.handle() );
         
-        _Log::info( "Clockwork initialization complete." );
+        A113_LOGI_IMM( "Clockwork initialization complete." );
 
         _is_running.store( true, std::memory_order_release );
         while( _is_running.load( std::memory_order_relaxed ) && !glfwWindowShouldClose( window ) ) {
@@ -164,7 +165,7 @@ public:
     l_end:
         _is_running.store( false, std::memory_order_seq_cst );
 
-        _Log::info( "Shutting down framework..." );
+        A113_LOGI_IMM( "Shutting down framework..." );
 
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
@@ -173,7 +174,7 @@ public:
 
         glfwDestroyWindow( window );
 
-        _Log::info( "Shutdown ok." );
+        A113_LOGI_IMM( "Shutdown ok." );
         return 0x0;
     }
 

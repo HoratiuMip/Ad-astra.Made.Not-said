@@ -35,7 +35,7 @@ public:
     using control_t   = _dispenser_acquire< _T_, true >;
 
 public:
-    Dispenser( const DispenserMode_ mode_ ) : _mode{ mode_ } {
+    Dispenser( const DispenserMode_ mode_, const dispenser_config_t& config_ = {} ) : _mode{ mode_ }, _config{ config_ } {
         switch( _mode ) {
             case DispenserMode_Lock: {
                 _M_.lock.block = HVec< _T_ >::make();

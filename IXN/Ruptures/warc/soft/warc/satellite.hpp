@@ -1,3 +1,14 @@
+struct POSITION {
+    double    satlatitude;
+    double    satlongitude;
+    double    sataltitude;
+    double    azimuth;
+    double    elevation;
+    double    ra;
+    double    dec;
+    int64_t   timestamp;
+};
+
 #pragma once
 
 #include <warc/common.hpp>

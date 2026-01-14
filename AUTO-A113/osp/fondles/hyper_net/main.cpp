@@ -58,7 +58,7 @@ int main( int argc, char* argv[] ) {
     } );
 
     A113_ASSERT_OR( argc > 1 ) {
-        a113::Log.critical( "Please call this program with the following arguments: <example_no> [--make-graphviz]. Currently {} example(s) are available.", example_count );
+        A113_LOGE( "Please call this program with the following arguments: <example_no> [--make-graphviz]. Currently {} example(s) are available.", example_count );
         return -0x1;
     }
 
@@ -72,12 +72,12 @@ int main( int argc, char* argv[] ) {
         A113_ASSERT_OR( example_no >= 0x1 && example_no <= example_count ) throw std::runtime_error{ "Example number out of bounds." };
 
         exec = std::make_unique< a113::hyn::Executor >( std::format( "Example-{}", example_no ).c_str() );
-        exec->set_log_level( spdlog::level::debug );
+        //exec->set_log_level( spdlog::level::debug );
 
         run = true;
         return examples[ example_no - 1 ]();
     } catch( std::exception& ex ) {
-        a113::Log.critical( "{}", ex.what() );
+        A113_LOGC( "{}", ex.what() );
         return -0x1;
     }
 

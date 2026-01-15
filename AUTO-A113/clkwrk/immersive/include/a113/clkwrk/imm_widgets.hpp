@@ -38,7 +38,6 @@ public:
 
 };
 
-
 class COM_Ports {
 public:
     COM_Ports( HVec< io::COM_Ports > ports_ ) : _ports{ std::move( ports_ ) } {}
@@ -68,6 +67,17 @@ public:
     }
 
 };
+
+
+bool small_X_button( void ) {
+    ImGui::PushStyleColor( ImGuiCol_Button,        ImVec4{ 0,0,0,0 } );
+    ImGui::PushStyleColor( ImGuiCol_ButtonHovered, ImVec4{ 0,0,0,0 } );
+    ImGui::PushStyleColor( ImGuiCol_ButtonActive,  ImVec4{ 0,0,0,0 } );
+    ImGui::PushStyleColor( ImGuiCol_Text,          ImVec4{ 1,0,0,1 } );
+    const bool pressed = ImGui::SmallButton( "X" );
+    ImGui::PopStyleColor( 4 );
+    return pressed;
+}
 
 
 };

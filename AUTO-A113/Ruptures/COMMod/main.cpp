@@ -1,9 +1,15 @@
+/* 
+| RELEASE NOTES:
+|   v1.0.0 - Initial release, packed with the ModbusRTU over serial port panel.
+|   v1.1.0 - Added the serial monitor pannel.
+*/
+
 #include <a113/clkwrk/immersive.hpp>
 #include <a113/osp/osp.hpp>
 
 #include <a113/clkwrk/imm_widgets.hpp>
 
-#define COMMOD_VERSION_STR "v1.0"
+#define COMMOD_VERSION_STR "v1.1.0"
 
 class Component  {
 public:
@@ -687,12 +693,7 @@ public:
                 bool remove = false;
                 
                 ImGui::PushID( ui_ID ); 
-                    ImGui::PushStyleColor( ImGuiCol_Button,        ImVec4{ 0,0,0,0 } );
-                    ImGui::PushStyleColor( ImGuiCol_ButtonHovered, ImVec4{ 0,0,0,0 } );
-                    ImGui::PushStyleColor( ImGuiCol_ButtonActive,  ImVec4{ 0,0,0,0 } );
-                    ImGui::PushStyleColor( ImGuiCol_Text,          ImVec4{ 1,0,0,1 } );
-                        if( ImGui::SmallButton( "X" ) ) remove = true;
-                    ImGui::PopStyleColor( 4 );
+                    remove |= a113::clkwrk::imm_widgets::small_X_button();
 
                     ImGui::SameLine(); ImGui::Text( "%d", itr->_bridge->completed.load() );
                     ImGui::SameLine();
@@ -736,11 +737,11 @@ protected:
 };
 
 
-class SerialPeer : public Component {
+class SerialMonitor : public Component {
 public:
-    SerialPeer( void ) {
-        _write_th = std::thread{ &SerialPeer::_main_write_th, this, _ser }; _write_th.detach();
-        _read_th = std::thread{ &SerialPeer::_main_read_th, this, _ser }; _read_th.detach();
+    SerialMonitor( void ) {
+        _write_th = std::thread{ &SerialMonitor::_main_write_th, this, _ser }; _write_th.detach();
+        _read_th = std::thread{ &SerialMonitor::_main_read_th, this, _ser }; _read_th.detach();
     }
 
 protected:
@@ -753,6 +754,11 @@ protected:
         struct _stopbit_t : public a113::clkwrk::imm_widgets::DropDownList {
             _stopbit_t() : DropDownList{ ( const char* const[] ){ "One", "One & 1/2", "Two" }, 3, 0x0 } {}
         } stopbit;
+        struct _line_feed_t : public a113::clkwrk::imm_widgets::DropDownList {
+            _line_feed_t() : DropDownList{ ( const char* const[] ){ "None", "New line", "Carriage return", "Both" }, 4, 0x0 } {}
+        } line_feed;
+
+        std::string   tx_str   = "";
     } _ui;
 
     struct _ser_data_t {
@@ -761,6 +767,8 @@ protected:
         a113::io::serial_config_t        config         = { .baud_rate = 115200 };
         std::atomic_int                  dmp_file_ver   = 0x0;
         std::string                      dmp_file_str   = "";
+        std::atomic_int                  tx_ver         = 0x0;
+        std::string                      tx_str         = "";
         a113::Dispenser< std::string >   acc            = { a113::DispenserMode_Lock };
     };
     a113::HVec< _ser_data_t >   _ser        = a113::HVec< _ser_data_t >::make();
@@ -768,13 +776,25 @@ protected:
     std::thread                 _read_th    = {};
 
 protected:
-    void _main_write_th( a113::HVec< _ser_data_t > ser_ ) { for(; ser_.use_count() > 2;) {
-        std::this_thread::sleep_for( std::chrono::milliseconds{ 100 } );
+    void _main_write_th( a113::HVec< _ser_data_t > ser_ ) { 
+        int last_tx_ver = 0x0;
+        
+    for(; ser_.use_count() > 2;) {
+        if( not ser_->port.is_connected() ) { std::this_thread::sleep_for( std::chrono::milliseconds{ 100 } ); continue; }
+
+        const int crt_tx_ver = ser_->tx_ver.load( std::memory_order_acquire );
+        if( last_tx_ver == crt_tx_ver ) { std::this_thread::sleep_for( std::chrono::milliseconds{ 100 } ); continue; }
+
+        ser_->port.write( a113::io::port_RW_desc_t{
+            .ptr_SoD = ser_->tx_str.data(),
+            .n_SoD   = ser_->tx_str.length()
+        } );
+        last_tx_ver = ser_->tx_ver.fetch_add( 0x1, std::memory_order_release ) + 0x1;
     } }
 
     void _main_read_th( a113::HVec< _ser_data_t > ser_ ) {
         std::ofstream dmp_file;
-        auto          last_dmp_file_ver = 0x0;
+        int           last_dmp_file_ver = 0x0;
 
     for(; ser_.use_count() > 2;) {
         if( not ser_->port.is_connected() ) { std::this_thread::sleep_for( std::chrono::milliseconds{ 100 } ); continue; }
@@ -787,6 +807,7 @@ protected:
             n_SoD:      sizeof( buffer ),
             byte_count: &read_bytes
         } ) ) continue;
+        A113_ASSERT_OR( read_bytes > 0 ) continue;
 
         auto acc = ser_->acc.control();
         if( acc->append( buffer, read_bytes ).length() > 10*512 ) {
@@ -841,6 +862,8 @@ public:
             if( ImGui::Button( "Connect" ) ) {
                 _ser->config.parity  = selected_parity;
                 _ser->config.stopbit = selected_stopbit;
+
+                _ser->config.rx_fb_timeout = 200;
                 
                 _ser->port.open( std::format( "\\\\.\\{}", port->id.c_str() ).c_str(), _ser->config );
             }
@@ -876,20 +899,49 @@ public:
             ImGuiFileDialog::Instance()->Close();
         }
 
-        ImGui::SameLine(); ImGui::Bullet(); ImGui::Text( _ser->dmp_file_str.c_str() );
+        ImGui::SameLine(); ImGui::Bullet();
         if( not _ser->dmp_file_str.empty() ) {
-            ImGui::PushStyleColor( ImGuiCol_Button,        ImVec4{ 0,0,0,0 } );
-            ImGui::PushStyleColor( ImGuiCol_ButtonHovered, ImVec4{ 0,0,0,0 } );
-            ImGui::PushStyleColor( ImGuiCol_ButtonActive,  ImVec4{ 0,0,0,0 } );
-            ImGui::PushStyleColor( ImGuiCol_Text,          ImVec4{ 1,0,0,1 } );
-                ImGui::SameLine();
-                if( ImGui::SmallButton( "X" ) ) {
-                    _ser->dmp_file_str.clear();
-                    _ser->dmp_file_ver.fetch_add( 0x1, std::memory_order_release );
-                }
-            ImGui::PopStyleColor( 4 );
+            ImGui::Text( _ser->dmp_file_str.c_str() );
+            ImGui::SameLine();
+            if( a113::clkwrk::imm_widgets::small_X_button() ) {
+                _ser->dmp_file_str.clear();
+                _ser->dmp_file_ver.fetch_add( 0x1, std::memory_order_release );
+            }
+        } else {
+            ImGui::PushStyleColor( ImGuiCol_Text, ImVec4{ 1,.36,0,1 } );
+                ImGui::Text( "No dump file selected." );
+            ImGui::PopStyleColor( 1 );
         }
 
+        ImGui::SeparatorText( "Transmit" );
+        ImGui::BeginDisabled( not port_conn || _ser->tx_ver.load( std::memory_order_acquire ) & 0x1 );
+            bool signal_tx = false;
+
+            signal_tx |= ImGui::InputText( "##TX_input", &_ui.tx_str, ImGuiInputTextFlags_EnterReturnsTrue );
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth( 160 );
+            const auto selected_line_feed = _ui.line_feed.imm_frame( "##line_feed" );
+            ImGui::SameLine();
+            signal_tx |= ImGui::ArrowButton( "##TX_button", ImGuiDir_Right );
+            
+            if( signal_tx ) {
+                _ser->tx_str = _ui.tx_str;
+                switch( selected_line_feed ) {
+                    case 0x0: break;
+                    case 0x1: _ser->tx_str += '\n'; break;
+                    case 0x2: _ser->tx_str += '\r'; break;
+                    case 0x3: _ser->tx_str += "\r\n"; break;
+                }
+                _ser->tx_ver.fetch_add( 0x1, std::memory_order_release );
+            }
+        ImGui::EndDisabled();
+
+        ImGui::SeparatorText( "Reception dump" );
+        if( a113::clkwrk::imm_widgets::small_X_button() ) {
+            auto acc = _ser->acc.control();
+            acc->clear();
+        }
+        ImGui::SetItemTooltip( "Clear accumulated reception buffer." );
         ImGui::Separator();
         ImGui::BeginChild( "Reception dump" );
             auto acc = _ser->acc.watch();
@@ -921,7 +973,7 @@ a113::status_t Launcher::ui_frame( double dt_, void* arg_ ) {
                 int                                                count      = 0x0;
             } components[] = {
                 { .name = "ModbusRTU", .builder = [] ( void ) -> a113::HVec< Component > { return a113::HVec< ModbusRTU >::make(); } },
-                { .name = "SerialPeer", .builder = [] ( void ) -> a113::HVec< Component > { return a113::HVec< SerialPeer >::make(); } }
+                { .name = "SerialMonitor", .builder = [] ( void ) -> a113::HVec< Component > { return a113::HVec< SerialMonitor >::make(); } }
             };
 
             ImGui::NewLine();

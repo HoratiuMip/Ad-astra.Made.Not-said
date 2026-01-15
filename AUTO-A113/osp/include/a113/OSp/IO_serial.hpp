@@ -37,6 +37,8 @@ struct serial_config_t {
     uint8_t    byte_size       = 8;
     uint8_t    parity          = SERIAL_PARITY_NONE;
     uint8_t    stopbit         = SERIAL_STOPBIT_ONE;
+    bool       purge_on_open   = true;
+    bool       purge_on_close  = false;
 };
 
 class Serial : public Port {
@@ -75,7 +77,9 @@ public:
     int write( const port_RW_desc_t& desc_ ) override;
 
 public:
-    int rx_available( void );
+    int rx_available( void ) const;
+
+    status_t purge( void ) const;
 
 };
 

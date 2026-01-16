@@ -1,7 +1,7 @@
 /* 
 | RELEASE NOTES:
-|   v1.0.0 - Initial release, packed with the ModbusRTU over serial port panel.
 |   v1.1.0 - Added the serial monitor pannel.
+|   v1.0.0 - Initial release, packed with the ModbusRTU over serial port panel.
 */
 
 #include <a113/clkwrk/immersive.hpp>
@@ -25,7 +25,10 @@ public:
 class Launcher {
 public:
     struct _common_data_t {
-        a113::io::COM_Ports   com_ports{ a113::DispenserMode_Lock, true, true };
+        a113::io::COM_Ports   com_ports{ a113::DispenserMode_Lock, a113::io::COM_Ports_init_args_t{
+            .refresh = true,
+            .listen  = true
+        } };
     } common;
 
 protected:

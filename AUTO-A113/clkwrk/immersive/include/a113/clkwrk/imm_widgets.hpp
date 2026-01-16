@@ -40,29 +40,51 @@ public:
 
 class COM_Ports {
 public:
-    COM_Ports( HVec< io::COM_Ports > ports_ ) : _ports{ std::move( ports_ ) } {}
+    COM_Ports( HVec< io::COM_Ports > ports_ ) : _ports{ std::move( ports_ ) } {
+        /* @note The registered refresh callback lambda function is invoked under a dispenser control, 
+            therefore there is no need to worry about races over the container. */
+        _ports->register_refresh_callback( A113_TXTUUID_FROM_THIS, [ this ] ( io::COM_Ports::container_t& ports_ ) -> void {
+            auto itr = std::ranges::find_if( ports_, [ this ] ( const io::COM_port_t& port_ ) -> bool {
+                return port_.id == _sel_id;
+            } );
+            A113_ASSERT_OR( ports_.end() != itr ) {
+                _sel    = -0x1;
+                _sel_id = "";
+                return;
+            }
+
+            _sel = std::distance( ports_.begin(), itr );
+        } );
+    }
+
+    ~COM_Ports( void ) {
+        _ports->unregister_refresh_callback( A113_TXTUUID_FROM_THIS );
+    }
 
 _A113_PROTECTED:
-    HVec< io::COM_Ports >   _ports   = nullptr;
-    int                     _sel     = -0x1;
+    HVec< io::COM_Ports >   _ports    = nullptr;
+    int                     _sel      = -0x1;
+    std::string             _sel_id   = "";
 
 public:
     io::COM_port_t* imm_frame( io::COM_Ports::watch_t& watch_ ) {
-        io::COM_Ports::dispensed_t* ports = watch_.get();
+        auto& ports = *watch_;
 
-        for( int idx = 0x0; idx < ports->size(); ++idx ) {
+        for( int idx = 0x0; idx < ports.size(); ++idx ) {
             const bool selected = idx == _sel;
 
             ImGui::Separator();
-            if( ImGui::Selectable( ( *ports )[ idx ].friendly.c_str(), selected, selected ? ImGuiSelectableFlags_Highlight : ImGuiSelectableFlags_None ) ) {
-                _sel = idx;
+            if( ImGui::Selectable( ports[ idx ].friendly.c_str(), selected, selected ? ImGuiSelectableFlags_Highlight : ImGuiSelectableFlags_None ) ) {
+                _sel    = idx;
+                _sel_id = ports[ _sel ].id;
             }
             ImGui::Separator();
         }
 
-        if( _sel >= 0x0 && _sel < ports->size() ) return &( *ports )[ _sel ]; 
-            
-        _sel = -0x1;
+        if( _sel >= 0x0 && _sel < ports.size() ) return &ports[ _sel ]; 
+        
+        _sel    = -0x1;
+        _sel_id = "";
         return nullptr;
     }
 

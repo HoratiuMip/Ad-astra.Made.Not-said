@@ -23,6 +23,7 @@
 #include <shared_mutex>
 #include <string>
 #include <string_view>
+#include <system_error>
 
 #ifdef A113_TARGET_OS_WINDOWS
     #define WINVER 0x0A00
@@ -39,7 +40,6 @@
 #endif
 
 namespace a113 {
-
 
 template< typename _T_ >
 struct HVec : public std::shared_ptr< _T_ > {
@@ -61,25 +61,35 @@ struct HVec : public std::shared_ptr< _T_ > {
 #define A113_LOGE(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_General ]->error( __VA_ARGS__ ))
 #define A113_LOGC(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_General ]->critical( __VA_ARGS__ ))
 #define A113_LOGD(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_General ]->debug( __VA_ARGS__ ))
+#define A113_LOGE_EX(s, f, ...) A113_LOGE(f _A113_LOG_ERR_EX_FMT_STR __VA_OPT__(,) __VA_ARGS__, _A113_LOG_ERR_EX_ARGS(s))
 
 #define A113_LOGI_IO(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IO ]->info( __VA_ARGS__ ))
 #define A113_LOGW_IO(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IO ]->warn( __VA_ARGS__ ))
 #define A113_LOGE_IO(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IO ]->error( __VA_ARGS__ ))
 #define A113_LOGC_IO(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IO ]->critical( __VA_ARGS__ ))
 #define A113_LOGD_IO(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IO ]->debug( __VA_ARGS__ ))
+#define A113_LOGE_IO_EX(s, f, ...) A113_LOGE_IO(f _A113_LOG_ERR_EX_FMT_STR __VA_OPT__(,) __VA_ARGS__, _A113_LOG_ERR_EX_ARGS(s))
 
 #define A113_LOGI_IMM(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IMM ]->info( __VA_ARGS__ ))
 #define A113_LOGW_IMM(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IMM ]->warn( __VA_ARGS__ ))
 #define A113_LOGE_IMM(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IMM ]->error( __VA_ARGS__ ))
 #define A113_LOGC_IMM(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IMM ]->critical( __VA_ARGS__ ))
 #define A113_LOGD_IMM(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_IMM ]->debug( __VA_ARGS__ ))
+#define A113_LOGE_IMM_EX(s, f, ...) A113_LOGE_IMM(f _A113_LOG_ERR_EX_FMT_STR __VA_OPT__(,) __VA_ARGS__, _A113_LOG_ERR_EX_ARGS(s))
 
 #define A113_LOGI_SCT(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_SCT ]->info( __VA_ARGS__ ))
 #define A113_LOGW_SCT(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_SCT ]->warn( __VA_ARGS__ ))
 #define A113_LOGE_SCT(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_SCT ]->error( __VA_ARGS__ ))
 #define A113_LOGC_SCT(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_SCT ]->critical( __VA_ARGS__ ))
 #define A113_LOGD_SCT(...) (a113::_Internal._Component_loggers[ a113::_INTERNAL::LogComponent_SCT ]->debug( __VA_ARGS__ ))
+#define A113_LOGE_SCT_EX(s, f, ...) A113_LOGE_SCT(f _A113_LOG_ERR_EX_FMT_STR __VA_OPT__(,) __VA_ARGS__, _A113_LOG_ERR_EX_ARGS(s))
 
+#define A113_SYS_ERR_MSG( s ) (std::system_category().default_error_condition((s)).message())
+#define _A113_LOG_ERR_EX_FMT_STR " [{}] [{} - #{}]"
+#define _A113_LOG_ERR_EX_ARGS( s ) A113_STATUS_MSG(s), A113_SYS_ERR_MSG(GetLastError()), GetLastError()
+
+
+#define A113_TXTUUID_FROM_THIS (std::format("a113@{}",(void*)this).c_str())
 
 
 enum InitFlags_ {
@@ -92,11 +102,11 @@ struct init_args_t {
 class _INTERNAL {
 public:
     _INTERNAL( void ) {
-    #define _MAKE_LOG_AND_PATERN( c, s ) _Component_loggers[ c ] = spdlog::stdout_color_mt( A113_VERSION_STRING s ); _Component_loggers[ c ]->set_pattern( "[%^%l%$] [%c] [%n] - %v" );
-        _MAKE_LOG_AND_PATERN( LogComponent_General, "--General" )     
-        _MAKE_LOG_AND_PATERN( LogComponent_IO, "--Input/Output" );
-        _MAKE_LOG_AND_PATERN( LogComponent_IMM, "--Immersion" );
-        _MAKE_LOG_AND_PATERN( LogComponent_SCT, "--Structure" );
+    #define _MAKE_LOG_AND_PATERN( c, s ) _Component_loggers[ c ] = spdlog::stdout_color_mt( A113_VERSION_STRING s ); _Component_loggers[ c ]->set_pattern( "[%Y-%m-%d %H:%M:%S] [%^%l%$] [%n] - %v" );
+        _MAKE_LOG_AND_PATERN( LogComponent_General, "" )     
+        _MAKE_LOG_AND_PATERN( LogComponent_IO, "--I/O" );
+        _MAKE_LOG_AND_PATERN( LogComponent_IMM, "--IMM" );
+        _MAKE_LOG_AND_PATERN( LogComponent_SCT, "--SCT" );
     #undef _MAKE_LOG_AND_PATERN
     }
 

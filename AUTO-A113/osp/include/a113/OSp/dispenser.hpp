@@ -231,7 +231,17 @@ public:
         _disp = nullptr;
     }
 
+public:
     A113_inline void commit( void ) { return this->release(); }
+
+    void drop( void ) {
+        switch( _disp->_mode ) {
+            case DispenserMode_Drop: {
+                _M_.drop.block.reset();
+                _disp = nullptr;
+            break; }
+        }
+    }
 
 _A113_PROTECTED:
     Dispenser< _T_ >*   _disp;

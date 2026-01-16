@@ -22,8 +22,8 @@ status_t Serial::open( const char* device_, const serial_config_t& config_ ) {
     } );
 
     A113_ASSERT_OR( _port != SERIAL_NULL_HANDLE ) {
-        A113_LOGE_IO( "Could not open serial port \"{}\", error code [{}].", device_, GetLastError() );
-        return -0x1;
+        A113_LOGE_IO_EX( A113_ERR_SYSCALL, "Could not open serial port \"{}\".", device_ );
+        return A113_ERR_SYSCALL;
     }
 
     A113_ASSERT_OR( FlushFileBuffers( _port ) ) {

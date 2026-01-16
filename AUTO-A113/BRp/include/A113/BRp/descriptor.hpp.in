@@ -48,7 +48,18 @@ namespace a113 {
 
 
 typedef   int   status_t;
+#define A113_OK              0x0
+#define A113_ERR_GENERAL     -0x1
+#define A113_ERR_SYSCALL     -0x2
+#define A113_ERR_WOULD_OVRWR -0x3
 
+inline static const char* const A113_status_msgs[] = {
+    "OK",
+    "GENERAL",
+    "SYSCALL",
+    "WOULD_OVRWR"
+};
+#define A113_STATUS_MSG( s ) (A113_status_msgs[-(s)])
 
 struct MDsc {
     typedef   size_t   n_t;
